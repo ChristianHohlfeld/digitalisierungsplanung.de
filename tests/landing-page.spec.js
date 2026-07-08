@@ -48,6 +48,11 @@ test.describe("Landing page export", () => {
     ]);
     await page.locator(".steps").getByRole("button", { name: /Visualisieren/ }).click();
     await expect(page.locator("#statePill")).toHaveText("werkzeug");
+    await expect(page.locator(".daisy-feature-cards .daisy-feature-card")).toHaveCount(3);
+    await expect.poll(async () => page.locator(".daisy-feature-cards .card-actions").evaluateAll(actions => {
+      const tops = actions.map(action => Math.round(action.getBoundingClientRect().top));
+      return new Set(tops).size;
+    })).toBe(1);
 
     await editorLink.click();
     await expect(page).toHaveURL(/state\.html$/);

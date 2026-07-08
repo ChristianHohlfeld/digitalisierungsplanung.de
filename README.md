@@ -6,6 +6,8 @@ The repository is intentionally narrow. It contains the app, its generated previ
 
 ## Screenshots
 
+These screenshots are generated from the real `state.html` app in CI after successful pushes, so the README stays aligned with the current UI.
+
 The editor keeps the process, the generated app, and the global-state contract visible in one place.
 
 ![Zustand editor canvas with a demo business flow](assets/screenshots/zustand-editor-flow.png)

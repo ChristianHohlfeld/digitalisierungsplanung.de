@@ -1684,11 +1684,13 @@ test.describe("State Blueprint tool", () => {
 
     await expect.poll(async () => {
       const model = await savedModel(page);
+      const loginState = model.states.find(state => state.id === "site_login");
       return {
         name: model.name,
         initial: model.initial,
         stateIds: model.states.map(state => state.id).sort(),
         userTransitions: userTransitions(model).length,
+        loginHeroTransitionId: loginState?.data?.["states.site_login.hero"]?.transitionId || "",
         boundary: {
           entryId: model.boundary?.entryId || "",
           exitId: model.boundary?.exitId || ""
@@ -1713,6 +1715,7 @@ test.describe("State Blueprint tool", () => {
         "site_thanks"
       ],
       userTransitions: 47,
+      loginHeroTransitionId: "site_login_submit",
       boundary: { entryId: "site_home", exitId: "site_thanks" },
       scopedDataOnly: true,
       hasOldAuthDemoData: false
@@ -1897,8 +1900,9 @@ test.describe("State Blueprint tool", () => {
     await app.locator('input[type="email"]').fill("mira@example.test");
     await app.locator('input[type="password"]').fill("demo-password");
 
-    await expect(app.getByRole("button", { name: "Sign in", exact: true })).toHaveCount(1);
-    await app.getByRole("button", { name: "Sign in", exact: true }).click();
+    const signInButton = app.locator('.hero button[data-transition-id="site_login_submit"]').filter({ hasText: "Sign in" });
+    await expect(signInButton).toHaveCount(1);
+    await signInButton.click();
     await expectDemoShell("site_profile");
     await expect(app.getByText("Welcome back")).toBeVisible();
     await expect(app.locator('.avatar img[alt="Mira Keller"]')).toBeVisible();
@@ -2300,7 +2304,9 @@ test.describe("State Blueprint tool", () => {
     await expect(standalone.getByText("Sign in to continue")).toBeVisible();
     await standalone.locator('input[type="email"]').fill("mira@example.test");
     await standalone.locator('input[type="password"]').fill("demo-password");
-    await standalone.getByRole("button", { name: "Sign in", exact: true }).click();
+    const standaloneSignInButton = standalone.locator('.hero button[data-transition-id="site_login_submit"]').filter({ hasText: "Sign in" });
+    await expect(standaloneSignInButton).toHaveCount(1);
+    await standaloneSignInButton.click();
     await expectStandaloneShell("site_profile", "Profile");
     await expect(standalone.getByText("Welcome back")).toBeVisible();
     await expect(standalone.locator('.avatar img[alt="Mira Keller"]')).toBeVisible();

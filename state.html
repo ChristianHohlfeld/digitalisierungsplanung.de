@@ -5432,14 +5432,14 @@
     .daisy-feature-header { display: grid; gap: 8px; max-width: 720px; }
     .daisy-feature-header .daisy-title { font-size: clamp(26px, 4vw, 42px); line-height: 1.05; }
     .daisy-feature-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 14px; align-items: stretch; }
-    .daisy-feature-card { display: flex; flex-direction: column; min-width: 0; }
+    .daisy-feature-card { display: flex; flex-direction: column; min-width: 0; height: 100%; }
     .daisy-feature-image { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border-bottom: 1px solid var(--line); background: #020617; }
-    .daisy-feature-card > .card-body { display: flex; flex-direction: column; width: 100%; gap: 8px; padding: 20px; }
+    .daisy-feature-card > .card-body { display: flex; flex: 1 1 auto; flex-direction: column; width: 100%; gap: 8px; padding: 20px; }
     .daisy-feature-card .card-actions { margin-top: auto; }
     .card[data-highlight="true"] { border-color: rgba(56,189,248,.58); box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 18px 46px rgba(56,189,248,.16); }
     .daisy-pricing { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 16px; align-items: stretch; }
     .daisy-pricing > .card { display: flex; min-width: 0; }
-    .daisy-pricing > .card > .card-body { display: flex; flex-direction: column; gap: 8px; width: 100%; padding: 22px; }
+    .daisy-pricing > .card > .card-body { display: flex; flex: 1 1 auto; flex-direction: column; gap: 8px; width: 100%; padding: 22px; }
     .daisy-pricing .card-actions { margin-top: auto; }
     .daisy-pricing .btn { width: 100%; }
     @media (max-width: 540px) {
@@ -7746,6 +7746,7 @@
             email: "",
             password: "",
             actionLabel: "Sign in",
+            transitionId: "site_login_submit",
             loggedIn: false
           },
           "states.site_login.footer": footerData("site_login")
