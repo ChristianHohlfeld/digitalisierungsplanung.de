@@ -1896,6 +1896,105 @@ test.describe("State Blueprint tool", () => {
     await expect(app.getByText("Sign in to continue")).toBeVisible();
   });
 
+  test("click-traverses every website demo state and transition by contract id @smoke", async ({ page }) => {
+    test.setTimeout(120000);
+    await openTool(page);
+
+    await page.locator("#topbarMore summary").click();
+    await page.getByRole("button", { name: "Zustand Demo" }).click();
+    await page.getByRole("button", { name: "Demo laden" }).click();
+
+    const app = appFrame(page);
+    const model = await savedModel(page);
+    const states = model.states;
+    const transitions = userTransitions(model);
+    const stateIds = states.map(state => state.id);
+    const transitionIds = transitions.map(transition => transition.id);
+    const allEntityIds = [...stateIds, ...transitionIds];
+    expect(new Set(allEntityIds).size).toBe(allEntityIds.length);
+    expect(stateIds).toHaveLength(10);
+    expect(transitionIds).toHaveLength(59);
+
+    const stateIdSet = new Set(stateIds);
+    for (const transition of transitions) {
+      expect(stateIdSet.has(transition.from), transition.id).toBe(true);
+      expect(stateIdSet.has(transition.to), transition.id).toBe(true);
+      expect(transition.triggerType, transition.id).toBe("button");
+      expect(transition.triggerEvent, transition.id).toBe(`button.${transition.id}.clicked`);
+    }
+
+    const reachable = new Set([model.initial]);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const transition of transitions) {
+        if (!reachable.has(transition.from) || reachable.has(transition.to)) continue;
+        reachable.add(transition.to);
+        changed = true;
+      }
+    }
+    expect([...reachable].sort()).toEqual([...stateIds].sort());
+
+    const testedTransitions = new Set();
+    const visitedStates = new Set([model.initial]);
+    const shortId = id => String(id || "").replace(/^site_/, "");
+    const attr = value => String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+
+    const selectRuntimeState = async stateId => {
+      const node = page.locator(`[data-id="${attr(stateId)}"]`);
+      await expect(node, stateId).toBeVisible();
+      await node.click();
+      await expect(app.locator("#statePill"), stateId).toHaveText(stateId);
+      visitedStates.add(stateId);
+    };
+
+    const prepareForTransition = async transition => {
+      if (transition.id === "site_login_submit") {
+        await app.locator('input[type="email"]').fill("mira@example.test");
+        await app.locator('input[type="password"]').fill("demo-password");
+      } else if (/^site_checkout_.*_complete$/.test(transition.id)) {
+        await app.locator("input").first().fill(`${shortId(transition.from)}@example.test`);
+      } else if (transition.id === "site_contact_send") {
+        await app.locator("input").nth(0).fill("Mira Keller");
+        await app.locator("input").nth(1).fill("mira@example.test");
+        await app.locator("textarea").fill("Bitte den Prozess pruefen.");
+      }
+    };
+
+    const clickTransition = async transition => {
+      await expect(app.locator("#statePill"), transition.id).toHaveText(transition.from);
+      await prepareForTransition(transition);
+      const trigger = app.locator(`[data-transition-id="${attr(transition.id)}"]`).filter({ visible: true }).first();
+      await expect(trigger, transition.id).toBeVisible();
+      await trigger.scrollIntoViewIfNeeded();
+      await trigger.click();
+      await expect(app.locator("#statePill"), transition.id).toHaveText(transition.to);
+      await expect.poll(async () => {
+        const state = (await runtimeContext(page)).state || {};
+        return {
+          current: state.current || "",
+          previous: state.previous || "",
+          lastTransition: state.lastTransition || ""
+        };
+      }, { message: transition.id }).toEqual({
+        current: transition.to,
+        previous: transition.from,
+        lastTransition: transition.id
+      });
+      testedTransitions.add(transition.id);
+      visitedStates.add(transition.to);
+    };
+
+    for (const transition of transitions) {
+      await selectRuntimeState(transition.from);
+      await clickTransition(transition);
+    }
+
+    expect([...visitedStates].sort()).toEqual([...stateIds].sort());
+    expect([...testedTransitions].sort()).toEqual([...transitionIds].sort());
+    await expect(app.locator("#screen")).toBeVisible();
+  });
+
   test("edits and reorders navbar widget data through the render editor @smoke", async ({ page }) => {
     await openTool(page);
 
