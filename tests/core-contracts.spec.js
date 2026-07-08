@@ -283,10 +283,10 @@ test.describe("Core source contracts", () => {
       'source: "pricing"',
       'variant === "card" || variant === "hero" || variant === "feature-grid" || variant === "pricing"',
       'source: "feature-grid"',
-      "function daisyTransitionSetMatchesComponent(transition, component)",
+      'return daisyExplicitTransitionIds(component).has(String(transition?.id || ""));',
       "function runtimeClaimedTransitionIdsForState(state, actionTransitions)",
       "const claimedActionTransitionIds = runtimeClaimedTransitionIdsForState(s, actionTransitions);",
-      'if (["bottom-navigation", "drawer", "menu", "steps", "tabs"].includes(variant)) return labelsFrom("items");',
+      'if (["bottom-navigation", "drawer", "menu", "steps", "tabs"].includes(variant)) return itemsFrom("items");',
       'source: "steps"',
       "return ownerStateId === current;",
       'button.style.setProperty("--button-color-strong", color);',
@@ -317,6 +317,11 @@ test.describe("Core source contracts", () => {
       'layout === "colors"',
       'variant === "theme-controller"',
       'variant === "join"',
+      "function daisyTransitionSetMatchesComponent(transition, component)",
+      "daisyTransitionSetMatchesComponent(transition, component)",
+      "const labelOrder = new Map();",
+      "const byLabel = new Map(",
+      "transitionByLabel",
       'loading loading-dots loading-md',
       'daisyWrite(component, "selected", label',
       "return scoped.length ? scoped : transitions;",
@@ -324,6 +329,123 @@ test.describe("Core source contracts", () => {
     ]) {
       expect(appHtml, `stale unenhanced preview marker shipped: ${marker}`).not.toContain(marker);
     }
+  });
+
+  test("daisy actions require explicit transition ids instead of set-path inference @smoke", async ({ page }) => {
+    const model = {
+      version: 2,
+      name: "Explicit action id contract",
+      initial: "start",
+      states: [
+        {
+          id: "start",
+          title: "Start",
+          x: 120,
+          y: 160,
+          components: [{
+            id: "hero",
+            type: "daisy",
+            variant: "hero",
+            dataPath: "states.start.hero",
+            dataRole: "widget",
+            dataLabel: "Hero"
+          }],
+          data: {
+            "states.start.hero": {
+              layout: "centered",
+              title: "Start",
+              body: "This action must not infer a transition from transition.set.",
+              actionLabel: "Go",
+              clicked: false
+            }
+          }
+        },
+        {
+          id: "done",
+          title: "Done",
+          x: 480,
+          y: 160,
+          components: [{ id: "done_text", type: "text", text: "Reached", url: "" }],
+          data: {}
+        }
+      ],
+      transitions: [{
+        id: "to_done",
+        from: "start",
+        to: "done",
+        label: "Go",
+        triggerType: "button",
+        triggerEvent: "button.to_done.clicked",
+        set: { "states.start.hero.clicked": true }
+      }]
+    };
+
+    await openWithModel(page, model);
+
+    const app = appFrame(page);
+    await expect(app.locator(".hero")).toBeVisible();
+    await expect(app.locator('.hero button[data-transition-id="to_done"]')).toHaveCount(0);
+
+    const localAction = app.locator(".hero button").filter({ hasText: "Go" });
+    await expect(localAction).toHaveCount(1);
+    await localAction.click();
+    await expect(app.locator("#statePill")).toHaveText("start");
+  });
+
+  test("daisy item labels do not bind flow without explicit transition ids @smoke", async ({ page }) => {
+    const model = {
+      version: 2,
+      name: "No label-bound action contract",
+      initial: "start",
+      states: [
+        {
+          id: "start",
+          title: "Start",
+          x: 120,
+          y: 160,
+          components: [{
+            id: "menu",
+            type: "daisy",
+            variant: "menu",
+            dataPath: "states.start.menu",
+            dataRole: "widget",
+            dataLabel: "Menu"
+          }],
+          data: {
+            "states.start.menu": {
+              selected: "",
+              items: ["Next"]
+            }
+          }
+        },
+        {
+          id: "next",
+          title: "Next",
+          x: 480,
+          y: 160,
+          components: [],
+          data: {}
+        }
+      ],
+      transitions: [{
+        id: "to_next",
+        from: "start",
+        to: "next",
+        label: "Next",
+        triggerType: "button",
+        triggerEvent: "button.to_next.clicked",
+        set: { "states.start.menu.selected": "Next" }
+      }]
+    };
+
+    await openWithModel(page, model);
+
+    const app = appFrame(page);
+    await expect(app.locator(".menu")).toBeVisible();
+    await expect(app.locator('.menu [data-transition-id="to_next"]')).toHaveCount(0);
+    await expect(app.locator('.actions [data-transition-id="to_next"]')).toHaveCount(1);
+    await app.locator(".menu").getByRole("button", { name: "Next", exact: true }).click();
+    await expect(app.locator("#statePill")).toHaveText("start");
   });
 
   test("formal definitions reject state and transition id collisions @smoke", async ({ page }) => {

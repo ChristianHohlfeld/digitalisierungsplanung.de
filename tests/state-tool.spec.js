@@ -5497,6 +5497,9 @@ test.describe("State Blueprint tool", () => {
           footerTransitionIds: component?.variant === "footer" && Array.isArray(data.columns)
             ? data.columns.flatMap(column => Array.isArray(column.items) ? column.items.map(item => item?.transitionId || "") : [])
             : [],
+          simpleActionTransitionId: ["button", "card", "hero", "modal", "checkbox", "toggle"].includes(component?.variant || "")
+            ? data.transitionId || ""
+            : "",
           pricingTransitionIds: component?.variant === "pricing" && Array.isArray(data.plans)
             ? data.plans.map(plan => plan?.transitionId || "")
             : [],
@@ -5600,6 +5603,9 @@ test.describe("State Blueprint tool", () => {
         if (item.variant === "footer") {
           expect(item.footerTransitionIds, item.title).toEqual(item.transitions.map(t => t.id));
           expect(transition.set, item.title).toEqual({});
+        }
+        if (["button", "card", "hero", "modal", "checkbox", "toggle"].includes(item.variant)) {
+          expect(item.simpleActionTransitionId, item.title).toBe(item.transitions[0].id);
         }
         if (item.variant === "pricing") {
           expect(item.pricingTransitionIds, item.title).toEqual(item.transitions.map(t => t.id));
