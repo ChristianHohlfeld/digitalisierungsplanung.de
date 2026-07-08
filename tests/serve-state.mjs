@@ -15,7 +15,7 @@ const types = {
 
 createServer((req, res) => {
   const url = new URL(req.url || "/", `http://127.0.0.1:${port}`);
-  const pathname = url.pathname === "/" ? "/state.html" : decodeURIComponent(url.pathname);
+  const pathname = url.pathname === "/" ? "/index.html" : decodeURIComponent(url.pathname);
   const file = normalize(join(root, pathname));
 
   if (!file.startsWith(root) || !existsSync(file) || !statSync(file).isFile()) {
