@@ -5609,6 +5609,93 @@
       if (runtimeIsPaused()) return;
       const ownerStateId = ownerState?.id || "";
       if (ownerStateId !== current) return;`;
+      const runtimeChildEntryTransitionJs = `    function runtimeChildEntryTransition(state) {
+      if (!state) return null;
+      const entry = groupEntryState(state.id, null);
+      if (!entry) return null;
+      return {
+        id: \`__runtime_enter_child:\${state.id}:\${entry.id}\`,
+        from: state.id,
+        to: entry.id,
+        label: entry.title || "Next",
+        condition: "",
+        set: {},
+        runtimeGenerated: true
+      };
+    }`;
+      const runtimeBoundaryConfigForJs = `    function boundaryConfigFor(state) {
+      const boundary = state && typeof state.boundary === "object" ? state.boundary : {};
+      return {
+        entryId: String(boundary.entryId || ""),
+        exitId: String(boundary.exitId || ""),
+        entryDisabled: Boolean(boundary.entryDisabled),
+        exitDisabled: Boolean(boundary.exitDisabled)
+      };
+    }`;
+      const runtimeBoundaryConfigForJsEnhanced = `    function boundaryConfigFor(state) {
+      const boundary = state && typeof state.boundary === "object" ? state.boundary : {};
+      const out = {
+        entryId: String(boundary.entryId || ""),
+        exitId: String(boundary.exitId || ""),
+        entryDisabled: Boolean(boundary.entryDisabled),
+        exitDisabled: Boolean(boundary.exitDisabled)
+      };
+      if (boundary.entryTriggerType !== undefined) {
+        out.entryTriggerType = normalizeTransitionTriggerType({ triggerType: boundary.entryTriggerType });
+        out.entryTriggerEvent = normalizeTransitionTriggerEvent({
+          id: out.entryId || "child-entry",
+          label: out.entryId || "Child entry",
+          triggerType: out.entryTriggerType,
+          triggerEvent: boundary.entryTriggerEvent || ""
+        });
+        out.entryTimerMs = normalizeTransitionTimerMs(boundary.entryTimerMs);
+        out.entryCondition = String(boundary.entryCondition || "");
+      }
+      return out;
+    }`;
+      const runtimeChildEntryTransitionJsEnhanced = `    function runtimeChildEntryTransition(state) {
+      if (!state) return null;
+      const entry = groupEntryState(state.id, null);
+      if (!entry) return null;
+      const id = \`__runtime_enter_child:\${state.id}:\${entry.id}\`;
+      const label = entry.title || "Next";
+      const boundary = boundaryConfigFor(state);
+      const triggerType = normalizeTransitionTriggerType({ triggerType: boundary.entryTriggerType || "button" });
+      const triggerEvent = normalizeTransitionTriggerEvent({
+        id,
+        label,
+        triggerType,
+        triggerEvent: boundary.entryTriggerEvent || ""
+      });
+      return {
+        id,
+        from: state.id,
+        to: entry.id,
+        label,
+        condition: String(boundary.entryCondition || ""),
+        set: {},
+        triggerType,
+        triggerEvent,
+        timerMs: normalizeTransitionTimerMs(boundary.entryTimerMs),
+        runtimeGenerated: true,
+        runtimeBoundaryEntry: true
+      };
+    }`;
+      const runtimeResolveRuntimeTargetJs = `    function resolveRuntimeTarget(targetId, transition = null) {
+      const target = findState(targetId);
+      return target ? target.id : targetId;
+    }`;
+      const runtimeResolveRuntimeTargetJsEnhanced = `    function resolveRuntimeTarget(targetId, transition = null) {
+      const target = findState(targetId);
+      if (!target) return targetId;
+      const boundary = boundaryConfigFor(target);
+      const triggerType = normalizeTransitionTriggerType({ triggerType: boundary.entryTriggerType || "button" });
+      if (triggerType === "auto") {
+        const entry = groupEntryState(target.id, transition);
+        if (entry) return entry.id;
+      }
+      return target.id;
+    }`;
       const notifyRuntimeJs = `    function notifyRuntime() {
       const payload = {
         type: "STATE_BLUEPRINT_RUNTIME_STATE",
@@ -6750,6 +6837,9 @@
         .replace(daisyCountdownRemainingJs, daisyCountdownRemainingJsEnhanced)
         .replace(tickDaisyCountdownJs, tickDaisyCountdownJsEnhanced)
         .replace(scheduleDaisyCountdownJs, scheduleDaisyCountdownJsEnhanced)
+        .replace(runtimeBoundaryConfigForJs, runtimeBoundaryConfigForJsEnhanced)
+        .replace(runtimeChildEntryTransitionJs, runtimeChildEntryTransitionJsEnhanced)
+        .replace(runtimeResolveRuntimeTargetJs, runtimeResolveRuntimeTargetJsEnhanced)
         .replace(notifyRuntimeJs, runtimeFlowDebugJs + "\n" + notifyRuntimeJsEnhanced)
         .replace(`      postHostMessage(payload);
       transitionToNotify = null;`, `      updateRuntimeFlowDebug(payload);
@@ -7402,9 +7492,9 @@
           features: ["Multiple branch flows", "Typed data contracts", "Preset-ready sections", "Priority workflow review"]
         }
       ];
-      const checkoutStateId = plan => `site_checkout_${plan.id}`;
-      const checkoutShortId = plan => `checkout_${plan.id}`;
-      const makeState = (id, title, x, y, components, data) => ({
+      const checkoutFlowId = "site_checkout_flow";
+      const checkoutStateId = "site_checkout";
+      const makeState = (id, title, x, y, components, data, extra = {}) => ({
         id,
         title,
         renderMode: "state",
@@ -7414,7 +7504,8 @@
         dataWires: [],
         parentId: null,
         x,
-        y
+        y,
+        ...extra
       });
       const transition = (id, from, to, label, set = {}) => ({
         id,
@@ -7433,7 +7524,7 @@
       const navTargetFor = (from, item) => item.label === "Account" && from === "site_profile" ? "site_profile" : item.target;
 
       const states = [
-        makeState("site_home", "Home", 96, 144, [
+        makeState("site_home", "Home", 96, 288, [
           ...shell("site_home"),
           daisy("home_hero", "hero", "states.site_home.hero", "Hero"),
           daisy("home_features", "feature-grid", "states.site_home.features", "Home highlights"),
@@ -7484,7 +7575,7 @@
           },
           "states.site_home.footer": footerData("site_home")
         }),
-        makeState("site_features", "Features", 432, 48, [
+        makeState("site_features", "Features", 480, 96, [
           ...shell("site_features"),
           daisy("features_overview", "feature-grid", "states.site_features.overview", "Feature overview"),
           daisy("features_steps", "steps", "states.site_features.steps", "Build steps"),
@@ -7536,7 +7627,7 @@
           },
           "states.site_features.footer": footerData("site_features")
         }),
-        makeState("site_pricing", "Pricing", 432, 336, [
+        makeState("site_pricing", "Pricing", 480, 456, [
           ...shell("site_pricing"),
           daisy("pricing_intro", "alert", "states.site_pricing.intro", "Pricing intro"),
           daisy("pricing_plans", "pricing", "states.site_pricing.plans", "Pricing plans"),
@@ -7563,42 +7654,49 @@
           },
           "states.site_pricing.footer": footerData("site_pricing")
         }),
-        ...pricingPlans.map((plan, index) => {
-          const checkoutId = checkoutStateId(plan);
-          return makeState(checkoutId, `Checkout ${plan.title}`, 792, 408 + index * 192, [
-            ...shell(checkoutId),
-            daisy(`checkout_${plan.id}_summary`, "card", `states.${checkoutId}.summary`, "Order summary"),
-            daisy(`checkout_${plan.id}_email`, "input", `states.${checkoutId}.emailField`, "Billing email"),
-            daisy(`checkout_${plan.id}_submit`, "button", `states.${checkoutId}.submit`, "Complete checkout"),
-            ...footer(checkoutShortId(plan))
-          ], {
-            [`states.${checkoutId}.nav`]: nav(checkoutId, "Pricing"),
-            [`states.${checkoutId}.summary`]: {
-              title: `${plan.title} plan`,
-              badge: "Checkout",
-              price: plan.price,
-              period: plan.period,
-              body: "Review the selected plan, enter a billing email, and complete the checkout transition.",
-              features: plan.features,
-              actionLabel: ""
-            },
-            [`states.${checkoutId}.emailField`]: {
-              label: "Billing email",
-              value: ""
-            },
-            [`states.${checkoutId}.submit`]: {
-              label: "Complete checkout",
-              clicked: false
-            },
-            [`states.${checkoutId}.order`]: {
-              plan: plan.title,
-              price: plan.price,
-              completed: false
-            },
-            [`states.${checkoutId}.footer`]: footerData(checkoutId)
-          });
+        makeState(checkoutFlowId, "Checkout", 888, 456, [], {}, {
+          boundary: normalizeBoundaryConfig({
+            entryId: checkoutStateId,
+            exitId: checkoutStateId,
+            entryTriggerType: "auto"
+          })
         }),
-        makeState("site_contact", "Contact", 792, 144, [
+        makeState(checkoutStateId, "Checkout", 216, 180, [
+          ...shell(checkoutStateId),
+          daisy("checkout_summary", "card", "states.site_checkout.summary", "Order summary"),
+          daisy("checkout_email", "input", "states.site_checkout.emailField", "Billing email"),
+          daisy("checkout_submit", "button", "states.site_checkout.submit", "Complete checkout"),
+          ...footer("checkout")
+        ], {
+          "states.site_checkout.nav": nav(checkoutStateId, "Pricing"),
+          "states.site_checkout.summary": {
+            title: "Starter plan",
+            badge: "Checkout",
+            price: "$19",
+            period: "/mo",
+            body: "Review the selected plan, enter a billing email, and complete the checkout transition.",
+            features: pricingPlans[0].features,
+            actionLabel: ""
+          },
+          "states.site_checkout.emailField": {
+            label: "Billing email",
+            value: ""
+          },
+          "states.site_checkout.submit": {
+            label: "Complete checkout",
+            clicked: false,
+            transitionId: "site_checkout_complete"
+          },
+          "states.site_checkout.order": {
+            plan: "Starter",
+            price: "$19",
+            completed: false
+          },
+          "states.site_checkout.footer": footerData(checkoutStateId)
+        }, {
+          parentId: checkoutFlowId
+        }),
+        makeState("site_contact", "Contact", 888, 96, [
           ...shell("site_contact"),
           daisy("contact_alert", "alert", "states.site_contact.alert", "Contact note"),
           daisy("contact_name", "input", "states.site_contact.nameField", "Name"),
@@ -7633,7 +7731,7 @@
           },
           "states.site_contact.footer": footerData("site_contact")
         }),
-        makeState("site_login", "Account", 1104, 48, [
+        makeState("site_login", "Account", 1296, 96, [
           ...shell("site_login"),
           daisy("login_hero", "hero", "states.site_login.hero", "Login form"),
           ...footer("login")
@@ -7652,7 +7750,7 @@
           },
           "states.site_login.footer": footerData("site_login")
         }),
-        makeState("site_profile", "Profile", 1428, 144, [
+        makeState("site_profile", "Profile", 1664, 288, [
           ...shell("site_profile"),
           daisy("profile_avatar", "avatar", "states.site_profile.avatar", "User avatar"),
           daisy("profile_alert", "alert", "states.site_profile.alert", "Session status"),
@@ -7687,7 +7785,7 @@
           },
           "states.site_profile.footer": footerData("site_profile")
         }),
-        makeState("site_thanks", "Thanks", 1116, 408, [
+        makeState("site_thanks", "Thanks", 1296, 456, [
           ...shell("site_thanks"),
           daisy("thanks_alert", "alert", "states.site_thanks.alert", "Success message"),
           daisy("thanks_stat", "stat", "states.site_thanks.stat", "Response time"),
@@ -7712,31 +7810,38 @@
         })
       ];
 
-      const navTransitions = states.flatMap(state => navItems.map(item => {
+      const navTransitions = states.filter(state => state.id !== checkoutFlowId).flatMap(state => navItems.map(item => {
         const to = navTargetFor(state.id, item);
-        return transition(`site_${shortId(state.id)}_nav_${shortId(to)}`, state.id, to, item.label);
+        const t = transition(`site_${shortId(state.id)}_nav_${shortId(to)}`, state.id, to, item.label);
+        if (state.parentId === checkoutFlowId && to !== state.id) {
+          t.from = checkoutFlowId;
+        }
+        return t;
       }));
 
       const transitions = [
         ...navTransitions,
         ...pricingPlans.map(plan => {
-          const checkoutId = checkoutStateId(plan);
-          return transition(`site_pricing_buy_${plan.id}`, "site_pricing", checkoutId, `Buy ${plan.title}`, {
+          return transition(`site_pricing_buy_${plan.id}`, "site_pricing", checkoutFlowId, `Buy ${plan.title}`, {
             "states.site_pricing.plans.selectedPlan": plan.title,
-            [`states.${checkoutId}.order.plan`]: plan.title,
-            [`states.${checkoutId}.order.price`]: plan.price,
-            [`states.${checkoutId}.order.completed`]: false
-          });
-        }),
-        ...pricingPlans.map(plan => {
-          const checkoutId = checkoutStateId(plan);
-          return transition(`site_checkout_${plan.id}_complete`, checkoutId, "site_thanks", "Complete checkout", {
-            [`states.${checkoutId}.submit.clicked`]: true,
-            [`states.${checkoutId}.order.completed`]: true,
+            "states.site_checkout.summary.title": `${plan.title} plan`,
+            "states.site_checkout.summary.badge": plan.badge || "Checkout",
+            "states.site_checkout.summary.price": plan.price,
+            "states.site_checkout.summary.period": plan.period,
+            "states.site_checkout.summary.body": "Review the selected plan, enter a billing email, and complete the checkout transition.",
+            "states.site_checkout.summary.features": plan.features,
+            "states.site_checkout.order.plan": plan.title,
+            "states.site_checkout.order.price": plan.price,
+            "states.site_checkout.order.completed": false,
             "states.site_thanks.order.plan": plan.title,
             "states.site_thanks.order.price": plan.price,
-            "states.site_thanks.order.completed": true
+            "states.site_thanks.order.completed": false
           });
+        }),
+        transition("site_checkout_complete", checkoutFlowId, "site_thanks", "Complete checkout", {
+          "states.site_checkout.submit.clicked": true,
+          "states.site_checkout.order.completed": true,
+          "states.site_thanks.order.completed": true
         }),
         transition("site_contact_send", "site_contact", "site_thanks", "Send request", {
           "states.site_contact.submit.clicked": true,
@@ -8689,6 +8794,7 @@
         const path = `definition.model.states[${index}]`;
         assertPlainObject(state, path);
         const id = assertString(state.id, `${path}.id`);
+        if (isReservedRuntimeId(id)) throw new Error(`${path}.id must not use the reserved runtime id namespace.`);
         if (ids.has(id)) throw new Error(`${path}.id must be unique.`);
         ids.add(id);
         const parentId = "parentId" in state ? validateNullableString(state.parentId, `${path}.parentId`, { allowEmpty: true }) : "";
@@ -8740,6 +8846,7 @@
         const path = `definition.model.transitions[${index}]`;
         assertPlainObject(transition, path);
         const id = assertString(transition.id, `${path}.id`);
+        if (isReservedRuntimeId(id)) throw new Error(`${path}.id must not use the reserved runtime id namespace.`);
         if (transitionIds.has(id)) throw new Error(`${path}.id must be unique.`);
         if (ids.has(id)) throw new Error(`${path}.id must not collide with a state id.`);
         transitionIds.add(id);
@@ -8797,6 +8904,7 @@
           const statePath = `${itemPath}.states[${stateIndex}]`;
           assertPlainObject(state, statePath);
           const stateId = assertString(state.id, `${statePath}.id`);
+          if (isReservedRuntimeId(stateId)) throw new Error(`${statePath}.id must not use the reserved runtime id namespace.`);
           if (stateIds.has(stateId)) throw new Error(`${statePath}.id must be unique inside the preset.`);
           stateIds.add(stateId);
           const parentId = "parentId" in state ? validateNullableString(state.parentId, `${statePath}.parentId`, { allowEmpty: true }) : "";
@@ -8826,6 +8934,7 @@
           const transitionPath = `${itemPath}.transitions[${transitionIndex}]`;
           assertPlainObject(transition, transitionPath);
           const transitionId = assertString(transition.id, `${transitionPath}.id`);
+          if (isReservedRuntimeId(transitionId)) throw new Error(`${transitionPath}.id must not use the reserved runtime id namespace.`);
           if (templateTransitionIds.has(transitionId)) throw new Error(`${transitionPath}.id must be unique inside the preset.`);
           if (stateIds.has(transitionId)) throw new Error(`${transitionPath}.id must not collide with a preset state id.`);
           templateTransitionIds.add(transitionId);
@@ -9258,6 +9367,10 @@
         .toLowerCase()
         .replace(/[^a-z0-9_]+/g, "_")
         .replace(/^_+|_+$/g, "") || "state";
+    }
+
+    function isReservedRuntimeId(id) {
+      return /^__runtime(?:_|:)/.test(String(id || ""));
     }
 
     function normalizeSubscriptionPath(value) {
@@ -9907,7 +10020,7 @@
 
     function normalizeBoundaryConfig(value) {
       const source = isPlainObject(value) ? value : {};
-      return {
+      const boundary = {
         entryId: String(source.entryId || ""),
         exitId: String(source.exitId || ""),
         entryDisabled: Boolean(source.entryDisabled),
@@ -9915,6 +10028,19 @@
         title: String(source.title || ""),
         note: String(source.note || "")
       };
+      if (source.entryTriggerType !== undefined) {
+        const entryTriggerType = normalizeTransitionTriggerType({ triggerType: source.entryTriggerType });
+        boundary.entryTriggerType = entryTriggerType;
+        boundary.entryTriggerEvent = normalizeTransitionTriggerEvent({
+          id: source.entryId || "child-entry",
+          label: source.entryId || "Child entry",
+          triggerType: entryTriggerType,
+          triggerEvent: source.entryTriggerEvent || ""
+        });
+        boundary.entryTimerMs = normalizeTransitionTimerMs(source.entryTimerMs);
+        boundary.entryCondition = String(source.entryCondition || "");
+      }
+      return boundary;
     }
 
     function dataSourcePreviewText(source, rawTarget = source.target, rawSelect = source.select) {
@@ -10411,7 +10537,7 @@
       const modelIds = new Set(ids);
       for (const t of m.transitions) {
         const rawId = String(t.id || "").trim();
-        let id = rawId || normalizeId(t.label || "transition");
+        let id = rawId && !isReservedRuntimeId(rawId) ? rawId : normalizeId(t.label || "transition");
         const base = normalizeId(id);
         let i = 2;
         while (!id || modelIds.has(id)) id = `${base}_${i++}`;
@@ -10999,14 +11125,28 @@
       if (!state) return null;
       const entry = editorGroupEntryState(state.id, null);
       if (!entry) return null;
+      const id = `__runtime_enter_child:${state.id}:${entry.id}`;
+      const label = entry.title || "Next";
+      const boundary = normalizeBoundaryConfig(state.boundary);
+      const triggerType = normalizeTransitionTriggerType({ triggerType: boundary.entryTriggerType || "button" });
+      const triggerEvent = normalizeTransitionTriggerEvent({
+        id,
+        label,
+        triggerType,
+        triggerEvent: boundary.entryTriggerEvent || ""
+      });
       return {
-        id: `__runtime_enter_child:${state.id}:${entry.id}`,
+        id,
         from: state.id,
         to: entry.id,
-        label: entry.title || "Next",
-        condition: "",
+        label,
+        condition: String(boundary.entryCondition || ""),
         set: {},
-        runtimeGenerated: true
+        triggerType,
+        triggerEvent,
+        timerMs: normalizeTransitionTimerMs(boundary.entryTimerMs),
+        runtimeGenerated: true,
+        runtimeBoundaryEntry: true
       };
     }
 
@@ -12879,7 +13019,7 @@
         "Group",
         outerParentId
       );
-      group.boundary = normalizeBoundaryConfig({ entryId: entry.id, exitId: exit.id });
+      group.boundary = normalizeBoundaryConfig({ entryId: entry.id, exitId: exit.id, entryTriggerType: "auto" });
       model.states.push(group);
 
       for (const transition of model.transitions) {
@@ -18864,14 +19004,18 @@
         scheduleSync(false);
       };
       const stateFlowTransitionRows = () => editorRuntimeOutgoing(s.id)
-        .filter(transition => !transition?.runtimeGenerated)
         .map(transition => {
+          if (transition?.runtimeBoundaryEntry) {
+            return { transition: { ...transition }, runtime: transition, boundaryEntry: true };
+          }
+          if (transition?.runtimeGenerated) return null;
           const source = model.transitions.find(item => item.id === transition.id);
           if (!source) return null;
           return { transition: source, runtime: transition };
         })
         .filter(Boolean);
-      const stateFlowTransitionById = id => model.transitions.find(transition => transition.id === String(id || "")) || null;
+      const stateFlowRowById = (id, rows = stateFlowTransitionRows()) =>
+        rows.find(row => row.transition.id === String(id || "")) || null;
       const stateFlowFetchTargetPath = () => {
         const fallbackTarget = stateDataScopeForId(s.id) + ".fetch";
         const source = normalizeDataSource(s.dataSource, fallbackTarget);
@@ -18885,6 +19029,30 @@
       const stateFlowTriggerMode = transition => stateFlowIsApiTrigger(transition) ? "api" : normalizeTransitionTriggerType(transition);
       const clearStateFlowApiCondition = transition => {
         if (String(transition?.condition || "").trim() === stateFlowApiCondition()) transition.condition = "";
+      };
+      const persistBoundaryEntryTrigger = transition => {
+        const triggerType = normalizeTransitionTriggerType(transition);
+        const currentBoundary = normalizeBoundaryConfig(s.boundary);
+        const baseBoundary = {
+          entryId: currentBoundary.entryId,
+          exitId: currentBoundary.exitId,
+          entryDisabled: currentBoundary.entryDisabled,
+          exitDisabled: currentBoundary.exitDisabled,
+          title: currentBoundary.title,
+          note: currentBoundary.note
+        };
+        const condition = String(transition.condition || "");
+        if (triggerType === "button" && !condition) {
+          s.boundary = normalizeBoundaryConfig(baseBoundary);
+          return;
+        }
+        s.boundary = normalizeBoundaryConfig({
+          ...baseBoundary,
+          entryTriggerType: triggerType,
+          entryTriggerEvent: normalizeTransitionTriggerEvent({ ...transition, triggerType }),
+          entryTimerMs: normalizeTransitionTimerMs(transition.timerMs),
+          entryCondition: condition
+        });
       };
       const ensureStateFlowLoadingIndicator = timerMs => {
         const path = stateVariableActualPath(s, "loading");
@@ -18938,17 +19106,20 @@
           stateTriggerPreview.textContent = "This state stops until an outgoing transition is wired.";
           return;
         }
-        rows.forEach(({ transition, runtime }) => {
+        rows.forEach(({ transition, runtime, boundaryEntry }) => {
           const option = document.createElement("option");
           option.value = transition.id;
           const target = byId(transition.to);
           const label = transitionDisplayLabel(runtime || transition);
-          option.textContent = runtime?.runtimeParentExit
+          option.textContent = boundaryEntry
+            ? `${label} (child entry)`
+            : runtime?.runtimeParentExit
             ? `${label} (parent out)`
             : target ? `${label} -> ${target.title || target.id}` : label;
           flowTransitionSelect.appendChild(option);
         });
-        const selectedTransition = stateFlowTransitionById(rows.some(row => row.transition.id === selectedId) ? selectedId : rows[0].transition.id);
+        const selectedRow = stateFlowRowById(rows.some(row => row.transition.id === selectedId) ? selectedId : rows[0].transition.id, rows) || rows[0];
+        const selectedTransition = selectedRow.transition;
         flowTransitionSelect.value = selectedTransition.id;
         const mode = stateFlowTriggerMode(selectedTransition);
         stateTriggerType.disabled = false;
@@ -18972,7 +19143,8 @@
         stateTriggerPreview.textContent = labels[mode] || labels.button;
       };
       const persistStateFlowTrigger = () => {
-        const transition = stateFlowTransitionById(flowTransitionSelect?.value);
+        const row = stateFlowRowById(flowTransitionSelect?.value);
+        const transition = row?.transition || null;
         if (!transition || !stateTriggerType) return;
         const mode = String(stateTriggerType.value || "button");
         if (mode === "button") {
@@ -19012,6 +19184,7 @@
         transition.triggerType = normalizeTransitionTriggerType(transition);
         transition.triggerEvent = normalizeTransitionTriggerEvent(transition);
         transition.timerMs = normalizeTransitionTimerMs(transition.timerMs);
+        if (row.boundaryEntry) persistBoundaryEntryTrigger(transition);
         saveModel("state:flow-trigger:" + s.id + ":" + transition.id);
         scheduleSync(false);
         renderStateFlowTriggerEditor();
@@ -23352,7 +23525,7 @@
       saveModel();
       currentLayerId = layerBeforeCreate && byId(layerBeforeCreate) ? layerBeforeCreate : null;
       draw();
-      showNodeInspector(s, { focus: false, forceOpen: true });
+      showNodeInspector(s, { focus: false });
     }
 
     function handleCanvasMove(evt) {
@@ -23681,7 +23854,7 @@
             connectingTargetId = null;
             mapEl.classList.remove("connecting");
             draw();
-            if (!wasRewire) showNodeInspector(s, { focus: false, forceOpen: true });
+            if (!wasRewire) showNodeInspector(s, { focus: false });
             return;
           }
           const fromBoundary = byId(connecting.from);
@@ -23697,7 +23870,7 @@
             connectingTargetId = null;
             mapEl.classList.remove("connecting");
             draw();
-            if (!wasRewire) showNodeInspector(s, { focus: false, forceOpen: true });
+            if (!wasRewire) showNodeInspector(s, { focus: false });
             return;
           }
           const rewireTransition = connecting.edgeId ? model.transitions.find(item => item.id === connecting.edgeId && !item.boundaryFlow) : null;
@@ -23719,7 +23892,7 @@
           connectingTargetId = null;
           mapEl.classList.remove("connecting");
           draw();
-          if (!wasRewire) showNodeInspector(s, { focus: false, forceOpen: true });
+          if (!wasRewire) showNodeInspector(s, { focus: false });
           return;
         }
         connecting = null;

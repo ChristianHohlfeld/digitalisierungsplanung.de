@@ -1676,7 +1676,7 @@ test.describe("State Blueprint tool", () => {
     await page.getByRole("button", { name: "Zustand Demo" }).click();
     await page.getByRole("button", { name: "Demo laden" }).click();
 
-    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(10);
+    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(8);
     await expect(page.locator('[data-id="site_home"]')).toBeVisible();
     await expect(page.locator('[data-id="site_login"]')).toBeVisible();
     await expect(page.locator('[data-id="site_profile"]')).toBeVisible();
@@ -1702,9 +1702,8 @@ test.describe("State Blueprint tool", () => {
       name: "Zustand Demo",
       initial: "site_home",
       stateIds: [
-        "site_checkout_scale",
-        "site_checkout_starter",
-        "site_checkout_team",
+        "site_checkout",
+        "site_checkout_flow",
         "site_contact",
         "site_features",
         "site_home",
@@ -1713,7 +1712,7 @@ test.describe("State Blueprint tool", () => {
         "site_profile",
         "site_thanks"
       ],
-      userTransitions: 59,
+      userTransitions: 47,
       boundary: { entryId: "site_home", exitId: "site_thanks" },
       scopedDataOnly: true,
       hasOldAuthDemoData: false
@@ -1760,9 +1759,7 @@ test.describe("State Blueprint tool", () => {
       site_home: "Home",
       site_features: "Features",
       site_pricing: "Pricing",
-      site_checkout_starter: "Checkout Starter",
-      site_checkout_team: "Checkout Team",
-      site_checkout_scale: "Checkout Scale",
+      site_checkout: "Checkout",
       site_contact: "Contact",
       site_thanks: "Thanks",
       site_login: "Account",
@@ -1868,7 +1865,7 @@ test.describe("State Blueprint tool", () => {
       return Math.round(window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0);
     })).toBeGreaterThan(0);
     await app.getByRole("button", { name: "Buy Team", exact: true }).click();
-    await expectDemoShell("site_checkout_team");
+    await expectDemoShell("site_checkout");
     await expect.poll(async () => app.locator("body").evaluate(() =>
       Math.round(window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0)
     )).toBe(0);
@@ -1927,8 +1924,8 @@ test.describe("State Blueprint tool", () => {
     const transitionIds = transitions.map(transition => transition.id);
     const allEntityIds = [...stateIds, ...transitionIds];
     expect(new Set(allEntityIds).size).toBe(allEntityIds.length);
-    expect(stateIds).toHaveLength(10);
-    expect(transitionIds).toHaveLength(59);
+    expect(stateIds).toHaveLength(9);
+    expect(transitionIds).toHaveLength(47);
 
     const stateIdSet = new Set(stateIds);
     for (const transition of transitions) {
@@ -1938,14 +1935,36 @@ test.describe("State Blueprint tool", () => {
       expect(transition.triggerEvent, transition.id).toBe(`button.${transition.id}.clicked`);
     }
 
+    const byStateId = new Map(states.map(state => [state.id, state]));
+    const boundaryFor = state => state && typeof state.boundary === "object" ? state.boundary : {};
+    const isAutoEntryParent = state => boundaryFor(state).entryTriggerType === "auto" && boundaryFor(state).entryId;
+    const runtimeTargetFor = transition => {
+      const target = byStateId.get(transition.to);
+      return isAutoEntryParent(target) ? boundaryFor(target).entryId : transition.to;
+    };
+    const renderSourceFor = transition => {
+      const source = byStateId.get(transition.from);
+      const boundary = boundaryFor(source);
+      return boundary.exitId && byStateId.has(boundary.exitId) ? boundary.exitId : transition.from;
+    };
+
     const reachable = new Set([model.initial]);
     let changed = true;
     while (changed) {
       changed = false;
-      for (const transition of transitions) {
-        if (!reachable.has(transition.from) || reachable.has(transition.to)) continue;
-        reachable.add(transition.to);
+      for (const state of states) {
+        if (!reachable.has(state.id) || !isAutoEntryParent(state) || reachable.has(boundaryFor(state).entryId)) continue;
+        reachable.add(boundaryFor(state).entryId);
         changed = true;
+      }
+      for (const transition of transitions) {
+        const renderSourceId = renderSourceFor(transition);
+        if (!reachable.has(transition.from) && !reachable.has(renderSourceId)) continue;
+        for (const id of [transition.to, runtimeTargetFor(transition)]) {
+          if (!id || reachable.has(id)) continue;
+          reachable.add(id);
+          changed = true;
+        }
       }
     }
     expect([...reachable].sort()).toEqual([...stateIds].sort());
@@ -1984,7 +2003,7 @@ test.describe("State Blueprint tool", () => {
         if (transition.id === "site_login_submit") {
           fill('input[type="email"]', "mira@example.test");
           fill('input[type="password"]', "demo-password");
-        } else if (/^site_checkout_.*_complete$/.test(transition.id)) {
+        } else if (transition.id === "site_checkout_complete") {
           fill("input", `${shortId}@example.test`);
         } else if (transition.id === "site_contact_send") {
           fill("input", "Mira Keller", 0);
@@ -1996,8 +2015,8 @@ test.describe("State Blueprint tool", () => {
         [...document.querySelectorAll("[data-transition-id]")]
           .find(element => element.dataset.transitionId === transitionId && isVisible(element));
       const transitionsBySource = transitions.reduce((groups, transition) => {
-        if (!groups.has(transition.from)) groups.set(transition.from, []);
-        groups.get(transition.from).push(transition);
+        if (!groups.has(transition.renderSourceId)) groups.set(transition.renderSourceId, []);
+        groups.get(transition.renderSourceId).push(transition);
         return groups;
       }, new Map());
 
@@ -2014,7 +2033,7 @@ test.describe("State Blueprint tool", () => {
         for (const transition of sourceTransitions) {
           const trigger = visibleTransitionButton(transition.id);
           if (!trigger) {
-            failures.push(`${transition.id}: no visible trigger in ${transition.from}`);
+            failures.push(`${transition.id}: no visible trigger in ${transition.renderSourceId}`);
             continue;
           }
           if (trigger.disabled) {
@@ -2044,8 +2063,8 @@ test.describe("State Blueprint tool", () => {
             lastTransition: state.lastTransition || ""
           };
           const expected = {
-            current: transition.to,
-            previous: transition.from,
+            current: transition.expectedCurrent,
+            previous: transition.renderSourceId,
             lastTransition: transition.id
           };
           if (actual.current !== expected.current ||
@@ -2068,7 +2087,13 @@ test.describe("State Blueprint tool", () => {
       };
     }, {
       initialStateId: model.initial,
-      transitions: transitions.map(({ id, from, to }) => ({ id, from, to }))
+      transitions: transitions.map(transition => ({
+        id: transition.id,
+        from: transition.from,
+        to: transition.to,
+        renderSourceId: renderSourceFor(transition),
+        expectedCurrent: runtimeTargetFor(transition)
+      }))
     });
 
     expect(result.failures).toEqual([]);
@@ -2160,7 +2185,7 @@ test.describe("State Blueprint tool", () => {
     expect(html).toContain("const EXPORTED_STATE_BLUEPRINT = ");
     expect(html).toContain('"name":"Zustand Demo"');
     expect(html).toContain('"site_pricing"');
-    expect(html).toContain('"site_checkout_team"');
+    expect(html).toContain('"site_checkout"');
     expect(html).toContain("flow-debug-toggle");
     expect(html).not.toContain("let model = loadModel() || blankModel();");
     expect(html).not.toContain('id="appFrame"');
@@ -2247,9 +2272,9 @@ test.describe("State Blueprint tool", () => {
     await expectStandaloneShell("site_pricing", "Pricing");
     await openPricing();
     for (const plan of [
-      { label: "Starter", stateId: "site_checkout_starter", title: "Checkout Starter", price: "$19" },
-      { label: "Team", stateId: "site_checkout_team", title: "Checkout Team", price: "$49" },
-      { label: "Scale", stateId: "site_checkout_scale", title: "Checkout Scale", price: "$149" }
+      { label: "Starter", stateId: "site_checkout", title: "Checkout", price: "$19" },
+      { label: "Team", stateId: "site_checkout", title: "Checkout", price: "$49" },
+      { label: "Scale", stateId: "site_checkout", title: "Checkout", price: "$149" }
     ]) {
       await expect(standalone.getByRole("button", { name: `Buy ${plan.label}`, exact: true })).toBeVisible();
       await standalone.getByRole("button", { name: `Buy ${plan.label}`, exact: true }).click();
@@ -3183,7 +3208,13 @@ test.describe("State Blueprint tool", () => {
       };
     }).toEqual({
       hasEditorGroups: false,
-      groupBoundary: { entryId: "parent_a", exitId: "state_b", entryDisabled: false, exitDisabled: false, title: "", note: "" },
+      groupBoundary: expect.objectContaining({
+        entryId: "parent_a",
+        exitId: "state_b",
+        entryDisabled: false,
+        exitDisabled: false,
+        entryTriggerType: "auto"
+      }),
       parentAParent: "group",
       leafParent: "parent_a",
       stateBParent: "group",
@@ -3196,12 +3227,9 @@ test.describe("State Blueprint tool", () => {
     await page.evaluate(() => startAppAtState("start", { preserveFocus: true, allowLayerFollow: true }));
     await expect(app.locator("#statePill")).toHaveText("start");
     await app.getByRole("button", { name: "Open Nested", exact: true }).click();
-    await expect(app.locator("#statePill")).toHaveText("group");
-    await expect(page.locator("#layerFrameLabel")).toHaveText("Root");
-    await expect(page.locator('[data-id="group"]')).toHaveClass(/active/);
-    await app.getByRole("button", { name: "Parent A", exact: true }).click();
     await expect(app.locator("#statePill")).toHaveText("parent_a");
     await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Group");
+    await expect(page.locator('[data-id="parent_a"]')).toHaveClass(/active/);
     await app.getByRole("button", { name: "Leaf", exact: true }).click();
     await expect(app.locator("#statePill")).toHaveText("leaf");
     await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Parent A");
@@ -3211,6 +3239,69 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Group");
     await app.getByRole("button", { name: "Finish", exact: true }).click();
     await expect(app.locator("#statePill")).toHaveText("done");
+  });
+
+  test("edits collapsed parent child-entry trigger without creating hidden transitions @smoke", async ({ page }) => {
+    const model = {
+      version: 2,
+      name: "Parent Entry Trigger",
+      initial: "start",
+      states: [
+        { id: "start", title: "Start", components: [], x: 120, y: 180 },
+        { id: "parent", title: "Parent", components: [], boundary: { entryId: "child", exitId: "child", entryDisabled: false, exitDisabled: false }, x: 420, y: 180 },
+        { id: "child", title: "Child", components: [], parentId: "parent", x: 160, y: 140 }
+      ],
+      transitions: [
+        { id: "start_parent", from: "start", to: "parent", label: "Open Parent", condition: "", set: {} }
+      ]
+    };
+    await page.addInitScript(({ key, model }) => {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(key, JSON.stringify(model));
+    }, { key: STORAGE_KEY, model });
+    await page.goto("/state.html");
+    await expect(page.locator('[data-id="start"]')).toBeVisible();
+    await openStateInspector(page, "parent");
+
+    const childEntryId = "__runtime_enter_child:parent:child";
+    const transitionSelect = page.locator("#pStateFlowTransition");
+    const triggerType = page.locator("#pStateTriggerType");
+    await expect(transitionSelect).toHaveValue(childEntryId);
+    await expect(transitionSelect.locator("option")).toContainText(["Child (child entry)"]);
+    await expect(triggerType).toBeEnabled();
+    await expect(triggerType).toHaveValue("button");
+
+    const app = appFrame(page);
+    await page.evaluate(() => startAppAtState("start", { preserveFocus: true, suppressLayerFollow: true }));
+    await expect(app.locator("#statePill")).toHaveText("start");
+    await app.getByRole("button", { name: "Open Parent", exact: true }).click();
+    await expect(app.locator("#statePill")).toHaveText("parent");
+    await expect(app.getByRole("button", { name: "Child", exact: true })).toBeVisible();
+
+    await triggerType.selectOption("auto");
+    await expect.poll(async () => {
+      const stored = await savedModel(page);
+      const parent = stored.states.find(state => state.id === "parent");
+      return {
+        transitionCount: stored.transitions.length,
+        syntheticTransitions: stored.transitions.filter(transition => String(transition.id || "").startsWith("__runtime_enter_child")).length,
+        entryTriggerType: parent?.boundary?.entryTriggerType || "",
+        entryTriggerEvent: parent?.boundary?.entryTriggerEvent || ""
+      };
+    }).toEqual({
+      transitionCount: 1,
+      syntheticTransitions: 0,
+      entryTriggerType: "auto",
+      entryTriggerEvent: "auto.runtime.enter.child.parent.child"
+    });
+
+    await page.evaluate(() => startAppAtState("start", { preserveFocus: true, suppressLayerFollow: true }));
+    await expect(app.locator("#statePill")).toHaveText("start");
+    await app.getByRole("button", { name: "Open Parent", exact: true }).click();
+    await expect(app.locator("#statePill")).toHaveText("child");
+    await expect(app.getByRole("button", { name: "Child", exact: true })).toHaveCount(0);
   });
 
   test("child output proxy stops when the collapsed parent has no real outgoing transition @smoke", async ({ page }) => {
@@ -3245,8 +3336,6 @@ test.describe("State Blueprint tool", () => {
     await page.evaluate(() => startAppAtState("start", { preserveFocus: true, suppressLayerFollow: true }));
     await expect(app.locator("#statePill")).toHaveText("start");
     await app.getByRole("button", { name: "Open One", exact: true }).click();
-    await expect(app.locator("#statePill")).toHaveText("group");
-    await app.getByRole("button", { name: "One", exact: true }).click();
     await expect(app.locator("#statePill")).toHaveText("one");
     await app.getByRole("button", { name: "Open Two", exact: true }).click();
     await expect(app.locator("#statePill")).toHaveText("two");
@@ -7927,6 +8016,7 @@ test.describe("State Blueprint tool", () => {
 
   test("creates a new state by dragging a transition to empty canvas", async ({ page }) => {
     await openTool(page);
+    await expect(page.locator(".workspace")).toHaveClass(/inspector-collapsed/);
     const start = await centerOf(statePort(page, "auth_start", "out"));
     const target = await emptyCanvasPoint(page);
 
@@ -7937,7 +8027,9 @@ test.describe("State Blueprint tool", () => {
 
     await expect(canvasStateNodes(page)).toHaveCount(7);
     await expect(boundaryProxyNodes(page)).toHaveCount(2);
-    await expect(page.locator("#pTitle")).toBeVisible();
+    await expect(page.locator(".workspace")).toHaveClass(/inspector-collapsed/);
+    await expect(page.locator("#stateInspector")).toHaveClass(/inspector-pulse/);
+    await expect(page.locator("#pTitle")).toBeHidden();
     await expect.poll(() => page.locator("#pTitle").evaluate(el => ({
       focused: document.activeElement === el,
       value: el.value,
@@ -8067,6 +8159,37 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator(".quick-title-input")).toHaveValue("Join");
     await expect.poll(() => page.locator(".quick-title-input").evaluate(el => document.activeElement === el)).toBe(true);
     await expect(page.locator('[data-id="register"] .title')).toHaveText("Join");
+  });
+
+  test("double-click state creation keeps a collapsed inspector collapsed", async ({ page }) => {
+    await openTool(page);
+    await expect(page.locator(".workspace")).toHaveClass(/inspector-collapsed/);
+
+    const target = await emptyCanvasPoint(page);
+    await page.mouse.dblclick(target.x, target.y);
+
+    await expect(canvasStateNodes(page)).toHaveCount(7);
+    await expect(boundaryProxyNodes(page)).toHaveCount(2);
+    await expect(page.locator(".workspace")).toHaveClass(/inspector-collapsed/);
+    await expect(page.locator("#stateInspector")).toHaveClass(/inspector-pulse/);
+    await expect(page.locator("#pTitle")).toBeHidden();
+    await expect.poll(() => page.locator("#pTitle").evaluate(el => ({
+      focused: document.activeElement === el,
+      value: el.value,
+    }))).toMatchObject({
+      focused: false,
+      value: expect.stringMatching(/^State \d+$/)
+    });
+
+    await page.keyboard.type("Canvas step");
+    const model = await savedModel(page);
+    const created = model.states.find(state => state.title === "Canvas step");
+    expect(created).toBeTruthy();
+    await expect(page.locator(`[data-id="${created.id}"] .title`)).toHaveText("Canvas step");
+    await expect(page.locator("#pTitle")).toHaveValue("Canvas step");
+    await expect(page.locator(".quick-title-input")).toHaveValue("Canvas step");
+    await expect.poll(() => page.locator(".quick-title-input").evaluate(el => document.activeElement === el)).toBe(true);
+    await expect(page.locator(".workspace")).toHaveClass(/inspector-collapsed/);
   });
 
   test("creates a clean self-loop by dragging a state's output back to its own input", async ({ page }) => {

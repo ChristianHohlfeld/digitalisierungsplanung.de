@@ -384,6 +384,125 @@ test.describe("Core source contracts", () => {
     expect(message).toContain("must not collide with a state id");
   });
 
+  test("formal definitions reserve runtime ids for derived FSM actions @smoke", async ({ page }) => {
+    await page.goto("/state.html");
+
+    const messages = await page.evaluate(() => {
+      const boundary = { entryId: "", exitId: "", entryDisabled: false, exitDisabled: false, title: "", note: "" };
+      const baseDefinition = () => ({
+        kind: "state-blueprint-definition",
+        schemaVersion: 2,
+        app: "Zustand",
+        savedAt: new Date().toISOString(),
+        model: {
+          version: 2,
+          name: "Reserved IDs",
+          initial: "start",
+          boundary,
+          states: [{
+            id: "start",
+            title: "Start",
+            renderMode: "state",
+            components: [],
+            data: {},
+            dataTypes: {},
+            dataWires: [],
+            subscriptions: [],
+            boundary,
+            parentId: null,
+            x: 96,
+            y: 120
+          }],
+          transitions: [{
+            id: "loop",
+            from: "start",
+            to: "start",
+            label: "Loop",
+            condition: "",
+            triggerType: "button",
+            triggerEvent: "button.loop.clicked",
+            timerMs: 3000,
+            set: {},
+            groupEntryId: "",
+            groupExitId: ""
+          }]
+        },
+        stateTemplates: [],
+        camera: { x: 32, y: 32, scale: 1 },
+        previewCollapsed: false
+      });
+      const validate = definition => {
+        try {
+          validateBlueprintDefinition(definition);
+          return "";
+        } catch (error) {
+          return String(error?.message || error);
+        }
+      };
+
+      const stateId = baseDefinition();
+      stateId.model.states[0].id = "__runtime_enter_child:parent:child";
+      stateId.model.initial = "__runtime_enter_child:parent:child";
+      stateId.model.transitions = [];
+
+      const transitionId = baseDefinition();
+      transitionId.model.transitions[0].id = "__runtime_enter_child:parent:child";
+
+      const presetTransitionId = baseDefinition();
+      presetTransitionId.stateTemplates = [{
+        id: "preset_root",
+        title: "Reserved preset",
+        renderMode: "state",
+        components: [],
+        data: {},
+        dataTypes: {},
+        dataSource: { url: "", target: "states.preset_root.fetch", select: "", timeoutMs: 8000, retries: 2 },
+        repeat: { path: "", as: "item", index: "i" },
+        dataWires: [],
+        subscriptions: [],
+        boundary,
+        rootStateId: "preset_root",
+        states: [{
+          id: "preset_child",
+          title: "Preset child",
+          renderMode: "state",
+          components: [],
+          data: {},
+          dataTypes: {},
+          dataSource: { url: "", target: "states.preset_root.fetch", select: "", timeoutMs: 8000, retries: 2 },
+          repeat: { path: "", as: "item", index: "i" },
+          dataWires: [],
+          subscriptions: [],
+          boundary,
+          parentId: "preset_root",
+          x: 96,
+          y: 120
+        }],
+        transitions: [{
+          id: "__runtime_enter_child:preset_root:preset_child",
+          from: "preset_child",
+          to: "preset_child",
+          label: "Loop",
+          condition: "",
+          triggerType: "button",
+          triggerEvent: "button.loop.clicked",
+          timerMs: 3000,
+          set: {},
+          groupEntryId: "",
+          groupExitId: ""
+        }]
+      }];
+
+      return [validate(stateId), validate(transitionId), validate(presetTransitionId)];
+    });
+
+    expect(messages).toEqual([
+      expect.stringContaining("reserved runtime id namespace"),
+      expect.stringContaining("reserved runtime id namespace"),
+      expect.stringContaining("reserved runtime id namespace")
+    ]);
+  });
+
   test("preview runtime reads pause state from the global bus without local shadow state @smoke", async ({ page }) => {
     await page.goto("/state.html");
     const appHtml = await generatedPreviewHtml(page);
@@ -1574,7 +1693,8 @@ test.describe("Core browser contracts", () => {
       ],
       transitions: [
         { id: "start", from: "start", to: "next", label: "Go", condition: "", triggerType: "button", triggerEvent: "", set: {} },
-        { id: "start", from: "next", to: "done", label: "Finish", condition: "", triggerType: "button", triggerEvent: "", set: {} }
+        { id: "start", from: "next", to: "done", label: "Finish", condition: "", triggerType: "button", triggerEvent: "", set: {} },
+        { id: "__runtime_enter_child:done:start", from: "done", to: "start", label: "Restart", condition: "", triggerType: "button", triggerEvent: "", set: {} }
       ]
     });
 
@@ -1582,8 +1702,9 @@ test.describe("Core browser contracts", () => {
     const stateIds = saved.states.map(state => state.id);
     const transitionIds = saved.transitions.filter(transition => !transition.boundaryFlow).map(transition => transition.id);
     expect(new Set([...stateIds, ...transitionIds]).size).toBe(stateIds.length + transitionIds.length);
-    expect(transitionIds).toHaveLength(2);
+    expect(transitionIds).toHaveLength(3);
     expect(transitionIds).not.toContain("start");
+    expect(transitionIds).not.toContain("__runtime_enter_child:done:start");
 
     const app = appFrame(page);
     await expect(app.getByRole("button", { name: "Go", exact: true })).toHaveCount(1);
