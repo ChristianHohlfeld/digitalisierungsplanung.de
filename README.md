@@ -4,6 +4,20 @@ Zustand is a standalone visual FSM builder for understanding, modeling, testing,
 
 The repository is intentionally narrow. It contains the app, its generated preview runtime, the MCP/API control layer, and the tests that protect the state-machine contract.
 
+## Screenshots
+
+The editor keeps the process, the generated app, and the global-state contract visible in one place.
+
+![Zustand editor canvas with a demo business flow](assets/screenshots/zustand-editor-flow.png)
+
+The preview is the same FSM running as an app. Buttons and widgets fire real transitions and write through the global JSON bus.
+
+![Generated app preview showing checkout flow](assets/screenshots/zustand-preview-checkout.png)
+
+The state inspector edits the selected state's trigger, widgets, screen fields, and scoped bus data without creating hidden local state.
+
+![State inspector with widget and screen-field controls](assets/screenshots/zustand-inspector-widgets.png)
+
 ## Contract
 
 There is one source of truth:
