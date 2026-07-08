@@ -1,0 +1,436 @@
+#!/usr/bin/env node
+"use strict";
+
+const fs = require("node:fs");
+const path = require("node:path");
+const {
+  blankModel,
+  normalizeModel,
+  validateModel,
+  applyActions,
+  definitionPayload,
+  modelSummary
+} = require("./state-blueprint-core");
+const {
+  planPrompt,
+  promptIntentMarkdown
+} = require("./state-blueprint-intents");
+
+const SERVER_VERSION = "0.1.0";
+const PROTOCOL_VERSION = "2025-11-25";
+const DEFAULT_MODEL_PATH = path.resolve(process.cwd(), "state-blueprint.workspace.json");
+const modelPath = path.resolve(process.env.STATE_BLUEPRINT_MODEL_PATH || DEFAULT_MODEL_PATH);
+
+function readJsonFile(filePath, fallback = null) {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch (error) {
+    if (error && error.code === "ENOENT") return fallback;
+    throw error;
+  }
+}
+
+function writeJsonFile(filePath, data) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2) + "\n", "utf8");
+}
+
+function loadWorkspace() {
+  const stored = readJsonFile(modelPath, null);
+  if (!stored) return { model: blankModel("State App"), stateTemplates: [] };
+  if (stored.kind === "state-blueprint.definition") {
+    return {
+      model: normalizeModel(stored.model),
+      stateTemplates: Array.isArray(stored.stateTemplates) ? stored.stateTemplates : []
+    };
+  }
+  if (stored.model) {
+    return {
+      model: normalizeModel(stored.model),
+      stateTemplates: Array.isArray(stored.stateTemplates) ? stored.stateTemplates : []
+    };
+  }
+  return { model: normalizeModel(stored), stateTemplates: [] };
+}
+
+function saveWorkspace(workspace) {
+  const payload = {
+    kind: "state-blueprint.workspace",
+    schemaVersion: 1,
+    savedAt: new Date().toISOString(),
+    model: normalizeModel(workspace.model),
+    stateTemplates: Array.isArray(workspace.stateTemplates) ? workspace.stateTemplates : []
+  };
+  writeJsonFile(modelPath, payload);
+  return payload;
+}
+
+function jsonSchema(properties, required = []) {
+  return {
+    type: "object",
+    additionalProperties: false,
+    properties,
+    required
+  };
+}
+
+const actionSchema = {
+  type: "object",
+  additionalProperties: true,
+  properties: {
+    type: {
+      type: "string",
+      description: "Action name, e.g. upsert_state, upsert_transition, upsert_state_variable, add_component, set_boundary."
+    }
+  },
+  required: ["type"]
+};
+
+const tools = [
+  {
+    name: "state_blueprint_get_model",
+    description: "Read the canonical State Blueprint model from the MCP workspace file.",
+    inputSchema: jsonSchema({
+      includeValidation: { type: "boolean", description: "Return contract validation and summary with the model." }
+    })
+  },
+  {
+    name: "state_blueprint_replace_model",
+    description: "Replace the whole canonical model after normalization and contract validation.",
+    inputSchema: jsonSchema({
+      model: { type: "object", description: "State Blueprint model JSON." },
+      allowInvalid: { type: "boolean", description: "Only use for diagnostics. Invalid models are not recommended." }
+    }, ["model"])
+  },
+  {
+    name: "state_blueprint_apply_actions",
+    description: "Apply dependency-ordered model-editor actions atomically. Mirrors manual app steps without hidden or local runtime state.",
+    inputSchema: jsonSchema({
+      actions: {
+        type: "array",
+        items: actionSchema,
+        description: "Actions are applied in dependency order so declared states exist before transitions. Supported types include create_flow, set_model_name, upsert_state, delete_state, move_state, set_initial, upsert_transition, delete_transition, upsert_state_variable, delete_state_variable, configure_fetch, configure_repeat, upsert_data_wire, remove_data_wire, add_component, update_component, remove_component, reorder_components, set_boundary."
+      },
+      dryRun: { type: "boolean", description: "Validate and return the result without writing to disk." },
+      allowInvalid: { type: "boolean", description: "Return invalid results for diagnostics instead of rejecting." }
+    }, ["actions"])
+  },
+  {
+    name: "state_blueprint_plan_prompt",
+    description: "Translate a natural-language edit request such as 'füge timer hinzu' into ordered State Blueprint actions without writing them.",
+    inputSchema: jsonSchema({
+      prompt: { type: "string", description: "Natural language edit request in German or English." },
+      selectedStateId: { type: "string", description: "Optional state that should be treated like the UI selection." },
+      stateId: { type: "string", description: "Alias for selectedStateId." }
+    }, ["prompt"])
+  },
+  {
+    name: "state_blueprint_apply_prompt",
+    description: "Translate and apply a natural-language edit request such as 'add countdown 10s to Done'. Returns the plan, actions, and validation.",
+    inputSchema: jsonSchema({
+      prompt: { type: "string", description: "Natural language edit request in German or English." },
+      selectedStateId: { type: "string", description: "Optional state that should be treated like the UI selection." },
+      stateId: { type: "string", description: "Alias for selectedStateId." },
+      dryRun: { type: "boolean", description: "Plan and validate without writing." },
+      allowUnknown: { type: "boolean", description: "Return unknown intents instead of failing." }
+    }, ["prompt"])
+  },
+  {
+    name: "state_blueprint_validate",
+    description: "Validate the current model against the State Blueprint global-state/event-bus contract.",
+    inputSchema: jsonSchema({})
+  },
+  {
+    name: "state_blueprint_export_definition",
+    description: "Return a formal .state.json definition payload compatible with the app import/export flow.",
+    inputSchema: jsonSchema({})
+  },
+  {
+    name: "state_blueprint_import_definition",
+    description: "Import a formal State Blueprint definition payload into the MCP workspace file.",
+    inputSchema: jsonSchema({
+      definition: { type: "object", description: "Formal state-blueprint.definition JSON." }
+    }, ["definition"])
+  },
+  {
+    name: "state_blueprint_action_catalog",
+    description: "Return the supported action names and their contract-level intent.",
+    inputSchema: jsonSchema({})
+  }
+];
+
+const actionCatalog = [
+  ["create_flow", "Clear the model and start a new flow."],
+  ["set_model_name", "Rename the flow."],
+  ["replace_model", "Replace the model wholesale, then normalize/validate."],
+  ["upsert_state", "Create or update a state, including parent layer, render mode, combined render, components, data defaults, fetch, repeat, wires, subscriptions, and boundary."],
+  ["delete_state", "Delete a state and, by default, descendants plus connected transitions."],
+  ["move_state", "Move a state on the canvas using snapped world coordinates."],
+  ["set_initial", "Set the initial state."],
+  ["upsert_transition", "Create or update an explicit transition in one layer with trigger, condition, timer, and set patch."],
+  ["delete_transition", "Delete one transition without deleting connected states."],
+  ["upsert_state_variable", "Write a state.data default and state.dataTypes entry. Runtime still uses the global bus as truth."],
+  ["delete_state_variable", "Remove a state.data default/type and stale render wires for that path."],
+  ["configure_fetch", "Configure state-entry data loading into an explicit global bus path, defaulting to the selected state's scoped fetch branch."],
+  ["configure_repeat", "Configure list rendering from an explicit global bus path."],
+  ["upsert_data_wire", "Map a global bus path into visible render content."],
+  ["remove_data_wire", "Remove a render mapping without touching global bus data."],
+  ["add_component", "Append or insert a structured render component."],
+  ["update_component", "Patch a structured render component."],
+  ["remove_component", "Remove a render component."],
+  ["reorder_components", "Set render order."],
+  ["set_boundary", "Set root or nested layer input/output boundary references and matching proxy transitions."]
+].map(([name, description]) => ({ name, description }));
+
+const promptExamples = [
+  { prompt: "baue checkout workflow", intent: "create_workflow" },
+  { prompt: "füge timer 10s hinzu und weiter zu Done", intent: "add_timer" },
+  { prompt: "erstelle inner state Schritt 1", intent: "add_inner_state" },
+  { prompt: "verbinde diesen State mit Checkout", intent: "add_transition" },
+  { prompt: "füge Card Preset hinzu", intent: "add_component" },
+  { prompt: "füge Variable email vom Typ email hinzu", intent: "add_state_variable" },
+  { prompt: "lade API https://example.test/items als Liste", intent: "configure_fetch" }
+];
+
+function toolResult(value, isError = false) {
+  return {
+    content: [{ type: "text", text: JSON.stringify(value, null, 2) }],
+    structuredContent: value,
+    isError
+  };
+}
+
+function callTool(name, args = {}) {
+  if (name === "state_blueprint_get_model") {
+    const workspace = loadWorkspace();
+    const result = { modelPath, model: workspace.model };
+    if (args.includeValidation) result.validation = validateModel(workspace.model);
+    return result;
+  }
+  if (name === "state_blueprint_replace_model") {
+    const workspace = loadWorkspace();
+    const validation = validateModel(args.model);
+    if (!validation.ok && !args.allowInvalid) {
+      const error = new Error("Model contract validation failed.");
+      error.validation = validation;
+      throw error;
+    }
+    workspace.model = validation.model;
+    if (!args.allowInvalid) saveWorkspace(workspace);
+    return { modelPath, dryRun: Boolean(args.allowInvalid), validation, model: workspace.model };
+  }
+  if (name === "state_blueprint_apply_actions") {
+    const workspace = loadWorkspace();
+    const result = applyActions(workspace.model, args.actions || [], { allowInvalid: Boolean(args.allowInvalid) });
+    if (!args.dryRun) {
+      workspace.model = result.model;
+      saveWorkspace(workspace);
+    }
+    return { modelPath, dryRun: Boolean(args.dryRun), ...result };
+  }
+  if (name === "state_blueprint_plan_prompt") {
+    const workspace = loadWorkspace();
+    const plan = planPrompt(workspace.model, args);
+    const dryRun = plan.actions.length
+      ? applyActions(workspace.model, plan.actions, { allowInvalid: true })
+      : null;
+    return {
+      modelPath,
+      plan,
+      validation: dryRun?.validation || validateModel(workspace.model),
+      previewModel: dryRun?.model
+    };
+  }
+  if (name === "state_blueprint_apply_prompt") {
+    const workspace = loadWorkspace();
+    const plan = planPrompt(workspace.model, args);
+    if (!plan.understood && !args.allowUnknown) throw new Error(plan.explanation || "Prompt could not be mapped to State Blueprint actions.");
+    const result = plan.actions.length
+      ? applyActions(workspace.model, plan.actions, { allowInvalid: false })
+      : { model: workspace.model, results: [], validation: validateModel(workspace.model) };
+    if (!args.dryRun) {
+      workspace.model = result.model;
+      saveWorkspace(workspace);
+    }
+    return { modelPath, dryRun: Boolean(args.dryRun), plan, ...result };
+  }
+  if (name === "state_blueprint_validate") {
+    return { modelPath, ...validateModel(loadWorkspace().model) };
+  }
+  if (name === "state_blueprint_export_definition") {
+    const workspace = loadWorkspace();
+    return definitionPayload(workspace.model, workspace.stateTemplates);
+  }
+  if (name === "state_blueprint_import_definition") {
+    const definition = args.definition || {};
+    if (definition.kind !== "state-blueprint.definition" || definition.schemaVersion !== 2) {
+      throw new Error('Import expects kind "state-blueprint.definition" with schemaVersion 2.');
+    }
+    const validation = validateModel(definition.model);
+    if (!validation.ok) {
+      const error = new Error("Imported definition violates the model contract.");
+      error.validation = validation;
+      throw error;
+    }
+    const workspace = {
+      model: validation.model,
+      stateTemplates: Array.isArray(definition.stateTemplates) ? definition.stateTemplates : []
+    };
+    saveWorkspace(workspace);
+    return { modelPath, validation, summary: modelSummary(workspace.model) };
+  }
+  if (name === "state_blueprint_action_catalog") {
+    return { modelPath, actions: actionCatalog, promptExamples };
+  }
+  throw new Error(`Unknown tool: ${name}`);
+}
+
+function listResources() {
+  return [
+    {
+      uri: "state-blueprint://model",
+      name: "Current State Blueprint model",
+      description: "Canonical model loaded from the MCP workspace file.",
+      mimeType: "application/json"
+    },
+    {
+      uri: "state-blueprint://contract",
+      name: "State Blueprint contract",
+      description: "Global-state/event-bus rules that MCP tools enforce.",
+      mimeType: "text/markdown"
+    },
+    {
+      uri: "state-blueprint://actions",
+      name: "State Blueprint MCP action catalog",
+      description: "Supported ordered action types for state_blueprint_apply_actions.",
+      mimeType: "application/json"
+    },
+    {
+      uri: "state-blueprint://prompt-intents",
+      name: "State Blueprint prompt intents",
+      description: "Natural-language phrases and intent defaults for state_blueprint_plan_prompt.",
+      mimeType: "text/markdown"
+    }
+  ];
+}
+
+function readResource(uri) {
+  if (uri === "state-blueprint://model") {
+    return {
+      contents: [{
+        uri,
+        mimeType: "application/json",
+        text: JSON.stringify(loadWorkspace().model, null, 2)
+      }]
+    };
+  }
+  if (uri === "state-blueprint://actions") {
+    return {
+      contents: [{
+        uri,
+        mimeType: "application/json",
+        text: JSON.stringify({ actions: actionCatalog, promptExamples }, null, 2)
+      }]
+    };
+  }
+  if (uri === "state-blueprint://prompt-intents") {
+    return {
+      contents: [{
+        uri,
+        mimeType: "text/markdown",
+        text: promptIntentMarkdown()
+      }]
+    };
+  }
+  if (uri === "state-blueprint://contract") {
+    return {
+      contents: [{
+        uri,
+        mimeType: "text/markdown",
+        text: [
+          "# State Blueprint MCP Contract",
+          "",
+          "- The model JSON is the only edited artifact.",
+          "- Runtime truth remains the single global state/event bus.",
+          "- State variables are declared as `state.data` plus `state.dataTypes`; they are defaults, not local runtime storage.",
+          "- Render data is expressed as `dataWires` and structured components, never as hidden HTML blobs or component-local stores.",
+          "- Transition triggers, conditions, timers, and `set` patches live on transitions.",
+          "- Nested flows use boundary input/output references and proxy transitions instead of cross-layer direct wires.",
+          "- Tools apply actions in the order given and validate before writing."
+        ].join("\n")
+      }]
+    };
+  }
+  throw new Error(`Unknown resource: ${uri}`);
+}
+
+function response(id, result) {
+  return { jsonrpc: "2.0", id, result };
+}
+
+function errorResponse(id, error) {
+  const data = error?.validation ? { validation: error.validation } : undefined;
+  return {
+    jsonrpc: "2.0",
+    id,
+    error: {
+      code: -32000,
+      message: error?.message || String(error),
+      data
+    }
+  };
+}
+
+function handleMessage(message) {
+  const { id, method, params = {} } = message || {};
+  if (method === "notifications/initialized" || id === undefined || id === null && String(method || "").startsWith("notifications/")) return null;
+  try {
+    if (method === "initialize") {
+      return response(id, {
+        protocolVersion: params.protocolVersion || PROTOCOL_VERSION,
+        capabilities: {
+          tools: { listChanged: false },
+          resources: { subscribe: false, listChanged: false }
+        },
+        serverInfo: { name: "state-blueprint-mcp", version: SERVER_VERSION }
+      });
+    }
+    if (method === "tools/list") return response(id, { tools });
+    if (method === "tools/call") return response(id, toolResult(callTool(params.name, params.arguments || {})));
+    if (method === "resources/list") return response(id, { resources: listResources() });
+    if (method === "resources/read") return response(id, readResource(params.uri));
+    if (method === "ping") return response(id, {});
+    return errorResponse(id, new Error(`Unsupported MCP method: ${method}`));
+  } catch (error) {
+    if (method === "tools/call") return response(id, toolResult({ error: error.message, validation: error.validation }, true));
+    return errorResponse(id, error);
+  }
+}
+
+function writeMessage(message) {
+  process.stdout.write(JSON.stringify(message) + "\n");
+}
+
+let buffer = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", chunk => {
+  buffer += chunk;
+  let newlineIndex = buffer.indexOf("\n");
+  while (newlineIndex >= 0) {
+    const line = buffer.slice(0, newlineIndex).trim();
+    buffer = buffer.slice(newlineIndex + 1);
+    if (line) {
+      try {
+        const result = handleMessage(JSON.parse(line));
+        if (result) writeMessage(result);
+      } catch (error) {
+        writeMessage(errorResponse(null, error));
+      }
+    }
+    newlineIndex = buffer.indexOf("\n");
+  }
+});
+
+process.stdin.on("end", () => {
+  process.exit(0);
+});
