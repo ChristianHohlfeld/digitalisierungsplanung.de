@@ -93,6 +93,7 @@ Main tools:
 - `state_blueprint_apply_prompt`
 - `state_blueprint_validate`
 - `state_blueprint_export_definition`
+- `state_blueprint_export_html`
 - `state_blueprint_import_definition`
 - `state_blueprint_action_catalog`
 
@@ -103,6 +104,8 @@ STATE_BLUEPRINT_MODEL_PATH=./state-blueprint.workspace.json npm run mcp:state
 ```
 
 The API applies ordered model actions, normalizes the result, validates the contract, and persists only the canonical JSON model. It does not click the UI and does not keep a parallel runtime store.
+
+Full API documentation: [`docs/state-blueprint-api.md`](docs/state-blueprint-api.md)
 
 ## Tests
 

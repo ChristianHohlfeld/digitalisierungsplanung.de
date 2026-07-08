@@ -3,6 +3,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const vm = require("node:vm");
 const {
   blankModel,
   normalizeModel,
@@ -33,6 +34,66 @@ function readJsonFile(filePath, fallback = null) {
 function writeJsonFile(filePath, data) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2) + "\n", "utf8");
+}
+
+function jsLiteral(value) {
+  return JSON.stringify(value)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
+}
+
+function escapeHtml(text) {
+  return String(text).replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[ch]));
+}
+
+function stateHtmlPath() {
+  return path.resolve(__dirname, "..", "state.html");
+}
+
+function extractGeneratedAppHtml() {
+  const hostHtml = fs.readFileSync(stateHtmlPath(), "utf8");
+  const appMatch = hostHtml.match(/const APP_HTML = "((?:\\.|[^"\\])*)";/);
+  if (!appMatch) throw new Error("Could not find generated app HTML template in state.html.");
+  const appHtml = JSON.parse(`"${appMatch[1]}"`);
+  const enhancerMatch = hostHtml.match(/function enhanceGeneratedAppHtml\(html\) \{[\s\S]*?\r?\n    \}\r?\n\r?\n    const GENERATED_APP_HTML/);
+  if (!enhancerMatch) throw new Error("Could not find generated app enhancer in state.html.");
+  const enhancerSource = enhancerMatch[0].replace(/\r?\n\r?\n    const GENERATED_APP_HTML[\s\S]*$/, "");
+  const sandbox = { appHtml, generatedAppHtml: "" };
+  vm.runInNewContext(
+    `${enhancerSource}\ngeneratedAppHtml = enhanceGeneratedAppHtml(appHtml);`,
+    sandbox,
+    { timeout: 1000 }
+  );
+  if (typeof sandbox.generatedAppHtml !== "string" || !sandbox.generatedAppHtml.includes("<!doctype html>")) {
+    throw new Error("Could not prepare generated app HTML.");
+  }
+  return sandbox.generatedAppHtml;
+}
+
+function buildStandaloneAppHtml(appHtml, payload) {
+  const modelLiteral = jsLiteral(payload.model);
+  const exportedAtLiteral = jsLiteral(payload.savedAt);
+  const bootstrap = [
+    "    const IS_STANDALONE_EXPORT = true;",
+    "    const EXPORTED_STATE_BLUEPRINT = " + modelLiteral + ";",
+    "    const EXPORTED_STATE_BLUEPRINT_SAVED_AT = " + exportedAtLiteral + ";",
+    "",
+    "    let model = normalizeModel(JSON.parse(JSON.stringify(EXPORTED_STATE_BLUEPRINT)));"
+  ].join("\n");
+  const html = appHtml
+    .replace(/<title>[\s\S]*?<\/title>/, `<title>${escapeHtml(payload.model.name || "Zustand")}</title>`)
+    .replace(/    let model = loadModel\(\) \|\| blankModel\(\);/, bootstrap)
+    .replace(/    function saveModel\(\) \{\n      try \{ localStorage\.setItem\(STORAGE_KEY, JSON\.stringify\(model\)\); \} catch \(_\) \{\}\n    \}/,
+      "    function saveModel() {}")
+    .replace(/      saveModel\(\);\n      const oldContext = context;/,
+      "      const oldContext = context;")
+    .replace(/    window\.addEventListener\("message", evt => \{/, "    if (!IS_STANDALONE_EXPORT) window.addEventListener(\"message\", evt => {")
+    .replace(/    window\.addEventListener\("storage", evt => \{/, "    if (!IS_STANDALONE_EXPORT) window.addEventListener(\"storage\", evt => {");
+  if (!html.includes("EXPORTED_STATE_BLUEPRINT")) throw new Error("Could not prepare standalone app export.");
+  return html;
 }
 
 function loadWorkspace() {
@@ -109,7 +170,7 @@ const tools = [
       actions: {
         type: "array",
         items: actionSchema,
-        description: "Actions are applied in dependency order so declared states exist before transitions. Supported types include create_flow, set_model_name, upsert_state, delete_state, move_state, set_initial, upsert_transition, delete_transition, upsert_state_variable, delete_state_variable, configure_fetch, configure_repeat, upsert_data_wire, remove_data_wire, add_component, update_component, remove_component, reorder_components, set_boundary."
+        description: "Actions are applied in dependency order so declared states exist before transitions. Supported types include create_flow, set_model_name, upsert_state, delete_state, move_state, set_initial, upsert_transition, delete_transition, upsert_state_variable, delete_state_variable, configure_fetch, configure_repeat, upsert_data_wire, remove_data_wire, add_component, update_component, remove_component, reorder_components, set_boundary, upsert_editor_group, delete_editor_group."
       },
       dryRun: { type: "boolean", description: "Validate and return the result without writing to disk." },
       allowInvalid: { type: "boolean", description: "Return invalid results for diagnostics instead of rejecting." }
@@ -146,6 +207,14 @@ const tools = [
     inputSchema: jsonSchema({})
   },
   {
+    name: "state_blueprint_export_html",
+    description: "Build the same standalone generated-app HTML that the editor Export HTML button creates.",
+    inputSchema: jsonSchema({
+      outputPath: { type: "string", description: "Optional file path to write. Relative paths resolve from the current working directory." },
+      includeHtml: { type: "boolean", description: "Return the HTML text in the response. Defaults to true when outputPath is omitted." }
+    })
+  },
+  {
     name: "state_blueprint_import_definition",
     description: "Import a formal State Blueprint definition payload into the MCP workspace file.",
     inputSchema: jsonSchema({
@@ -163,8 +232,10 @@ const actionCatalog = [
   ["create_flow", "Clear the model and start a new flow."],
   ["set_model_name", "Rename the flow."],
   ["replace_model", "Replace the model wholesale, then normalize/validate."],
-  ["upsert_state", "Create or update a state, including parent layer, render mode, combined render, components, data defaults, fetch, repeat, wires, subscriptions, and boundary."],
+  ["upsert_state", "Create or update a state, including parent layer, render mode, components, data defaults, fetch, repeat, wires, subscriptions, and boundary."],
   ["delete_state", "Delete a state and, by default, descendants plus connected transitions."],
+  ["upsert_editor_group", "Group states as editor-only view metadata. It changes canvas organization, not runtime FSM flow."],
+  ["delete_editor_group", "Remove an editor group without deleting member states or transitions."],
   ["move_state", "Move a state on the canvas using snapped world coordinates."],
   ["set_initial", "Set the initial state."],
   ["upsert_transition", "Create or update an explicit transition in one layer with trigger, condition, timer, and set patch."],
@@ -260,6 +331,27 @@ function callTool(name, args = {}) {
   if (name === "state_blueprint_export_definition") {
     const workspace = loadWorkspace();
     return definitionPayload(workspace.model, workspace.stateTemplates);
+  }
+  if (name === "state_blueprint_export_html") {
+    const workspace = loadWorkspace();
+    const payload = definitionPayload(workspace.model, workspace.stateTemplates);
+    const html = buildStandaloneAppHtml(extractGeneratedAppHtml(), payload);
+    const includeHtml = Object.prototype.hasOwnProperty.call(args, "includeHtml")
+      ? Boolean(args.includeHtml)
+      : !args.outputPath;
+    let outputPath = "";
+    if (args.outputPath) {
+      outputPath = path.resolve(process.cwd(), String(args.outputPath));
+      fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+      fs.writeFileSync(outputPath, html, "utf8");
+    }
+    return {
+      modelPath,
+      outputPath,
+      bytes: Buffer.byteLength(html, "utf8"),
+      definition: payload,
+      html: includeHtml ? html : undefined
+    };
   }
   if (name === "state_blueprint_import_definition") {
     const definition = args.definition || {};

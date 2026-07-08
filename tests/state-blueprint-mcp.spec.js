@@ -65,6 +65,53 @@ function createMcpClient(modelPath) {
 }
 
 test.describe("State Blueprint MCP", () => {
+  test("documents the public MCP tools and model actions @smoke", () => {
+    const apiDoc = fs.readFileSync(path.join(process.cwd(), "docs", "state-blueprint-api.md"), "utf8");
+    const mcpDoc = fs.readFileSync(path.join(process.cwd(), "docs", "state-blueprint-mcp.md"), "utf8");
+    const readme = fs.readFileSync(path.join(process.cwd(), "README.md"), "utf8");
+    const tools = [
+      "state_blueprint_get_model",
+      "state_blueprint_replace_model",
+      "state_blueprint_apply_actions",
+      "state_blueprint_plan_prompt",
+      "state_blueprint_apply_prompt",
+      "state_blueprint_validate",
+      "state_blueprint_export_definition",
+      "state_blueprint_import_definition",
+      "state_blueprint_export_html",
+      "state_blueprint_action_catalog"
+    ];
+    const actions = [
+      "create_flow",
+      "set_model_name",
+      "replace_model",
+      "upsert_state",
+      "delete_state",
+      "move_state",
+      "set_initial",
+      "upsert_transition",
+      "delete_transition",
+      "upsert_state_variable",
+      "delete_state_variable",
+      "configure_fetch",
+      "configure_repeat",
+      "upsert_data_wire",
+      "remove_data_wire",
+      "add_component",
+      "update_component",
+      "remove_component",
+      "reorder_components",
+      "set_boundary",
+      "upsert_editor_group",
+      "delete_editor_group"
+    ];
+
+    for (const tool of tools) expect(apiDoc).toContain(tool);
+    for (const action of actions) expect(apiDoc).toContain(action);
+    expect(mcpDoc).toContain("state-blueprint-api.md");
+    expect(readme).toContain("docs/state-blueprint-api.md");
+  });
+
   test("exposes standard MCP tools and applies dependency-ordered app actions without hidden state @smoke", async () => {
     const tempDir = path.join(process.cwd(), "tmp", "mcp-tests");
     fs.mkdirSync(tempDir, { recursive: true });
@@ -85,6 +132,7 @@ test.describe("State Blueprint MCP", () => {
       expect(toolNames).toContain("state_blueprint_plan_prompt");
       expect(toolNames).toContain("state_blueprint_apply_prompt");
       expect(toolNames).toContain("state_blueprint_validate");
+      expect(toolNames).toContain("state_blueprint_export_html");
 
       const applied = await client.request("tools/call", {
         name: "state_blueprint_apply_actions",
@@ -100,7 +148,8 @@ test.describe("State Blueprint MCP", () => {
             { type: "set_initial", stateId: "start" },
             { type: "upsert_state", id: "parent", title: "Parent", x: 96, y: 360 },
             { type: "upsert_state", id: "child", title: "Child", parentId: "parent", x: 120, y: 120 },
-            { type: "set_boundary", parentId: "parent", entryId: "child", exitId: "child" }
+            { type: "set_boundary", parentId: "parent", entryId: "child", exitId: "child" },
+            { type: "upsert_editor_group", id: "checkout_group", title: "Checkout group", stateIds: ["start", "done"] }
           ]
         }
       });
@@ -135,10 +184,30 @@ test.describe("State Blueprint MCP", () => {
         from: "child",
         boundaryFlow: { parentId: "parent", side: "output", stateId: "child" }
       }));
+      expect(model.editorGroups).toEqual([
+        expect.objectContaining({
+          id: "checkout_group",
+          title: "Checkout group",
+          layerId: "",
+          stateIds: ["start", "done"],
+          collapsed: true
+        })
+      ]);
       expect(JSON.stringify(model)).not.toMatch(/localState|stateStore|html/);
 
       const validation = await client.request("tools/call", { name: "state_blueprint_validate", arguments: {} });
       expect(validation.structuredContent.ok).toBe(true);
+
+      const exportPath = path.join(tempDir, "mcp-checkout.html");
+      const exportedHtml = await client.request("tools/call", {
+        name: "state_blueprint_export_html",
+        arguments: { outputPath: exportPath, includeHtml: false }
+      });
+      expect(exportedHtml.structuredContent.outputPath).toBe(exportPath);
+      expect(exportedHtml.structuredContent.bytes).toBeGreaterThan(50000);
+      const exportedText = fs.readFileSync(exportPath, "utf8");
+      expect(exportedText).toContain("EXPORTED_STATE_BLUEPRINT");
+      expect(exportedText).toContain("MCP Checkout");
 
       const hiddenModel = await client.request("tools/call", {
         name: "state_blueprint_replace_model",

@@ -2,7 +2,10 @@
 
 const ROOT_LAYER_ID = "__root__";
 const GRID_SIZE = 24;
+const NODE_W = 168;
 const NODE_H = 96;
+const EDITOR_GROUP_DISPLAY_W = GRID_SIZE * 10;
+const EDITOR_GROUP_DISPLAY_H = GRID_SIZE * 5;
 const WORLD_MIN_X = -10000;
 const WORLD_MIN_Y = -8000;
 const WORLD_MAX_X = 20000;
@@ -429,6 +432,76 @@ function normalizeBoundaryConfig(value) {
   };
 }
 
+function editorGroupBoundsForStates(states) {
+  if (!states.length) {
+    return {
+      x: 0,
+      y: 0,
+      width: EDITOR_GROUP_DISPLAY_W,
+      height: EDITOR_GROUP_DISPLAY_H
+    };
+  }
+  const minX = Math.min(...states.map(state => Number(state.x) || 0));
+  const minY = Math.min(...states.map(state => Number(state.y) || 0));
+  const maxX = Math.max(...states.map(state => (Number(state.x) || 0) + NODE_W));
+  const maxY = Math.max(...states.map(state => (Number(state.y) || 0) + NODE_H));
+  const centerX = (minX + maxX) / 2;
+  const centerY = (minY + maxY) / 2;
+  return {
+    x: snapToGrid(centerX - EDITOR_GROUP_DISPLAY_W / 2),
+    y: snapToGrid(centerY - EDITOR_GROUP_DISPLAY_H / 2),
+    width: EDITOR_GROUP_DISPLAY_W,
+    height: EDITOR_GROUP_DISPLAY_H
+  };
+}
+
+function normalizeEditorGroups(groups, sourceModel) {
+  const states = Array.isArray(sourceModel?.states) ? sourceModel.states : [];
+  if (!states.length) return [];
+  const stateById = new Map(states.map(state => [state.id, state]));
+  const stateIds = new Set(states.map(state => state.id));
+  const reservedIds = new Set([
+    ...stateIds,
+    ...(Array.isArray(sourceModel?.transitions) ? sourceModel.transitions.map(transition => String(transition?.id || "")).filter(Boolean) : [])
+  ]);
+  const usedGroupIds = new Set();
+  const assignedStateIds = new Set();
+  const normalized = [];
+  for (const rawGroup of Array.isArray(groups) ? groups : []) {
+    if (!isPlainObject(rawGroup)) continue;
+    const rawIds = Array.isArray(rawGroup.stateIds) ? rawGroup.stateIds.map(id => String(id || "")) : [];
+    const firstState = rawIds.map(id => stateById.get(id)).find(Boolean);
+    const rawLayerId = typeof rawGroup.layerId === "string" && stateIds.has(rawGroup.layerId)
+      ? rawGroup.layerId
+      : "";
+    const layerId = rawLayerId || (firstState ? stateParentId(firstState) || "" : "");
+    const memberIds = [...new Set(rawIds)]
+      .filter(id => stateIds.has(id) && !assignedStateIds.has(id))
+      .filter(id => (stateParentId(stateById.get(id)) || "") === layerId);
+    if (!memberIds.length) continue;
+    let id = normalizeId(rawGroup.id || rawGroup.title || "group");
+    const base = id || "group";
+    id = base;
+    let suffix = 2;
+    while (usedGroupIds.has(id) || reservedIds.has(id)) id = `${base}_${suffix++}`;
+    usedGroupIds.add(id);
+    memberIds.forEach(memberId => assignedStateIds.add(memberId));
+    const bounds = editorGroupBoundsForStates(memberIds.map(memberId => stateById.get(memberId)).filter(Boolean));
+    normalized.push({
+      id,
+      title: String(rawGroup.title || "Group").trim() || "Group",
+      layerId,
+      stateIds: memberIds,
+      collapsed: true,
+      x: bounds.x,
+      y: bounds.y,
+      width: bounds.width,
+      height: bounds.height
+    });
+  }
+  return normalized;
+}
+
 function normalizeSubscriptionPath(value) {
   const text = String(value || "").trim();
   if (text === "*") return "*";
@@ -634,6 +707,7 @@ function normalizeModel(input) {
       };
     });
 
+  m.editorGroups = normalizeEditorGroups(m.editorGroups, m);
   if (!ids.has(m.initial)) m.initial = m.states[0]?.id || "";
   return m;
 }
@@ -834,8 +908,39 @@ function deleteState(model, args) {
     !ids.has(transition.groupExitId) &&
     !ids.has(transition.boundaryFlow?.stateId)
   );
+  model.editorGroups = normalizeEditorGroups(model.editorGroups, model).filter(group =>
+    group.stateIds.every(stateId => !ids.has(stateId))
+  );
   if (ids.has(model.initial)) model.initial = model.states[0]?.id || "";
   return { deleted: [...ids] };
+}
+
+function upsertEditorGroup(model, args) {
+  const groupId = String(args.id || args.groupId || args.title || "group");
+  const stateIds = Array.isArray(args.stateIds) ? args.stateIds.map(String).filter(Boolean) : [];
+  if (!stateIds.length) throw new Error("upsert_editor_group requires stateIds.");
+  const existingGroups = normalizeEditorGroups(model.editorGroups, model);
+  const existing = existingGroups.find(group => group.id === groupId);
+  const nextGroup = {
+    ...(existing || {}),
+    id: groupId,
+    title: String(args.title || existing?.title || "Group"),
+    layerId: String(args.layerId || existing?.layerId || ""),
+    stateIds
+  };
+  model.editorGroups = normalizeEditorGroups([
+    ...existingGroups.filter(group => group.id !== existing?.id && group.id !== groupId),
+    nextGroup
+  ], model);
+  return model.editorGroups.find(group => group.id === groupId) || model.editorGroups[model.editorGroups.length - 1] || null;
+}
+
+function deleteEditorGroup(model, args) {
+  const ids = new Set((Array.isArray(args.ids) ? args.ids : [args.id || args.groupId]).map(id => String(id || "")).filter(Boolean));
+  if (!ids.size) throw new Error("delete_editor_group requires id, groupId, or ids.");
+  const before = normalizeEditorGroups(model.editorGroups, model);
+  model.editorGroups = before.filter(group => !ids.has(group.id));
+  return { deleted: before.filter(group => ids.has(group.id)).map(group => group.id) };
 }
 
 function upsertTransition(model, args) {
@@ -882,6 +987,12 @@ function applyAction(model, action) {
       return { type, state: upsertState(model, action) };
     case "delete_state":
       return { type, ...deleteState(model, action) };
+    case "upsert_editor_group":
+    case "group_states":
+      return { type, group: upsertEditorGroup(model, action) };
+    case "delete_editor_group":
+    case "degroup_states":
+      return { type, ...deleteEditorGroup(model, action) };
     case "move_state": {
       const state = findStateOrThrow(model, action.id || action.stateId);
       state.x = snapClampToGrid(Number(action.x), WORLD_MIN_X, WORLD_MAX_X - 168);
@@ -1021,6 +1132,7 @@ function actionApplyPriority(action) {
   if (type === "add_state" || type === "upsert_state") return 10;
   if (type === "set_initial") return 20;
   if (type === "upsert_state_variable" || type === "configure_fetch" || type === "configure_repeat" || type === "upsert_data_wire" || type === "add_component") return 30;
+  if (type === "upsert_editor_group" || type === "group_states" || type === "delete_editor_group" || type === "degroup_states") return 35;
   if (type === "set_boundary") return 40;
   if (type === "add_transition" || type === "upsert_transition") return 50;
   return 60;

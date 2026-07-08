@@ -4,6 +4,8 @@ State Blueprint exposes a local MCP server so external tools can edit the same c
 
 The server is standard JSON-RPC over stdio and uses newline-delimited MCP messages. It does not click the UI and it does not keep a second runtime store. Every tool reads or writes the State Blueprint JSON model, normalizes it, validates the contract, and only then persists it.
 
+For the complete API reference, action schemas, UI-to-API mapping, and end-to-end examples, see [`state-blueprint-api.md`](./state-blueprint-api.md).
+
 ## Run
 
 ```bash
@@ -21,6 +23,7 @@ If `STATE_BLUEPRINT_MODEL_PATH` is omitted, the server uses `./state-blueprint.w
 - `state_blueprint_apply_prompt`
 - `state_blueprint_validate`
 - `state_blueprint_export_definition`
+- `state_blueprint_export_html`
 - `state_blueprint_import_definition`
 - `state_blueprint_action_catalog`
 
@@ -31,6 +34,8 @@ If `STATE_BLUEPRINT_MODEL_PATH` is omitted, the server uses `./state-blueprint.w
 - `replace_model`
 - `upsert_state`
 - `delete_state`
+- `upsert_editor_group`
+- `delete_editor_group`
 - `move_state`
 - `set_initial`
 - `upsert_transition`
