@@ -189,6 +189,18 @@ test.describe("Core source contracts", () => {
     expect(html).not.toMatch(mojibakePattern);
   });
 
+  test("editor group geometry constants initialize before saved models normalize @smoke", () => {
+    const html = stateHtml();
+    const modelInitIndex = html.indexOf("let model = initialEditorState?.model ? normalizeModel(initialEditorState.model)");
+    const groupConstIndex = html.indexOf("const EDITOR_GROUP_DISPLAY_W = GRID_SIZE * 10;");
+    const groupConstMatches = html.match(/const EDITOR_GROUP_DISPLAY_W/g) || [];
+
+    expect(groupConstIndex, "editor group display width constant exists").toBeGreaterThanOrEqual(0);
+    expect(modelInitIndex, "startup model normalization exists").toBeGreaterThanOrEqual(0);
+    expect(groupConstIndex, "group geometry constants are ready before persisted editorGroups normalize").toBeLessThan(modelInitIndex);
+    expect(groupConstMatches, "group display width constant is declared once").toHaveLength(1);
+  });
+
   test("generated blank runtime starts without editor-only helpers @smoke", async ({ page }) => {
     await page.goto("/state.html");
     await page.evaluate(key => localStorage.removeItem(key), STORAGE_KEY);

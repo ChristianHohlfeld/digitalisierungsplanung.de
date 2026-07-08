@@ -6965,6 +6965,10 @@
     const GRID_SIZE = 24;
     const NODE_H = 96;
     const NODE_TITLE_EXTRA_W = 104;
+    const EDITOR_GROUP_DISPLAY_W = GRID_SIZE * 10;
+    const EDITOR_GROUP_DISPLAY_H = GRID_SIZE * 5;
+    const EDITOR_GROUP_MAX_W = GRID_SIZE * 16;
+    const EDITOR_GROUP_MAX_H = GRID_SIZE * 8;
     const ROUTE_NODE_CLEARANCE = GRID_SIZE / 2;
     const WHEEL_ZOOM_PIXEL_DENOMINATOR = 240;
     const TOUCH_PINCH_ZOOM_RESPONSE = 1.45;
@@ -9975,11 +9979,6 @@
         .map(id => stateById.get(String(id || "")))
         .filter(Boolean);
     }
-
-    const EDITOR_GROUP_DISPLAY_W = GRID_SIZE * 10;
-    const EDITOR_GROUP_DISPLAY_H = GRID_SIZE * 5;
-    const EDITOR_GROUP_MAX_W = GRID_SIZE * 16;
-    const EDITOR_GROUP_MAX_H = GRID_SIZE * 8;
 
     function editorGroupBoundsForStates(states) {
       if (!states.length) {
