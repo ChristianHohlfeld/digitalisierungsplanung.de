@@ -3061,7 +3061,8 @@ test.describe("State Blueprint tool", () => {
       initial: "start",
       states: [
         { id: "start", title: "Start", components: [], x: 120, y: 180 },
-        { id: "one", title: "One", components: [], x: 420, y: 120 },
+        { id: "one", title: "One", components: [], boundary: { entryId: "one_child", exitId: "one_child", entryDisabled: false, exitDisabled: false }, x: 420, y: 120 },
+        { id: "one_child", parentId: "one", title: "One child", components: [], x: 360, y: 120 },
         { id: "two", title: "Two", components: [], x: 420, y: 300 },
         { id: "done", title: "Done", components: [], x: 720, y: 180 }
       ],
@@ -3078,6 +3079,11 @@ test.describe("State Blueprint tool", () => {
       localStorage.setItem(key, JSON.stringify(model));
     }, { key: STORAGE_KEY, model });
     await page.goto("/state.html");
+    const beforeDegroup = await page.evaluate(() => JSON.parse(JSON.stringify(definitionPayload().model)));
+    const beforeDegroupOrder = {
+      states: beforeDegroup.states.map(state => state.id),
+      transitions: beforeDegroup.transitions.map(transition => transition.id)
+    };
     await page.locator('[data-id="one"]').click();
     await page.locator('[data-id="two"]').click({ modifiers: ["Shift"] });
     await page.locator("#btnSelectionCollapse").click();
@@ -3100,9 +3106,21 @@ test.describe("State Blueprint tool", () => {
       };
     }).toEqual({
       hasEditorGroups: false,
-      parents: { start: null, one: null, two: null, done: null },
+      parents: { start: null, one: null, one_child: "one", two: null, done: null },
       startOne: { from: "start", to: "one", groupEntryId: "" },
       twoDone: { from: "two", to: "done", groupExitId: "" }
+    });
+    await expect.poll(async () => page.evaluate(() => {
+      const model = JSON.parse(JSON.stringify(definitionPayload().model));
+      return {
+        model,
+        stateOrder: model.states.map(state => state.id),
+        transitionOrder: model.transitions.map(transition => transition.id)
+      };
+    })).toEqual({
+      model: beforeDegroup,
+      stateOrder: beforeDegroupOrder.states,
+      transitionOrder: beforeDegroupOrder.transitions
     });
   });
 
