@@ -2921,183 +2921,22 @@ test.describe("State Blueprint tool", () => {
     });
   });
 
-  test("groups canvas states without expanding semantic parent child layers @smoke", async ({ page }) => {
+  test("collapse creates a real parent and recursively traverses nested child proxies @smoke", async ({ page }) => {
     const model = {
       version: 2,
-      name: "Editor Group Contract",
-      initial: "parent",
-      states: [
-        {
-          id: "parent",
-          title: "Parent",
-          body: "",
-          boundary: { entryId: "child", exitId: "child", entryDisabled: false, exitDisabled: false },
-          x: 260,
-          y: 160
-        },
-        { id: "next", title: "Next", body: "", x: 560, y: 160 },
-        { id: "child", parentId: "parent", title: "Child", body: "", x: 160, y: 140 }
-      ],
-      transitions: [
-        { id: "parent_next", from: "parent", to: "next", label: "Continue", condition: "", set: {}, groupEntryId: "", groupExitId: "" }
-      ]
-    };
-
-    await page.addInitScript(({ key, model }) => {
-      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
-        localStorage.removeItem(name);
-      }
-      localStorage.setItem(key, JSON.stringify(model));
-    }, { key: STORAGE_KEY, model });
-    await page.goto("/state.html");
-
-    await expect(page.locator('[data-id="parent"]')).toBeVisible();
-    await page.locator('[data-id="parent"]').click();
-    await expect(page.locator("#btnSelectionCollapse")).toHaveText("Group");
-    await page.evaluate(() => { window.__stateBlueprintPerfMetrics = {}; });
-    await page.locator("#btnSelectionCollapse").click();
-
-    await expect(page.locator(".node.editor-group")).toBeVisible();
-    const groupBox = await page.locator(".node.editor-group").boundingBox();
-    expect(groupBox.width).toBeLessThanOrEqual(GRID_SIZE * 16);
-    const groupingPerf = await page.evaluate(() => ({ ...window.__stateBlueprintPerfMetrics }));
-    expect(groupingPerf.visibleGraphBuilds || 0).toBeLessThanOrEqual(3);
-    await expect(page.locator('[data-id="parent"]')).toHaveCount(0);
-    await expect(page.locator("#modalBackdrop")).toBeHidden();
-    await expect.poll(async () => {
-      const stored = await savedModel(page);
-      const child = stored.states.find(state => state.id === "child");
-      const transition = stored.transitions.find(item => item.id === "parent_next");
-      const definition = await page.evaluate(() => JSON.parse(JSON.stringify(definitionPayload().model)));
-      const runtime = await page.evaluate(() => JSON.parse(JSON.stringify(snapshotModelForRuntime())));
-      return {
-        initial: stored.initial,
-        hasParent: stored.states.some(state => state.id === "parent"),
-        childParentId: child?.parentId || null,
-        editorGroups: stored.editorGroups?.map(group => ({
-          id: group.id,
-          layerId: group.layerId,
-          stateIds: group.stateIds
-        })) || [],
-        definitionEditorGroups: definition.editorGroups?.length || 0,
-        runtimeEditorGroups: runtime.editorGroups?.length || 0,
-        transition: {
-          from: transition?.from,
-          to: transition?.to,
-          groupEntryId: transition?.groupEntryId || "",
-          groupExitId: transition?.groupExitId || ""
-        }
-      };
-    }).toEqual({
-      initial: "parent",
-      hasParent: true,
-      childParentId: "parent",
-      editorGroups: [{ id: "group", layerId: "", stateIds: ["parent"] }],
-      definitionEditorGroups: 1,
-      runtimeEditorGroups: 1,
-      transition: { from: "parent", to: "next", groupEntryId: "", groupExitId: "" }
-    });
-
-    const app = appFrame(page);
-    await expect(app.locator("#statePill")).toHaveText("parent");
-    await app.getByRole("button", { name: "Child" }).click();
-    await expect(app.locator("#statePill")).toHaveText("child");
-    await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Parent");
-    await expect(page.locator('[data-id="child"]')).toHaveClass(/active/);
-    await page.locator("#layerBack").click();
-    await expect(page.locator("#layerFrameLabel")).toHaveText("Root");
-
-    await page.locator(".node.editor-group").click();
-    await expect(page.locator("#btnSelectionCollapse")).toHaveText("Degroup");
-    await page.locator("#btnSelectionCollapse").click();
-    await expect(page.locator(".node.editor-group")).toHaveCount(0);
-    await expect(page.locator('[data-id="parent"]')).toBeVisible();
-    await expect.poll(async () => (await savedModel(page)).editorGroups || []).toEqual([]);
-  });
-
-  test("editor groups are layout metadata and keep runtime flow unchanged @smoke", async ({ page }) => {
-    await openTool(page);
-    const before = await page.evaluate(() => JSON.parse(JSON.stringify(model)));
-    const stateShape = state => ({
-      id: state.id,
-      title: state.title,
-      parentId: state.parentId || null,
-      x: state.x,
-      y: state.y
-    });
-    const transitionShape = transition => ({
-      id: transition.id,
-      from: transition.from,
-      to: transition.to,
-      label: transition.label,
-      groupEntryId: transition.groupEntryId || "",
-      groupExitId: transition.groupExitId || ""
-    });
-    const beforeStates = before.states.map(stateShape);
-    const beforeTransitions = before.transitions.map(transitionShape);
-
-    await page.locator('[data-id="login"]').click();
-    await page.locator('[data-id="register"]').click({ modifiers: ["Shift"] });
-    await expect(page.locator("#selectionCount")).toContainText("2 states");
-    await expect(page.locator("#btnSelectionCollapse")).toHaveText("Group");
-    await page.locator("#btnSelectionCollapse").click();
-
-    await expect(page.locator(".node.editor-group")).toBeVisible();
-    await expect(page.locator('[data-id="login"]')).toHaveCount(0);
-    await expect(page.locator('[data-id="register"]')).toHaveCount(0);
-    await expect.poll(async () => {
-      const after = await savedModel(page);
-      const definition = await page.evaluate(() => JSON.parse(JSON.stringify(definitionPayload().model)));
-      const runtime = await page.evaluate(() => JSON.parse(JSON.stringify(snapshotModelForRuntime())));
-      return {
-        states: after.states.map(stateShape),
-        transitions: after.transitions.map(transitionShape),
-        editorGroups: after.editorGroups?.map(group => ({ id: group.id, layerId: group.layerId, stateIds: group.stateIds })) || [],
-        definitionGroups: definition.editorGroups?.map(group => ({ id: group.id, layerId: group.layerId, stateIds: group.stateIds })) || [],
-        runtimeGroups: runtime.editorGroups?.map(group => ({ id: group.id, layerId: group.layerId, stateIds: group.stateIds })) || []
-      };
-    }).toEqual({
-      states: beforeStates,
-      transitions: beforeTransitions,
-      editorGroups: [{ id: "group", layerId: "", stateIds: ["login", "register"] }],
-      definitionGroups: [{ id: "group", layerId: "", stateIds: ["login", "register"] }],
-      runtimeGroups: [{ id: "group", layerId: "", stateIds: ["login", "register"] }]
-    });
-
-    const exportedDefinition = await page.evaluate(() => JSON.parse(JSON.stringify(definitionPayload())));
-    await page.evaluate(definition => importBlueprintDefinition(definition), exportedDefinition);
-    await expect(page.locator(".node.editor-group")).toBeVisible();
-    await expect.poll(async () => {
-      const loaded = await savedModel(page);
-      return loaded.editorGroups?.map(group => ({ id: group.id, layerId: group.layerId, stateIds: group.stateIds })) || [];
-    }).toEqual([{ id: "group", layerId: "", stateIds: ["login", "register"] }]);
-    await expect.poll(async () => page.evaluate(() => {
-      const html = buildStandaloneAppHtml(GENERATED_APP_HTML, definitionPayload());
-      return html.includes('"editorGroups"') && html.includes('"stateIds":["login","register"]');
-    })).toBe(true);
-
-    const app = appFrame(page);
-    await page.evaluate(() => startAppAtState("auth_start", { preserveFocus: true, suppressLayerFollow: true }));
-    await expect(app.locator("#statePill")).toHaveText("auth_start");
-    await app.getByRole("button", { name: "Login", exact: true }).click();
-    await expect(app.locator("#statePill")).toHaveText("login");
-  });
-
-  test("runs the exact same runtime flow before and after grouping states @smoke", async ({ page }) => {
-    const model = {
-      version: 2,
-      name: "Group Runtime Equivalence",
+      name: "Real Parent Collapse",
       initial: "start",
       states: [
         { id: "start", title: "Start", body: "", components: [{ id: "c_start", type: "text", text: "Start screen", url: "" }], x: 120, y: 180 },
-        { id: "one", title: "One", body: "", components: [{ id: "c_one", type: "text", text: "First grouped screen", url: "" }], x: 420, y: 120 },
-        { id: "two", title: "Two", body: "", components: [{ id: "c_two", type: "text", text: "Second grouped screen", url: "" }], x: 420, y: 300 },
+        { id: "parent_a", title: "Parent A", body: "", components: [], boundary: { entryId: "leaf", exitId: "leaf", entryDisabled: false, exitDisabled: false }, x: 420, y: 120 },
+        { id: "leaf", parentId: "parent_a", title: "Leaf", body: "", components: [{ id: "c_leaf", type: "text", text: "Nested leaf", url: "" }], x: 360, y: 120 },
+        { id: "state_b", title: "State B", body: "", components: [{ id: "c_b", type: "text", text: "Second grouped screen", url: "" }], x: 420, y: 300 },
         { id: "done", title: "Done", body: "", components: [{ id: "c_done", type: "text", text: "Done screen", url: "" }], x: 720, y: 180 }
       ],
       transitions: [
-        { id: "start_one", from: "start", to: "one", label: "Open One", condition: "", set: {} },
-        { id: "one_two", from: "one", to: "two", label: "Open Two", condition: "", set: {} },
-        { id: "two_done", from: "two", to: "done", label: "Finish", condition: "", set: {} },
+        { id: "start_parent", from: "start", to: "parent_a", label: "Open Nested", condition: "", set: {} },
+        { id: "parent_b", from: "parent_a", to: "state_b", label: "Continue", condition: "", set: {} },
+        { id: "b_done", from: "state_b", to: "done", label: "Finish", condition: "", set: {} },
         { id: "done_start", from: "done", to: "start", label: "Restart", condition: "", set: {} }
       ]
     };
@@ -3109,58 +2948,162 @@ test.describe("State Blueprint tool", () => {
     }, { key: STORAGE_KEY, model });
     await page.goto("/state.html");
     await expect(page.locator('[data-id="start"]')).toBeVisible();
-    await expect(appFrame(page).locator("#statePill")).toHaveText("start");
+    await page.locator('[data-id="parent_a"]').click();
+    await page.locator('[data-id="state_b"]').click({ modifiers: ["Shift"] });
+    await expect(page.locator("#selectionCount")).toContainText("2 states");
+    await expect(page.locator("#btnSelectionCollapse")).toHaveText("Collapse");
+    await page.locator("#btnSelectionCollapse").click();
+    await expect(page.locator('[data-id="group"]')).toBeVisible();
+    await expect(page.locator('[data-id="parent_a"]')).toHaveCount(0);
+    await expect(page.locator('[data-id="state_b"]')).toHaveCount(0);
+    await expect.poll(async () => {
+      const stored = await savedModel(page);
+      const byId = id => stored.states.find(state => state.id === id);
+      const edge = id => stored.transitions.find(transition => transition.id === id);
+      const definition = await page.evaluate(() => JSON.parse(JSON.stringify(definitionPayload().model)));
+      const runtime = await page.evaluate(() => JSON.parse(JSON.stringify(snapshotModelForRuntime())));
+      return {
+        hasEditorGroups: "editorGroups" in stored || "editorGroups" in definition || "editorGroups" in runtime,
+        groupBoundary: byId("group")?.boundary || null,
+        parentAParent: byId("parent_a")?.parentId || null,
+        leafParent: byId("leaf")?.parentId || null,
+        stateBParent: byId("state_b")?.parentId || null,
+        startParent: { from: edge("start_parent")?.from, to: edge("start_parent")?.to, groupEntryId: edge("start_parent")?.groupEntryId || "" },
+        parentB: { from: edge("parent_b")?.from, to: edge("parent_b")?.to },
+        bDone: { from: edge("b_done")?.from, to: edge("b_done")?.to, groupExitId: edge("b_done")?.groupExitId || "" }
+      };
+    }).toEqual({
+      hasEditorGroups: false,
+      groupBoundary: { entryId: "parent_a", exitId: "state_b", entryDisabled: false, exitDisabled: false, title: "", note: "" },
+      parentAParent: "group",
+      leafParent: "parent_a",
+      stateBParent: "group",
+      startParent: { from: "start", to: "group", groupEntryId: "parent_a" },
+      parentB: { from: "parent_a", to: "state_b" },
+      bDone: { from: "group", to: "done", groupExitId: "state_b" }
+    });
 
     const app = appFrame(page);
-    const runtimeSnapshot = async () => ({
-      state: (await app.locator("#statePill").textContent())?.trim() || "",
-      heading: (await app.locator("#screen h1").textContent())?.trim() || "",
-      text: (await app.locator("#screen .component-text").textContent())?.trim() || "",
-      actions: await app.locator("#screen button[data-transition-id]").evaluateAll(buttons =>
-        buttons.map(button => ({
-          id: button.dataset.transitionId || "",
-          label: button.textContent.trim()
-        }))
-      )
-    });
-    const runRuntimeFlow = async () => {
-      await page.evaluate(() => startAppAtState("start", { preserveFocus: true, suppressLayerFollow: true }));
-      await expect(app.locator("#statePill")).toHaveText("start");
-      const trace = [await runtimeSnapshot()];
-      for (const step of [
-        { button: "Open One", state: "one" },
-        { button: "Open Two", state: "two" },
-        { button: "Finish", state: "done" },
-        { button: "Restart", state: "start" }
-      ]) {
-        await app.getByRole("button", { name: step.button, exact: true }).click();
-        await expect(app.locator("#statePill")).toHaveText(step.state);
-        trace.push(await runtimeSnapshot());
-      }
-      return trace;
-    };
+    await page.evaluate(() => startAppAtState("start", { preserveFocus: true, allowLayerFollow: true }));
+    await expect(app.locator("#statePill")).toHaveText("start");
+    await app.getByRole("button", { name: "Open Nested", exact: true }).click();
+    await expect(app.locator("#statePill")).toHaveText("group");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("Root");
+    await expect(page.locator('[data-id="group"]')).toHaveClass(/active/);
+    await app.getByRole("button", { name: "Parent A", exact: true }).click();
+    await expect(app.locator("#statePill")).toHaveText("parent_a");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Group");
+    await app.getByRole("button", { name: "Leaf", exact: true }).click();
+    await expect(app.locator("#statePill")).toHaveText("leaf");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Parent A");
+    await expect(page.locator('[data-id="leaf"]')).toHaveClass(/active/);
+    await app.getByRole("button", { name: "Continue", exact: true }).click();
+    await expect(app.locator("#statePill")).toHaveText("state_b");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Group");
+    await app.getByRole("button", { name: "Finish", exact: true }).click();
+    await expect(app.locator("#statePill")).toHaveText("done");
+  });
 
-    const ungroupedTrace = await runRuntimeFlow();
+  test("child output proxy stops when the collapsed parent has no real outgoing transition @smoke", async ({ page }) => {
+    const model = {
+      version: 2,
+      name: "Collapsed Stop",
+      initial: "start",
+      states: [
+        { id: "start", title: "Start", components: [{ id: "c_start", type: "text", text: "Start screen", url: "" }], x: 120, y: 180 },
+        { id: "one", title: "One", components: [{ id: "c_one", type: "text", text: "First grouped screen", url: "" }], x: 420, y: 120 },
+        { id: "two", title: "Two", components: [{ id: "c_two", type: "text", text: "Second grouped screen", url: "" }], x: 420, y: 300 }
+      ],
+      transitions: [
+        { id: "start_one", from: "start", to: "one", label: "Open One", condition: "", set: {} },
+        { id: "one_two", from: "one", to: "two", label: "Open Two", condition: "", set: {} }
+      ]
+    };
+    await page.addInitScript(({ key, model }) => {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(key, JSON.stringify(model));
+    }, { key: STORAGE_KEY, model });
+    await page.goto("/state.html");
 
     await page.locator('[data-id="one"]').click();
     await page.locator('[data-id="two"]').click({ modifiers: ["Shift"] });
-    await expect(page.locator("#selectionCount")).toContainText("2 states");
-    await expect(page.locator("#btnSelectionCollapse")).toHaveText("Group");
     await page.locator("#btnSelectionCollapse").click();
-    await expect(page.locator(".node.editor-group")).toBeVisible();
+    await expect(page.locator('[data-id="group"]')).toBeVisible();
     await expect(page.locator('[data-id="one"]')).toHaveCount(0);
-    await expect(page.locator('[data-id="two"]')).toHaveCount(0);
+    const app = appFrame(page);
+    await page.evaluate(() => startAppAtState("start", { preserveFocus: true, suppressLayerFollow: true }));
+    await expect(app.locator("#statePill")).toHaveText("start");
+    await app.getByRole("button", { name: "Open One", exact: true }).click();
+    await expect(app.locator("#statePill")).toHaveText("group");
+    await app.getByRole("button", { name: "One", exact: true }).click();
+    await expect(app.locator("#statePill")).toHaveText("one");
+    await app.getByRole("button", { name: "Open Two", exact: true }).click();
+    await expect(app.locator("#statePill")).toHaveText("two");
+    await expect(app.locator("#screen button[data-transition-id]")).toHaveCount(0);
     await expect.poll(async () => {
       const stored = await savedModel(page);
-      return stored.editorGroups?.map(group => ({
-        id: group.id,
-        layerId: group.layerId,
-        stateIds: group.stateIds
-      })) || [];
-    }).toEqual([{ id: "group", layerId: "", stateIds: ["one", "two"] }]);
+      return {
+        twoParent: stored.states.find(state => state.id === "two")?.parentId || null,
+        groupOut: stored.transitions.filter(transition => transition.from === "group" && !transition.boundaryFlow).length
+      };
+    }).toEqual({
+      twoParent: "group",
+      groupOut: 0
+    });
+  });
 
-    const groupedTrace = await runRuntimeFlow();
-    expect(groupedTrace).toEqual(ungroupedTrace);
+  test("degroup restores the real parent collapse without editor metadata @smoke", async ({ page }) => {
+    const model = {
+      version: 2,
+      name: "Degroup Contract",
+      initial: "start",
+      states: [
+        { id: "start", title: "Start", components: [], x: 120, y: 180 },
+        { id: "one", title: "One", components: [], x: 420, y: 120 },
+        { id: "two", title: "Two", components: [], x: 420, y: 300 },
+        { id: "done", title: "Done", components: [], x: 720, y: 180 }
+      ],
+      transitions: [
+        { id: "start_one", from: "start", to: "one", label: "Open One", condition: "", set: {} },
+        { id: "one_two", from: "one", to: "two", label: "Open Two", condition: "", set: {} },
+        { id: "two_done", from: "two", to: "done", label: "Finish", condition: "", set: {} }
+      ]
+    };
+    await page.addInitScript(({ key, model }) => {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(key, JSON.stringify(model));
+    }, { key: STORAGE_KEY, model });
+    await page.goto("/state.html");
+    await page.locator('[data-id="one"]').click();
+    await page.locator('[data-id="two"]').click({ modifiers: ["Shift"] });
+    await page.locator("#btnSelectionCollapse").click();
+    await expect(page.locator('[data-id="group"]')).toBeVisible();
+    await page.locator('[data-id="group"]').click();
+    await expect(page.locator("#btnSelectionCollapse")).toHaveText("Degroup");
+    await page.locator("#btnSelectionCollapse").click();
+    await expect(page.locator('[data-id="group"]')).toHaveCount(0);
+    await expect(page.locator('[data-id="one"]')).toBeVisible();
+    await expect(page.locator('[data-id="two"]')).toBeVisible();
+
+    await expect.poll(async () => {
+      const stored = await savedModel(page);
+      const edge = id => stored.transitions.find(transition => transition.id === id);
+      return {
+        hasEditorGroups: "editorGroups" in stored,
+        parents: Object.fromEntries(stored.states.map(state => [state.id, state.parentId || null])),
+        startOne: { from: edge("start_one")?.from, to: edge("start_one")?.to, groupEntryId: edge("start_one")?.groupEntryId || "" },
+        twoDone: { from: edge("two_done")?.from, to: edge("two_done")?.to, groupExitId: edge("two_done")?.groupExitId || "" }
+      };
+    }).toEqual({
+      hasEditorGroups: false,
+      parents: { start: null, one: null, two: null, done: null },
+      startOne: { from: "start", to: "one", groupEntryId: "" },
+      twoDone: { from: "two", to: "done", groupExitId: "" }
+    });
   });
 
   test("keeps transition wires scoped to the opened state canvas @smoke", async ({ page }) => {
