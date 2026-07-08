@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Zustand App Icon</title>
+  <desc id="desc">A connected state path for the Zustand process planning app.</desc>
+  <defs>
+    <linearGradient id="bg" x1="76" y1="40" x2="452" y2="472" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#07111f"/>
+      <stop offset="1" stop-color="#020617"/>
+    </linearGradient>
+    <linearGradient id="line" x1="116" y1="136" x2="396" y2="376" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#38bdf8"/>
+      <stop offset=".55" stop-color="#a78bfa"/>
+      <stop offset="1" stop-color="#34d399"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="13" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.219 0 0 0 0 0.741 0 0 0 0 0.973 0 0 0 .55 0"/>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <path d="M144 158h150c49 0 89 40 89 89s-40 89-89 89h-76c-26 0-47 21-47 47s21 47 47 47h150" fill="none" stroke="url(#line)" stroke-width="44" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"/>
+  <circle cx="144" cy="158" r="42" fill="#f59e0b"/>
+  <circle cx="383" cy="247" r="42" fill="#38bdf8"/>
+  <circle cx="368" cy="430" r="42" fill="#34d399"/>
+  <circle cx="144" cy="158" r="14" fill="#020617"/>
+  <circle cx="383" cy="247" r="14" fill="#020617"/>
+  <circle cx="368" cy="430" r="14" fill="#020617"/>
+</svg>

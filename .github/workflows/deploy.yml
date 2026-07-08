@@ -43,6 +43,14 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Stamp service worker version
+        run: node scripts/write-sw-version.mjs
+        env:
+          SW_VERSION: gh-${{ github.run_number }}.${{ github.run_attempt }}-${{ github.sha }}
+          SW_BUILT_AT: ${{ github.event.head_commit.timestamp }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

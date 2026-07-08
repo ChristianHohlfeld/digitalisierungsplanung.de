@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Zustand Maskable Icon</title>
+  <desc id="desc">A safe-area app icon for Zustand.</desc>
+  <rect width="512" height="512" fill="#07111f"/>
+  <circle cx="74" cy="66" r="210" fill="#0ea5e9" opacity=".18"/>
+  <circle cx="452" cy="456" r="230" fill="#34d399" opacity=".13"/>
+  <path d="M136 160h156c50 0 90 40 90 90s-40 90-90 90h-78c-24 0-44 20-44 44s20 44 44 44h162" fill="none" stroke="#38bdf8" stroke-width="42" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M136 160h156c50 0 90 40 90 90" fill="none" stroke="#a78bfa" stroke-width="20" stroke-linecap="round" opacity=".95"/>
+  <circle cx="136" cy="160" r="39" fill="#f59e0b"/>
+  <circle cx="382" cy="250" r="39" fill="#38bdf8"/>
+  <circle cx="376" cy="428" r="39" fill="#34d399"/>
+</svg>

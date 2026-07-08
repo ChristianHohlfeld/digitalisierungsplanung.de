@@ -1,0 +1,58 @@
+{
+  "name": "Zustand Digitalisierungsplanung",
+  "short_name": "Zustand",
+  "description": "Business-Prozesse als globale JSON-State-Machine planen, visualisieren, testen und als Website exportieren.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "browser"],
+  "orientation": "any",
+  "background_color": "#07111f",
+  "theme_color": "#07111f",
+  "categories": ["business", "productivity", "developer"],
+  "lang": "de",
+  "icons": [
+    {
+      "src": "/assets/zustand-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/assets/share-card.png",
+      "sizes": "1200x630",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Zustand Digitalisierungsplanung"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Tool öffnen",
+      "short_name": "Tool",
+      "url": "/state.html",
+      "description": "Den Zustand Editor öffnen"
+    }
+  ]
+}

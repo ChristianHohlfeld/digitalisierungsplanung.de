@@ -2,7 +2,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Zustand</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2307111f'/%3E%3Cpath d='M18 20h18a8 8 0 0 1 0 16H28a8 8 0 0 0 0 16h18' fill='none' stroke='%2338bdf8' stroke-width='6' stroke-linecap='round'/%3E%3Ccircle cx='18' cy='20' r='7' fill='%23a78bfa'/%3E%3Ccircle cx='46' cy='52' r='7' fill='%2334d399'/%3E%3C/svg%3E">
+  <meta name="description" content="Zustand ist ein visueller Editor für Business-Prozesse als globale JSON-State-Machine.">
+  <meta name="theme-color" content="#07111f">
+  <meta name="application-name" content="Zustand">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" type="image/svg+xml" href="/assets/zustand-icon.svg">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+  <script defer src="/register-sw.js"></script>
   <script>
     (() => {
       const root = document.documentElement;
@@ -4675,6 +4681,21 @@
         link.appendChild(img);
         el = link;
       } else if (component.type === "list") {`;
+      const safeComponentUrlJs = `    function safeComponentUrl(url) {
+      const raw = String(url || "").trim();
+      if (!raw || /^https?:\\/\\/?$/i.test(raw)) return "";
+      if (/^https?:\\/\\//i.test(raw)) return raw;
+      if (/^data:image\\/(?:png|jpe?g|gif|webp|svg\\+xml);base64,/i.test(raw)) return raw;
+      return "";
+    }`;
+      const safeComponentUrlJsEnhanced = `    function safeComponentUrl(url) {
+      const raw = String(url || "").trim();
+      if (!raw || /^https?:\\/\\/?$/i.test(raw)) return "";
+      if (/^https?:\\/\\//i.test(raw)) return raw;
+      if (/^data:image\\/(?:png|jpe?g|gif|webp|svg\\+xml);base64,/i.test(raw)) return raw;
+      if (/^(?:\\/|\\.\\/|\\.\\.\\/)[^\\s<>]*$/i.test(raw)) return raw;
+      return "";
+    }`;
       const runtimeDataSourceJs = `    function normalizeDataSource(value) {
       const source = isPlainDataObject(value) ? value : {};
       const timeout = Number(source.timeoutMs);
@@ -5984,18 +6005,23 @@
             }
             const transitionId = String(item.transitionId || "").trim();
             const transition = transitionId ? transitionById.get(transitionId) : null;
-            if (transition) {
+            const itemUrl = daisyItemUrl(item);
+            if (transition || itemUrl) {
               const actions = document.createElement("div");
               actions.className = "card-actions justify-end";
-              const label = String(item.actionLabel || runtimeTransitionLabel(transition)).trim();
-              const button = createDaisyButton(label || runtimeTransitionLabel(transition), () => {
-                if (Date.now() < suppressActionUntil) return;
-                emitRuntimeEvent(transitionEventName(transition), { type: "button", source: "feature-grid", transitionId: transition.id });
-              }, "btn-primary daisy-transition-button");
-              button.dataset.transitionId = transition.id;
-              if (transition.id === renderOptions.defaultActionId) button.dataset.defaultAction = "true";
-              applyRuntimeTransitionButtonStyle(button, transition);
-              actions.appendChild(button);
+              if (transition) {
+                const label = String(item.actionLabel || runtimeTransitionLabel(transition)).trim();
+                const button = createDaisyButton(label || runtimeTransitionLabel(transition), () => {
+                  if (Date.now() < suppressActionUntil) return;
+                  emitRuntimeEvent(transitionEventName(transition), { type: "button", source: "feature-grid", transitionId: transition.id });
+                }, "btn-primary daisy-transition-button");
+                button.dataset.transitionId = transition.id;
+                if (transition.id === renderOptions.defaultActionId) button.dataset.defaultAction = "true";
+                applyRuntimeTransitionButtonStyle(button, transition);
+                actions.appendChild(button);
+              } else {
+                actions.appendChild(createDaisyLink(String(item.actionLabel || itemTitle || itemUrl).trim(), itemUrl, "btn btn-primary"));
+              }
               box.appendChild(actions);
             }
             card.appendChild(box);
@@ -6042,8 +6068,9 @@
             const transition = ownerState?.id === renderOptions.activeStateId && transitionId
               ? transitionList.find(item => String(item.id) === transitionId)
               : null;
+            const planUrl = daisyItemUrl(plan);
             const actionLabel = String(plan.actionLabel || (planTitle ? "Buy " + planTitle : "")).trim();
-            if (transition || actionLabel) {
+            if (transition || planUrl || actionLabel) {
               const actions = document.createElement("div");
               actions.className = "card-actions justify-end";
               if (transition) {
@@ -6055,6 +6082,8 @@
                 if (transition.id === renderOptions.defaultActionId) button.dataset.defaultAction = "true";
                 applyRuntimeTransitionButtonStyle(button, transition);
                 actions.appendChild(button);
+              } else if (planUrl) {
+                actions.appendChild(createDaisyLink(actionLabel || planTitle || planUrl, planUrl, "btn btn-primary"));
               } else {
                 const button = createDaisyButton(actionLabel, () => {}, "btn-primary");
                 button.disabled = true;
@@ -6488,6 +6517,42 @@
       return ids;
     }
 
+    function daisyItemLabel(item) {
+      return item && typeof item === "object" && !Array.isArray(item)
+        ? String(item.label || item.title || item.name || item.value || "").trim()
+        : String(item || "").trim();
+    }
+
+    function daisyItemUrl(item) {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return "";
+      return safeComponentUrl(String(item.url || item.href || ""));
+    }
+
+    function createDaisyLink(label, url, className = "") {
+      const link = document.createElement("a");
+      link.className = daisyClass(className || "link link-hover");
+      link.href = url;
+      link.textContent = label;
+      if (safeExternalComponentUrl(url)) {
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.addEventListener("click", evt => {
+          if (!hasHostWindow()) return;
+          evt.preventDefault();
+          openExternalComponentLink(url);
+        });
+      }
+      return link;
+    }
+
+    function appendDaisyUrlAction(parent, item, fallbackLabel = "", className = "btn-primary") {
+      const url = daisyItemUrl(item);
+      if (!url) return false;
+      const label = daisyItemLabel(item) || String(fallbackLabel || "").trim() || url;
+      parent.appendChild(createDaisyLink(label, url, className));
+      return true;
+    }
+
     function daisyTransitionSetMatchesComponent(transition, component) {
       const path = runtimeNormalizeBindingPath(component?.dataPath, "");
       if (!path) return false;
@@ -6513,8 +6578,8 @@
     function daisyRuntimeActionLabels(component) {
       const variant = runtimeDaisyVariantName(component);
       const labelsFrom = (key, fallback = []) => daisyDataArray(component, key, fallback)
-        .map(item => item && typeof item === "object" ? String(item.label || item.title || item.name || item.value || "") : String(item || ""))
-        .map(label => label.trim())
+        .filter(item => !daisyItemUrl(item))
+        .map(daisyItemLabel)
         .filter(Boolean);
       if (["bottom-navigation", "drawer", "menu", "steps", "tabs"].includes(variant)) return labelsFrom("items");
       if (variant === "dropdown") return labelsFrom("options", labelsFrom("items"));
@@ -6537,6 +6602,7 @@
       const explicitOrder = new Map();
       const labelOrder = new Map();
       options.labels.forEach((item, index) => {
+        if (daisyItemUrl(item)) return;
         if (item && typeof item === "object" && !Array.isArray(item)) {
           const id = String(item.transitionId || "").trim();
           if (id && !explicitOrder.has(id)) explicitOrder.set(id, index);
@@ -6587,6 +6653,49 @@
 
     function appendDaisyTransitionButtons(parent, ownerState, renderOptions, source, options = {}) {
       const transitions = daisyTransitionButtonCandidates(ownerState, renderOptions, options.component, options);
+      if (Array.isArray(options.labels)) {
+        const byId = new Map(transitions.map(t => [String(t.id || ""), t]));
+        const byLabel = new Map(transitions.map(t => [String(runtimeTransitionLabel(t) || "").trim().toLowerCase(), t]));
+        let rendered = 0;
+        options.labels.forEach(item => {
+          const url = daisyItemUrl(item);
+          const label = daisyItemLabel(item);
+          if (url) {
+            const link = createDaisyLink(label || url, url, options.buttonClass || "btn-ghost daisy-choice");
+            if (options.listItem) {
+              const listItem = document.createElement("li");
+              listItem.appendChild(link);
+              parent.appendChild(listItem);
+            } else {
+              parent.appendChild(link);
+            }
+            rendered += 1;
+            return;
+          }
+          const explicitId = item && typeof item === "object" && !Array.isArray(item) ? String(item.transitionId || "") : "";
+          const transition = (explicitId && byId.get(explicitId)) || byLabel.get(String(label || "").trim().toLowerCase());
+          if (!transition) return;
+          const button = createDaisyButton(label || runtimeTransitionLabel(transition), () => {
+            if (Date.now() < suppressActionUntil) return;
+            emitRuntimeEvent(transitionEventName(transition), { type: "button", source, transitionId: transition.id });
+          }, options.buttonClass || "btn-primary daisy-transition-button");
+          if (!button.classList.contains("daisy-transition-button")) button.classList.add("daisy-transition-button");
+          if (options.role) button.setAttribute("role", options.role);
+          if (options.activeClass && String(runtimeTransitionLabel(transition)) === String(options.activeValue ?? "")) button.classList.add(options.activeClass);
+          button.dataset.transitionId = transition.id;
+          if (transition.id === renderOptions.defaultActionId) button.dataset.defaultAction = "true";
+          applyRuntimeTransitionButtonStyle(button, transition);
+          if (options.listItem) {
+            const listItem = document.createElement("li");
+            listItem.appendChild(button);
+            parent.appendChild(listItem);
+          } else {
+            parent.appendChild(button);
+          }
+          rendered += 1;
+        });
+        return rendered;
+      }
       transitions.forEach(t => {
         const button = createDaisyButton(runtimeTransitionLabel(t), () => {
           if (Date.now() < suppressActionUntil) return;
@@ -6614,6 +6723,7 @@
         .replace(touchFeedbackCss, touchFeedbackCssEnhanced)
         .replace(runtimeTouchFeedbackJs, runtimeTouchFeedbackJsEnhanced)
         .replace(runtimeImageComponentJs, runtimeImageComponentJsEnhanced)
+        .replace(safeComponentUrlJs, safeComponentUrlJsEnhanced)
         .replace(runtimeDataSourceJs, runtimeDataSourceJsEnhanced)
         .replace(runtimeNormalizeDataSourceJs, runtimeNormalizeDataSourceJsEnhanced)
         .replace(stateDataContractSyncJs, stateDataContractSyncJsEnhanced)
@@ -6683,6 +6793,7 @@
             const label = item && typeof item === "object" ? String(item.label || item.title || item.name || item.value || "") : String(item || "");
             const transitionId = item && typeof item === "object" ? String(item.transitionId || "") : "";
             const transition = transitionId ? transitionById.get(transitionId) : null;
+            const itemUrl = daisyItemUrl(item);
             if (!label) return;
             if (transition) {
               const button = document.createElement("button");
@@ -6697,6 +6808,8 @@
               };
               applyRuntimeTransitionButtonStyle(button, transition);
               nav.appendChild(button);
+            } else if (itemUrl) {
+              nav.appendChild(createDaisyLink(label, itemUrl, "link link-hover"));
             } else {
               appendDaisyText(nav, "span", "link link-hover", label);
             }
@@ -8773,6 +8886,32 @@
         .replace(/\u2029/g, "\\u2029");
     }
 
+    function standaloneExportHeadTags(payload) {
+      const title = escapeHtml(payload?.model?.name || "Zustand");
+      const description = escapeHtml("Zustand macht Business-Prozesse als globale JSON-State-Machine sichtbar, testbar und exportierbar.");
+      const siteUrl = "https://digitalisierungsplanung.de/";
+      const imageUrl = "https://digitalisierungsplanung.de/assets/share-card.png";
+      return [
+        `  <meta name="description" content="${description}">`,
+        `  <meta name="theme-color" content="#07111f">`,
+        `  <meta name="application-name" content="Zustand">`,
+        `  <link rel="canonical" href="${siteUrl}">`,
+        `  <link rel="manifest" href="/manifest.webmanifest">`,
+        `  <link rel="icon" type="image/svg+xml" href="/assets/zustand-icon.svg">`,
+        `  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">`,
+        `  <meta property="og:type" content="website">`,
+        `  <meta property="og:url" content="${siteUrl}">`,
+        `  <meta property="og:title" content="${title}">`,
+        `  <meta property="og:description" content="${description}">`,
+        `  <meta property="og:image" content="${imageUrl}">`,
+        `  <meta name="twitter:card" content="summary_large_image">`,
+        `  <meta name="twitter:title" content="${title}">`,
+        `  <meta name="twitter:description" content="${description}">`,
+        `  <meta name="twitter:image" content="${imageUrl}">`,
+        `  <script defer src="/register-sw.js"><\/script>`
+      ].join("\n");
+    }
+
     function buildStandaloneAppHtml(appHtml, payload) {
       const modelLiteral = jsLiteral(payload.model);
       const exportedAtLiteral = jsLiteral(payload.savedAt);
@@ -8785,6 +8924,7 @@
       ].join("\n");
       let html = appHtml
         .replace(/<title>[\s\S]*?<\/title>/, `<title>${escapeHtml(payload.model.name || "Zustand")}</title>`)
+        .replace("</head>", standaloneExportHeadTags(payload) + "\n</head>")
         .replace(/    let model = loadModel\(\) \|\| blankModel\(\);/, bootstrap)
         .replace(/    function saveModel\(\) \{\n      try \{ localStorage\.setItem\(STORAGE_KEY, JSON\.stringify\(model\)\); \} catch \(_\) \{\}\n    \}/,
           "    function saveModel() {}")
