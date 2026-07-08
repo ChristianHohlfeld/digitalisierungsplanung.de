@@ -391,7 +391,7 @@ async function emptyCanvasPoint(page) {
         for (let x = scan.left; x < scan.right; x += 46) {
           const el = document.elementFromPoint(x, y);
           if (!el || !map.contains(el)) continue;
-          if (el.closest(".state-explorer, .node, .svg-port, .edge, .hit, .edge-label, .edge-tip-hit, .help, .layer-frame-comment, .selection-actions, .canvas-history-actions")) continue;
+          if (el.closest(".state-explorer, .node, .svg-port, .edge, .edge-arrow, .edge-pin, .hit, .edge-label, .edge-tip-hit, .help, .layer-frame-comment, .selection-actions, .canvas-history-actions")) continue;
           if (requireClearStateBox && overlapsExistingNode(x, y)) continue;
           return { x, y };
         }
@@ -8953,6 +8953,11 @@ test.describe("State Blueprint tool", () => {
         topbarAboveWorkspace: topbarZ > workspaceZ
       };
     })).toEqual({ hitMenu: true, topbarAboveWorkspace: true });
+    await page.locator("#btnRun").tap();
+    await expect.poll(() => page.evaluate(() => document.getElementById("topbarMore").open)).toBe(false);
+    await page.locator("#topbarMore summary").tap();
+    await page.locator("#btnResetView").tap();
+    await expect.poll(() => page.evaluate(() => document.getElementById("topbarMore").open)).toBe(false);
 
     await context.close();
 

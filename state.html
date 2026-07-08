@@ -12165,6 +12165,7 @@
         const hadSelection = Boolean(selectedNodeIdList().length || selectedEdgeIdList().length);
         if (hadSelection) {
           lastEmptyCanvasTap = null;
+          suppressEmptyCanvasDblClickUntil = Date.now() + 500;
           clearSelection("selection:canvas");
           return true;
         }
@@ -13280,7 +13281,15 @@
       evt.stopPropagation();
       const p = screenToWorld(evt);
       blockLayerEntryAfterPointerAction(1000);
-      connecting = { from: s.id, to: p, fromSide: fromSide || connectionStartSide(s) };
+      connecting = {
+        from: s.id,
+        to: p,
+        fromSide: fromSide || connectionStartSide(s),
+        touch: isTouchPointer(evt),
+        moved: false,
+        startClientX: evt.clientX,
+        startClientY: evt.clientY
+      };
       connectingTargetId = null;
       mapEl.classList.add("connecting");
       draw();
@@ -13298,7 +13307,11 @@
         from: t.from,
         to: screenToWorld(evt),
         edgeId: concrete?.id || t.id,
-        projection: t.projection || null
+        projection: t.projection || null,
+        touch: isTouchPointer(evt),
+        moved: false,
+        startClientX: evt.clientX,
+        startClientY: evt.clientY
       };
       connectingTargetId = null;
       selected = selectionFromParts([], [concrete?.id || t.id]);
@@ -14799,6 +14812,13 @@
       el.setAttribute("data-edge-key", transitionRouteKey(t));
       if (canRewire) el.setAttribute("data-edge-rewire", "true");
       else el.removeAttribute("data-edge-rewire");
+      const hoverId = svgEdgeConcreteId(t) || t.id || "";
+      el.onmouseenter = () => {
+        if (hoverId) setEdgeHover(hoverId, true);
+      };
+      el.onmouseleave = () => {
+        if (hoverId) setEdgeHover(hoverId, false);
+      };
     }
 
     function svgEdgeTarget(evt) {
@@ -23601,6 +23621,10 @@
       }
       if (connecting) {
         stopRuntimeLayerFollow();
+        if (connecting.touch) {
+          connecting.moved = connecting.moved ||
+            Math.hypot(evt.clientX - connecting.startClientX, evt.clientY - connecting.startClientY) > 7;
+        }
         connecting.to = screenToWorld(evt);
         const target = connectionTargetAtWorldPoint(connecting.to);
         const nextTargetId = target?.id || null;
@@ -23720,6 +23744,17 @@
       }
       if (connecting) {
         blockLayerEntryAfterPointerAction(1000);
+        const touchDistance = connecting.touch
+          ? Math.hypot(evt.clientX - connecting.startClientX, evt.clientY - connecting.startClientY)
+          : Infinity;
+        if (connecting.touch && !connecting.moved && touchDistance <= 7) {
+          connecting = null;
+          connectingTargetId = null;
+          mapEl.classList.remove("connecting");
+          if (selectedNodeIdList().length || selectedEdgeIdList().length) clearSelection("selection:canvas");
+          else draw();
+          return;
+        }
         const dropPoint = screenToWorld(evt);
         const domTargetId = evt.target?.closest?.(".node")?.dataset?.id || "";
         const domTargetNode = byId(domTargetId);
@@ -23996,7 +24031,7 @@
 
     mapEl.addEventListener("dblclick", evt => {
       suppressCanvasTextSelection();
-      if (Date.now() < suppressEmptyCanvasDblClickUntil) {
+      if (Date.now() < suppressEmptyCanvasDblClickUntil || Date.now() - lastTouchAt < 700) {
         evt.preventDefault();
         evt.stopPropagation();
         return;
@@ -24549,18 +24584,38 @@
       loadEditorModel(starterModel(), true);
     }
 
-    document.getElementById("btnNew").onclick = requestNewCanvas;
+    function closeTopbarMenus() {
+      document.querySelectorAll(".topbar-menu[open]").forEach(menu => {
+        menu.open = false;
+      });
+    }
 
-    document.getElementById("btnWebsiteExample").onclick = async () => {
+    function runTopbarAction(action) {
+      closeTopbarMenus();
+      return action();
+    }
+
+    document.addEventListener("pointerdown", evt => {
+      const openMenus = Array.from(document.querySelectorAll(".topbar-menu[open]"));
+      if (!openMenus.length) return;
+      if (openMenus.some(menu => menu.contains(evt.target))) return;
+      closeTopbarMenus();
+    }, { capture: true });
+
+    document.addEventListener("keydown", evt => {
+      if (evt.key === "Escape") closeTopbarMenus();
+    }, { capture: true });
+
+    document.getElementById("btnNew").onclick = () => runTopbarAction(requestNewCanvas);
+
+    document.getElementById("btnWebsiteExample").onclick = () => runTopbarAction(async () => {
       const ok = await modalConfirm("Aktuelle Szene durch die Zustand Demo ersetzen?", "Zustand Demo", {
         confirmText: "Demo laden",
         danger: false
       });
       if (!ok) return;
-      const more = document.getElementById("topbarMore");
-      if (more) more.open = false;
       loadEditorModel(exampleWebsiteModel(), true);
-    };
+    });
     
     document.getElementById("btnSave").onclick = saveDefinitionFile;
     document.getElementById("btnLoad").onclick = requestLoadBlueprintFile;
@@ -24579,12 +24634,12 @@
       inspectorCollapsedByUser = inspectorCollapsed;
       applyInspectorCollapsed();
     };
-    document.getElementById("btnFit").onclick = fitView;
-    document.getElementById("btnResetView").onclick = resetView;
-    document.getElementById("btnRun").onclick = () => {
+    document.getElementById("btnFit").onclick = () => runTopbarAction(fitView);
+    document.getElementById("btnResetView").onclick = () => runTopbarAction(resetView);
+    document.getElementById("btnRun").onclick = () => runTopbarAction(() => {
       runtimeLayerFollowEnabled = true;
       syncToApp(true);
-    };
+    });
     btnPause.onclick = () => {
       applyRuntimePaused(!runtimePaused);
     };
@@ -24592,14 +24647,14 @@
       appWindow = window.open(APP_URL, "state_blueprint_app", "width=480,height=760");
       setTimeout(() => syncToApp(true), 300);
     };
-    document.getElementById("btnReset").onclick = async () => {
+    document.getElementById("btnReset").onclick = () => runTopbarAction(async () => {
       const ok = await modalConfirm("Canvas wirklich neu und leer starten?", "Reset canvas", {
         confirmText: "Reset",
         danger: true
       });
       if (!ok) return;
       loadEditorModel(starterModel(), true);
-    };
+    });
     btnTogglePreview.onclick = () => {
       togglePreviewCollapsed();
     };
