@@ -6798,7 +6798,7 @@
             if (index === 0 && daisyDataText(component, "badge", "")) appendDaisyText(button, "span", "badge", daisyDataText(component, "badge", ""));
             item.appendChild(button);
             list.appendChild(item);
-          });`, `          if (!appendDaisyTransitionButtons(list, ownerState, renderOptions, "navbar-profile", { component, listItem: true, labels: dropdownItems })) {
+          });`, `          if (!appendDaisyTransitionButtons(list, ownerState, renderOptions, "navbar-profile", { component, listItem: true, labels: dropdownItemValues })) {
             dropdownItems.forEach((value, index) => {
               const item = document.createElement("li");
               const button = createDaisyChoiceButton(component, "selected", value, String(value) === selected(), "btn-ghost justify-between");
@@ -6807,17 +6807,19 @@
               list.appendChild(item);
             });
           }`)
-        .replace(`          if (!appendDaisyTransitionButtons(actions, ownerState, renderOptions, "navbar-cart", { component })) {`, `          if (!appendDaisyTransitionButtons(actions, ownerState, renderOptions, "navbar-cart", { component, labels: [daisyDataText(component, "actionLabel", "View cart")] })) {`)
-        .replace(`          if (!appendDaisyTransitionButtons(menu, ownerState, renderOptions, "navbar", { component, listItem: true })) appendMenuItems(menu, "selected", menuItems, selected());`, `          if (!appendDaisyTransitionButtons(menu, ownerState, renderOptions, "navbar", { component, listItem: true, labels: menuItems })) appendMenuItems(menu, "selected", menuItems, selected());`)
-        .replace(`            appendMenuItems(submenu, "selected", submenuItems, selected());`, `            if (!appendDaisyTransitionButtons(submenu, ownerState, renderOptions, "navbar-submenu", { component, listItem: true, labels: submenuItems })) appendMenuItems(submenu, "selected", submenuItems, selected());`)
+        .replace(`          if (!appendDaisyTransitionButtons(actions, ownerState, renderOptions, "navbar-cart", { component })) {`, `          if (!appendDaisyTransitionButtons(actions, ownerState, renderOptions, "navbar-cart", { component, labels: [{ label: daisyDataText(component, "actionLabel", "View cart"), transitionId: daisyScopeData(component).transitionId }] })) {`)
+        .replace(`          if (!appendDaisyTransitionButtons(menu, ownerState, renderOptions, "navbar", { component, listItem: true })) appendMenuItems(menu, "selected", menuItems, selected());`, `          if (!appendDaisyTransitionButtons(menu, ownerState, renderOptions, "navbar", { component, listItem: true, labels: menuItemValues })) appendMenuItems(menu, "selected", menuItems, selected());`)
+        .replace(`            appendMenuItems(submenu, "selected", submenuItems, selected());`, `            if (!appendDaisyTransitionButtons(submenu, ownerState, renderOptions, "navbar-submenu", { component, listItem: true, labels: submenuItemValues })) appendMenuItems(submenu, "selected", submenuItems, selected());`)
         .replace(`        appendMenuItems(menu, "selected", itemLabels(), selected());
         el.appendChild(menu);`, `        const menuLabels = itemLabels();
-        if (!appendDaisyTransitionButtons(menu, ownerState, renderOptions, "menu", { component, listItem: true, labels: menuLabels, buttonClass: "btn-ghost daisy-choice" })) appendMenuItems(menu, "selected", menuLabels, selected());
+        const menuValues = daisyDataArray(component, "items", menuLabels);
+        if (!appendDaisyTransitionButtons(menu, ownerState, renderOptions, "menu", { component, listItem: true, labels: menuValues, buttonClass: "btn-ghost daisy-choice" })) appendMenuItems(menu, "selected", menuLabels, selected());
         el.appendChild(menu);`)
         .replace(`        el.className = daisyClass(el.className, "bottom-nav btm-nav dock bg-base-100 shadow-sm");
         appendChoiceRow(el, "selected", itemLabels(), selected(), "daisy-row", "btn-ghost");`, `        el.className = daisyClass(el.className, "bottom-nav btm-nav dock bg-base-100 shadow-sm");
         const labels = itemLabels();
-        if (!appendDaisyTransitionButtons(el, ownerState, renderOptions, "bottom-navigation", { component, labels, buttonClass: "btn-ghost daisy-choice" })) appendChoiceRow(el, "selected", labels, selected(), "daisy-row", "btn-ghost");`)
+        const values = daisyDataArray(component, "items", labels);
+        if (!appendDaisyTransitionButtons(el, ownerState, renderOptions, "bottom-navigation", { component, labels: values, buttonClass: "btn-ghost daisy-choice" })) appendChoiceRow(el, "selected", labels, selected(), "daisy-row", "btn-ghost");`)
         .replace(`        itemLabels().forEach(value => {
           const button = createDaisyChoiceButton(component, "selected", value, String(value) === selected(), "tab");
           button.setAttribute("role", "tab");
@@ -6825,7 +6827,8 @@
           tabs.appendChild(button);
         });
         el.appendChild(tabs);`, `        const tabLabels = itemLabels();
-        if (!appendDaisyTransitionButtons(tabs, ownerState, renderOptions, "tabs", { component, labels: tabLabels, buttonClass: "btn-ghost tab", role: "tab", activeValue: selected(), activeClass: "tab-active" })) {
+        const tabValues = daisyDataArray(component, "items", tabLabels);
+        if (!appendDaisyTransitionButtons(tabs, ownerState, renderOptions, "tabs", { component, labels: tabValues, buttonClass: "btn-ghost tab", role: "tab", activeValue: selected(), activeClass: "tab-active" })) {
           tabLabels.forEach(value => {
             const button = createDaisyChoiceButton(component, "selected", value, String(value) === selected(), "tab");
             button.setAttribute("role", "tab");
@@ -6849,13 +6852,17 @@
         const currentStep = daisyDataText(component, "current", steps[0] || "");
         const list = document.createElement("ol");
         list.className = "steps";
-        const transitions = daisyTransitionButtonCandidates(ownerState, renderOptions, component, { labels: steps });
+        const stepValues = daisyDataArray(component, "items", steps);
+        const transitions = daisyTransitionButtonCandidates(ownerState, renderOptions, component, { labels: stepValues });
+        const transitionById = new Map(transitions.map(transition => [String(transition.id || ""), transition]));
         const transitionByLabel = new Map(transitions.map(transition => [String(runtimeTransitionLabel(transition) || "").trim().toLowerCase(), transition]));
-        steps.forEach(step => {
+        steps.forEach((step, index) => {
           const label = String(step || "");
           const item = document.createElement("li");
           item.className = label === String(currentStep) ? "step step-primary" : "step";
-          const transition = transitionByLabel.get(label.trim().toLowerCase());
+          const stepValue = stepValues[index];
+          const explicitId = stepValue && typeof stepValue === "object" && !Array.isArray(stepValue) ? String(stepValue.transitionId || "") : "";
+          const transition = explicitId ? transitionById.get(explicitId) : transitionByLabel.get(label.trim().toLowerCase());
           if (transition) {
             const button = createDaisyButton(label, () => {
               if (Date.now() < suppressActionUntil) return;
@@ -6873,20 +6880,28 @@
         el.appendChild(list);`)
         .replace(`          appendMenuItems(menu, "selected", itemLabels(), selected());
           side.appendChild(menu);`, `          const drawerLabels = itemLabels();
-          if (!appendDaisyTransitionButtons(menu, ownerState, renderOptions, "drawer", { component, listItem: true, labels: drawerLabels, buttonClass: "btn-ghost daisy-choice" })) appendMenuItems(menu, "selected", drawerLabels, selected());
+          const drawerValues = daisyDataArray(component, "items", drawerLabels);
+          if (!appendDaisyTransitionButtons(menu, ownerState, renderOptions, "drawer", { component, listItem: true, labels: drawerValues, buttonClass: "btn-ghost daisy-choice" })) appendMenuItems(menu, "selected", drawerLabels, selected());
           side.appendChild(menu);`)
         .replace(`          appendMenuItems(menu, "selected", daisyDataArray(component, "options", itemLabels()), selected());
           el.appendChild(menu);`, `          const dropdownLabels = daisyDataArray(component, "options", itemLabels());
           if (!appendDaisyTransitionButtons(menu, ownerState, renderOptions, "dropdown", { component, listItem: true, labels: dropdownLabels, buttonClass: "btn-ghost daisy-choice" })) appendMenuItems(menu, "selected", dropdownLabels, selected());
           el.appendChild(menu);`)
+        .replace(`        el.className = daisyClass(el.className, "dropdown");
+        el.appendChild(createDaisyButton(selected() || "Choose", () => daisyWrite(component, "open", !open, { render: true }), "m-1"));`, `        el.className = daisyClass(el.className, "dropdown");
+        el.dataset.open = String(open);
+        el.appendChild(createDaisyButton(selected() || "Choose", () => daisyWrite(component, "open", !open, { render: true }), "m-1"));`)
         .replace(`        const menuItems = itemLabels("items");
         const dropdownItems = daisyDataArray(component, "menuItems", menuItems.length ? menuItems : ["Profile", "Settings", "Logout"]).map(item => String(item)).filter(Boolean);
-        const submenuItems = daisyDataArray(component, "submenu", ["Link 1", "Link 2"]).map(item => String(item)).filter(Boolean);`, `        const menuItems = itemLabels("items");
-        const navbarItemLabel = item => item && typeof item === "object" && !Array.isArray(item)
+        const submenuItems = daisyDataArray(component, "submenu", ["Link 1", "Link 2"]).map(item => String(item)).filter(Boolean);`, `        const navbarItemLabel = item => item && typeof item === "object" && !Array.isArray(item)
           ? String(item.label || item.title || item.name || item.value || "").trim()
           : String(item || "").trim();
-        const dropdownItems = daisyDataArray(component, "menuItems", menuItems.length ? menuItems : ["Profile", "Settings", "Logout"]).map(navbarItemLabel).filter(Boolean);
-        const submenuItems = daisyDataArray(component, "submenu", ["Link 1", "Link 2"]).map(navbarItemLabel).filter(Boolean);`)
+        const menuItemValues = daisyDataArray(component, "items", lines.length ? lines : [title]);
+        const menuItems = menuItemValues.map(navbarItemLabel).filter(Boolean);
+        const dropdownItemValues = daisyDataArray(component, "menuItems", menuItems.length ? menuItemValues : ["Profile", "Settings", "Logout"]);
+        const dropdownItems = dropdownItemValues.map(navbarItemLabel).filter(Boolean);
+        const submenuItemValues = daisyDataArray(component, "submenu", ["Link 1", "Link 2"]);
+        const submenuItems = submenuItemValues.map(navbarItemLabel).filter(Boolean);`)
         .replace(`          dropdown.className = "dropdown";
           dropdown.appendChild(iconButton(daisyDataText(component, "menuAction", "Menu"), "menuShort"));`, `          dropdown.className = "dropdown";
           dropdown.dataset.open = String(daisyDataBool(component, "menuOpen", false));
@@ -22273,6 +22288,23 @@
       return cleanFlowActionLabels(values).map(label => ({ label, itemIndex: -1 }));
     }
 
+    function flowActionItemsFromValues(values, itemKey = "items") {
+      const seen = new Set();
+      const labelFrom = value => value && typeof value === "object" && !Array.isArray(value)
+        ? String(value.label || value.title || value.name || value.value || "").trim()
+        : String(value || "").trim();
+      return (Array.isArray(values) ? values : [])
+        .map((value, itemIndex) => {
+          const label = labelFrom(value);
+          const key = normalizeId(label);
+          if (!label || seen.has(key)) return null;
+          seen.add(key);
+          return { label, itemIndex, itemKey };
+        })
+        .filter(Boolean)
+        .slice(0, 8);
+    }
+
     function daisyFlowActionItems(component, data) {
       if (!supportedDaisyComponent(component, data)) return [];
       const variant = daisyVariantName(component);
@@ -22340,8 +22372,11 @@
           .filter(Boolean)
           .slice(0, 8);
       }
-      if (["bottom-navigation", "drawer", "menu", "steps", "tabs"].includes(variant)) return flowActionItemsFromLabels(Array.isArray(data.items) ? data.items : []);
-      if (variant === "dropdown") return flowActionItemsFromLabels(Array.isArray(data.options) ? data.options : Array.isArray(data.items) ? data.items : []);
+      if (["bottom-navigation", "drawer", "menu", "steps", "tabs"].includes(variant)) return flowActionItemsFromValues(data.items, "items");
+      if (variant === "dropdown") {
+        if (Array.isArray(data.options)) return flowActionItemsFromValues(data.options, "options");
+        return flowActionItemsFromValues(data.items, "items");
+      }
       if (variant === "modal") return flowActionItemsFromLabels([data.actionLabel || "Confirm"]);
       if (variant === "countdown") return flowActionItemsFromLabels([data.doneLabel || "Done"]);
       if (variant === "loading") return flowActionItemsFromLabels([data.nextLabel || "Next"]);
@@ -22351,9 +22386,15 @@
         const itemLabels = Array.isArray(data.items) ? data.items : [];
         const submenuLabels = Array.isArray(data.submenu) ? data.submenu : [];
         const profileLabels = Array.isArray(data.menuItems) ? data.menuItems : [];
-        if (layout === "cart-profile") return flowActionItemsFromLabels([data.actionLabel || "View cart", ...profileLabels]);
-        if (layout === "search-dropdown") return flowActionItemsFromLabels(profileLabels);
-        if (layout === "menu-submenu") return flowActionItemsFromLabels([...itemLabels, ...submenuLabels]);
+        if (layout === "cart-profile") return [
+          ...flowActionItemsFromLabels([data.actionLabel || "View cart"]).map(item => ({ ...item, itemKey: "transitionId" })),
+          ...flowActionItemsFromValues(profileLabels, "menuItems")
+        ];
+        if (layout === "search-dropdown") return flowActionItemsFromValues(profileLabels, "menuItems");
+        if (layout === "menu-submenu") return [
+          ...flowActionItemsFromValues(itemLabels, "items"),
+          ...flowActionItemsFromValues(submenuLabels, "submenu")
+        ];
       }
       return [];
     }
@@ -22476,6 +22517,20 @@
           if (Array.isArray(items) && items[action.itemIndex] && typeof items[action.itemIndex] === "object" && !Array.isArray(items[action.itemIndex])) {
             const nextItems = items.map((item, itemIndex) => itemIndex === action.itemIndex ? { ...item, transitionId } : item);
             root.data = setDataObjectPath(root.data, `${action.dataPath}.items`, nextItems);
+          }
+        } else if (actionVariant === "navbar" && action.itemKey === "transitionId" && action.dataPath) {
+          root.data = setDataObjectPath(root.data, `${action.dataPath}.transitionId`, transitionId);
+        } else if (["bottom-navigation", "drawer", "dropdown", "menu", "steps", "tabs", "navbar"].includes(actionVariant) && Number.isInteger(action.itemIndex) && action.itemIndex >= 0 && action.dataPath && action.itemKey) {
+          const path = `${action.dataPath}.${action.itemKey}`;
+          const items = dataObjectValueAtPath(root.data, path);
+          if (Array.isArray(items) && action.itemIndex < items.length) {
+            const nextItems = items.map((item, itemIndex) => {
+              if (itemIndex !== action.itemIndex) return item;
+              return item && typeof item === "object" && !Array.isArray(item)
+                ? { ...item, transitionId }
+                : { label: String(item || ""), transitionId };
+            });
+            root.data = setDataObjectPath(root.data, path, nextItems);
           }
         } else if (actionVariant === "footer" && Number.isInteger(action.columnIndex) && Number.isInteger(action.itemIndex) && action.dataPath) {
           const columns = dataObjectValueAtPath(root.data, `${action.dataPath}.columns`);

@@ -5166,12 +5166,28 @@ test.describe("State Blueprint tool", () => {
         const expectedLabels = daisyFlowActionLabels(component, data);
         const stateIds = new Set(instance.states.map(state => state.id));
         const transitions = instance.transitions.filter(transition => transition.from === root.id);
+        const itemTransitionIds = items => Array.isArray(items)
+          ? items.map(item => item && typeof item === "object" && !Array.isArray(item) ? item.transitionId || "" : "")
+          : [];
+        const structuredActionTransitionIds = (() => {
+          const variant = component?.variant || "";
+          if (["bottom-navigation", "drawer", "menu", "steps", "tabs"].includes(variant)) return itemTransitionIds(data.items);
+          if (variant === "dropdown") return itemTransitionIds(Array.isArray(data.options) ? data.options : data.items);
+          if (variant === "navbar") {
+            const layout = String(data.layout || "menu-submenu").trim() || "menu-submenu";
+            if (layout === "cart-profile") return [data.transitionId || "", ...itemTransitionIds(data.menuItems)];
+            if (layout === "search-dropdown") return itemTransitionIds(data.menuItems);
+            return [...itemTransitionIds(data.items), ...itemTransitionIds(data.submenu)];
+          }
+          return [];
+        })();
         return {
           id: template.id,
           title: template.title,
           variant: component?.variant || "",
           scopePath: component?.dataPath || "",
           expectedLabels,
+          structuredActionTransitionIds,
           breadcrumbTransitionIds: component?.variant === "breadcrumbs" && Array.isArray(data.items)
             ? data.items.slice(0, -1).map(item => item.transitionId || "")
             : [],
@@ -5298,12 +5314,40 @@ test.describe("State Blueprint tool", () => {
         if (item.variant === "card") {
           expect(item.hasImageTransitionId, item.title).toBe(false);
         }
+        if (item.structuredActionTransitionIds.length) {
+          expect(item.structuredActionTransitionIds, item.title).toEqual(item.transitions.map(t => t.id));
+        }
         if (["bottom-navigation", "drawer", "dropdown", "menu", "steps", "tabs"].includes(item.variant)) {
           const key = item.variant === "steps" ? "current" : "selected";
           expect(transition.set, item.title).toMatchObject({ [`${item.scopePath}.${key}`]: transition.label });
         }
       }
     }
+  });
+
+  test("dropdown preset binds every option to a real transition and click traverses @smoke", async ({ page }) => {
+    await openTool(page);
+
+    const stateId = await addComponentState(page, "Dropdown menu", { openInspector: false });
+    const model = await savedModel(page);
+    const state = model.states.find(item => item.id === stateId);
+    const transitions = model.transitions.filter(transition => transition.from === stateId);
+    const options = state.data[`states.${stateId}`].options;
+
+    expect(transitions.map(transition => transition.label)).toEqual(["Option A", "Option B", "Option C"]);
+    expect(options.map(item => item.label)).toEqual(["Option A", "Option B", "Option C"]);
+    expect(options.map(item => item.transitionId)).toEqual(transitions.map(transition => transition.id));
+
+    const app = appFrame(page);
+    await expect(app.locator("#statePill")).toHaveText(stateId);
+    await app.getByRole("button", { name: "Option A" }).first().click();
+    const menuButtons = app.locator(".dropdown-content button[data-transition-id]");
+    await expect(menuButtons).toHaveCount(3);
+    await expect(menuButtons).toHaveText(["Option A", "Option B", "Option C"]);
+    await expect.poll(async () => menuButtons.evaluateAll(buttons => buttons.map(button => button.dataset.transitionId || ""))).toEqual(transitions.map(transition => transition.id));
+
+    await menuButtons.nth(1).click();
+    await expect(app.locator("#statePill")).toHaveText(transitions[1].to);
   });
 
   test("keeps all built-in presets named and populated with usable defaults @smoke", async ({ page }) => {
