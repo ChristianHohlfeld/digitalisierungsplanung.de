@@ -334,11 +334,23 @@
             ]
           },
           "states.prinzipien.schritte": {
-            "current": "Visualisieren",
+            "current": "Verstehen",
             "items": [
-              "Verstehen",
-              "Visualisieren",
-              "Digitalisieren"
+              {
+                "label": "Verstehen",
+                "description": "Ablauf, Daten und Entscheidungspunkte sichtbar machen.",
+                "transitionId": "nav_prinzipien_prinzipien"
+              },
+              {
+                "label": "Visualisieren",
+                "description": "Zustände, Trigger und UI im Werkzeug verbinden.",
+                "transitionId": "nav_prinzipien_werkzeug"
+              },
+              {
+                "label": "Digitalisieren",
+                "description": "Aus dem geprüften Modell eine steuerbare Runtime machen.",
+                "transitionId": "nav_prinzipien_schnittstellen"
+              }
             ]
           },
           "states.prinzipien.footer": {
@@ -727,9 +739,21 @@
           "states.schnittstellen.ablauf": {
             "current": "Exportieren",
             "items": [
-              "Modell ändern",
-              "Validieren",
-              "Exportieren"
+              {
+                "label": "Modell ändern",
+                "description": "Editor und API schreiben dieselbe JSON-Definition.",
+                "transitionId": "nav_schnittstellen_werkzeug"
+              },
+              {
+                "label": "Validieren",
+                "description": "FSM, IDs und Bus bleiben am Contract prüfbar.",
+                "transitionId": "nav_schnittstellen_prinzipien"
+              },
+              {
+                "label": "Exportieren",
+                "description": "Die Website entsteht aus dem Modell, nicht aus Nachbearbeitung.",
+                "transitionId": "nav_schnittstellen_schnittstellen"
+              }
             ]
           },
           "states.schnittstellen.footer": {

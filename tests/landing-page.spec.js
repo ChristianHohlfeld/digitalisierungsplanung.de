@@ -41,6 +41,13 @@ test.describe("Landing page export", () => {
 
     await page.locator(".navbar").getByRole("button", { name: "Prinzip", exact: true }).click();
     await expect(page.locator("#statePill")).toHaveText("prinzipien");
+    await expect(page.locator(".steps button[data-transition-id] .daisy-step-label")).toHaveText([
+      "Verstehen",
+      "Visualisieren",
+      "Digitalisieren"
+    ]);
+    await page.locator(".steps").getByRole("button", { name: /Visualisieren/ }).click();
+    await expect(page.locator("#statePill")).toHaveText("werkzeug");
 
     await editorLink.click();
     await expect(page).toHaveURL(/state\.html$/);

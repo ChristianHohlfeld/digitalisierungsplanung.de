@@ -1818,7 +1818,16 @@ test.describe("State Blueprint tool", () => {
     await expect(app.locator(".daisy-feature-cards > .card")).toHaveCount(3);
     await expect(app.locator(".daisy-feature-image")).toHaveCount(3);
     await expect(app.locator(".daisy-feature-grid button[data-transition-id]")).toHaveCount(3);
-    await expect(app.locator(".steps button[data-transition-id]")).toHaveCount(0);
+    await expect(app.locator(".steps button[data-transition-id] .daisy-step-label")).toHaveText([
+      "Verstehen",
+      "Visualisieren",
+      "Digitalisieren"
+    ]);
+    await expect(app.locator(".steps .daisy-step-copy")).toContainText([
+      "Prozess als gemeinsames Bild festhalten.",
+      "Zustaende, Daten und Ausloeser im Canvas verbinden.",
+      "Aus dem Vertrag eine nutzbare Runtime machen."
+    ]);
     await expect(app.locator("li.step-primary")).toContainText("Visualisieren");
     await expect(navButton("Features")).toHaveCount(1);
     await expectNoHorizontalOverflow();
@@ -2029,7 +2038,11 @@ test.describe("State Blueprint tool", () => {
     await expect(standalone.locator(".daisy-feature-grid")).toHaveCount(1);
     await expect(standalone.locator(".daisy-feature-cards > .card")).toHaveCount(3);
     await expect(standalone.locator(".daisy-feature-grid button[data-transition-id]")).toHaveCount(3);
-    await expect(standalone.locator(".steps button[data-transition-id]")).toHaveCount(0);
+    await expect(standalone.locator(".steps button[data-transition-id] .daisy-step-label")).toHaveText([
+      "Verstehen",
+      "Visualisieren",
+      "Digitalisieren"
+    ]);
     await expectStandaloneNoHorizontalOverflow();
     await navButton("Home").click();
     await expectStandaloneShell("site_home", "Home");
@@ -6194,11 +6207,13 @@ test.describe("State Blueprint tool", () => {
 
     const app = appFrame(page);
     await expect(app.locator("li.step-primary")).toContainText("Build");
-    await expect(app.locator(".steps button[data-transition-id]")).toHaveText(["Plan", "Build", "Ship"]);
-    const shipStep = app.locator("li.step", { hasText: "Ship" });
-    const shipBox = await shipStep.boundingBox();
-    expect(shipBox).toBeTruthy();
-    await shipStep.click({ position: { x: Math.max(40, shipBox.width - 8), y: shipBox.height / 2 } });
+    await expect(app.locator(".steps button[data-transition-id] .daisy-step-label")).toHaveText(["Plan", "Build", "Ship"]);
+    await expect(app.locator(".steps .daisy-step-copy")).toContainText([
+      "Define the screen and data contract.",
+      "Wire components to real transitions.",
+      "Preview, test, and export."
+    ]);
+    await app.locator(".steps").getByRole("button", { name: /Ship/ }).click();
     await expect.poll(async () => (await runtimeContext(page)).states?.[stepsState.id]?.current).toBe("Ship");
     const shipTarget = model.states.find(state => state.title === "Ship" && state.parentId === stepsState.parentId);
     expect(shipTarget).toBeTruthy();
@@ -6218,7 +6233,11 @@ test.describe("State Blueprint tool", () => {
       data: {
         "states.auth_start.steps": {
           current: "Wire",
-          items: ["Model", "Wire", "Preview"]
+          items: [
+            { label: "Model", description: "Define scoped data." },
+            { label: "Wire", description: "Connect real transitions." },
+            { label: "Preview", description: "Run the current FSM." }
+          ]
         }
       },
       dataTypes: {
@@ -6228,6 +6247,11 @@ test.describe("State Blueprint tool", () => {
     noWireModel.transitions = noWireModel.transitions.filter(transition => transition.from !== "auth_start");
     await openTool(page, { model: noWireModel });
     await expect(app.locator(".steps button[data-transition-id]")).toHaveCount(0);
+    await expect(app.locator(".steps .daisy-step-copy")).toContainText([
+      "Define scoped data.",
+      "Connect real transitions.",
+      "Run the current FSM."
+    ]);
     const previewStep = app.locator("li.step", { hasText: "Preview" });
     const previewBox = await previewStep.boundingBox();
     expect(previewBox).toBeTruthy();

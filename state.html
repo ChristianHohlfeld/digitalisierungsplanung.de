@@ -5446,10 +5446,18 @@
       .daisy-feature-cards,
       .daisy-pricing { grid-template-columns: 1fr; }
     }
-    .step { min-width: 0; }
-    .step .step-action { flex: 1 1 auto; min-width: 0; justify-content: flex-start; text-align: left; }
-    .step span.step-action { display: inline-flex; align-items: center; min-height: 36px; }
-    .step button.step-action { width: 100%; min-height: 36px; padding: 6px 10px; }`;
+    .steps { grid-template-columns: repeat(auto-fit, minmax(min(100%, 168px), 1fr)); gap: 10px; align-items: stretch; }
+    .step { position: relative; display: grid; grid-template-columns: 32px minmax(0, 1fr); align-items: start; gap: 10px; min-width: 0; min-height: 86px; padding: 12px; border: 1px solid rgba(148,163,184,.2); border-radius: 16px; background: rgba(8,24,39,.72); color: var(--muted); box-shadow: inset 0 1px 0 rgba(255,255,255,.04); }
+    .step::before { width: 30px; height: 30px; margin-top: 1px; border: 1px solid rgba(148,163,184,.22); box-shadow: inset 0 1px 0 rgba(255,255,255,.06); }
+    .step-primary { border-color: rgba(56,189,248,.5); background: linear-gradient(135deg, rgba(56,189,248,.17), rgba(8,24,39,.82)); }
+    .step .step-action { display: grid; align-content: start; gap: 3px; min-width: 0; width: 100%; justify-items: start; text-align: left; }
+    .step span.step-action { min-height: 36px; }
+    .step button.step-action { min-height: 0; padding: 0; border: 0; background: transparent; box-shadow: none; color: inherit; }
+    .step button.step-action .daisy-step-label { color: var(--button-color, #f8fbff); }
+    .step button.step-action:hover .daisy-step-label { color: #f8fbff; text-decoration: underline; text-underline-offset: 3px; }
+    .daisy-step-label { min-width: 0; color: #f8fbff; font-weight: 950; line-height: 1.2; overflow-wrap: anywhere; }
+    .step-primary .daisy-step-label { color: #e0f2fe; }
+    .daisy-step-copy { color: var(--muted); font-size: 12px; font-weight: 800; line-height: 1.35; overflow-wrap: anywhere; }`;
       const maskCss = `    .mask { object-fit: cover; border: 1px solid var(--line-strong); background: #020617; }
     .mask-squircle { border-radius: 24px; }
     .mask-hexagon { clip-path: polygon(25% 5%, 75% 5%, 100% 50%, 75% 95%, 25% 95%, 0 50%); }`;
@@ -6962,31 +6970,47 @@
           list.appendChild(item);
         });
         el.appendChild(list);`, `        const steps = itemLabels();
-        const currentStep = daisyDataText(component, "current", steps[0] || "");
+        const stepValues = daisyDataArray(component, "items", steps);
+        const stepEntries = (stepValues.length ? stepValues : steps).map((stepValue, index) => {
+          const label = daisyItemLabel(stepValue) || String(steps[index] || "").trim();
+          const detail = stepValue && typeof stepValue === "object" && !Array.isArray(stepValue)
+            ? String(stepValue.description || stepValue.body || stepValue.detail || stepValue.meta || "").trim()
+            : "";
+          return label ? { label, detail, value: stepValue } : null;
+        }).filter(Boolean);
+        const currentStep = daisyDataText(component, "current", stepEntries[0]?.label || "");
         const list = document.createElement("ol");
         list.className = "steps";
-        const stepValues = daisyDataArray(component, "items", steps);
         const transitions = daisyTransitionButtonCandidates(ownerState, renderOptions, component, { labels: stepValues });
         const transitionById = new Map(transitions.map(transition => [String(transition.id || ""), transition]));
         const transitionByLabel = new Map(transitions.map(transition => [String(runtimeTransitionLabel(transition) || "").trim().toLowerCase(), transition]));
-        steps.forEach((step, index) => {
-          const label = String(step || "");
+        const appendStepContent = (node, entry) => {
+          appendDaisyText(node, "strong", "daisy-step-label", entry.label);
+          if (entry.detail) appendDaisyText(node, "small", "daisy-step-copy", entry.detail);
+        };
+        stepEntries.forEach(entry => {
           const item = document.createElement("li");
-          item.className = label === String(currentStep) ? "step step-primary" : "step";
-          const stepValue = stepValues[index];
-          const explicitId = stepValue && typeof stepValue === "object" && !Array.isArray(stepValue) ? String(stepValue.transitionId || "") : "";
-          const transition = explicitId ? transitionById.get(explicitId) : transitionByLabel.get(label.trim().toLowerCase());
+          item.className = entry.label === String(currentStep) ? "step step-primary" : "step";
+          const explicitId = entry.value && typeof entry.value === "object" && !Array.isArray(entry.value) ? String(entry.value.transitionId || "") : "";
+          const transition = explicitId ? transitionById.get(explicitId) : transitionByLabel.get(entry.label.trim().toLowerCase());
           if (transition) {
-            const button = createDaisyButton(label, () => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "btn-ghost step-action daisy-transition-button";
+            button.onclick = () => {
               if (Date.now() < suppressActionUntil) return;
               emitRuntimeEvent(transitionEventName(transition), { type: "button", source: "steps", transitionId: transition.id });
-            }, "btn-ghost step-action daisy-transition-button");
+            };
             button.dataset.transitionId = transition.id;
             if (transition.id === renderOptions.defaultActionId) button.dataset.defaultAction = "true";
             applyRuntimeTransitionButtonStyle(button, transition);
+            appendStepContent(button, entry);
             item.appendChild(button);
           } else {
-            appendDaisyText(item, "span", "step-action", label);
+            const content = document.createElement("span");
+            content.className = "step-action";
+            appendStepContent(content, entry);
+            item.appendChild(content);
           }
           list.appendChild(item);
         });
@@ -7504,7 +7528,11 @@
           },
           "states.site_features.steps": {
             current: "Visualisieren",
-            items: ["Verstehen", "Visualisieren", "Digitalisieren"]
+            items: [
+              { label: "Verstehen", description: "Prozess als gemeinsames Bild festhalten.", transitionId: "site_features_nav_home" },
+              { label: "Visualisieren", description: "Zustaende, Daten und Ausloeser im Canvas verbinden.", transitionId: "site_features_nav_features" },
+              { label: "Digitalisieren", description: "Aus dem Vertrag eine nutzbare Runtime machen.", transitionId: "site_features_nav_pricing" }
+            ]
           },
           "states.site_features.footer": footerData("site_features")
         }),
@@ -15891,7 +15919,7 @@
         { id: "rating", title: "Star rating", description: "Rating value written to shared data.", data: { label: "Rating", value: 3, max: 5 } },
         { id: "select", title: "Select field", description: "Select value written to shared data.", data: { label: "Status", value: "Open", options: ["Open", "In progress", "Done"] } },
         { id: "stat", title: "Metric stat", description: "Metric title, value, and description from shared data.", data: { title: "Revenue", value: "EUR 12.4k", description: "+8% this week" } },
-        { id: "steps", title: "Process steps", description: "Current process step stored in shared data.", data: { current: "Build", items: ["Plan", "Build", "Ship"] } },
+        { id: "steps", title: "Process steps", description: "Process rail with optional real FSM transitions per step.", data: { current: "Build", items: [{ label: "Plan", description: "Define the screen and data contract." }, { label: "Build", description: "Wire components to real transitions." }, { label: "Ship", description: "Preview, test, and export." }] } },
         { id: "table", title: "Data table", description: "Columns and rows rendered from shared data arrays.", data: { columns: ["Order", "Status"], rows: [["Order #1024", "Paid"], ["Order #1025", "Pending"]] } },
         { id: "tabs", title: "Content tabs", description: "Active tab stored in shared data.", data: { selected: "Overview", items: ["Overview", "Details", "Activity"] } },
         { id: "textarea", title: "Textarea field", description: "Textarea writes value into shared data.", data: { label: "Notes", value: "" } },
