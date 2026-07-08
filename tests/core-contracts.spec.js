@@ -189,16 +189,14 @@ test.describe("Core source contracts", () => {
     expect(html).not.toMatch(mojibakePattern);
   });
 
-  test("editor group geometry constants initialize before saved models normalize @smoke", () => {
+  test("grouping is represented by real parent states, not editorGroups metadata @smoke", () => {
     const html = stateHtml();
-    const modelInitIndex = html.indexOf("let model = initialEditorState?.model ? normalizeModel(initialEditorState.model)");
-    const groupConstIndex = html.indexOf("const EDITOR_GROUP_DISPLAY_W = GRID_SIZE * 10;");
-    const groupConstMatches = html.match(/const EDITOR_GROUP_DISPLAY_W/g) || [];
+    const appHtml = generatedAppHtml();
 
-    expect(groupConstIndex, "editor group display width constant exists").toBeGreaterThanOrEqual(0);
-    expect(modelInitIndex, "startup model normalization exists").toBeGreaterThanOrEqual(0);
-    expect(groupConstIndex, "group geometry constants are ready before persisted editorGroups normalize").toBeLessThan(modelInitIndex);
-    expect(groupConstMatches, "group display width constant is declared once").toHaveLength(1);
+    expect(html).toContain("delete m.editorGroups;");
+    expect(html).toContain("delete snap.editorGroups;");
+    expect(html).not.toContain("editorGroups: normalizeEditorGroups(model.editorGroups, model)");
+    expect(appHtml).not.toContain("editorGroups");
   });
 
   test("generated blank runtime starts without editor-only helpers @smoke", async ({ page }) => {
@@ -657,7 +655,8 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("function appendDaisyLocalActionButton");
     expect(html).toContain("ownerId === current");
     expect(appHtml).toContain("function runtimeChildEntryTransition(state)");
-    expect(appHtml).toContain("if (!state) return null;");
+    expect(appHtml).toContain("__runtime_enter_child");
+    expect(appHtml).toContain("function parentExitTransitions(state, activeState = state)");
     expect(appHtml).not.toContain("combinedRender");
     expect(appHtml).not.toContain("childOutlet");
     expect(appHtml).not.toContain("passiveRender");

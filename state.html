@@ -4557,7 +4557,7 @@
       <div id="selectionActions" class="selection-actions" hidden="">
         <span id="selectionCount" class="selection-count"></span>
         <button id="btnSelectionCopy" type="button" disabled="">Copy</button>
-        <button id="btnSelectionCollapse" type="button" disabled="">Group</button>
+        <button id="btnSelectionCollapse" type="button" disabled="">Collapse</button>
         <button id="btnSelectionDelete" type="button" class="danger">Delete</button>
       </div>
       <div id="stateExplorer" class="state-explorer">
@@ -7146,8 +7146,7 @@
         initial: "",
         boundary: normalizeBoundaryConfig(null),
         states: [],
-        transitions: [],
-        editorGroups: []
+        transitions: []
       };
     }
 
@@ -7160,8 +7159,7 @@
         states: [
           { id: "start", title: "Start", components: [], data: {}, x: 120, y: 168 }
         ],
-        transitions: [],
-        editorGroups: []
+        transitions: []
       };
     }
 
@@ -8136,7 +8134,6 @@
         initial: String(model.initial || ""),
         boundary: normalizeBoundaryConfig(model.boundary),
         states: model.states.map(stateExportSnapshot),
-        editorGroups: normalizeEditorGroups(model.editorGroups, model),
         transitions: model.transitions
           .filter(transition => !isBoundaryFlowTransition(transition))
           .map(transitionExportSnapshot)
@@ -8514,7 +8511,7 @@
           title: assertString(group.title, `${itemPath}.title`, { allowEmpty: true }) || "Group",
           layerId,
           stateIds,
-          collapsed: true,
+          collapsed: group.collapsed === false ? false : true,
           x: assertFiniteNumber(group.x, `${itemPath}.x`),
           y: assertFiniteNumber(group.y, `${itemPath}.y`),
           width: assertFiniteNumber(group.width, `${itemPath}.width`),
@@ -8621,15 +8618,12 @@
           groupExitId
         };
       });
-      const editorGroups = validateEditorGroups(source.editorGroups, "definition.model.editorGroups", states, transitionIds);
-
       return {
         version: DEFINITION_SCHEMA_VERSION,
         name: source.name,
         initial,
         boundary: rootBoundary,
         states,
-        editorGroups,
         transitions
       };
     }
@@ -10041,7 +10035,7 @@
           title,
           layerId,
           stateIds: memberIds,
-          collapsed: true,
+          collapsed: rawGroup?.collapsed === false ? false : true,
           x: bounds.x,
           y: bounds.y,
           width: bounds.width,
@@ -10054,6 +10048,10 @@
     function editorGroupsInLayer(layerId = currentLayerId) {
       const id = layerId || "";
       return (model.editorGroups || []).filter(group => (group.layerId || "") === id);
+    }
+
+    function collapsedEditorGroupsInLayer(layerId = currentLayerId) {
+      return editorGroupsInLayer(layerId).filter(group => group.collapsed !== false);
     }
 
     function editorGroupVirtualState(group) {
@@ -10083,10 +10081,10 @@
       return state?.virtualEditorGroup?.stateIds?.length || 0;
     }
 
-    function editorGroupContainingStateId(stateId, layerId = currentLayerId) {
+    function editorGroupContainingStateId(stateId, layerId = currentLayerId, groups = editorGroupsInLayer(layerId)) {
       const id = String(stateId || "");
       if (!id) return null;
-      return editorGroupsInLayer(layerId).find(group => group.stateIds.includes(id)) || null;
+      return groups.find(group => group.stateIds.includes(id)) || null;
     }
 
     function removeEditorGroupsById(groupIds) {
@@ -10144,9 +10142,9 @@
       m.boundary = normalizeBoundaryConfig(m.boundary);
       m.states = Array.isArray(m.states) ? m.states : [];
       m.transitions = Array.isArray(m.transitions) ? m.transitions : [];
+      delete m.editorGroups;
       if (!m.states.length) {
         m.transitions = [];
-        m.editorGroups = [];
         m.initial = "";
         m.boundary.entryId = "";
         m.boundary.exitId = "";
@@ -10214,7 +10212,6 @@
           current = next;
         }
       }
-      m.editorGroups = normalizeEditorGroups(m.editorGroups, m);
       const isKnownEndpoint = id => ids.has(id) || isBoundaryProxyId(id);
       const endpointParentId = id => ids.has(id) ? stateParentId(stateById.get(id)) : boundaryProxyLayerId(id);
       const pairs = new Set();
@@ -10246,7 +10243,6 @@
         t.groupEntryId = typeof t.groupEntryId === "string" ? t.groupEntryId : "";
         t.groupExitId = typeof t.groupExitId === "string" ? t.groupExitId : "";
       }
-      m.editorGroups = normalizeEditorGroups(m.editorGroups, m);
       const nonRenderableTransitionButtonIds = new Set(m.transitions
         .filter(transition => transition.id && !transitionIsRenderButtonAction(transition))
         .map(transition => transition.id));
@@ -10268,7 +10264,6 @@
 
     function byId(id) {
       return (_virtualNodes && _virtualNodes.get(id)) ||
-        editorGroupVirtualStateById(id) ||
         byModelId(model, id);
     }
     applyPersistedEditorState(initialEditorState);
@@ -10322,14 +10317,10 @@
       for (const [id, state] of [..._virtualNodes]) {
         if (state.virtualEditorGroup) _virtualNodes.delete(id);
       }
-      const layerGroups = editorGroupsInLayer(normalizedLayerId);
-      const groupVirtuals = layerGroups.map(editorGroupVirtualState).filter(Boolean);
-      for (const groupState of groupVirtuals) _virtualNodes.set(groupState.id, groupState);
-      const hiddenStateIds = new Set(layerGroups.flatMap(group => group.stateIds));
-      const visibleChildren = children.filter(state => !hiddenStateIds.has(state.id));
-      syncBoundaryProxies(parent, [...visibleChildren, ...groupVirtuals]);
+      const visibleChildren = children;
+      syncBoundaryProxies(parent, visibleChildren);
       const proxies = [..._virtualNodes.values()].filter(state => state.virtualProxy?.layerId === normalizedLayerId);
-      return [...visibleChildren, ...groupVirtuals, ...proxies];
+      return [...visibleChildren, ...proxies];
     }
 
     function visibleStates(layerId = currentLayerId) {
@@ -10355,7 +10346,7 @@
       const visibleBase = projectedSides.size
         ? base.filter(transition => !transition.boundaryFlow || !projectedSides.has(transition.boundaryFlow.side))
         : base;
-      return projectTransitionsThroughEditorGroups([...visibleBase, ...projected], layerId);
+      return [...visibleBase, ...projected];
     }
 
     function visibleTransitions(layerId = currentLayerId) {
@@ -10380,11 +10371,11 @@
     }
 
     function projectTransitionsThroughEditorGroups(transitions, layerId = currentLayerId) {
-      const groups = editorGroupsInLayer(layerId);
+      const groups = collapsedEditorGroupsInLayer(layerId);
       if (!groups.length) return transitions;
       return transitions.map(transition => {
-        const fromGroup = editorGroupContainingStateId(transition.from, layerId);
-        const toGroup = editorGroupContainingStateId(transition.to, layerId);
+        const fromGroup = editorGroupContainingStateId(transition.from, layerId, groups);
+        const toGroup = editorGroupContainingStateId(transition.to, layerId, groups);
         if (!fromGroup && !toGroup) return transition;
         if (fromGroup && toGroup && fromGroup.id === toGroup.id) return null;
         const sourceId = transition.projection?.transitionId || transition.editorGroupProjection?.transitionId || transition.id;
@@ -11110,14 +11101,10 @@
 
     function visibleStateIdSet(layerId = currentLayerId) {
       const normalizedLayerId = layerId || null;
-      const groups = editorGroupsInLayer(normalizedLayerId);
-      const hiddenStateIds = new Set(groups.flatMap(group => group.stateIds || []));
       const ids = new Set(
         statesInLayer(normalizedLayerId)
-          .filter(state => !hiddenStateIds.has(state.id))
           .map(state => state.id)
       );
-      groups.forEach(group => ids.add(editorGroupVirtualId(group.id)));
       for (const state of _virtualNodes.values()) {
         if (state.virtualProxy?.layerId === normalizedLayerId) ids.add(state.id);
       }
@@ -11148,6 +11135,37 @@
       if (opts.fit === true) fitView();
       if (opts.draw === false) return;
       draw();
+    }
+
+    function expandEditorGroup(groupId, opts = {}) {
+      const group = editorGroupById(groupId);
+      if (!group || (group.layerId || "") !== (currentLayerId || "")) return false;
+      group.collapsed = false;
+      selected = selectionFromParts(group.stateIds || [], []);
+      connecting = null;
+      connectingTargetId = null;
+      dragging = null;
+      pendingEdgeMouse = null;
+      stateDragOverStateId = "";
+      boxSelecting = null;
+      updateSelectRect();
+      if (opts.persist !== false) saveModel("group:expand:" + group.id);
+      if (opts.fit === true) fitView();
+      if (opts.draw !== false) draw();
+      return true;
+    }
+
+    function collapseEditorGroup(groupId, opts = {}) {
+      const group = editorGroupById(groupId);
+      if (!group || (group.layerId || "") !== (currentLayerId || "")) return false;
+      group.collapsed = true;
+      selected = selectionFromParts([editorGroupVirtualId(groupId)], []);
+      showEmptyInspector();
+      updateSelectRect();
+      if (opts.persist !== false) saveModel("group:collapse:" + groupId);
+      if (opts.fit === true) fitView();
+      if (opts.draw !== false) draw();
+      return true;
     }
 
     function stopRuntimeLayerFollow(duration = 1600) {
@@ -11926,13 +11944,22 @@
     }
 
     function selectedEditorGroupIdList() {
-      return selectedNodeIdList()
-        .map(id => editorGroupIdFromVirtualId(id))
-        .filter(Boolean);
+      return [];
     }
 
     function selectedRealStateIdList() {
       return selectedNodeIdList().filter(id => isRealStateNode(byId(id)));
+    }
+
+    function expandedEditorGroupForSelectedStates() {
+      return null;
+    }
+
+    function selectedCompositeStateForDegroup() {
+      const ids = selectedRealStateIdList();
+      if (ids.length !== 1 || selectedEdgeIdList().length) return null;
+      const state = byModelId(model, ids[0]);
+      return state && statesInLayer(state.id).length ? state : null;
     }
 
     function selectedEdgeIds() {
@@ -12031,18 +12058,16 @@
       const ids = selectedNodeIdList();
       const edges = selectedEdgeIdList();
       const visible = ids.length > 0 || edges.length > 0;
-      const editorGroupIds = selectedEditorGroupIdList();
+      const compositeState = selectedCompositeStateForDegroup();
       selectionActionsEl.hidden = !visible;
       selectionActionsEl.classList.toggle("visible", visible);
       btnSelectionCopy.disabled = !(ids.length || edges.length);
       btnSelectionCollapse.disabled = !ids.length && !edges.length;
-      btnSelectionCollapse.textContent = editorGroupIds.length ? "Degroup" : "Group";
+      btnSelectionCollapse.textContent = compositeState ? "Degroup" : "Collapse";
       if (visible) {
         const parts = [];
-        const groupCount = editorGroupIds.length;
-        const realStateCount = ids.length - groupCount;
+        const realStateCount = selectedRealStateIdList().length;
         if (realStateCount) parts.push(realStateCount === 1 ? "1 state" : `${realStateCount} states`);
-        if (groupCount) parts.push(groupCount === 1 ? "1 group" : `${groupCount} groups`);
         if (edges.length) parts.push(edges.length === 1 ? "1 transition" : `${edges.length} transitions`);
         selectionCountEl.textContent = parts.join(" + ");
       }
@@ -12050,16 +12075,7 @@
 
     function clipboardSelectionPayload() {
       const nodeIds = new Set(selectedRealStateIdList());
-      for (const groupId of selectedEditorGroupIdList()) {
-        const group = editorGroupById(groupId);
-        group?.stateIds?.forEach(id => nodeIds.add(id));
-      }
       const edgeIds = new Set(selectedEdgeIdList());
-      if (selectedEditorGroupIdList().length) {
-        for (const transition of model.transitions) {
-          if (nodeIds.has(transition.from) && nodeIds.has(transition.to)) edgeIds.add(transition.id);
-        }
-      }
       if (!nodeIds.size && !edgeIds.size) return null;
       return {
         sourceLayerId: currentLayerId,
@@ -12140,23 +12156,10 @@
 
     function deleteSelectedItems() {
       if (!selected) return false;
-      const editorGroupIds = selectedEditorGroupIdList();
       const ids = selectedRealStateIdList();
       const edgeIds = [...new Set([...(selected.edges || []), ...selectedEdgeIdList()])];
       const removable = ids.filter(id => byId(id));
       const removeEdges = new Set(edgeIds);
-      if (editorGroupIds.length) {
-        const removedGroups = removeEditorGroupsById(editorGroupIds);
-        if (removedGroups.length && !removable.length && !removeEdges.size) {
-          const memberIds = [...new Set(removedGroups.flatMap(group => group.stateIds || []))]
-            .filter(id => byModelId(model, id) && stateParentId(byModelId(model, id)) === (currentLayerId || null));
-          selected = memberIds.length ? selectionFromParts(memberIds, []) : null;
-          if (!selected) showEmptyInspector();
-          saveModel("group:delete");
-          draw();
-          return true;
-        }
-      }
       if (selected.allCurrentLayer && removable.length) {
         const removedNodes = removeStatesById(removable);
         if (!removedNodes) return false;
@@ -12617,19 +12620,7 @@
         : null;
     }
 
-    function nextEditorGroupId() {
-      const used = new Set([
-        ...model.states.map(state => state.id),
-        ...model.transitions.map(transition => transition.id),
-        ...(model.editorGroups || []).map(group => group.id)
-      ]);
-      let index = 1;
-      let id = "group";
-      while (used.has(id)) id = `group_${++index}`;
-      return id;
-    }
-
-    function selectedStateIdsForNewEditorGroup() {
+    function selectedStateIdsForCollapse() {
       const selectedIds = new Set(selectedRealStateIdList());
       for (const edgeId of selectedEdgeIdList()) {
         const edge = edgeById(edgeId);
@@ -12645,40 +12636,158 @@
       });
     }
 
-    function createEditorGroupFromSelection() {
-      const selectedIds = selectedStateIdsForNewEditorGroup();
+    function collapseEntryStateFor(states, selectedSet) {
+      const selectedTransitions = model.transitions.filter(transition =>
+        selectedSet.has(transition.from) &&
+        selectedSet.has(transition.to) &&
+        !isBoundaryFlowTransition(transition)
+      );
+      const incoming = new Set(selectedTransitions.map(transition => transition.to));
+      return states.find(state => !incoming.has(state.id)) ||
+        states.slice().sort((a, b) => a.x - b.x || a.y - b.y || String(a.id).localeCompare(String(b.id)))[0] ||
+        null;
+    }
+
+    function collapseExitStateFor(states, selectedSet) {
+      const selectedTransitions = model.transitions.filter(transition =>
+        selectedSet.has(transition.from) &&
+        selectedSet.has(transition.to) &&
+        !isBoundaryFlowTransition(transition)
+      );
+      const outgoing = new Set(selectedTransitions.map(transition => transition.from));
+      return states.find(state => !outgoing.has(state.id)) ||
+        states.slice().sort((a, b) => b.x - a.x || b.y - a.y || String(a.id).localeCompare(String(b.id)))[0] ||
+        null;
+    }
+
+    function stateGroupBounds(states) {
+      const minX = Math.min(...states.map(state => state.x));
+      const minY = Math.min(...states.map(state => state.y));
+      const maxX = Math.max(...states.map(state => state.x + nodeWidth(state)));
+      const maxY = Math.max(...states.map(state => state.y + nodeHeight(state)));
+      return { minX, minY, maxX, maxY };
+    }
+
+    function replaceNestedBoundaryReferences(oldChildIds, newDirectChildId, parentId) {
+      const ids = oldChildIds instanceof Set ? oldChildIds : new Set(oldChildIds || []);
+      if (!ids.size || !newDirectChildId) return;
+      for (const transition of model.transitions) {
+        if (transition.to === parentId && ids.has(transition.groupEntryId)) transition.groupEntryId = newDirectChildId;
+        if (transition.from === parentId && ids.has(transition.groupExitId)) transition.groupExitId = newDirectChildId;
+      }
+    }
+
+    function collapseSelectedStatesToParent() {
+      const selectedIds = selectedStateIdsForCollapse();
       if (!selectedIds.length) return false;
-      const alreadyGrouped = new Set(editorGroupsInLayer(currentLayerId).flatMap(group => group.stateIds));
-      const stateIds = selectedIds.filter(id => !alreadyGrouped.has(id));
-      if (!stateIds.length) return false;
-      const states = stateIds.map(id => byModelId(model, id)).filter(Boolean);
-      const bounds = editorGroupBoundsForStates(states);
-      const group = {
-        id: nextEditorGroupId(),
-        title: "Group",
-        layerId: currentLayerId || "",
-        stateIds,
-        collapsed: true,
-        x: bounds.x,
-        y: bounds.y,
-        width: bounds.width,
-        height: bounds.height
-      };
-      model.editorGroups = [...(model.editorGroups || []), group];
+      const selectedSet = new Set(selectedIds);
+      const states = selectedIds.map(id => byModelId(model, id)).filter(Boolean);
+      if (!states.length) return false;
+      const entry = collapseEntryStateFor(states, selectedSet);
+      const exit = collapseExitStateFor(states, selectedSet);
+      if (!entry || !exit) return false;
+      const outerParentId = currentLayerId || null;
+      const outerParent = currentLayerContainer();
+      const outerBoundary = normalizeBoundaryConfig(outerParent.rootLayer ? model.boundary : outerParent.boundary);
+      const bounds = stateGroupBounds(states);
+      const group = makeState(
+        snapToGrid((bounds.minX + bounds.maxX) / 2 - NODE_MIN_W / 2),
+        snapToGrid((bounds.minY + bounds.maxY) / 2 - NODE_H / 2),
+        "Group",
+        outerParentId
+      );
+      group.boundary = normalizeBoundaryConfig({ entryId: entry.id, exitId: exit.id });
+      model.states.push(group);
+
+      for (const transition of model.transitions) {
+        if (isBoundaryFlowTransition(transition)) continue;
+        const originalFrom = transition.from;
+        const originalTo = transition.to;
+        const fromSelected = selectedSet.has(originalFrom);
+        const toSelected = selectedSet.has(originalTo);
+        if (!fromSelected && toSelected) {
+          transition.to = group.id;
+          transition.groupEntryId = originalTo;
+        }
+        if (fromSelected && !toSelected) {
+          transition.from = group.id;
+          transition.groupExitId = originalFrom;
+        }
+      }
+
+      for (const state of states) {
+        state.parentId = group.id;
+      }
+      replaceNestedBoundaryReferences(selectedSet, group.id, outerParentId);
+      if (outerBoundary.entryId && selectedSet.has(outerBoundary.entryId)) setBoundaryEndpoint(outerParent, "input", group.id);
+      if (outerBoundary.exitId && selectedSet.has(outerBoundary.exitId)) setBoundaryEndpoint(outerParent, "output", group.id);
+      if (selectedSet.has(model.initial)) model.initial = group.id;
+      ensureDefaultBoundaryTransitions(outerParent, statesInLayer(outerParentId));
+      ensureDefaultBoundaryTransitions(group, statesInLayer(group.id));
       normalizeModel(model);
-      selected = selectionFromParts([editorGroupVirtualId(group.id)], []);
-      showEmptyInspector();
-      saveModel("group:create");
+      selected = selectionFromParts([group.id], []);
+      showNodeInspector(group, { focus: false });
+      saveModel("group:collapse");
       draw();
       return true;
     }
 
-    function degroupEditorGroups(groupIds) {
-      const removed = removeEditorGroupsById(groupIds);
-      if (!removed.length) return false;
-      const memberIds = [...new Set(removed.flatMap(group => group.stateIds || []))]
-        .filter(id => byModelId(model, id) && stateParentId(byModelId(model, id)) === (currentLayerId || null));
-      selected = memberIds.length ? selectionFromParts(memberIds, []) : null;
+    function childBoundaryState(parent, side) {
+      const children = statesInLayer(parent.id);
+      const boundary = normalizeBoundaryConfig(parent.boundary);
+      const configuredId = side === "input" ? boundary.entryId : boundary.exitId;
+      const configured = children.find(state => state.id === configuredId);
+      if (configured) return configured;
+      return side === "input" ? defaultGroupEntryChild(parent.id) : defaultGroupExitChild(parent.id);
+    }
+
+    function removeBoundaryFlowsForParent(parentId) {
+      const proxyPrefix = `proxy:${parentId}:`;
+      model.transitions = model.transitions.filter(transition =>
+        transition.boundaryFlow?.parentId !== parentId &&
+        !String(transition.from || "").startsWith(proxyPrefix) &&
+        !String(transition.to || "").startsWith(proxyPrefix)
+      );
+    }
+
+    function degroupCompositeState(parent) {
+      if (!parent || parent.virtualProxy) return false;
+      const children = statesInLayer(parent.id);
+      if (!children.length) return false;
+      const childIds = new Set(children.map(child => child.id));
+      const outerParentId = stateParentId(parent);
+      const outerParent = outerParentId ? byId(outerParentId) : rootLayerContainer();
+      const outerBoundary = normalizeBoundaryConfig(outerParent.rootLayer ? model.boundary : outerParent.boundary);
+      const entry = childBoundaryState(parent, "input") || children[0];
+      const exit = childBoundaryState(parent, "output") || children[children.length - 1] || entry;
+      if (!entry || !exit) return false;
+
+      for (const transition of model.transitions) {
+        if (isBoundaryFlowTransition(transition)) continue;
+        if (transition.to === parent.id) {
+          transition.to = childIds.has(transition.groupEntryId) ? transition.groupEntryId : entry.id;
+          transition.groupEntryId = "";
+        }
+        if (transition.from === parent.id) {
+          transition.from = childIds.has(transition.groupExitId) ? transition.groupExitId : exit.id;
+          transition.groupExitId = "";
+        }
+        if (transition.to === outerParentId && transition.groupEntryId === parent.id) transition.groupEntryId = entry.id;
+        if (transition.from === outerParentId && transition.groupExitId === parent.id) transition.groupExitId = exit.id;
+      }
+
+      for (const child of children) {
+        child.parentId = outerParentId || null;
+      }
+      if (outerBoundary.entryId === parent.id) setBoundaryEndpoint(outerParent, "input", entry.id);
+      if (outerBoundary.exitId === parent.id) setBoundaryEndpoint(outerParent, "output", exit.id);
+      if (model.initial === parent.id) model.initial = entry.id;
+      removeBoundaryFlowsForParent(parent.id);
+      model.states = model.states.filter(state => state.id !== parent.id);
+      model.transitions = model.transitions.filter(transition => transition.from !== parent.id && transition.to !== parent.id);
+      ensureDefaultBoundaryTransitions(outerParent, statesInLayer(outerParentId));
+      normalizeModel(model);
+      selected = selectionFromParts(children.map(child => child.id), []);
       showEmptyInspector();
       saveModel("group:degroup");
       draw();
@@ -12686,12 +12795,12 @@
     }
 
     function groupOrDegroupSelected() {
-      const editorGroupIds = selectedEditorGroupIdList();
-      if (editorGroupIds.length) {
-        degroupEditorGroups(editorGroupIds);
+      const composite = selectedCompositeStateForDegroup();
+      if (composite) {
+        degroupCompositeState(composite);
         return;
       }
-      createEditorGroupFromSelection();
+      collapseSelectedStatesToParent();
     }
 
 
@@ -20905,6 +21014,7 @@
 
     function snapshotModelForRuntime() {
       const snap = normalizeModel(JSON.parse(JSON.stringify(model)));
+      delete snap.editorGroups;
       snap.transitions.forEach(t => {
         const source = projectedTransitionSource(t);
         const layerId = transitionLineColorLayerId(t, null, t.from ? stateParentId(byId(t.from)) : null);
@@ -23949,6 +24059,7 @@
       }
       let canvasNeedsDraw = stateChanged;
       if (allowRuntimeLayerFollow && runtimeState) {
+        const runtimeGroup = editorGroupContainingStateId(runtimeState.id, runtimeLayerId);
         const selectionAlreadyRuntime =
           selected?.nodes?.length === 1 &&
           selected.nodes[0] === runtimeState.id &&
@@ -23956,6 +24067,11 @@
         if (currentLayerId !== runtimeLayerId) {
           navigateToLayer(runtimeLayerId, "layer:runtime", { fit: true, persist: false, draw: false });
           canvasNeedsDraw = true;
+        }
+        if (runtimeGroup && runtimeGroup.collapsed !== false) {
+          runtimeGroup.collapsed = false;
+          canvasNeedsDraw = true;
+          if (currentLayerId === runtimeLayerId) fitView();
         }
         selected = selectionFromParts([runtimeState.id], []);
         updateSelectRect();
