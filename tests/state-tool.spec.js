@@ -9101,7 +9101,15 @@ test.describe("State Blueprint tool", () => {
     await expectElementAboveMobileTabs("#map");
     await expect(page.locator("#stateExplorer")).toBeHidden();
     await expect(page.locator("#stateInspector")).toBeHidden();
-    await expect(page.locator(".preview")).toBeHidden();
+    await expect(page.locator(".preview")).toBeVisible();
+    await expectElementAboveMobileTabs(".preview");
+    await expectElementAboveMobileTabs("#appFrame");
+    await expect.poll(() => page.evaluate(() => {
+      const map = document.querySelector("#map")?.getBoundingClientRect();
+      const preview = document.querySelector(".preview")?.getBoundingClientRect();
+      if (!map || !preview) return false;
+      return map.bottom <= preview.top + 1 && map.height > preview.height;
+    })).toBe(true);
     await expect(page.locator("#stateInspectorBody")).not.toContainText("Click a state");
     await expect(page.locator("#stateInspectorBody")).not.toContainText("Drag a state");
     await page.evaluate(() => {
@@ -9219,6 +9227,15 @@ test.describe("State Blueprint tool", () => {
     await openTool(landscapePage);
     await expect(landscapePage.locator("#mobileTabs")).toBeVisible();
     await expect.poll(() => landscapePage.locator("#mobileTabs").evaluate(el => getComputedStyle(el).gridTemplateColumns.split(" ").filter(Boolean).length)).toBe(4);
+    await expect(landscapePage.locator("#map")).toBeVisible();
+    await expect(landscapePage.locator(".preview")).toBeVisible();
+    await expect.poll(() => landscapePage.evaluate(() => {
+      const map = document.querySelector("#map")?.getBoundingClientRect();
+      const preview = document.querySelector(".preview")?.getBoundingClientRect();
+      const tabs = document.querySelector("#mobileTabs")?.getBoundingClientRect();
+      if (!map || !preview || !tabs) return false;
+      return map.right <= preview.left + 1 && preview.bottom <= tabs.top + 1;
+    })).toBe(true);
     await landscapePage.locator('[data-mobile-view="app"]').tap();
     await expect(landscapePage.locator(".preview")).toBeVisible();
     await expect.poll(() => landscapePage.locator(".preview").evaluate(el => {
@@ -9258,12 +9275,14 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator('[data-mobile-view="canvas"]')).toHaveClass(/active/);
     await expect(page.locator("#map")).toBeVisible();
     await expect(page.locator("#stateInspector")).toBeHidden();
-    await expect(page.locator(".preview")).toBeHidden();
+    await expect(page.locator("#stateExplorer")).toBeHidden();
+    await expect(page.locator(".preview")).toBeVisible();
 
     await page.locator('[data-id="auth_start"] .title').tap();
     await expect(page.locator('[data-mobile-view="canvas"]')).toHaveClass(/active/);
     await expect(page.locator("#stateInspector")).toBeHidden();
-    await expect(page.locator(".preview")).toBeHidden();
+    await expect(page.locator("#stateExplorer")).toBeHidden();
+    await expect(page.locator(".preview")).toBeVisible();
 
     await page.locator('[data-mobile-view="edit"]').tap();
     await expect(page.locator("#stateInspector")).toBeVisible();
@@ -9271,6 +9290,7 @@ test.describe("State Blueprint tool", () => {
     await page.locator('[data-mobile-view="canvas"]').tap();
     await expect(page.locator("#map")).toBeVisible();
     await expect(page.locator("#stateInspector")).toBeHidden();
+    await expect(page.locator(".preview")).toBeVisible();
 
     await page.locator('[data-mobile-view="app"]').tap();
     await expect(page.locator(".preview")).toBeVisible();

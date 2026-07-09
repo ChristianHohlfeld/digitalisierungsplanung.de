@@ -3441,6 +3441,11 @@
         grid-template-rows: minmax(0, 1fr);
       }
 
+      .workspace.mobile-canvas-active {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(220px, 1fr) clamp(220px, 34dvh, 320px);
+      }
+
       .inspector,
       .map,
       .preview {
@@ -3456,7 +3461,6 @@
       }
 
       .workspace.mobile-canvas-active .inspector,
-      .workspace.mobile-canvas-active .preview,
       .workspace.mobile-presets-active .inspector,
       .workspace.mobile-presets-active .preview,
       .workspace.mobile-edit-active .map,
@@ -3464,6 +3468,31 @@
       .workspace.mobile-app-active .inspector,
       .workspace.mobile-app-active .map {
         display: none;
+      }
+
+      .workspace.mobile-canvas-active .map {
+        grid-row: 1;
+      }
+
+      .workspace.mobile-canvas-active .preview {
+        display: grid;
+        grid-row: 2;
+        border-left: 0;
+        border-top: 1px solid #18314d;
+      }
+
+      .workspace.mobile-canvas-active .preview-title {
+        min-height: 40px;
+        padding: 0 10px;
+      }
+
+      .workspace.mobile-canvas-active .preview-title-text {
+        font-size: 12px;
+      }
+
+      .workspace.mobile-canvas-active .preview-toggle {
+        width: 36px;
+        height: 36px;
       }
 
       .workspace.mobile-presets-active .map {
@@ -3793,6 +3822,14 @@
         bottom: calc(max(12px, env(safe-area-inset-bottom)) + 62px) !important;
       }
 
+      .workspace.mobile-canvas-active .canvas-history-actions {
+        bottom: max(12px, env(safe-area-inset-bottom)) !important;
+      }
+
+      .workspace.mobile-canvas-active .selection-actions {
+        bottom: max(12px, env(safe-area-inset-bottom)) !important;
+      }
+
       .workspace.mobile-presets-active .selection-actions.visible,
       .workspace.mobile-edit-active .selection-actions.visible,
       .workspace.mobile-app-active .selection-actions.visible {
@@ -3813,6 +3850,25 @@
       .modal {
         width: 100%;
         border-radius: 18px;
+      }
+    }
+
+    @media (max-width: 899px) and (pointer: coarse) and (orientation: landscape) {
+      .workspace.mobile-canvas-active {
+        grid-template-columns: minmax(300px, 1fr) clamp(280px, 38vw, 380px);
+        grid-template-rows: minmax(0, 1fr);
+      }
+
+      .workspace.mobile-canvas-active .map {
+        grid-column: 1;
+        grid-row: 1;
+      }
+
+      .workspace.mobile-canvas-active .preview {
+        grid-column: 2;
+        grid-row: 1;
+        border-top: 0;
+        border-left: 1px solid #18314d;
       }
     }
 
