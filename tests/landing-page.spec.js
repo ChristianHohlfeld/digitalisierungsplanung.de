@@ -5,7 +5,8 @@ test.describe("Landing page export", () => {
   test("serves the generated German Zustand landing page at root @smoke", async ({ page }) => {
     const html = fs.readFileSync("index.html", "utf8");
     expect(html).toContain("EXPORTED_STATE_BLUEPRINT");
-    expect(html).toContain("Zustand macht Prozesse sichtbar");
+    expect(html).toContain("Erst verstehen, dann digitalisieren.");
+    expect(html).toContain("Viele Projekte scheitern nicht an Technik");
     expect(html).toContain('"url":"./state.html"');
     expect(html).toContain("/manifest.webmanifest");
     expect(html).toContain("/assets/share-card.png");
@@ -22,16 +23,16 @@ test.describe("Landing page export", () => {
     const landingDefinition = JSON.parse(fs.readFileSync("landing.state.json", "utf8"));
     expect(landingDefinition.model.states.map(state => state.id)).toEqual([
       "startseite",
-      "prinzipien",
-      "werkzeug",
-      "schnittstellen"
+      "nutzen",
+      "vorgehen",
+      "ergebnis"
     ]);
     expect(landingDefinition.model.transitions.some(transition => transition.to === "editor")).toBe(false);
 
     await page.goto("/");
     await expect(page).toHaveTitle("Digitalisierungsplanung");
     await expect(page.getByRole("button", { name: "New" })).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: "Zustand macht Prozesse sichtbar" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Erst verstehen, dann digitalisieren." })).toBeVisible();
     await expect(page.locator(".hero")).toHaveCSS("background-image", /landing-hero-business\.png/);
 
     const manifest = await page.request.get("/manifest.webmanifest");
@@ -42,16 +43,20 @@ test.describe("Landing page export", () => {
     await expect(editorLink).toHaveAttribute("href", /state\.html$/);
     await expect(editorLink).toHaveCSS("text-decoration-line", "none");
 
-    await page.locator(".navbar").getByRole("button", { name: "Prinzip", exact: true }).click();
-    await expect(page.locator("#statePill")).toHaveText("prinzipien");
+    await page.locator(".navbar").getByRole("button", { name: "Nutzen", exact: true }).click();
+    await expect(page.locator("#statePill")).toHaveText("nutzen");
     await expect(page.locator(".steps button[data-transition-id] .daisy-step-label")).toHaveText([
-      "Verstehen",
-      "Visualisieren",
-      "Digitalisieren"
+      "Klarheit",
+      "Entscheidung",
+      "Umsetzung"
     ]);
     await expect(page.locator(".steps button[data-transition-id] .daisy-step-label").first()).toHaveCSS("text-decoration-line", "none");
-    await page.locator(".steps").getByRole("button", { name: /Visualisieren/ }).click();
-    await expect(page.locator("#statePill")).toHaveText("werkzeug");
+    await page.locator(".steps").getByRole("button", { name: /Entscheidung/ }).click();
+    await expect(page.locator("#statePill")).toHaveText("vorgehen");
+    await expect(page.getByRole("heading", { name: "Aus einem unklaren Prozess wird ein prüfbarer Plan" })).toBeVisible();
+    await page.locator(".navbar").getByRole("button", { name: "Ergebnis", exact: true }).click();
+    await expect(page.locator("#statePill")).toHaveText("ergebnis");
+    await expect(page.getByRole("heading", { name: "Ein Plan, den Business und IT gemeinsam tragen." })).toBeVisible();
     await expect(page.locator(".daisy-feature-cards .daisy-feature-card")).toHaveCount(3);
     await expect.poll(async () => page.locator(".daisy-feature-cards .card-actions").evaluateAll(actions => {
       const tops = actions.map(action => Math.round(action.getBoundingClientRect().top));
