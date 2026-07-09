@@ -894,8 +894,10 @@ test.describe("Core source contracts", () => {
     expect(appHtml).toContain("function transitionIsButtonAction");
     expect(appHtml).toContain("function normalizeTransitionTriggerEvent");
     expect(html).toContain("function normalizeTransitionTriggerEvent");
-    expect(appHtml).toContain('if (triggerType === "event") return "event." + eventSegment');
-    expect(html).toContain('if (triggerType === "event") return "event." + eventSegment');
+    expect(appHtml).toContain('if (triggerType === "button") return "button." + eventSegment');
+    expect(html).toContain('if (triggerType === "button") return "button." + eventSegment');
+    expect(appHtml).not.toContain('if (triggerType === "event") return "event." + eventSegment');
+    expect(html).not.toContain('if (triggerType === "event") return "event." + eventSegment');
     expect(appHtml).toContain("function runtimeOrderActionTransitionsForState");
     expect(appHtml).toContain("const actionTransitions = runtimeOrderActionTransitionsForState(s, transitions.filter(transitionIsButtonAction));");
     expect(appHtml).toContain('return type === "button";');

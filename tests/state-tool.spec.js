@@ -6274,6 +6274,7 @@ test.describe("State Blueprint tool", () => {
 
     const transitionSelect = page.locator("#pStateFlowTransition");
     const triggerType = page.locator("#pStateTriggerType");
+    const triggerEvent = page.locator("#pStateTriggerEvent");
     const timerInput = page.locator("#pStateTriggerTimer");
     await expect(transitionSelect).toBeVisible();
     await transitionSelect.selectOption("t_auth_login");
@@ -6293,6 +6294,23 @@ test.describe("State Blueprint tool", () => {
       triggerEvent: "change.states.auth_start.fetch.ok",
       condition: "states.auth_start.fetch.ok == true"
     });
+    await expect(triggerEvent).toBeVisible();
+    await expect(triggerEvent).toHaveValue("change.states.auth_start.fetch.ok");
+    await triggerEvent.selectOption("change.states.auth_start.fetch.error");
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      const transition = model.transitions.find(item => item.id === "t_auth_login");
+      return {
+        triggerType: transition?.triggerType,
+        triggerEvent: transition?.triggerEvent,
+        condition: transition?.condition
+      };
+    }).toEqual({
+      triggerType: "change",
+      triggerEvent: "change.states.auth_start.fetch.error",
+      condition: "states.auth_start.fetch.error != \"\""
+    });
+    await triggerEvent.selectOption("change.states.auth_start.fetch.ok");
     await expect(page.locator("#pDataCard")).toHaveJSProperty("open", true);
     await expect(page.locator("#pFetchCard")).toHaveJSProperty("open", true);
 
@@ -6307,9 +6325,11 @@ test.describe("State Blueprint tool", () => {
       };
     }).toEqual({
       triggerType: "event",
-      triggerEvent: "event.t.auth.login.fired",
+      triggerEvent: "",
       condition: ""
     });
+    await expect(triggerEvent).toBeVisible();
+    await expect(triggerEvent).toHaveJSProperty("length", 0);
     await expect(appFrame(page).locator('button[data-transition-id="t_auth_login"]')).toHaveCount(0);
     await expect(appFrame(page).locator('button[data-transition-id="t_auth_register"]')).toBeVisible();
 
@@ -6323,12 +6343,16 @@ test.describe("State Blueprint tool", () => {
         condition: transition?.condition
       };
     }).toEqual({
-      triggerType: "event",
-      triggerEvent: "realtime.t.auth.login.fired",
+      triggerType: "realtime",
+      triggerEvent: "",
       condition: ""
     });
+    await expect(page.locator("#pStateTriggerEventLabel")).toHaveText("Realtime / WSS event");
+    await expect(triggerEvent).toBeVisible();
+    await expect(triggerEvent).toHaveJSProperty("length", 0);
+    await expect(page.locator("#pStateTriggerEventImport")).toBeVisible();
     await expect(appFrame(page).locator('button[data-transition-id="t_auth_login"]')).toHaveCount(0);
-    await expect(page.locator("#pStateTriggerPreview")).toContainText("realtime.t.auth.login.fired");
+    await expect(page.locator("#pStateTriggerPreview")).toContainText("realtime room event");
 
     await triggerType.selectOption("button");
     await expect.poll(async () => {
@@ -6417,10 +6441,19 @@ test.describe("State Blueprint tool", () => {
     await openStateInspector(page, "auth_start");
     await page.locator("#pStateFlowTransition").selectOption("t_auth_login");
     await page.locator("#pStateTriggerType").selectOption("realtime");
+    await expect(page.locator("#pStateTriggerEvent")).toBeVisible();
+    await expect(page.locator("#pStateTriggerEvent")).toHaveValue("realtime.sip.call.incoming");
     await expect.poll(async () => {
       const model = await savedModel(page);
-      return model.transitions.find(item => item.id === "t_auth_login")?.triggerEvent;
-    }).toBe("realtime.sip.call.incoming");
+      const transition = model.transitions.find(item => item.id === "t_auth_login");
+      return {
+        triggerType: transition?.triggerType,
+        triggerEvent: transition?.triggerEvent
+      };
+    }).toEqual({
+      triggerType: "realtime",
+      triggerEvent: "realtime.sip.call.incoming"
+    });
   });
 
   test("normalizes bus-event transitions away from button click events @smoke", async ({ page }) => {
@@ -6439,7 +6472,7 @@ test.describe("State Blueprint tool", () => {
       };
     })).toEqual({
       triggerType: "event",
-      triggerEvent: "event.t.auth.login.fired"
+      triggerEvent: ""
     });
     await expect(appFrame(page).locator('button[data-transition-id="t_auth_login"]')).toHaveCount(0);
     await expect(appFrame(page).locator('button[data-transition-id="t_auth_register"]')).toBeVisible();
