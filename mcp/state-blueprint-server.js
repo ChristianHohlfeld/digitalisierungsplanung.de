@@ -447,7 +447,7 @@ function readResource(uri) {
           "- State variables are declared as `state.data` plus `state.dataTypes`; they are defaults, not local runtime storage.",
           "- Render data is expressed as `dataWires` and structured components, never as hidden HTML blobs or component-local stores.",
           "- Transition triggers, conditions, timers, and `set` patches live on transitions.",
-          "- Realtime marketplace data is not copied into the model; transitions keep only concrete `realtime.*` refs.",
+          "- Realtime event-catalog data is not copied into the model; transitions keep only concrete `realtime.*` refs.",
           "- Nested flows use boundary input/output references and proxy transitions instead of cross-layer direct wires.",
           "- Tools apply actions in the order given and validate before writing."
         ].join("\n")

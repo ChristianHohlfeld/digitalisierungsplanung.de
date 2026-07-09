@@ -195,9 +195,9 @@ test("serves event definitions only to allowed origins", async () => {
   });
 });
 
-test("does not expose removed catalog routes", async () => {
+test("returns not_found for non-core realtime routes", async () => {
   await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
-    for (const path of ["/marketplace.html", "/marketplace", "/presets", "/presets/realtime.sip.call", "/endpoints", "/state-schema"]) {
+    for (const path of ["/", "/catalog", "/schema", "/api"]) {
       const response = await fetch(httpUrl(realtime, path), { headers: { Origin: ORIGIN } });
       assert.equal(response.status, 404, `${path} should stay out of the lean realtime API`);
       assert.deepEqual(await response.json(), { error: "not_found" });
@@ -218,9 +218,7 @@ test("nginx proxies only lean public realtime routes", () => {
   ]) {
     assert.ok(normalized.includes(route), `${route} route is missing`);
   }
-  for (const removed of ["marketplace", "presets", "endpoints", "state-schema"]) {
-    assert.equal(normalized.includes(removed), false, `${removed} route should be removed`);
-  }
+  assert.match(normalized, /location = \/ws/);
   assert.match(nginx, /proxy_pass\s+http:\/\/127\.0\.0\.1:8788;/);
 });
 

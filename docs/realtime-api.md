@@ -11,7 +11,7 @@ Der globale JSON-State/Event-Bus bleibt die einzige fachliche Wahrheit. Der Real
 - stateless Fire-Endpunkt fuer externe Systeme,
 - Browser-Testkonsole fuer manuelles Emitten.
 
-Es gibt keinen Marketplace, keine Preset-Kopie, keine Endpoint-Kataloge und kein serverseitiges State-Schema. Der Canvas speichert nur konkrete Referenzen, die er wirklich verwendet, zum Beispiel `triggerEvent: "realtime.sip.call.incoming"`.
+Der Realtime-Server liefert nur diesen Kern. Der Canvas speichert nur konkrete Referenzen, die er wirklich verwendet, zum Beispiel `triggerEvent: "realtime.sip.call.incoming"`.
 
 ## Base URLs
 

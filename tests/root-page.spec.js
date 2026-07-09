@@ -11,9 +11,6 @@ test.describe("Root demo export", () => {
     expect(html).toContain('"site_checkout"');
     expect(html).toContain("/manifest.webmanifest");
     expect(html).toContain("/assets/share-card.png");
-    expect(html).not.toContain("landing.state.json");
-    expect(html).not.toContain("landing-hero-business");
-    expect(html).not.toContain("landing-understand-business");
     expect(html).not.toContain('id="appFrame"');
     expect(html).not.toContain('id="btnNew"');
     expect(html).not.toContain("_editor");

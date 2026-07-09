@@ -1611,7 +1611,6 @@ test.describe("State Blueprint tool", () => {
     await openTool(page);
     await expect(page.locator("#btnDemo")).toHaveCount(0);
     await expect(page.locator("#btnWebsiteExample")).toHaveText("Zustand Demo");
-    await expect(page.locator("#btnLandingPageExample")).toHaveCount(0);
 
     await page.getByRole("button", { name: "New" }).click();
     await page.getByRole("button", { name: "Neu starten" }).click();

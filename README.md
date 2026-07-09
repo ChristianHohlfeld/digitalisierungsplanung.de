@@ -6,7 +6,7 @@ Die Startseite unter `index.html` ist die exportierte Zustand Demo. Der Editor l
 
 ## Was sich geändert hat
 
-- Root-Seite und Editor-Demo sind derselbe Flow: eine exportierte Zustand Demo ohne zweite Landing-Demo.
+- Root-Seite und Editor-Demo sind derselbe Flow: eine exportierte Zustand Demo ohne zweiten Beispiel-Flow.
 - Der Kontrakt ist schriftlich festgehalten: ein globaler JSON-State/Event-Bus, keine Schattenzustände, keine versteckte Widget-Logik.
 - DaisyUI-Presets sind strukturierte, busgebundene Komponenten. Text ist Darstellung, `transitionId` ist Bindung.
 - Die MCP/API-Schicht bleibt als steuerbare Schnittstelle für alle relevanten Modellaktionen erhalten.

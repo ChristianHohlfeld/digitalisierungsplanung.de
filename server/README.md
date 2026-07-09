@@ -102,7 +102,7 @@ git pull --ff-only origin main
 bash server/deploy.sh
 ```
 
-`deploy.sh` runs `npm ci --omit=dev`, starts/restarts PM2 with `--update-env`, saves PM2 for reboot, and reloads Nginx. Use it after Nginx config changes such as `/token`.
+`deploy.sh` installs the runtime packages, ensures Certbot renewal is enabled, runs `npm ci --omit=dev`, starts or reloads PM2 with `--update-env`, saves PM2 for reboot, and reloads Nginx. Use it after Nginx config changes such as `/token`.
 
 If you update manually instead:
 
