@@ -7,7 +7,9 @@
     "build:pwa-assets": "node scripts/build-pwa-assets.mjs",
     "build:sw-version": "node scripts/write-sw-version.mjs",
     "screenshots:readme": "node scripts/update-readme-screenshots.mjs",
-    "test": "playwright test --grep @smoke --reporter=list",
+    "server:start": "node server/server.js",
+    "test": "npm run test:server && playwright test --grep @smoke --reporter=list",
+    "test:server": "node --test server/*.test.js",
     "test:contracts": "playwright test tests/core-contracts.spec.js --reporter=list",
     "test:state-explorer": "playwright test tests/state-tool.spec.js --grep \"drops state explorer presets|stores reusable states|adds and uses state explorer presets|updates, deletes|reuses state explorer presets|keeps state editor focus\" --reporter=list",
     "test:state-render": "playwright test tests/core-contracts.spec.js --grep \"component data rendering|repeat sources|data wires drive|state editor exposes|state data card|global-state json paths|global state json tree|repeat over\" --reporter=list && playwright test tests/state-tool.spec.js --grep \"renders state data defaults|state data defaults flow|inspects JSON endpoints|keeps data-wire paths|shows outgoing transition buttons\" --reporter=list",
@@ -18,5 +20,8 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.52.0"
+  },
+  "dependencies": {
+    "ws": "^8.21.0"
   }
 }
