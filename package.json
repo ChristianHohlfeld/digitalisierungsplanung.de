@@ -6,7 +6,6 @@
     "build:landing": "node scripts/build-landing-index.mjs",
     "build:pwa-assets": "node scripts/build-pwa-assets.mjs",
     "build:sw-version": "node scripts/write-sw-version.mjs",
-    "screenshots:readme": "node scripts/update-readme-screenshots.mjs",
     "server:start": "node server/server.js",
     "server:smoke:wss": "node server/wss-smoke.js",
     "server:smoke:wss:prod": "node server/wss-smoke.js --force-ip=198.199.83.43",

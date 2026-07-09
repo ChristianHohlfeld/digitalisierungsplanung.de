@@ -10,7 +10,6 @@ Die Startseite unter `index.html` ist selbst ein exportierter Zustand-Flow. Der 
 - Der Kontrakt ist schriftlich festgehalten: ein globaler JSON-State/Event-Bus, keine Schattenzustände, keine versteckte Widget-Logik.
 - DaisyUI-Presets sind strukturierte, busgebundene Komponenten. Text ist Darstellung, `transitionId` ist Bindung.
 - Die MCP/API-Schicht bleibt als steuerbare Schnittstelle für alle relevanten Modellaktionen erhalten.
-- README-Screenshots werden aus der echten App erzeugt, damit die Dokumentation nicht vom UI-Stand wegdriftet.
 - Smoke- und Kontrakt-Tests schützen Canvas, Proxies, Nested States, Render-Reihenfolge, Presets, Export, API und Laufzeit.
 
 ## Warum
@@ -25,20 +24,6 @@ Ein Prozess ist erst dann digitalisierbar, wenn klar ist:
 - welche Bedingungen erfüllt sein müssen,
 - welche Benutzeroberfläche der Benutzer an welcher Stelle sieht,
 - und welche Daten nach einem Schritt im globalen State stehen.
-
-## Screenshots
-
-Der Editor zeigt Canvas, Vorschau und State-Inspector in einem Arbeitsbereich.
-
-![Zustand Editor mit Business-Flow](assets/screenshots/zustand-editor-flow.png)
-
-Die Vorschau ist dieselbe FSM als laufende App. Buttons und Widgets feuern echte Transitionen und schreiben über den globalen JSON-Bus.
-
-![Generierte App-Vorschau mit Checkout-Flow](assets/screenshots/zustand-preview-checkout.png)
-
-Der Inspector bearbeitet Trigger, Widgets, sichtbare Felder und gescopte Bus-Daten des ausgewählten States.
-
-![State-Inspector mit Widget- und Feldsteuerung](assets/screenshots/zustand-inspector-widgets.png)
 
 ## Kontrakt
 
@@ -172,17 +157,10 @@ Landingpage aus dem Zustand-Modell neu exportieren:
 npm run build:landing
 ```
 
-PWA-Assets und Service-Worker-Version erzeugen:
+PWA-Assets lokal erzeugen:
 
 ```bash
 npm run build:pwa-assets
-npm run build:sw-version
-```
-
-README-Screenshots aus der echten App aktualisieren:
-
-```bash
-npm run screenshots:readme
 ```
 
 ## Tests
@@ -230,7 +208,7 @@ Wichtige Testbereiche:
 
 ## Veröffentlichung
 
-GitHub Pages veröffentlicht die statische App erst nach grünem Smoke-Lauf. Die Root-Seite ist `index.html`, der Editor ist direkt über `state.html` erreichbar.
+GitHub Pages veröffentlicht die statische App erst nach grünem Deploy-Lauf. Der Deploy-Workflow schreibt nach erfolgreichen Smoke-Tests automatisch einen neuen `sw-version.js`-Stamp, damit der Service Worker eine frische Cache-Version lädt. Die Root-Seite ist `index.html`, der Editor ist direkt über `state.html` erreichbar.
 
 Der Realtime-Server laeuft separat auf dem Droplet:
 

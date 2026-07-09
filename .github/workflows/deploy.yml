@@ -1,18 +1,21 @@
-name: Smoke tests
+name: Deploy
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 concurrency:
-  group: smoke-tests
+  group: deploy
   cancel-in-progress: true
 
 jobs:
-  smoke:
+  deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
-      contents: read
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -29,3 +32,18 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Run smoke tests
         run: npm test
+      - name: Bump service worker deploy stamp
+        if: github.ref == 'refs/heads/main'
+        env:
+          SW_VERSION: deploy-${{ github.run_number }}-${{ github.run_attempt }}
+        run: |
+          SW_BUILT_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")" node scripts/write-sw-version.mjs
+          if git diff --quiet -- sw-version.js; then
+            echo "Service worker deploy stamp is current."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add sw-version.js
+          git commit -m "Bump service worker deploy stamp [skip ci]"
+          git push origin HEAD:main

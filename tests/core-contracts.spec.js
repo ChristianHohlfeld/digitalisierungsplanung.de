@@ -1364,7 +1364,7 @@ test.describe("Core source contracts", () => {
       "t?.trigger ||",
       "eventType",
       "transition?.kind",
-      "t.event",
+      /\bt\s*\.\s*event\b/,
       "isStateScopedPathToken",
       "applyStateScopedTemplateBindings",
       "expandStateScopedDataObject",
