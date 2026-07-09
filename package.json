@@ -9,6 +9,7 @@
     "screenshots:readme": "node scripts/update-readme-screenshots.mjs",
     "server:start": "node server/server.js",
     "server:smoke:wss": "node server/wss-smoke.js",
+    "server:smoke:wss:prod": "node server/wss-smoke.js --force-ip=198.199.83.43",
     "test": "npm run test:server && playwright test --grep @smoke --reporter=list",
     "test:server": "node --test server/*.test.js",
     "test:contracts": "playwright test tests/core-contracts.spec.js --reporter=list",
