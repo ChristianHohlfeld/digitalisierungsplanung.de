@@ -7,6 +7,7 @@ const { WebSocketServer, WebSocket } = require("ws");
 
 const DEFAULT_ALLOWED_ORIGINS = ["https://digitalisierungsplanung.de"];
 const DEFAULT_PATH = "/ws";
+const DEFAULT_TOKEN_PATH = "/token";
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 8788;
 const MAX_ID_LENGTH = 128;
@@ -48,6 +49,7 @@ function loadConfig(options = {}) {
     host: options.host || env.REALTIME_HOST || DEFAULT_HOST,
     port: parseInteger(options.port ?? env.REALTIME_PORT, DEFAULT_PORT, 1, 65535),
     path: options.path || env.REALTIME_PATH || DEFAULT_PATH,
+    tokenPath: options.tokenPath || env.REALTIME_TOKEN_PATH || DEFAULT_TOKEN_PATH,
     allowedOrigins: parseList(
       options.allowedOrigins ?? env.REALTIME_ALLOWED_ORIGINS,
       DEFAULT_ALLOWED_ORIGINS
@@ -56,6 +58,7 @@ function loadConfig(options = {}) {
     heartbeatMs: parseInteger(options.heartbeatMs ?? env.REALTIME_HEARTBEAT_MS, 30000, 1000),
     rateLimitWindowMs: parseInteger(options.rateLimitWindowMs ?? env.REALTIME_RATE_WINDOW_MS, 10000, 1000),
     rateLimitMax: parseInteger(options.rateLimitMax ?? env.REALTIME_RATE_LIMIT, 360, 1),
+    tokenTtlMs: parseInteger(options.tokenTtlMs ?? env.REALTIME_ROOM_TOKEN_TTL_MS, 60 * 60 * 1000, 1000),
     transientHighWaterMark: parseInteger(
       options.transientHighWaterMark ?? env.REALTIME_TRANSIENT_HIGH_WATER_BYTES,
       512 * 1024,
@@ -148,12 +151,13 @@ function rejectUpgrade(socket, statusCode, reason) {
   socket.destroy();
 }
 
-function writeJson(response, statusCode, payload) {
+function writeJson(response, statusCode, payload, headers = {}) {
   const body = JSON.stringify(payload);
   response.writeHead(statusCode, {
     "content-type": "application/json; charset=utf-8",
     "cache-control": "no-store",
-    "content-length": Buffer.byteLength(body)
+    "content-length": Buffer.byteLength(body),
+    ...headers
   });
   response.end(body);
 }
@@ -295,11 +299,56 @@ function createRealtimeServer(options = {}) {
   const config = loadConfig(options);
   const allowedOrigins = new Set(config.allowedOrigins);
   const rooms = new Map();
+  const isOriginAllowed = origin => allowedOrigins.has("*") || allowedOrigins.has(origin);
+  const corsHeadersForOrigin = origin => {
+    if (!origin || !isOriginAllowed(origin)) return null;
+    return {
+      "access-control-allow-origin": allowedOrigins.has("*") ? "*" : origin,
+      "access-control-allow-methods": "GET, OPTIONS",
+      "access-control-allow-headers": "content-type",
+      "vary": "Origin"
+    };
+  };
+
   const server = options.server || http.createServer((request, response) => {
     const url = new URL(request.url || "/", "http://localhost");
     if (request.method === "GET" && url.pathname === "/healthz") {
       const clients = [...rooms.values()].reduce((sum, room) => sum + room.clients.size, 0);
       writeJson(response, 200, { ok: true, rooms: rooms.size, clients });
+      return;
+    }
+    if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.tokenPath) {
+      const headers = corsHeadersForOrigin(request.headers.origin || "");
+      if (!headers) {
+        writeJson(response, 403, { error: "origin_not_allowed" });
+        return;
+      }
+      if (request.method === "OPTIONS") {
+        response.writeHead(204, headers);
+        response.end();
+        return;
+      }
+      const roomId = sanitizeId(url.searchParams.get("roomId"));
+      const clientId = sanitizeId(url.searchParams.get("clientId"));
+      if (!roomId || !clientId) {
+        writeJson(response, 400, { error: "invalid_room_or_client" }, headers);
+        return;
+      }
+      if (!config.roomSecret) {
+        writeJson(response, 503, { error: "room_secret_required" }, headers);
+        return;
+      }
+      writeJson(response, 200, {
+        roomId,
+        clientId,
+        token: createRoomToken({
+          roomId,
+          clientId,
+          secret: config.roomSecret,
+          ttlMs: config.tokenTtlMs
+        }),
+        expiresInMs: config.tokenTtlMs
+      }, headers);
       return;
     }
     writeJson(response, 404, { error: "not_found" });
@@ -462,7 +511,7 @@ function createRealtimeServer(options = {}) {
     }
 
     const origin = request.headers.origin || "";
-    if (!allowedOrigins.has("*") && !allowedOrigins.has(origin)) {
+    if (!isOriginAllowed(origin)) {
       rejectUpgrade(socket, 403, "Forbidden");
       return;
     }

@@ -5,7 +5,8 @@ const test = require("node:test");
 const WebSocket = require("ws");
 const {
   createRealtimeServer,
-  createRoomToken
+  createRoomToken,
+  verifyRoomToken
 } = require("./server");
 
 const ORIGIN = "https://digitalisierungsplanung.de";
@@ -14,6 +15,11 @@ const SECRET = "test-room-secret";
 function socketUrl(realtime) {
   const { port } = realtime.address();
   return `ws://127.0.0.1:${port}/ws`;
+}
+
+function httpUrl(realtime, path) {
+  const { port } = realtime.address();
+  return `http://127.0.0.1:${port}${path}`;
 }
 
 async function withRealtimeServer(options, fn) {
@@ -125,6 +131,41 @@ test("requires a signed room token when unsigned rooms are disabled", async () =
     }));
     const error = await nextMessage(socket, message => message.type === "error");
     assert.equal(error.code, "invalid_token");
+  });
+});
+
+test("issues signed room tokens only to allowed origins", async () => {
+  await withRealtimeServer({ roomSecret: SECRET, tokenTtlMs: 60000 }, async realtime => {
+    const response = await fetch(httpUrl(realtime, "/token?roomId=room&clientId=alice"), {
+      headers: { Origin: ORIGIN }
+    });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("access-control-allow-origin"), ORIGIN);
+
+    const payload = await response.json();
+    assert.equal(payload.roomId, "room");
+    assert.equal(payload.clientId, "alice");
+    assert.equal(payload.expiresInMs, 60000);
+    assert.equal(verifyRoomToken(payload.token, {
+      roomId: "room",
+      clientId: "alice",
+      secret: SECRET
+    }).ok, true);
+
+    const rejected = await fetch(httpUrl(realtime, "/token?roomId=room&clientId=alice"), {
+      headers: { Origin: "https://evil.example" }
+    });
+    assert.equal(rejected.status, 403);
+  });
+});
+
+test("does not issue room tokens without a server secret", async () => {
+  await withRealtimeServer({ roomSecret: "", allowUnsignedRooms: true }, async realtime => {
+    const response = await fetch(httpUrl(realtime, "/token?roomId=room&clientId=alice"), {
+      headers: { Origin: ORIGIN }
+    });
+    assert.equal(response.status, 503);
+    assert.deepEqual(await response.json(), { error: "room_secret_required" });
   });
 });
 

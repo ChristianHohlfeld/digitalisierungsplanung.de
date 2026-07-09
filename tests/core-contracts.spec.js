@@ -1303,6 +1303,33 @@ test.describe("Core source contracts", () => {
     expect(html).not.toContain("if (runtimePaused) {");
   });
 
+  test("realtime events enter the generated runtime through the global bus @smoke", async ({ page }) => {
+    await page.goto("/state.html");
+    const appHtml = await generatedPreviewHtml(page);
+
+    expect(appHtml).toContain('data.type === "STATE_BLUEPRINT_REALTIME_EVENT"');
+    expect(appHtml).toContain("if (name) emitRuntimeEvent(name, detail);");
+    expect(appHtml).toContain('writeRuntimeState("events." + name + ".detail", detail');
+    expect(appHtml).toContain('writeRuntimeState("lastEvent", name');
+    expect(appHtml).not.toContain("STATE_BLUEPRINT_REALTIME_EVENT\") {\n        context");
+  });
+
+  test("host realtime transport keeps the runtime context as a read-side bus snapshot @smoke", () => {
+    const html = stateHtml();
+    const hostHtml = html.replace(/const APP_HTML = "((?:\\.|[^"\\])*)";/, 'const APP_HTML = "";');
+
+    expect(hostHtml).toContain('const REALTIME_WSS_URL = "wss://realtime.digitalisierungsplanung.de/ws";');
+    expect(hostHtml).toContain('const REALTIME_TOKEN_URL = "https://realtime.digitalisierungsplanung.de/token";');
+    expect(hostHtml).toContain("function relayRuntimeBusEventToRealtime()");
+    expect(hostHtml).toContain('const name = normalizeTransitionEvent(latestRuntimeContext?.lastEvent || "");');
+    expect(hostHtml).toContain('if (!name || !name.startsWith("realtime.")) return;');
+    expect(hostHtml).toContain('if (detail.source === "realtime" || detail.__realtimeRemote === true) return;');
+    expect(hostHtml).toContain('type: "STATE_BLUEPRINT_REALTIME_EVENT"');
+    expect(hostHtml).not.toMatch(/latestRuntimeContext\s*=.*realtime/i);
+    expect(hostHtml).not.toMatch(/setEditorContextPath\(latestRuntimeContext,[^)]*realtime/i);
+    expect(hostHtml).not.toContain('localStorage.setItem("stateBlueprint.realtime');
+  });
+
   test("canonical JSON and runtime contracts do not keep removed aliases @smoke", () => {
     const html = stateHtml();
     const appHtml = generatedAppHtml();
