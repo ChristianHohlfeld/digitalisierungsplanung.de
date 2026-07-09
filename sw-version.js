@@ -1,2 +1,2 @@
-self.ZUSTAND_SW_VERSION = "dev-local";
-self.ZUSTAND_SW_BUILT_AT = "local";
+self.ZUSTAND_SW_VERSION = "deploy-23-1";
+self.ZUSTAND_SW_BUILT_AT = "2026-07-09T13:00:04Z";
