@@ -308,12 +308,12 @@ test("nginx proxies all public realtime catalog routes", () => {
     "console.html",
     "marketplace.html",
     "marketplace",
-    "presets",
     "endpoints",
     "state-schema"
   ]) {
     assert.ok(normalized.includes(route), `${route} route is missing`);
   }
+  assert.match(nginx, /location = \/presets\s*\{/);
   assert.match(nginx, /location \^~ \/presets\//);
   assert.match(nginx, /proxy_pass\s+http:\/\/127\.0\.0\.1:8788;/);
 });
