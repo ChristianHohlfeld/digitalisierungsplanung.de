@@ -4,7 +4,8 @@ module.exports = {
   apps: [
     {
       name: "digitalisierungsplanung-realtime",
-      script: "server/server.js",
+      script: "server/run.sh",
+      interpreter: "bash",
       cwd: "/var/www/digitalisierungsplanung.de",
       instances: 1,
       exec_mode: "fork",

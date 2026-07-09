@@ -30,32 +30,24 @@ realtime.digitalisierungsplanung.de A <droplet-ip>
 Then on the droplet:
 
 ```sh
-apt-get update
-apt-get install -y git nginx certbot python3-certbot-nginx
-npm install -g pm2
-
-mkdir -p /var/www
-cd /var/www
-git clone https://github.com/ChristianHohlfeld/digitalisierungsplanung.de.git || true
-cd digitalisierungsplanung.de
-git pull --ff-only
-npm ci --omit=dev
-
-export REALTIME_ROOM_SECRET="$(openssl rand -base64 48)"
-pm2 start server/ecosystem.config.cjs --update-env
-pm2 save
-pm2 startup systemd -u root --hp /root
+APP_DIR=/var/www/digitalisierungsplanung.de \
+BRANCH=agent/realtime-wss-server \
+bash server/deploy.sh
 ```
 
-Install TLS and Nginx:
+If the repository is not cloned yet, bootstrap it first:
 
 ```sh
-mkdir -p /var/www/certbot
+git clone --branch agent/realtime-wss-server https://github.com/ChristianHohlfeld/digitalisierungsplanung.de.git /var/www/digitalisierungsplanung.de
+cd /var/www/digitalisierungsplanung.de
+bash server/deploy.sh
+```
+
+If TLS is not installed yet, create DNS first and then run:
+
+```sh
 certbot certonly --nginx -d realtime.digitalisierungsplanung.de
-cp server/nginx/realtime.digitalisierungsplanung.de.conf /etc/nginx/sites-available/realtime.digitalisierungsplanung.de
-ln -sf /etc/nginx/sites-available/realtime.digitalisierungsplanung.de /etc/nginx/sites-enabled/realtime.digitalisierungsplanung.de
-nginx -t
-systemctl reload nginx
+nginx -t && systemctl reload nginx
 ```
 
 Smoke checks:
