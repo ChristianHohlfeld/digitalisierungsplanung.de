@@ -5156,8 +5156,9 @@
         actions.className = "daisy-actions";
         const tone = cleanTone("");
         const className = tone ? "btn-" + tone : "";
-        if (!appendDaisyTransitionButtons(actions, ownerState, renderOptions, "daisy-button", { component })) {
-          appendDaisyLocalActionButton(actions, component, daisyDataText(component, "label", title), () => {
+        const action = daisyComponentActionLabel(component, "label", title);
+        if (!appendDaisyTransitionButtons(actions, ownerState, renderOptions, "daisy-button", { component, labels: [action] })) {
+          appendDaisyLocalActionButton(actions, component, action.label, () => {
             daisyWrite(component, "clicked", true);
             daisyWrite(component, "clickedAt", Date.now());
           }, className);
@@ -5242,8 +5243,9 @@
           if (body) appendDaisyText(box, "p", "py-4", body);
           const actions = document.createElement("div");
           actions.className = "modal-action";
-          if (!appendDaisyTransitionButtons(actions, ownerState, renderOptions, "modal", { component })) {
-            appendDaisyLocalActionButton(actions, component, daisyDataText(component, "actionLabel", "Confirm"), () => {
+          const action = daisyComponentActionLabel(component, "actionLabel", "Confirm");
+          if (!appendDaisyTransitionButtons(actions, ownerState, renderOptions, "modal", { component, labels: [action] })) {
+            appendDaisyLocalActionButton(actions, component, action.label, () => {
               daisyWrite(component, "confirmed", true);
               daisyWrite(component, "open", false, { render: true });
             }, "btn-primary");
@@ -5976,7 +5978,7 @@
             if (!actionLabel && !daisyActionTransitions(ownerState, renderOptions, component).length) return;
             const actions = document.createElement("div");
             actions.className = "card-actions justify-end";
-            if (!appendDaisyTransitionButtons(actions, ownerState, renderOptions, "hero", { component })) {
+            if (!appendDaisyTransitionButtons(actions, ownerState, renderOptions, "hero", { component, labels: [{ label: actionLabel, transitionId: daisyComponentTransitionId(component) }] })) {
               appendDaisyLocalActionButton(actions, component, actionLabel, () => daisyWrite(component, "clicked", true, { render: true }), "btn-primary");
             }
             parent.appendChild(actions);
@@ -6242,7 +6244,7 @@
           if (actionLabel || daisyActionTransitions(ownerState, renderOptions, component).length) {
             const actions = document.createElement("div");
             actions.className = "card-actions justify-end";
-            if (!appendDaisyTransitionButtons(actions, ownerState, renderOptions, "card", { component })) {
+            if (!appendDaisyTransitionButtons(actions, ownerState, renderOptions, "card", { component, labels: [{ label: actionLabel, transitionId: daisyComponentTransitionId(component) }] })) {
               appendDaisyLocalActionButton(actions, component, actionLabel, () => daisyWrite(component, "clicked", true, { render: true }), "btn-primary");
             }
             box.appendChild(actions);
@@ -6610,6 +6612,18 @@
         daisyTransitionIdSetFromValue(data[key], ids);
       }
       return ids;
+    }
+
+    function daisyComponentTransitionId(component) {
+      const data = daisyScopeData(component);
+      return String(component?.transitionId || data.transitionId || "").trim();
+    }
+
+    function daisyComponentActionLabel(component, key, fallback = "") {
+      return {
+        label: daisyDataText(component, key, fallback),
+        transitionId: daisyComponentTransitionId(component)
+      };
     }
 
     function daisyItemLabel(item) {
@@ -6999,7 +7013,7 @@
               list.appendChild(item);
             });
           }`)
-        .replace(`          if (!appendDaisyTransitionButtons(actions, ownerState, renderOptions, "navbar-cart", { component })) {`, `          if (!appendDaisyTransitionButtons(actions, ownerState, renderOptions, "navbar-cart", { component, labels: [{ label: daisyDataText(component, "actionLabel", "View cart"), transitionId: daisyScopeData(component).transitionId }] })) {`)
+        .replace(`          if (!appendDaisyTransitionButtons(actions, ownerState, renderOptions, "navbar-cart", { component })) {`, `          if (!appendDaisyTransitionButtons(actions, ownerState, renderOptions, "navbar-cart", { component, labels: [daisyComponentActionLabel(component, "actionLabel", "View cart")] })) {`)
         .replace(`          if (!appendDaisyTransitionButtons(menu, ownerState, renderOptions, "navbar", { component, listItem: true })) appendMenuItems(menu, "selected", menuItems, selected());`, `          if (!appendDaisyTransitionButtons(menu, ownerState, renderOptions, "navbar", { component, listItem: true, labels: menuItemValues })) appendMenuItems(menu, "selected", menuItems, selected());`)
         .replace(`            appendMenuItems(submenu, "selected", submenuItems, selected());`, `            if (!appendDaisyTransitionButtons(submenu, ownerState, renderOptions, "navbar-submenu", { component, listItem: true, labels: submenuItemValues })) appendMenuItems(submenu, "selected", submenuItems, selected());`)
         .replace(`        appendMenuItems(menu, "selected", itemLabels(), selected());
@@ -7123,7 +7137,7 @@
         .replace(`        el.appendChild(fieldset);
       } else if (["input", "textarea"].includes(variant)) {`, `        const actions = document.createElement("div");
         actions.className = "card-actions justify-end";
-        if (appendDaisyTransitionButtons(actions, ownerState, renderOptions, variant, { component })) fieldset.appendChild(actions);
+        if (appendDaisyTransitionButtons(actions, ownerState, renderOptions, variant, { component, labels: [daisyComponentActionLabel(component, "actionLabel", "")] })) fieldset.appendChild(actions);
         el.appendChild(fieldset);
       } else if (["input", "textarea"].includes(variant)) {`)
         .replace(`      const screen = document.getElementById("screen");
