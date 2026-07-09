@@ -95,7 +95,8 @@ Der optionale Realtime-Server in `server/` ist nur Transport fuer Runtime-Events
 - Server-to-server Fire-Endpunkt: `https://realtime.digitalisierungsplanung.de/emit`
 - Test-Konsole: `https://realtime.digitalisierungsplanung.de/console.html`
 - Aktivierung im Editor: `state.html?room=<room-id>`
-- Zwischen Clients werden nur `realtime.*` Events weitergereicht.
+- API-Dokumentation: [`docs/realtime-api.md`](docs/realtime-api.md)
+- Der App-Contract konsumiert `realtime.*` Events; `/emit` akzeptiert nur angebotene Marketplace-Events.
 
 Realtime erzeugt keine zweite Wahrheit. Der Marketplace auf dem Realtime-Server ist der Werkzeugkasten und die Single Source of Truth fuer angebotene Presets, Events, Endpoints und State-Felder. Der Canvas soll nur konkrete Referenzen speichern, die er wirklich verwendet: zum Beispiel `triggerEvent`, Feldpfade, Room-ID und Endpoint-ID. Er speichert keine Preset-Contracts, keine importierten Endpoint-Definitionen und keine Preset-Instanzen.
 
