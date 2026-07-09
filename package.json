@@ -3,7 +3,7 @@
   "private": true,
   "type": "commonjs",
   "scripts": {
-    "build:landing": "node scripts/build-landing-index.mjs",
+    "build:index": "node scripts/build-index.mjs",
     "build:pwa-assets": "node scripts/build-pwa-assets.mjs",
     "build:sw-version": "node scripts/write-sw-version.mjs",
     "server:start": "node server/server.js",

@@ -1611,6 +1611,7 @@ test.describe("State Blueprint tool", () => {
     await openTool(page);
     await expect(page.locator("#btnDemo")).toHaveCount(0);
     await expect(page.locator("#btnWebsiteExample")).toHaveText("Zustand Demo");
+    await expect(page.locator("#btnLandingPageExample")).toHaveCount(0);
 
     await page.getByRole("button", { name: "New" }).click();
     await page.getByRole("button", { name: "Neu starten" }).click();
@@ -1669,7 +1670,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator('[data-id="start"]')).toBeVisible();
   });
 
-  test("loads the Zustand demo scene from the landing editor entry URL when no scene is stored @smoke", async ({ page }) => {
+  test("loads the Zustand demo scene from the editor entry URL when no scene is stored @smoke", async ({ page }) => {
     await page.addInitScript(key => {
       for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
         localStorage.removeItem(name);
@@ -1696,45 +1697,7 @@ test.describe("State Blueprint tool", () => {
     });
   });
 
-  test("loads the public landing page as a separate editor demo scene @smoke", async ({ page }) => {
-    const landingDefinition = JSON.parse(fs.readFileSync("landing.state.json", "utf8"));
-    const expectedStateIds = landingDefinition.model.states.map(state => state.id);
-
-    await page.addInitScript(key => {
-      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
-        localStorage.removeItem(name);
-      }
-    }, STORAGE_KEY);
-
-    await page.goto("/state.html?demo=landing");
-
-    await expect(page).toHaveURL(/\/state\.html$/);
-    await expect(page.getByRole("dialog", { name: "Hauptseiten-Demo" })).toBeHidden();
-    await expect(page.locator('[data-id="startseite"]')).toBeVisible();
-    await expect(appFrame(page).locator("#statePill")).toHaveText("startseite");
-    await expect(appFrame(page).locator(".daisy-feature-image")).toHaveCount(3);
-    await expect.poll(async () => appFrame(page).locator(".daisy-feature-image").evaluateAll(images =>
-      images.map(image => image.src)
-    )).toEqual([
-      expect.stringMatching(/^https?:\/\/[^/]+\/assets\/landing-understand-business\.png$/),
-      expect.stringMatching(/^https?:\/\/[^/]+\/assets\/landing-model-business\.png$/),
-      expect.stringMatching(/^https?:\/\/[^/]+\/assets\/landing-automate-business\.png$/)
-    ]);
-    await expect.poll(async () => {
-      const model = await savedModel(page);
-      return {
-        name: model?.name || "",
-        initial: model?.initial || "",
-        stateIds: model?.states?.map(state => state.id) || []
-      };
-    }).toEqual({
-      name: "Digitalisierungsplanung",
-      initial: "startseite",
-      stateIds: expectedStateIds
-    });
-  });
-
-  test("asks before replacing stored work from the landing demo entry URL @smoke", async ({ page }) => {
+  test("asks before replacing stored work from the demo entry URL @smoke", async ({ page }) => {
     await page.addInitScript(({ key, model }) => {
       for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
         localStorage.removeItem(name);
@@ -1777,50 +1740,6 @@ test.describe("State Blueprint tool", () => {
       initial: "site_home",
       hasOldLocalModel: false,
       loginHeroTransitionId: "site_login_submit"
-    });
-  });
-
-  test("asks before replacing stored work from the public landing page demo entry URL @smoke", async ({ page }) => {
-    await page.addInitScript(({ key, model }) => {
-      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
-        localStorage.removeItem(name);
-      }
-      localStorage.setItem(key, JSON.stringify(model));
-    }, { key: STORAGE_KEY, model: defaultTestModel() });
-
-    await page.goto("/state.html?demo=landing");
-
-    await expect(page).toHaveURL(/\/state\.html$/);
-    await expect(page.locator('[data-id="auth_start"]')).toBeVisible();
-    await expect(page.getByRole("dialog", { name: "Hauptseiten-Demo" })).toBeVisible();
-    await expect.poll(async () => {
-      const model = await savedModel(page);
-      return {
-        name: model?.name || "",
-        initial: model?.initial || "",
-        hasStoredWork: Boolean(model?.states?.some(state => state.id === "auth_start"))
-      };
-    }).toEqual({
-      name: "Standard Auth Flow",
-      initial: "auth_start",
-      hasStoredWork: true
-    });
-
-    await page.getByRole("button", { name: "Demo laden" }).click();
-
-    await expect(page.locator('[data-id="startseite"]')).toBeVisible();
-    await expect(appFrame(page).locator("#statePill")).toHaveText("startseite");
-    await expect.poll(async () => {
-      const model = await savedModel(page);
-      return {
-        name: model?.name || "",
-        initial: model?.initial || "",
-        hasOldLocalModel: Boolean(model?.states?.some(state => state.id === "auth_start"))
-      };
-    }).toEqual({
-      name: "Digitalisierungsplanung",
-      initial: "startseite",
-      hasOldLocalModel: false
     });
   });
 

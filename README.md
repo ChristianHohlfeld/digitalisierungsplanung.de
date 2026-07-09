@@ -2,11 +2,11 @@
 
 Zustand ist ein Werkzeug, um Geschäftsprozesse zuerst zu verstehen und danach sauber zu digitalisieren. Der Kern ist keine lose Diagrammfläche, sondern ein echter endlicher Zustandsautomat: States, Transitionen, Daten, Trigger und Benutzeroberfläche liegen in einem gemeinsamen JSON-Modell.
 
-Die Startseite unter `index.html` ist selbst ein exportierter Zustand-Flow. Der Editor liegt in `state.html`.
+Die Startseite unter `index.html` ist die exportierte Zustand Demo. Der Editor liegt in `state.html` und bietet dieselbe Demo als einzigen Beispiel-Flow an.
 
 ## Was sich geändert hat
 
-- Die öffentliche Landingpage wurde als deutsche Verkaufsseite für Entscheider neu aufgebaut.
+- Root-Seite und Editor-Demo sind derselbe Flow: eine exportierte Zustand Demo ohne zweite Landing-Demo.
 - Der Kontrakt ist schriftlich festgehalten: ein globaler JSON-State/Event-Bus, keine Schattenzustände, keine versteckte Widget-Logik.
 - DaisyUI-Presets sind strukturierte, busgebundene Komponenten. Text ist Darstellung, `transitionId` ist Bindung.
 - Die MCP/API-Schicht bleibt als steuerbare Schnittstelle für alle relevanten Modellaktionen erhalten.
@@ -62,8 +62,8 @@ Kurzfassung:
 - Save/Load/Import/Export,
 - PWA-Assets und statischer Export.
 
-`index.html` ist die generierte öffentliche Landingpage für `digitalisierungsplanung.de`.
-Im Editor kann zusätzlich `state.html?demo=landing` die Hauptseite als bearbeitbare Demo laden; `state.html?demo=zustand` lädt die Werkzeug-Demo.
+`index.html` ist die exportierte Demo für `digitalisierungsplanung.de`.
+Im Editor lädt `state.html?demo=zustand` dieselbe Demo als bearbeitbaren Flow.
 
 ## Realtime
 
@@ -146,10 +146,10 @@ Abhängigkeiten installieren:
 npm install
 ```
 
-Landingpage aus dem Zustand-Modell neu exportieren:
+Root-Demo aus dem Editor neu exportieren:
 
 ```bash
-npm run build:landing
+npm run build:index
 ```
 
 PWA-Assets lokal erzeugen:
@@ -174,14 +174,13 @@ Wichtige Testbereiche:
 - `state-tool.spec.js`: Canvas, Proxies, Nested States, Routing, Presets, Touch, Undo/Redo, Save/Load und Export.
 - `nested-runtime-regressions.spec.js`: generierter App-Flow durch Composite States.
 - `state-blueprint-mcp.spec.js`: MCP/API-Verhalten und Export-Gleichheit.
-- `landing-page.spec.js`: öffentliche Landingpage als exportierte FSM.
+- `root-page.spec.js`: Root-Seite als exportierte Zustand-Demo.
 
 ## Repository
 
 ```text
 .
-|-- index.html                  # exportierte öffentliche Landingpage
-|-- landing.state.json          # Modell der Landingpage
+|-- index.html                  # exportierte Zustand Demo
 |-- state.html                  # Editor und Preview-Runtime
 |-- manifest.webmanifest
 |-- sw.js
