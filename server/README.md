@@ -47,7 +47,7 @@ window.__stateBlueprintRealtime.emit("realtime.canvas.pulse", { stateId: "start"
 Use a matching transition in the model:
 
 ```text
-triggerType: event
+triggerType: realtime
 triggerEvent: realtime.canvas.pulse
 ```
 

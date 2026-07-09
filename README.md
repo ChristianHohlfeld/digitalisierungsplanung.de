@@ -104,7 +104,7 @@ window.__stateBlueprintRealtime.emit("realtime.canvas.pulse", { stateId: "start"
 Passende Transition:
 
 ```text
-triggerType: event
+triggerType: realtime
 triggerEvent: realtime.canvas.pulse
 ```
 

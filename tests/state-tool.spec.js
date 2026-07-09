@@ -6456,26 +6456,42 @@ test.describe("State Blueprint tool", () => {
     });
   });
 
-  test("normalizes bus-event transitions away from button click events @smoke", async ({ page }) => {
+  test("normalizes bus-event transitions away from owned runtime event namespaces @smoke", async ({ page }) => {
     const model = defaultTestModel();
-    const transition = model.transitions.find(item => item.id === "t_auth_login");
-    transition.triggerType = "event";
-    transition.triggerEvent = "button.t_auth_login.clicked";
+    const buttonTransition = model.transitions.find(item => item.id === "t_auth_login");
+    buttonTransition.triggerType = "event";
+    buttonTransition.triggerEvent = "button.t_auth_login.clicked";
+    const realtimeTransition = model.transitions.find(item => item.id === "t_auth_register");
+    realtimeTransition.triggerType = "event";
+    realtimeTransition.triggerEvent = "realtime.sip.call.incoming";
 
     await openTool(page, { model });
 
     await expect.poll(async () => page.evaluate(() => {
-      const transition = model.transitions.find(item => item.id === "t_auth_login");
+      const buttonTransition = model.transitions.find(item => item.id === "t_auth_login");
+      const realtimeTransition = model.transitions.find(item => item.id === "t_auth_register");
       return {
-        triggerType: transition?.triggerType,
-        triggerEvent: transition?.triggerEvent
+        button: {
+          triggerType: buttonTransition?.triggerType,
+          triggerEvent: buttonTransition?.triggerEvent
+        },
+        realtime: {
+          triggerType: realtimeTransition?.triggerType,
+          triggerEvent: realtimeTransition?.triggerEvent
+        }
       };
     })).toEqual({
-      triggerType: "event",
-      triggerEvent: ""
+      button: {
+        triggerType: "event",
+        triggerEvent: ""
+      },
+      realtime: {
+        triggerType: "event",
+        triggerEvent: ""
+      }
     });
     await expect(appFrame(page).locator('button[data-transition-id="t_auth_login"]')).toHaveCount(0);
-    await expect(appFrame(page).locator('button[data-transition-id="t_auth_register"]')).toBeVisible();
+    await expect(appFrame(page).locator('button[data-transition-id="t_auth_register"]')).toHaveCount(0);
   });
 
   test("copies selected countdown flows without reusing scoped transition data", async ({ page }) => {
