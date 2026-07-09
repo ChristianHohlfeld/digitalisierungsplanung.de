@@ -4582,6 +4582,7 @@
       <summary>More</summary>
       <div class="topbar-menu-panel">
         <button id="btnWebsiteExample">Zustand Demo</button>
+        <button id="btnLandingPageExample">Hauptseiten-Demo</button>
         <button id="btnResetView">Reset View</button>
         <button id="btnReset" class="danger">Reset canvas</button>
       </div>
@@ -25434,13 +25435,15 @@
       syncToApp(true);
     }
 
-    function landingDemoEntryRequested() {
+    function requestedDemoEntryId() {
       try {
         const url = new URL(window.location.href);
         const requested = String(url.searchParams.get("demo") || "").trim().toLowerCase();
-        return requested === "zustand" || requested === "website" || requested === "true" || requested === "1";
+        if (["landing", "main", "mainpage", "homepage", "hauptseite", "startseite"].includes(requested)) return "landing";
+        if (["zustand", "website", "true", "1"].includes(requested)) return "zustand";
+        return "";
       } catch (_) {
-        return false;
+        return "";
       }
     }
 
@@ -25452,6 +25455,34 @@
         const query = url.searchParams.toString();
         window.history.replaceState(null, "", url.pathname + (query ? "?" + query : "") + url.hash);
       } catch (_) {}
+    }
+
+    function demoLabelForId(demoId) {
+      return demoId === "landing" ? "Hauptseiten-Demo" : "Zustand Demo";
+    }
+
+    async function demoModelForId(demoId) {
+      if (demoId === "landing") {
+        const response = await fetch("landing.state.json", { cache: "no-store" });
+        if (!response.ok) throw new Error("Hauptseiten-Demo konnte nicht geladen werden.");
+        const definition = await response.json();
+        return normalizeModel(definition?.model || definition);
+      }
+      return normalizeModel(exampleWebsiteModel());
+    }
+
+    async function loadDemoModelById(demoId, shouldFit = true) {
+      const nextModel = await demoModelForId(demoId);
+      loadEditorModel(nextModel, shouldFit);
+    }
+
+    function reportDemoLoadFailure(error) {
+      console.error(error);
+      modalConfirm("Die Demo konnte nicht geladen werden. Bitte pruefe, ob landing.state.json neben state.html liegt.", "Demo nicht geladen", {
+        confirmText: "OK",
+        cancelText: "Schliessen",
+        danger: false
+      });
     }
 
     async function requestNewCanvas() {
@@ -25494,6 +25525,19 @@
       });
       if (!ok) return;
       loadEditorModel(exampleWebsiteModel(), true);
+    });
+
+    document.getElementById("btnLandingPageExample").onclick = () => runTopbarAction(async () => {
+      const ok = await modalConfirm("Aktuelle Szene durch die Hauptseiten-Demo ersetzen?", "Hauptseiten-Demo", {
+        confirmText: "Demo laden",
+        danger: false
+      });
+      if (!ok) return;
+      try {
+        await loadDemoModelById("landing", true);
+      } catch (error) {
+        reportDemoLoadFailure(error);
+      }
     });
     
     document.getElementById("btnSave").onclick = saveDefinitionFile;
@@ -25649,8 +25693,8 @@
     wiresEl.style.width = WORLD_W + "px";
     wiresEl.style.height = WORLD_H + "px";
 
-    const landingDemoEntry = landingDemoEntryRequested();
-    if (landingDemoEntry && !initialPersistedModelExists) {
+    const landingDemoEntry = requestedDemoEntryId();
+    if (landingDemoEntry === "zustand" && !initialPersistedModelExists) {
       model = normalizeModel(exampleWebsiteModel());
       selected = null;
       currentLayerId = null;
@@ -25672,15 +25716,28 @@
     initHistory();
     persistModel(false);
     setTimeout(fitView, 50);
+    if (landingDemoEntry === "landing" && !initialPersistedModelExists) {
+      consumeLandingDemoEntryUrl();
+      setTimeout(() => {
+        loadDemoModelById(landingDemoEntry, true).catch(reportDemoLoadFailure);
+      }, 0);
+    }
     if (landingDemoEntry && initialPersistedModelExists) {
       consumeLandingDemoEntryUrl();
       setTimeout(async () => {
-        const ok = await modalConfirm("Es gibt bereits eine gespeicherte Szene. Zustand Demo trotzdem laden und aktuelle Szene ersetzen?", "Zustand Demo", {
+        const demoLabel = demoLabelForId(landingDemoEntry);
+        const ok = await modalConfirm(`Es gibt bereits eine gespeicherte Szene. ${demoLabel} trotzdem laden und aktuelle Szene ersetzen?`, demoLabel, {
           confirmText: "Demo laden",
           cancelText: "Aktuelle Szene behalten",
           danger: false
         });
-        if (ok) loadEditorModel(exampleWebsiteModel(), true);
+        if (ok) {
+          try {
+            await loadDemoModelById(landingDemoEntry, true);
+          } catch (error) {
+            reportDemoLoadFailure(error);
+          }
+        }
       }, 0);
     }
   

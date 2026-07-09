@@ -78,6 +78,7 @@ Kurzfassung:
 - PWA-Assets und statischer Export.
 
 `index.html` ist die generierte öffentliche Landingpage für `digitalisierungsplanung.de`.
+Im Editor kann zusätzlich `state.html?demo=landing` die Hauptseite als bearbeitbare Demo laden; `state.html?demo=zustand` lädt die Werkzeug-Demo.
 
 ## Realtime
 

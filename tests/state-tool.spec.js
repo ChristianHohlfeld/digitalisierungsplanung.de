@@ -1696,6 +1696,36 @@ test.describe("State Blueprint tool", () => {
     });
   });
 
+  test("loads the public landing page as a separate editor demo scene @smoke", async ({ page }) => {
+    const landingDefinition = JSON.parse(fs.readFileSync("landing.state.json", "utf8"));
+    const expectedStateIds = landingDefinition.model.states.map(state => state.id);
+
+    await page.addInitScript(key => {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+    }, STORAGE_KEY);
+
+    await page.goto("/state.html?demo=landing");
+
+    await expect(page).toHaveURL(/\/state\.html$/);
+    await expect(page.getByRole("dialog", { name: "Hauptseiten-Demo" })).toBeHidden();
+    await expect(page.locator('[data-id="startseite"]')).toBeVisible();
+    await expect(appFrame(page).locator("#statePill")).toHaveText("startseite");
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return {
+        name: model?.name || "",
+        initial: model?.initial || "",
+        stateIds: model?.states?.map(state => state.id) || []
+      };
+    }).toEqual({
+      name: "Digitalisierungsplanung",
+      initial: "startseite",
+      stateIds: expectedStateIds
+    });
+  });
+
   test("asks before replacing stored work from the landing demo entry URL @smoke", async ({ page }) => {
     await page.addInitScript(({ key, model }) => {
       for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
@@ -1739,6 +1769,50 @@ test.describe("State Blueprint tool", () => {
       initial: "site_home",
       hasOldLocalModel: false,
       loginHeroTransitionId: "site_login_submit"
+    });
+  });
+
+  test("asks before replacing stored work from the public landing page demo entry URL @smoke", async ({ page }) => {
+    await page.addInitScript(({ key, model }) => {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(key, JSON.stringify(model));
+    }, { key: STORAGE_KEY, model: defaultTestModel() });
+
+    await page.goto("/state.html?demo=landing");
+
+    await expect(page).toHaveURL(/\/state\.html$/);
+    await expect(page.locator('[data-id="auth_start"]')).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Hauptseiten-Demo" })).toBeVisible();
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return {
+        name: model?.name || "",
+        initial: model?.initial || "",
+        hasStoredWork: Boolean(model?.states?.some(state => state.id === "auth_start"))
+      };
+    }).toEqual({
+      name: "Standard Auth Flow",
+      initial: "auth_start",
+      hasStoredWork: true
+    });
+
+    await page.getByRole("button", { name: "Demo laden" }).click();
+
+    await expect(page.locator('[data-id="startseite"]')).toBeVisible();
+    await expect(appFrame(page).locator("#statePill")).toHaveText("startseite");
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return {
+        name: model?.name || "",
+        initial: model?.initial || "",
+        hasOldLocalModel: Boolean(model?.states?.some(state => state.id === "auth_start"))
+      };
+    }).toEqual({
+      name: "Digitalisierungsplanung",
+      initial: "startseite",
+      hasOldLocalModel: false
     });
   });
 
