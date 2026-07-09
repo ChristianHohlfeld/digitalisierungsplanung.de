@@ -22,6 +22,7 @@ test.describe("Root demo export", () => {
     await expect(page.locator("#statePill")).toHaveText("site_home");
     await expect(page.getByRole("heading", { name: "Zustand" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Editor öffnen" })).toHaveAttribute("href", /state\.html\?demo=zustand$/);
+    await expect(page.locator(".hero .card-actions.justify-center")).toHaveCSS("justify-content", "center");
 
     const manifest = await page.request.get("/manifest.webmanifest");
     expect(manifest.ok()).toBe(true);
