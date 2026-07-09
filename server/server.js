@@ -12,13 +12,9 @@ const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 8788;
 const MAX_ID_LENGTH = 128;
 const MAX_EVENT_NAME_LENGTH = 160;
-const MAX_OPS_PER_PATCH = 100;
 const MESSAGE_TYPES = new Set([
   "presence.cursor",
-  "runtime.event",
-  "graph.patch",
-  "snapshot.request",
-  "snapshot"
+  "runtime.event"
 ]);
 const TRANSIENT_TYPES = new Set(["presence.cursor"]);
 
@@ -201,31 +197,6 @@ function serializeForBroadcast(message, state, room) {
     };
   }
 
-  if (message.type === "graph.patch") {
-    room.rev += 1;
-    return {
-      ...base,
-      baseRev: Number.isSafeInteger(message.baseRev) ? message.baseRev : null,
-      rev: room.rev,
-      ops: message.ops
-    };
-  }
-
-  if (message.type === "snapshot.request") {
-    return {
-      ...base,
-      rev: room.rev
-    };
-  }
-
-  if (message.type === "snapshot") {
-    return {
-      ...base,
-      rev: Number.isSafeInteger(message.rev) ? message.rev : room.rev,
-      model: message.model
-    };
-  }
-
   return null;
 }
 
@@ -265,20 +236,6 @@ function validateRealtimeMessage(message) {
     if (message.detail !== undefined && !isPlainObject(message.detail)) return { ok: false, code: "invalid_detail" };
     message.name = name;
     message.detail = message.detail || {};
-  }
-
-  if (message.type === "graph.patch") {
-    if (message.baseRev !== undefined && message.baseRev !== null && !Number.isSafeInteger(message.baseRev)) {
-      return { ok: false, code: "invalid_base_rev" };
-    }
-    if (!Array.isArray(message.ops) || message.ops.length > MAX_OPS_PER_PATCH || !message.ops.every(isPlainObject)) {
-      return { ok: false, code: "invalid_ops" };
-    }
-  }
-
-  if (message.type === "snapshot") {
-    if (!isPlainObject(message.model)) return { ok: false, code: "invalid_model" };
-    if (message.rev !== undefined && !Number.isSafeInteger(message.rev)) return { ok: false, code: "invalid_rev" };
   }
 
   return { ok: true, message };

@@ -15,10 +15,9 @@ WebSocket relay for `state.html` realtime canvas/runtime events.
 - `join`: first client message, requires `roomId`, `clientId`, and signed `token` in production.
 - `presence.cursor`: transient cursor/drag presence, dropped for slow peers.
 - `runtime.event`: relayed event name and detail for state-machine runtime reactions.
-- `graph.patch`: persistent graph mutation ops, rev increments on the server.
-- `snapshot.request` and `snapshot`: reconnect/resync support.
 
 The server broadcasts to other clients in the same room only. It does not echo messages to the sender.
+The server does not accept model patches or snapshots. Model writes stay in the canonical State Blueprint JSON/API layer.
 
 ## State Runtime Integration
 
@@ -37,6 +36,7 @@ STATE_BLUEPRINT_REALTIME_EVENT -> emitRuntimeEvent(...) -> writeRuntimeState("ev
 ```
 
 Only event names starting with `realtime.` are relayed. Existing `button.*`, `change.*`, `timer.*`, and `auto.*` events remain local runtime events.
+Graph/model collaboration must go through the documented State Blueprint API, not through this WSS relay.
 
 Example:
 

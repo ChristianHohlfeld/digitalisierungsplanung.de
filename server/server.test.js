@@ -189,26 +189,47 @@ test("relays runtime events to peers without echoing them to the sender", async 
   });
 });
 
-test("increments graph revisions and drops duplicate client sequences", async () => {
+test("drops duplicate runtime event client sequences", async () => {
   await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
     const alice = await connectClient(realtime, { clientId: "alice" });
     const bob = await connectClient(realtime, { clientId: "bob" });
 
-    const patch = {
+    const event = {
+      type: "runtime.event",
+      seq: 1,
+      name: "realtime.canvas.clicked",
+      detail: { stateId: "start" }
+    };
+    alice.send(JSON.stringify(event));
+    alice.send(JSON.stringify(event));
+
+    const received = await nextMessage(bob, message => message.type === "runtime.event");
+    assert.equal(received.clientId, "alice");
+    assert.equal(received.name, "realtime.canvas.clicked");
+    assert.deepEqual(received.detail, event.detail);
+    await assertNoMessage(bob, message => message.type === "runtime.event");
+  });
+});
+
+test("rejects graph patches and snapshots because model writes stay in the canonical API", async () => {
+  await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
+    const socket = await connectClient(realtime, { clientId: "alice" });
+
+    socket.send(JSON.stringify({
       type: "graph.patch",
       seq: 1,
-      baseRev: 0,
       ops: [{ op: "state.move", id: "start", x: 100, y: 160 }]
-    };
-    alice.send(JSON.stringify(patch));
-    alice.send(JSON.stringify(patch));
+    }));
+    const patchError = await nextMessage(socket, message => message.type === "error");
+    assert.equal(patchError.code, "invalid_type");
 
-    const received = await nextMessage(bob, message => message.type === "graph.patch");
-    assert.equal(received.clientId, "alice");
-    assert.equal(received.baseRev, 0);
-    assert.equal(received.rev, 1);
-    assert.deepEqual(received.ops, patch.ops);
-    await assertNoMessage(bob, message => message.type === "graph.patch");
+    socket.send(JSON.stringify({
+      type: "snapshot",
+      seq: 2,
+      model: {}
+    }));
+    const snapshotError = await nextMessage(socket, message => message.type === "error");
+    assert.equal(snapshotError.code, "invalid_type");
   });
 });
 
