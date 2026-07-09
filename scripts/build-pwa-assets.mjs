@@ -140,104 +140,6 @@ const shareHtml = `<!doctype html>
 </body>
 </html>`;
 
-const heroHtml = `<!doctype html>
-<html lang="de">
-<head>
-  <meta charset="utf-8">
-  <style>
-    * { box-sizing: border-box; }
-    body {
-      width: 1600px;
-      height: 900px;
-      margin: 0;
-      overflow: hidden;
-      background:
-        radial-gradient(circle at 22% 16%, rgba(56,189,248,.32), transparent 32%),
-        radial-gradient(circle at 82% 80%, rgba(245,158,11,.18), transparent 30%),
-        linear-gradient(135deg, #07111f 0%, #020617 72%);
-      font-family: "Segoe UI", Arial, sans-serif;
-    }
-    .grid {
-      position: absolute;
-      inset: 0;
-      background-image:
-        linear-gradient(rgba(125,211,252,.12) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(125,211,252,.12) 1px, transparent 1px);
-      background-size: 48px 48px;
-      opacity: .42;
-      mask-image: radial-gradient(circle at 56% 50%, black 0 48%, transparent 78%);
-    }
-    .board {
-      position: absolute;
-      inset: 94px 92px 86px;
-      border: 2px solid rgba(56,189,248,.22);
-      border-radius: 42px;
-      background: rgba(8,24,39,.56);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 38px 110px rgba(0,0,0,.44);
-    }
-    svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-    .node {
-      position: absolute;
-      width: 218px;
-      height: 116px;
-      border-radius: 28px;
-      background: linear-gradient(180deg, #17395f, #102642);
-      border: 3px solid #315f8c;
-      box-shadow: 0 24px 52px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.12);
-    }
-    .node::after {
-      content: "";
-      position: absolute;
-      left: 26px;
-      right: 26px;
-      top: 30px;
-      height: 14px;
-      border-radius: 999px;
-      background: rgba(229,240,255,.9);
-      box-shadow: 0 30px 0 rgba(147,197,253,.45);
-    }
-    .n1 { left: 214px; top: 252px; border-color: #34d399; }
-    .n2 { left: 684px; top: 150px; border-color: #38bdf8; }
-    .n3 { left: 686px; top: 498px; border-color: #f59e0b; }
-    .n4 { right: 220px; top: 318px; border-color: #a78bfa; }
-    .pulse {
-      position: absolute;
-      width: 26px;
-      height: 26px;
-      border-radius: 999px;
-      background: #38bdf8;
-      box-shadow: 0 0 0 13px rgba(56,189,248,.12), 0 0 48px rgba(56,189,248,.86);
-    }
-    .p1 { left: 430px; top: 296px; }
-    .p2 { left: 900px; top: 194px; background: #34d399; box-shadow: 0 0 0 13px rgba(52,211,153,.12), 0 0 48px rgba(52,211,153,.78); }
-    .p3 { right: 418px; top: 362px; background: #f59e0b; box-shadow: 0 0 0 13px rgba(245,158,11,.13), 0 0 48px rgba(245,158,11,.8); }
-  </style>
-</head>
-<body>
-  <div class="grid"></div>
-  <div class="board">
-    <svg viewBox="0 0 1416 720" fill="none">
-      <path d="M336 314H470V212H592" stroke="#38bdf8" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="M336 314H470V558H592" stroke="#f59e0b" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="M806 212H936V376H1058" stroke="#34d399" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="M806 558H936V376H1058" stroke="#a78bfa" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="M336 314H1058" stroke="#7dd3fc" stroke-width="5" stroke-linecap="round" stroke-dasharray="18 18" opacity=".35"/>
-      <circle cx="336" cy="314" r="12" fill="#38bdf8"/>
-      <circle cx="592" cy="212" r="12" fill="#38bdf8"/>
-      <circle cx="592" cy="558" r="12" fill="#f59e0b"/>
-      <circle cx="1058" cy="376" r="12" fill="#34d399"/>
-    </svg>
-    <div class="node n1"></div>
-    <div class="node n2"></div>
-    <div class="node n3"></div>
-    <div class="node n4"></div>
-    <div class="pulse p1"></div>
-    <div class="pulse p2"></div>
-    <div class="pulse p3"></div>
-  </div>
-</body>
-</html>`;
-
 async function ensureDir(file) {
   await mkdir(dirname(file), { recursive: true });
 }
@@ -272,7 +174,6 @@ try {
   await pngFromSvg(browser, maskableSvg, resolve(assetsDir, "maskable-512.png"), 512);
   await pngFromSvg(browser, iconSvg, resolve(assetsDir, "apple-touch-icon.png"), 180);
   await pngFromHtml(browser, shareHtml, resolve(assetsDir, "share-card.png"), 1200, 630);
-  await pngFromHtml(browser, heroHtml, resolve(assetsDir, "hero-process.png"), 1600, 900);
 } finally {
   await browser.close();
 }

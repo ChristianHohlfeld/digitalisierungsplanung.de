@@ -1,83 +1,110 @@
-# State Blueprint Manifest
+# Zustand-Kontrakt
 
-State Blueprint is a visual finite-state-machine builder driven by one global JSON event bus.
-The canvas is not decoration around code. It is the model editor for the machine.
+Dieses Dokument ist der schriftliche Kontrakt für Zustand und Digitalisierungsplanung. Es beschreibt, was die Maschine ist, was sie niemals tun darf und welche Regeln Editor, Laufzeit, Presets, Render, API und Tests schützen müssen.
 
-## Core Principle
+## Grundprinzip
 
-There is exactly one live application state: `globalState`.
+Es gibt genau einen lebenden Anwendungszustand:
 
-The JSON model declares states, transitions, render order, bus defaults, subscriptions, and component bindings. Runtime keeps one mutable object, `globalState`, and applies those declarations as writes to that object. Nothing flow-relevant may live only in DOM state, cached component state, preset HTML, or hidden widget stores.
+```text
+globalState
+```
 
-## FSM Contract
+Das JSON-Modell beschreibt States, Transitionen, Render-Reihenfolge, Bus-Defaults, Subscriptions, Komponenten-Bindings und Presets. Die Laufzeit hält ein einziges veränderbares Objekt, `globalState`, und wendet die Modellregeln als Lese- und Schreiboperationen auf dieses Objekt an.
 
-- A state represents a constellation of global data that can render UI, subscribe to bus paths, and expose outgoing transitions.
-- Transitions are driven by explicit events, timers, or bus changes.
-- Transition conditions read `globalState`.
-- Transition `set` patches write back into `globalState`.
-- The active state is also bus data: `state.current`, `state.previous`, and `state.lastTransition`.
-- Parent/child flows use boundary proxies as references, not copied states.
+Nichts, was Daten oder Ablauf beeinflusst, darf nur im DOM, in einem Komponenten-Cache, in Preset-HTML, in einem Widget-Store oder in einer zweiten Datenhaltung leben.
 
-## Data Contract
+## FSM-Kontrakt
 
-- `state.data` is a model declaration for missing-key defaults and bus shape. It is not a second runtime store.
-- Defaults are applied only when the target bus path is absent. `undefined` is never a persisted contract value.
-- Removing a Canvas State removes its declared state-scoped contribution from runtime context on the next sync.
-- Presets are catalog entries. They do not add live data until dropped onto the canvas.
-- Dropped Daisy presets expand `$state` into a collision-free path: `states.<stateId>`.
-- Preset-owned API/list data uses the same scoped shape, for example `states.<stateId>.fetch.data`.
-- Interactive values live in `globalState`. Components never keep a private copy of their bound data.
+- Ein State ist eine Sicht auf eine relevante Konstellation des globalen JSON-Baums.
+- Ein State darf UI rendern, Bus-Pfade abonnieren und ausgehende Transitionen anbieten.
+- Eine Transition ist eine echte Kante im Modell und verbindet existierende States.
+- Transitionen werden durch explizite Events, Timer, Auto-Trigger oder Bus-Änderungen ausgelöst.
+- Transition-Conditions lesen ausschließlich aus `globalState`.
+- Transition-`set`-Patches schreiben ausschließlich in `globalState`.
+- Der aktive State ist selbst Bus-Daten: `state.current`, `state.previous` und `state.lastTransition`.
+- Wenn ein aktiver State keinen echten Out hat, stoppt die Maschine.
+- Wenn ein Child nur bis zum Parent-Out-Proxy kommt, der Parent aber keine echte folgende Transition hat, stoppt die Maschine ebenfalls.
+- Parent/Child-Flows verwenden Boundary-Proxies als Referenzen auf echte Parent-Kanten, nicht als kopierte States und nicht als magische Rückwege.
 
-## Render Contract
+## Daten-Contract
 
-- Render is view-only over the JSON model and `globalState`.
-- Render must never start fetches, mutate flow state, or create model data.
-- Render order is model data and must stay editable.
-- Transition buttons are render items because the app preview renders them.
-- Data wires are render items when they affect visible output.
-- Components may read and write only explicit bus paths.
-- No component may hide flow decisions in local DOM state.
+- `state.data` ist eine Modell-Deklaration für Form, Defaults und Scope im globalen Bus.
+- `state.data` ist kein zweiter Laufzeit-Store.
+- Neue State-Variablen müssen eindeutig unter dem Scope des owning States liegen, normalerweise `states.<stateId>.*`.
+- Unqualifizierte Pfade werden beim Schreiben durch API oder Preset-Instanziierung in den State-Scope normalisiert.
+- `undefined` ist als persistierter Kontrakt-Wert verboten.
+- Bedeutungsvolle leere Werte müssen explizit sein, zum Beispiel `""`, `false`, `0`, `[]` oder `{}`.
+- Entfernte Canvas-States entfernen auch ihre deklarierten state-scoped Bus-Beiträge.
+- Presets sind Katalogeinträge. Sie erzeugen erst Live-Daten, wenn sie als echter State auf den Canvas gelegt werden.
+- Interaktive Werte leben im Bus. Components dürfen keine private Kopie ihrer gebundenen Daten führen.
 
-## DaisyUI Contract
+## Render-Kontrakt
 
-DaisyUI is a renderer and interaction skin, not the truth.
+- Render ist eine Sicht auf JSON-Modell und `globalState`.
+- Render darf keine Fetches starten.
+- Render darf keine Flow-Entscheidungen erzeugen.
+- Render darf keine Modelldaten erfinden.
+- Render-Reihenfolge ist Modelldaten und muss im State-Inspector bearbeitbar bleiben.
+- Transition-Buttons sind Render-Einträge, wenn sie in der Vorschau sichtbar sind.
+- Data-Wires sind Render-Einträge, wenn sie sichtbaren Output beeinflussen.
+- Komponenten dürfen nur explizite Bus-Pfade lesen oder schreiben.
+- Text ist Darstellung. IDs sind Bindung. Labels dürfen niemals entscheiden, welche Transition feuert.
 
-- Daisy presets store structured JSON, not HTML blobs.
-- Daisy components bind to explicit `dataPath` values.
-- Inputs write bus fields such as `value`, `checked`, `selected`, or `open`.
-- Buttons either fire outgoing transition events or write explicit bus fields.
-- Dropdowns, modals, drawers, tabs, toggles, and similar widgets keep their meaningful state in `globalState`.
-- Cosmetic hover/focus behavior may stay local; anything that affects data or flow must be on the bus.
+## DaisyUI-Kontrakt
 
-## Editor Contract
+DaisyUI ist Skin und Widget-Renderer, nicht die Wahrheit.
 
-- The editor edits the JSON model.
-- The preview runs the same model through the runtime bus.
-- Fetch is a state-entry effect and writes structured results into configured bus targets.
-- Repeat paths and render mappings are explicit user choices, not guessed/persisted by automap.
-- State explorer presets are reusable model templates, not caches.
+- Daisy-Presets speichern strukturierte JSON-Daten, keine HTML-Blobs als Logik.
+- Daisy-Components binden über explizite `dataPath`-Werte an den Bus.
+- Buttons, Links, Menüeinträge, Step-Items und Footer-Links feuern Flow nur über explizite `transitionId`.
+- `transition.set` beschreibt Wirkung nach einem Event. Es darf niemals bestimmen, welcher Button eine Transition bekommt.
+- Inputs schreiben explizit gebundene Bus-Felder wie `value`, `checked`, `selected` oder `open`.
+- Dropdowns, Modals, Drawer, Tabs und Toggles dürfen nur dann semantischen Zustand haben, wenn dieser im Bus liegt.
+- Rein kosmetische Hover- und Fokuszustände dürfen lokal bleiben.
 
-## Automation/API Surface
+## Editor-Kontrakt
 
-- The MCP server in `mcp/state-blueprint-server.js` exposes JSON-RPC tools for the same model edits humans make in the app.
-- MCP actions are applied in contract dependency order, then normalized and validated before writing.
-- Natural-language edit requests use `state_blueprint_plan_prompt` or `state_blueprint_apply_prompt`, which translate phrases such as "fuege timer hinzu" into ordinary ordered actions.
-- The MCP layer edits only the canonical model file. It never creates local runtime state, hidden component stores, or HTML blobs.
-- Use `STATE_BLUEPRINT_MODEL_PATH=./state-blueprint.workspace.json npm run mcp:state` to run it.
+- Der Editor bearbeitet ausschließlich das JSON-Modell.
+- Die Vorschau läuft mit demselben Modell gegen dieselbe Laufzeit-Logik.
+- Fetch ist ein Entry-Effekt eines States und schreibt in konfigurierte Bus-Ziele.
+- Repeat-Pfade und Render-Mappings sind explizite User-Entscheidungen.
+- Automapping darf Kandidaten anzeigen, aber nichts erraten und persistieren.
+- Presets im Explorer sind wiederverwendbare Modellvorlagen, keine Laufzeit-Caches.
+- Gruppen, Collapse und Nested States dürfen den echten FSM-Flow nicht verändern. Sie ordnen oder strukturieren nur den bestehenden Drahtpfad.
 
-## Test Contract
+## Proxy- und Nested-Kontrakt
 
-Tests should protect behavior, not old DOM accidents.
+- Parent-IN führt in den Child-Entry des Parents.
+- Child-States laufen entlang ihrer echten Transitionen.
+- Child-OUT führt nur dann weiter, wenn der Parent an seinem Out eine echte folgende Transition hat.
+- Es gibt keinen automatischen Child-zurück-zum-Parent-Button.
+- Es gibt keinen Loop von Proxy-Out zurück zum Proxy-In, solange er nicht als echte Transition im Modell existiert.
+- Boundary-Anker müssen auch nach Löschen von States oder Transitions bestehen bleiben, damit der Flow reparierbar bleibt.
 
-- Prefer stable model, bus, SVG-port, and runtime contracts.
-- Do not weaken tests to fit regressions.
-- If a test depends on old markup, update it to the current public contract.
-- Canvas connector and boundary-proxy behavior is core and must be protected directly.
+## API- und MCP-Kontrakt
+
+- Die MCP/API-Schicht bearbeitet dasselbe kanonische JSON-Modell wie der Editor.
+- API-Aufrufe klicken nicht die UI.
+- API-Aufrufe halten keinen zweiten Laufzeit-Store.
+- `state_blueprint_apply_actions` wendet Aktionen in Kontrakt-Reihenfolge an, normalisiert und validiert vor dem Schreiben.
+- `state_blueprint_export_html` muss dieselbe HTML-Laufzeit erzeugen wie der Export-Button im Editor.
+- Natural-Language-Planung ist nur eine Komfortschicht über denselben Aktionen.
+- Externe Agenten sollen immer lesen, planen, per Testlauf validieren und erst dann schreiben.
+
+## Test-Kontrakt
+
+Tests schützen Verhalten, nicht zufällige alte DOM-Struktur.
+
+- Kontrakt-Tests haben Vorrang vor Momentaufnahmen.
+- Tests dürfen nicht abgeschwächt werden, um Regressionen passend zu machen.
+- Wenn ein Test auf altem Markup hängt, wird er auf den aktuellen öffentlichen Kontrakt umgestellt.
+- Canvas-Connectoren, Boundary-Proxies, Nested Flow, Render-Reihenfolge, Bus-Schreibpfade und API-Export müssen direkt geschützt bleiben.
 
 ## Roadmap
 
-- Visual DataWire tool: node-style data mapping from bus paths into render components.
-- Bus/schema inspector: simple path picker for user-relevant state constellations.
-- Subscription builder: "key-lock" UI for selecting which data constellation wakes a state or transition.
-- Component authoring: Daisy/custom components as structured JSON bindings with explicit bus IO.
-- Validation layer: model checks for orphaned bindings, stale state data, broken transitions, and non-bus interactions.
+- Visuelles DataWire-Tool: Bus-Pfade per Drag-and-drop auf Render-Komponenten verdrahten.
+- Data-Design-Tool: Typen, Bounds, Null-Regeln, Wertebereiche und harte Kontrakt-Validierung.
+- Subscription-Builder: Schlüssel-Schloss-UI für Datenkonstellationen, die States oder Transitionen wecken.
+- Preset-Designer: DaisyUI-only, vollständig in FSM und Bus integriert.
+- API-first-Automation: vollständige, dokumentierte Steuerbarkeit jeder Editor-Aktion über MCP/API.

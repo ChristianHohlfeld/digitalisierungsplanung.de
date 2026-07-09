@@ -2,7 +2,7 @@
   "kind": "state-blueprint-definition",
   "schemaVersion": 2,
   "app": "State Blueprint",
-  "savedAt": "2026-07-08T00:00:00.000Z",
+  "savedAt": "2026-07-09T00:00:00.000Z",
   "model": {
     "version": 2,
     "name": "Digitalisierungsplanung",
@@ -22,7 +22,7 @@
         "renderMode": "state",
         "components": [
           {
-            "id": "startseite_nav",
+            "id": "start_nav",
             "type": "daisy",
             "text": "",
             "url": "",
@@ -39,7 +39,17 @@
             "variant": "hero",
             "dataPath": "states.startseite.hero",
             "dataRole": "widget",
-            "dataLabel": "Held"
+            "dataLabel": "Versprechen"
+          },
+          {
+            "id": "start_alert",
+            "type": "daisy",
+            "text": "",
+            "url": "",
+            "variant": "alert",
+            "dataPath": "states.startseite.alert",
+            "dataRole": "widget",
+            "dataLabel": "Kernbotschaft"
           },
           {
             "id": "start_grid",
@@ -47,12 +57,12 @@
             "text": "",
             "url": "",
             "variant": "feature-grid",
-            "dataPath": "states.startseite.kern",
+            "dataPath": "states.startseite.nutzen",
             "dataRole": "widget",
-            "dataLabel": "Kernnutzen"
+            "dataLabel": "Warum das wichtig ist"
           },
           {
-            "id": "startseite_footer",
+            "id": "start_footer",
             "type": "daisy",
             "text": "",
             "url": "",
@@ -65,7 +75,7 @@
         "data": {
           "states.startseite.nav": {
             "layout": "menu-submenu",
-            "brand": "Zustand",
+            "brand": "Digitalisierungsplan",
             "selected": "Start",
             "items": [
               {
@@ -73,16 +83,16 @@
                 "transitionId": "nav_startseite_startseite"
               },
               {
-                "label": "Prinzip",
-                "transitionId": "nav_startseite_prinzipien"
+                "label": "Nutzen",
+                "transitionId": "nav_startseite_nutzen"
               },
               {
-                "label": "Werkzeug",
-                "transitionId": "nav_startseite_werkzeug"
+                "label": "Vorgehen",
+                "transitionId": "nav_startseite_vorgehen"
               },
               {
-                "label": "Schnittstellen",
-                "transitionId": "nav_startseite_schnittstellen"
+                "label": "Ergebnis",
+                "transitionId": "nav_startseite_ergebnis"
               },
               {
                 "label": "Editor",
@@ -95,74 +105,79 @@
           },
           "states.startseite.hero": {
             "layout": "overlay",
-            "title": "Zustand macht Prozesse sichtbar",
-            "body": "Nur verstandene Prozesse sind Prozesse, die digitalisiert werden können. Dieses Werkzeug modelliert Abläufe als echte State Machine: sichtbar, testbar, exportierbar.",
-            "actionLabel": "Werkzeug ansehen",
-            "transitionId": "nav_startseite_werkzeug",
-            "image": "/assets/hero-process.png"
+            "title": "Erst verstehen, dann digitalisieren.",
+            "body": "Zustand macht aus Bauchgefühl einen prüfbaren Digitalisierungsplan: Prozess, Entscheidungen, Daten und Verantwortlichkeiten in einem Modell.",
+            "actionLabel": "Nutzen für Entscheider ansehen",
+            "transitionId": "nav_startseite_nutzen",
+            "image": "/assets/landing-hero-business.png",
+            "imageAlt": "Geschäftsführung klärt einen Digitalisierungsprozess"
           },
-          "states.startseite.kern": {
-            "eyebrow": "Digitalisierungsplanung",
-            "heading": "Vom Bauchgefühl zum prüfbaren Ablauf",
-            "body": "Zustand verbindet Prozessbild, Datenvertrag und ausführbare Oberfläche in einem Modell.",
+          "states.startseite.alert": {
+            "tone": "info",
+            "message": "Für Geschäftsführer, die Digitalisierungsprojekte steuern wollen, bevor Budget in Software, Agenturen oder Integrationen fließt."
+          },
+          "states.startseite.nutzen": {
+            "eyebrow": "Das Problem",
+            "heading": "Viele Projekte scheitern nicht an Technik, sondern an unklaren Abläufen.",
+            "body": "Wenn Fachbereich, Management und IT unterschiedliche Bilder im Kopf haben, wird Digitalisierung teuer. Zustand erzeugt ein gemeinsames, testbares Prozessbild.",
             "selected": "",
             "items": [
               {
-                "title": "Verstehen",
-                "body": "Abläufe werden als Zustände, Übergänge und Auslöser sichtbar.",
-                "image": "data:image/svg+xml;base64,CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2aWV3Qm94PSIwIDAgODAwIDUwMCI+CiAgPGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agc3RvcC1jb2xvcj0iIzA1MTExZiIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzM4YmRmOCIgc3RvcC1vcGFjaXR5PSIuNzIiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz4KICA8cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCIgZmlsbD0idXJsKCNnKSIvPgogIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UwZjJmZSIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiIG9wYWNpdHk9Ii45Ij4KICAgIDxyZWN0IHg9IjkwIiB5PSIxMjAiIHdpZHRoPSIxODAiIGhlaWdodD0iOTYiIHJ4PSIyMiIvPjxyZWN0IHg9IjUyMCIgeT0iMTIwIiB3aWR0aD0iMTkwIiBoZWlnaHQ9Ijk2IiByeD0iMjIiLz48cmVjdCB4PSIzMTAiIHk9IjI5NCIgd2lkdGg9IjE4MCIgaGVpZ2h0PSI5NiIgcng9IjIyIi8+CiAgICA8cGF0aCBkPSJNMjcwIDE2OGgyNTBNNDAwIDIxNnY3OCIvPgogIDwvZz4KICA8dGV4dCB4PSI5MCIgeT0iNDMwIiBmaWxsPSIjZjhmYWZjIiBmb250LWZhbWlseT0iU2Vnb2UgVUksIEFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjQ0IiBmb250LXdlaWdodD0iOTAwIj5WZXJzdGVoZW48L3RleHQ+Cjwvc3ZnPg==",
-                "imageAlt": "Prozesszustände",
+                "title": "Risiko vor dem Start senken",
+                "body": "Klären, was wirklich passieren soll, bevor Lastenheft, Toolauswahl oder Entwicklung beginnen.",
+                "image": "/assets/landing-understand-business.png",
                 "features": [
-                  "gemeinsames Bild",
-                  "weniger Missverständnisse"
+                  "weniger Fehlannahmen",
+                  "bessere Budgetentscheidungen"
                 ],
-                "actionLabel": "Prinzip ansehen",
-                "transitionId": "nav_startseite_prinzipien"
+                "actionLabel": "Nutzen ansehen",
+                "transitionId": "nav_startseite_nutzen",
+                "imageAlt": "Business-Team klärt einen Prozess auf Papier"
               },
               {
-                "title": "Modellieren",
-                "body": "Buttons, Timer, Events und Bedingungen sind echte FSM-Transitionen.",
-                "image": "data:image/svg+xml;base64,CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2aWV3Qm94PSIwIDAgODAwIDUwMCI+CiAgPGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agc3RvcC1jb2xvcj0iIzA1MTExZiIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2Y1OWUwYiIgc3RvcC1vcGFjaXR5PSIuNzIiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz4KICA8cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCIgZmlsbD0idXJsKCNnKSIvPgogIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UwZjJmZSIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiIG9wYWNpdHk9Ii45Ij4KICAgIDxyZWN0IHg9IjkwIiB5PSIxMjAiIHdpZHRoPSIxODAiIGhlaWdodD0iOTYiIHJ4PSIyMiIvPjxyZWN0IHg9IjUyMCIgeT0iMTIwIiB3aWR0aD0iMTkwIiBoZWlnaHQ9Ijk2IiByeD0iMjIiLz48cmVjdCB4PSIzMTAiIHk9IjI5NCIgd2lkdGg9IjE4MCIgaGVpZ2h0PSI5NiIgcng9IjIyIi8+CiAgICA8cGF0aCBkPSJNMjcwIDE2OGgyNTBNNDAwIDIxNnY3OCIvPgogIDwvZz4KICA8dGV4dCB4PSI5MCIgeT0iNDMwIiBmaWxsPSIjZjhmYWZjIiBmb250LWZhbWlseT0iU2Vnb2UgVUksIEFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjQ0IiBmb250LXdlaWdodD0iOTAwIj5Nb2RlbGxpZXJlbjwvdGV4dD4KPC9zdmc+",
-                "imageAlt": "State Machine Modell",
+                "title": "Entscheidungen sichtbar machen",
+                "body": "Wer entscheidet wann, auf Basis welcher Daten, mit welchem nächsten Schritt?",
+                "image": "/assets/landing-model-business.png",
                 "features": [
-                  "keine Schattenlogik",
-                  "reproduzierbarer Flow"
+                  "klare Verantwortlichkeiten",
+                  "prüfbarer Ablauf"
                 ],
-                "actionLabel": "Werkzeug ansehen",
-                "transitionId": "nav_startseite_werkzeug"
+                "actionLabel": "Vorgehen ansehen",
+                "transitionId": "nav_startseite_vorgehen",
+                "imageAlt": "Entscheider prueft ein ausführbares Prozessmodell"
               },
               {
-                "title": "Automatisieren",
-                "body": "MCP/API steuert dasselbe Modell wie der Editor. Keine zweite Wahrheit.",
-                "image": "data:image/svg+xml;base64,CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2aWV3Qm94PSIwIDAgODAwIDUwMCI+CiAgPGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agc3RvcC1jb2xvcj0iIzA1MTExZiIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzM0ZDM5OSIgc3RvcC1vcGFjaXR5PSIuNzIiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz4KICA8cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCIgZmlsbD0idXJsKCNnKSIvPgogIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UwZjJmZSIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiIG9wYWNpdHk9Ii45Ij4KICAgIDxyZWN0IHg9IjkwIiB5PSIxMjAiIHdpZHRoPSIxODAiIGhlaWdodD0iOTYiIHJ4PSIyMiIvPjxyZWN0IHg9IjUyMCIgeT0iMTIwIiB3aWR0aD0iMTkwIiBoZWlnaHQ9Ijk2IiByeD0iMjIiLz48cmVjdCB4PSIzMTAiIHk9IjI5NCIgd2lkdGg9IjE4MCIgaGVpZ2h0PSI5NiIgcng9IjIyIi8+CiAgICA8cGF0aCBkPSJNMjcwIDE2OGgyNTBNNDAwIDIxNnY3OCIvPgogIDwvZz4KICA8dGV4dCB4PSI5MCIgeT0iNDMwIiBmaWxsPSIjZjhmYWZjIiBmb250LWZhbWlseT0iU2Vnb2UgVUksIEFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjQ0IiBmb250LXdlaWdodD0iOTAwIj5BdXRvbWF0aXNpZXJlbjwvdGV4dD4KPC9zdmc+",
-                "imageAlt": "API und Automatisierung",
+                "title": "Umsetzung vorbereiten",
+                "body": "Aus dem verstandenen Prozess entsteht ein digitaler Ablauf, den Business und IT gemeinsam prüfen können.",
+                "image": "/assets/landing-automate-business.png",
                 "features": [
-                  "globaler JSON-Bus",
-                  "maschinensteuerbar"
+                  "ein Modell für alle",
+                  "weniger Reibung in der Umsetzung"
                 ],
-                "actionLabel": "Schnittstellen ansehen",
-                "transitionId": "nav_startseite_schnittstellen"
+                "actionLabel": "Ergebnis ansehen",
+                "transitionId": "nav_startseite_ergebnis",
+                "imageAlt": "Business-Verantwortliche planen die Automatisierung"
               }
             ]
           },
           "states.startseite.footer": {
             "brand": "Zustand GmbH",
-            "note": "Business-Prozesse verstehen, visualisieren und digitalisieren.",
+            "note": "Digitalisierung beginnt nicht mit Software. Sie beginnt mit einem Prozess, den alle verstehen.",
             "columns": [
               {
-                "title": "Projekt",
+                "title": "Digitalisierungsplan",
                 "items": [
                   {
                     "label": "Start",
                     "transitionId": "nav_startseite_startseite"
                   },
                   {
-                    "label": "Prinzip",
-                    "transitionId": "nav_startseite_prinzipien"
+                    "label": "Nutzen",
+                    "transitionId": "nav_startseite_nutzen"
                   },
                   {
-                    "label": "Werkzeug",
-                    "transitionId": "nav_startseite_werkzeug"
+                    "label": "Vorgehen",
+                    "transitionId": "nav_startseite_vorgehen"
                   }
                 ]
               },
@@ -170,8 +185,8 @@
                 "title": "Umsetzung",
                 "items": [
                   {
-                    "label": "Schnittstellen",
-                    "transitionId": "nav_startseite_schnittstellen"
+                    "label": "Ergebnis",
+                    "transitionId": "nav_startseite_ergebnis"
                   },
                   {
                     "label": "Editor",
@@ -185,13 +200,10 @@
         "dataTypes": {
           "states.startseite.nav": "object",
           "states.startseite.hero": "object",
-          "states.startseite.kern": "object",
+          "states.startseite.alert": "object",
+          "states.startseite.nutzen": "object",
           "states.startseite.footer": "object"
         },
-        "dataWires": [],
-        "parentId": null,
-        "x": 96,
-        "y": 120,
         "dataSource": {
           "url": "",
           "target": "fetch",
@@ -202,10 +214,9 @@
         "repeat": {
           "path": "",
           "as": "item",
-          "index": "i",
-          "manual": false
+          "index": "i"
         },
-        "subscriptions": [],
+        "dataWires": [],
         "boundary": {
           "entryId": "",
           "exitId": "",
@@ -213,75 +224,78 @@
           "exitDisabled": false,
           "title": "",
           "note": ""
-        }
+        },
+        "parentId": null,
+        "x": 96,
+        "y": 120
       },
       {
-        "id": "prinzipien",
-        "title": "Prinzipien",
+        "id": "nutzen",
+        "title": "Nutzen",
         "renderMode": "state",
         "components": [
           {
-            "id": "prinzipien_nav",
+            "id": "nutzen_nav",
             "type": "daisy",
             "text": "",
             "url": "",
             "variant": "navbar",
-            "dataPath": "states.prinzipien.nav",
+            "dataPath": "states.nutzen.nav",
             "dataRole": "widget",
             "dataLabel": "Navigation"
           },
           {
-            "id": "prinzipien_grid",
+            "id": "nutzen_grid",
             "type": "daisy",
             "text": "",
             "url": "",
             "variant": "feature-grid",
-            "dataPath": "states.prinzipien.regeln",
+            "dataPath": "states.nutzen.karten",
             "dataRole": "widget",
-            "dataLabel": "Prinzipien"
+            "dataLabel": "Nutzen"
           },
           {
-            "id": "prinzipien_steps",
+            "id": "nutzen_steps",
             "type": "daisy",
             "text": "",
             "url": "",
             "variant": "steps",
-            "dataPath": "states.prinzipien.schritte",
+            "dataPath": "states.nutzen.schritte",
             "dataRole": "widget",
-            "dataLabel": "Schritte"
+            "dataLabel": "Entscheidungspfad"
           },
           {
-            "id": "prinzipien_footer",
+            "id": "nutzen_footer",
             "type": "daisy",
             "text": "",
             "url": "",
             "variant": "footer",
-            "dataPath": "states.prinzipien.footer",
+            "dataPath": "states.nutzen.footer",
             "dataRole": "widget",
             "dataLabel": "Fußbereich"
           }
         ],
         "data": {
-          "states.prinzipien.nav": {
+          "states.nutzen.nav": {
             "layout": "menu-submenu",
-            "brand": "Zustand",
-            "selected": "Prinzip",
+            "brand": "Digitalisierungsplan",
+            "selected": "Nutzen",
             "items": [
               {
                 "label": "Start",
-                "transitionId": "nav_prinzipien_startseite"
+                "transitionId": "nav_nutzen_startseite"
               },
               {
-                "label": "Prinzip",
-                "transitionId": "nav_prinzipien_prinzipien"
+                "label": "Nutzen",
+                "transitionId": "nav_nutzen_nutzen"
               },
               {
-                "label": "Werkzeug",
-                "transitionId": "nav_prinzipien_werkzeug"
+                "label": "Vorgehen",
+                "transitionId": "nav_nutzen_vorgehen"
               },
               {
-                "label": "Schnittstellen",
-                "transitionId": "nav_prinzipien_schnittstellen"
+                "label": "Ergebnis",
+                "transitionId": "nav_nutzen_ergebnis"
               },
               {
                 "label": "Editor",
@@ -292,85 +306,88 @@
             "submenu": [],
             "submenuOpen": false
           },
-          "states.prinzipien.regeln": {
-            "eyebrow": "Kernvertrag",
-            "heading": "Eine Maschine, eine Wahrheit",
-            "body": "Das Modell beschreibt Zustände. Der globale JSON-Bus trägt Daten und Events. Die Runtime folgt nur echten Transitionen.",
+          "states.nutzen.karten": {
+            "eyebrow": "Business Case",
+            "heading": "Was ein guter Digitalisierungsplan leisten muss",
+            "body": "Er muss schnell verständlich sein, Entscheidungen absichern und die Umsetzung konkret machen. Sonst bleibt es Workshop-Folklore.",
             "selected": "",
             "items": [
               {
-                "title": "FSM zuerst",
-                "body": "Ein State ist eine Sicht auf relevante Daten und zulässige Übergänge.",
-                "image": "data:image/svg+xml;base64,CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2aWV3Qm94PSIwIDAgODAwIDUwMCI+CiAgPGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agc3RvcC1jb2xvcj0iIzA1MTExZiIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzM4YmRmOCIgc3RvcC1vcGFjaXR5PSIuNzIiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz4KICA8cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCIgZmlsbD0idXJsKCNnKSIvPgogIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UwZjJmZSIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiIG9wYWNpdHk9Ii45Ij4KICAgIDxyZWN0IHg9IjkwIiB5PSIxMjAiIHdpZHRoPSIxODAiIGhlaWdodD0iOTYiIHJ4PSIyMiIvPjxyZWN0IHg9IjUyMCIgeT0iMTIwIiB3aWR0aD0iMTkwIiBoZWlnaHQ9Ijk2IiByeD0iMjIiLz48cmVjdCB4PSIzMTAiIHk9IjI5NCIgd2lkdGg9IjE4MCIgaGVpZ2h0PSI5NiIgcng9IjIyIi8+CiAgICA8cGF0aCBkPSJNMjcwIDE2OGgyNTBNNDAwIDIxNnY3OCIvPgogIDwvZz4KICA8dGV4dCB4PSI5MCIgeT0iNDMwIiBmaWxsPSIjZjhmYWZjIiBmb250LWZhbWlseT0iU2Vnb2UgVUksIEFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjQ0IiBmb250LXdlaWdodD0iOTAwIj5GU00genVlcnN0PC90ZXh0Pgo8L3N2Zz4=",
+                "title": "Kostentreiber frueh erkennen",
+                "body": "Sonderfaelle, Medienbrueche und offene Entscheidungen werden sichtbar, bevor sie Entwicklungskosten erzeugen.",
+                "image": "/assets/landing-understand-business.png",
                 "features": [
-                  "kein versteckter Rückweg",
-                  "kein lokaler Flow"
+                  "weniger Nacharbeit",
+                  "klarere Prioritaeten"
                 ],
-                "actionLabel": "Werkzeug",
-                "transitionId": "nav_prinzipien_werkzeug"
+                "actionLabel": "Vorgehen",
+                "transitionId": "nav_nutzen_vorgehen",
+                "imageAlt": "Business-Team klärt einen Prozess auf Papier"
               },
               {
-                "title": "Globaler JSON-Bus",
-                "body": "Alle Daten liegen im gemeinsamen Baum und werden eindeutig gescoped.",
-                "image": "data:image/svg+xml;base64,CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2aWV3Qm94PSIwIDAgODAwIDUwMCI+CiAgPGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agc3RvcC1jb2xvcj0iIzA1MTExZiIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzM0ZDM5OSIgc3RvcC1vcGFjaXR5PSIuNzIiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz4KICA8cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCIgZmlsbD0idXJsKCNnKSIvPgogIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UwZjJmZSIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiIG9wYWNpdHk9Ii45Ij4KICAgIDxyZWN0IHg9IjkwIiB5PSIxMjAiIHdpZHRoPSIxODAiIGhlaWdodD0iOTYiIHJ4PSIyMiIvPjxyZWN0IHg9IjUyMCIgeT0iMTIwIiB3aWR0aD0iMTkwIiBoZWlnaHQ9Ijk2IiByeD0iMjIiLz48cmVjdCB4PSIzMTAiIHk9IjI5NCIgd2lkdGg9IjE4MCIgaGVpZ2h0PSI5NiIgcng9IjIyIi8+CiAgICA8cGF0aCBkPSJNMjcwIDE2OGgyNTBNNDAwIDIxNnY3OCIvPgogIDwvZz4KICA8dGV4dCB4PSI5MCIgeT0iNDMwIiBmaWxsPSIjZjhmYWZjIiBmb250LWZhbWlseT0iU2Vnb2UgVUksIEFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjQ0IiBmb250LXdlaWdodD0iOTAwIj5KU09OLUJ1czwvdGV4dD4KPC9zdmc+",
+                "title": "Management und Fachbereich ausrichten",
+                "body": "Der Ablauf wird so konkret, dass alle ueber denselben Prozess sprechen.",
+                "image": "/assets/landing-model-business.png",
                 "features": [
-                  "Single Source of Truth",
-                  "keine doppelten Stores"
+                  "gemeinsames Lagebild",
+                  "schnellere Entscheidungen"
                 ],
-                "actionLabel": "Schnittstellen",
-                "transitionId": "nav_prinzipien_schnittstellen"
+                "actionLabel": "Ergebnis",
+                "transitionId": "nav_nutzen_ergebnis",
+                "imageAlt": "Entscheider prueft ein ausführbares Prozessmodell"
               },
               {
-                "title": "Export als Runtime",
-                "body": "Aus dem Modell entsteht eine bedienbare HTML-Anwendung.",
-                "image": "data:image/svg+xml;base64,CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2aWV3Qm94PSIwIDAgODAwIDUwMCI+CiAgPGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agc3RvcC1jb2xvcj0iIzA1MTExZiIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2E3OGJmYSIgc3RvcC1vcGFjaXR5PSIuNzIiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz4KICA8cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCIgZmlsbD0idXJsKCNnKSIvPgogIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UwZjJmZSIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiIG9wYWNpdHk9Ii45Ij4KICAgIDxyZWN0IHg9IjkwIiB5PSIxMjAiIHdpZHRoPSIxODAiIGhlaWdodD0iOTYiIHJ4PSIyMiIvPjxyZWN0IHg9IjUyMCIgeT0iMTIwIiB3aWR0aD0iMTkwIiBoZWlnaHQ9Ijk2IiByeD0iMjIiLz48cmVjdCB4PSIzMTAiIHk9IjI5NCIgd2lkdGg9IjE4MCIgaGVpZ2h0PSI5NiIgcng9IjIyIi8+CiAgICA8cGF0aCBkPSJNMjcwIDE2OGgyNTBNNDAwIDIxNnY3OCIvPgogIDwvZz4KICA8dGV4dCB4PSI5MCIgeT0iNDMwIiBmaWxsPSIjZjhmYWZjIiBmb250LWZhbWlseT0iU2Vnb2UgVUksIEFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjQ0IiBmb250LXdlaWdodD0iOTAwIj5FeHBvcnQ8L3RleHQ+Cjwvc3ZnPg==",
+                "title": "Digitalisierung testbar machen",
+                "body": "Nicht nur Diagramm: Der Ablauf kann als klickbare Oberfläche und Datenvertrag geprueft werden.",
+                "image": "/assets/landing-automate-business.png",
                 "features": [
-                  "Preview",
-                  "HTML-Export"
+                  "vorfuehrbar",
+                  "anschlussfähig für IT"
                 ],
-                "actionLabel": "Editor",
-                "url": "./state.html"
+                "actionLabel": "Editor öffnen",
+                "url": "./state.html",
+                "imageAlt": "Business-Verantwortliche planen die Automatisierung"
               }
             ]
           },
-          "states.prinzipien.schritte": {
-            "current": "Verstehen",
+          "states.nutzen.schritte": {
+            "current": "Klarheit",
             "items": [
               {
-                "label": "Verstehen",
-                "description": "Ablauf, Daten und Entscheidungspunkte sichtbar machen.",
-                "transitionId": "nav_prinzipien_prinzipien"
+                "label": "Klarheit",
+                "description": "Was passiert wirklich im Geschäftsprozess?",
+                "transitionId": "nav_nutzen_nutzen"
               },
               {
-                "label": "Visualisieren",
-                "description": "Zustände, Trigger und UI im Werkzeug verbinden.",
-                "transitionId": "nav_prinzipien_werkzeug"
+                "label": "Entscheidung",
+                "description": "Welche Regeln, Rollen und Daten treiben den Ablauf?",
+                "transitionId": "nav_nutzen_vorgehen"
               },
               {
-                "label": "Digitalisieren",
-                "description": "Aus dem geprüften Modell eine steuerbare Runtime machen.",
-                "transitionId": "nav_prinzipien_schnittstellen"
+                "label": "Umsetzung",
+                "description": "Welcher digitale Ablauf ist sinnvoll und prüfbar?",
+                "transitionId": "nav_nutzen_ergebnis"
               }
             ]
           },
-          "states.prinzipien.footer": {
+          "states.nutzen.footer": {
             "brand": "Zustand GmbH",
-            "note": "Business-Prozesse verstehen, visualisieren und digitalisieren.",
+            "note": "Digitalisierung beginnt nicht mit Software. Sie beginnt mit einem Prozess, den alle verstehen.",
             "columns": [
               {
-                "title": "Projekt",
+                "title": "Digitalisierungsplan",
                 "items": [
                   {
                     "label": "Start",
-                    "transitionId": "nav_prinzipien_startseite"
+                    "transitionId": "nav_nutzen_startseite"
                   },
                   {
-                    "label": "Prinzip",
-                    "transitionId": "nav_prinzipien_prinzipien"
+                    "label": "Nutzen",
+                    "transitionId": "nav_nutzen_nutzen"
                   },
                   {
-                    "label": "Werkzeug",
-                    "transitionId": "nav_prinzipien_werkzeug"
+                    "label": "Vorgehen",
+                    "transitionId": "nav_nutzen_vorgehen"
                   }
                 ]
               },
@@ -378,8 +395,8 @@
                 "title": "Umsetzung",
                 "items": [
                   {
-                    "label": "Schnittstellen",
-                    "transitionId": "nav_prinzipien_schnittstellen"
+                    "label": "Ergebnis",
+                    "transitionId": "nav_nutzen_ergebnis"
                   },
                   {
                     "label": "Editor",
@@ -391,15 +408,11 @@
           }
         },
         "dataTypes": {
-          "states.prinzipien.nav": "object",
-          "states.prinzipien.regeln": "object",
-          "states.prinzipien.schritte": "object",
-          "states.prinzipien.footer": "object"
+          "states.nutzen.nav": "object",
+          "states.nutzen.karten": "object",
+          "states.nutzen.schritte": "object",
+          "states.nutzen.footer": "object"
         },
-        "dataWires": [],
-        "parentId": null,
-        "x": 432,
-        "y": 72,
         "dataSource": {
           "url": "",
           "target": "fetch",
@@ -410,10 +423,9 @@
         "repeat": {
           "path": "",
           "as": "item",
-          "index": "i",
-          "manual": false
+          "index": "i"
         },
-        "subscriptions": [],
+        "dataWires": [],
         "boundary": {
           "entryId": "",
           "exitId": "",
@@ -421,75 +433,78 @@
           "exitDisabled": false,
           "title": "",
           "note": ""
-        }
+        },
+        "parentId": null,
+        "x": 432,
+        "y": 72
       },
       {
-        "id": "werkzeug",
-        "title": "Werkzeug",
+        "id": "vorgehen",
+        "title": "Vorgehen",
         "renderMode": "state",
         "components": [
           {
-            "id": "werkzeug_nav",
+            "id": "vorgehen_nav",
             "type": "daisy",
             "text": "",
             "url": "",
             "variant": "navbar",
-            "dataPath": "states.werkzeug.nav",
+            "dataPath": "states.vorgehen.nav",
             "dataRole": "widget",
             "dataLabel": "Navigation"
           },
           {
-            "id": "werkzeug_alert",
+            "id": "vorgehen_alert",
             "type": "daisy",
             "text": "",
             "url": "",
             "variant": "alert",
-            "dataPath": "states.werkzeug.hinweis",
+            "dataPath": "states.vorgehen.hinweis",
             "dataRole": "widget",
-            "dataLabel": "Hinweis"
+            "dataLabel": "Arbeitsweise"
           },
           {
-            "id": "werkzeug_grid",
+            "id": "vorgehen_grid",
             "type": "daisy",
             "text": "",
             "url": "",
             "variant": "feature-grid",
-            "dataPath": "states.werkzeug.funktionen",
+            "dataPath": "states.vorgehen.plan",
             "dataRole": "widget",
-            "dataLabel": "Funktionen"
+            "dataLabel": "Vorgehen"
           },
           {
-            "id": "werkzeug_footer",
+            "id": "vorgehen_footer",
             "type": "daisy",
             "text": "",
             "url": "",
             "variant": "footer",
-            "dataPath": "states.werkzeug.footer",
+            "dataPath": "states.vorgehen.footer",
             "dataRole": "widget",
             "dataLabel": "Fußbereich"
           }
         ],
         "data": {
-          "states.werkzeug.nav": {
+          "states.vorgehen.nav": {
             "layout": "menu-submenu",
-            "brand": "Zustand",
-            "selected": "Werkzeug",
+            "brand": "Digitalisierungsplan",
+            "selected": "Vorgehen",
             "items": [
               {
                 "label": "Start",
-                "transitionId": "nav_werkzeug_startseite"
+                "transitionId": "nav_vorgehen_startseite"
               },
               {
-                "label": "Prinzip",
-                "transitionId": "nav_werkzeug_prinzipien"
+                "label": "Nutzen",
+                "transitionId": "nav_vorgehen_nutzen"
               },
               {
-                "label": "Werkzeug",
-                "transitionId": "nav_werkzeug_werkzeug"
+                "label": "Vorgehen",
+                "transitionId": "nav_vorgehen_vorgehen"
               },
               {
-                "label": "Schnittstellen",
-                "transitionId": "nav_werkzeug_schnittstellen"
+                "label": "Ergebnis",
+                "transitionId": "nav_vorgehen_ergebnis"
               },
               {
                 "label": "Editor",
@@ -500,72 +515,72 @@
             "submenu": [],
             "submenuOpen": false
           },
-          "states.werkzeug.hinweis": {
+          "states.vorgehen.hinweis": {
             "tone": "info",
-            "message": "Die Landingpage selbst ist ein exportiertes Zustandsmodell. Navigation, Karten und Fußbereich feuern echte Transitionen."
+            "message": "Das Ziel ist kein schönes Prozessbild. Das Ziel ist ein Ablauf, den Entscheider verstehen, Fachbereiche bestätigen und IT umsetzen kann."
           },
-          "states.werkzeug.funktionen": {
-            "eyebrow": "Editor",
-            "heading": "Visuell bauen, vertragstreu ausführen",
-            "body": "Der Canvas zeigt Prozessstruktur, der Inspector bearbeitet Daten und Trigger, die Preview läuft gegen denselben Vertrag.",
+          "states.vorgehen.plan": {
+            "eyebrow": "Arbeitsweise",
+            "heading": "Aus einem unklaren Prozess wird ein prüfbarer Plan",
+            "body": "Wir verdichten Gespräche, Regeln und Daten zu einem Modell, das zeigt, welche Entscheidung welchen nächsten Schritt auslöst.",
             "selected": "",
             "items": [
               {
-                "title": "Canvas",
-                "body": "States und Transitionen bilden den Prozess als Karte ab.",
-                "image": "data:image/svg+xml;base64,CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2aWV3Qm94PSIwIDAgODAwIDUwMCI+CiAgPGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agc3RvcC1jb2xvcj0iIzA1MTExZiIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzM4YmRmOCIgc3RvcC1vcGFjaXR5PSIuNzIiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz4KICA8cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCIgZmlsbD0idXJsKCNnKSIvPgogIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UwZjJmZSIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiIG9wYWNpdHk9Ii45Ij4KICAgIDxyZWN0IHg9IjkwIiB5PSIxMjAiIHdpZHRoPSIxODAiIGhlaWdodD0iOTYiIHJ4PSIyMiIvPjxyZWN0IHg9IjUyMCIgeT0iMTIwIiB3aWR0aD0iMTkwIiBoZWlnaHQ9Ijk2IiByeD0iMjIiLz48cmVjdCB4PSIzMTAiIHk9IjI5NCIgd2lkdGg9IjE4MCIgaGVpZ2h0PSI5NiIgcng9IjIyIi8+CiAgICA8cGF0aCBkPSJNMjcwIDE2OGgyNTBNNDAwIDIxNnY3OCIvPgogIDwvZz4KICA8dGV4dCB4PSI5MCIgeT0iNDMwIiBmaWxsPSIjZjhmYWZjIiBmb250LWZhbWlseT0iU2Vnb2UgVUksIEFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjQ0IiBmb250LXdlaWdodD0iOTAwIj5DYW52YXM8L3RleHQ+Cjwvc3ZnPg==",
+                "title": "1. Prozess aufnehmen",
+                "body": "Ist-Ablauf, Rollen, Ausnahmen und offene Entscheidungen werden gemeinsam sichtbar gemacht.",
+                "image": "/assets/landing-understand-business.png",
                 "features": [
-                  "Drag & Drop",
-                  "Proxy-Ports",
-                  "Nested States"
+                  "Workshop statt Ratespiel",
+                  "Fachbereich im Bild"
                 ],
-                "actionLabel": "Prinzip",
-                "transitionId": "nav_werkzeug_prinzipien"
+                "actionLabel": "Nutzen",
+                "transitionId": "nav_vorgehen_nutzen",
+                "imageAlt": "Business-Team klärt einen Prozess auf Papier"
               },
               {
-                "title": "Render",
-                "body": "DaisyUI-Components lesen aus dem globalen State und feuern explizite Events.",
-                "image": "data:image/svg+xml;base64,CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2aWV3Qm94PSIwIDAgODAwIDUwMCI+CiAgPGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agc3RvcC1jb2xvcj0iIzA1MTExZiIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2Y1OWUwYiIgc3RvcC1vcGFjaXR5PSIuNzIiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz4KICA8cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCIgZmlsbD0idXJsKCNnKSIvPgogIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UwZjJmZSIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiIG9wYWNpdHk9Ii45Ij4KICAgIDxyZWN0IHg9IjkwIiB5PSIxMjAiIHdpZHRoPSIxODAiIGhlaWdodD0iOTYiIHJ4PSIyMiIvPjxyZWN0IHg9IjUyMCIgeT0iMTIwIiB3aWR0aD0iMTkwIiBoZWlnaHQ9Ijk2IiByeD0iMjIiLz48cmVjdCB4PSIzMTAiIHk9IjI5NCIgd2lkdGg9IjE4MCIgaGVpZ2h0PSI5NiIgcng9IjIyIi8+CiAgICA8cGF0aCBkPSJNMjcwIDE2OGgyNTBNNDAwIDIxNnY3OCIvPgogIDwvZz4KICA8dGV4dCB4PSI5MCIgeT0iNDMwIiBmaWxsPSIjZjhmYWZjIiBmb250LWZhbWlseT0iU2Vnb2UgVUksIEFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjQ0IiBmb250LXdlaWdodD0iOTAwIj5SZW5kZXI8L3RleHQ+Cjwvc3ZnPg==",
+                "title": "2. Regeln modellieren",
+                "body": "Auslöser, Daten und Bedingungen werden als echter Ablauf beschrieben, nicht als loses Diagramm.",
+                "image": "/assets/landing-model-business.png",
                 "features": [
-                  "Navbar",
-                  "Formulare",
-                  "Karten"
+                  "klare Trigger",
+                  "eindeutige Datenbasis"
                 ],
-                "actionLabel": "Schnittstellen",
-                "transitionId": "nav_werkzeug_schnittstellen"
+                "actionLabel": "Ergebnis",
+                "transitionId": "nav_vorgehen_ergebnis",
+                "imageAlt": "Entscheider prueft ein ausführbares Prozessmodell"
               },
               {
-                "title": "Export",
-                "body": "Das Ergebnis ist eine eigenständige HTML-App mit nachvollziehbarem Ablauf.",
-                "image": "data:image/svg+xml;base64,CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2aWV3Qm94PSIwIDAgODAwIDUwMCI+CiAgPGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agc3RvcC1jb2xvcj0iIzA1MTExZiIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzM0ZDM5OSIgc3RvcC1vcGFjaXR5PSIuNzIiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz4KICA8cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCIgZmlsbD0idXJsKCNnKSIvPgogIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UwZjJmZSIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiIG9wYWNpdHk9Ii45Ij4KICAgIDxyZWN0IHg9IjkwIiB5PSIxMjAiIHdpZHRoPSIxODAiIGhlaWdodD0iOTYiIHJ4PSIyMiIvPjxyZWN0IHg9IjUyMCIgeT0iMTIwIiB3aWR0aD0iMTkwIiBoZWlnaHQ9Ijk2IiByeD0iMjIiLz48cmVjdCB4PSIzMTAiIHk9IjI5NCIgd2lkdGg9IjE4MCIgaGVpZ2h0PSI5NiIgcng9IjIyIi8+CiAgICA8cGF0aCBkPSJNMjcwIDE2OGgyNTBNNDAwIDIxNnY3OCIvPgogIDwvZz4KICA8dGV4dCB4PSI5MCIgeT0iNDMwIiBmaWxsPSIjZjhmYWZjIiBmb250LWZhbWlseT0iU2Vnb2UgVUksIEFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjQ0IiBmb250LXdlaWdodD0iOTAwIj5FeHBvcnQ8L3RleHQ+Cjwvc3ZnPg==",
+                "title": "3. Ablauf testen",
+                "body": "Der Prozess wird klickbar. So sehen Entscheider sofort, ob der digitale Ablauf wirklich stimmt.",
+                "image": "/assets/landing-automate-business.png",
                 "features": [
-                  "statische Seite",
-                  "Flow-Debug",
-                  "FSM-Runtime"
+                  "schnelles Feedback",
+                  "bessere Umsetzungsvorlage"
                 ],
-                "actionLabel": "Editor öffnen",
-                "url": "./state.html"
+                "actionLabel": "Editor",
+                "url": "./state.html",
+                "imageAlt": "Business-Verantwortliche planen die Automatisierung"
               }
             ]
           },
-          "states.werkzeug.footer": {
+          "states.vorgehen.footer": {
             "brand": "Zustand GmbH",
-            "note": "Business-Prozesse verstehen, visualisieren und digitalisieren.",
+            "note": "Digitalisierung beginnt nicht mit Software. Sie beginnt mit einem Prozess, den alle verstehen.",
             "columns": [
               {
-                "title": "Projekt",
+                "title": "Digitalisierungsplan",
                 "items": [
                   {
                     "label": "Start",
-                    "transitionId": "nav_werkzeug_startseite"
+                    "transitionId": "nav_vorgehen_startseite"
                   },
                   {
-                    "label": "Prinzip",
-                    "transitionId": "nav_werkzeug_prinzipien"
+                    "label": "Nutzen",
+                    "transitionId": "nav_vorgehen_nutzen"
                   },
                   {
-                    "label": "Werkzeug",
-                    "transitionId": "nav_werkzeug_werkzeug"
+                    "label": "Vorgehen",
+                    "transitionId": "nav_vorgehen_vorgehen"
                   }
                 ]
               },
@@ -573,8 +588,8 @@
                 "title": "Umsetzung",
                 "items": [
                   {
-                    "label": "Schnittstellen",
-                    "transitionId": "nav_werkzeug_schnittstellen"
+                    "label": "Ergebnis",
+                    "transitionId": "nav_vorgehen_ergebnis"
                   },
                   {
                     "label": "Editor",
@@ -586,15 +601,11 @@
           }
         },
         "dataTypes": {
-          "states.werkzeug.nav": "object",
-          "states.werkzeug.hinweis": "object",
-          "states.werkzeug.funktionen": "object",
-          "states.werkzeug.footer": "object"
+          "states.vorgehen.nav": "object",
+          "states.vorgehen.hinweis": "object",
+          "states.vorgehen.plan": "object",
+          "states.vorgehen.footer": "object"
         },
-        "dataWires": [],
-        "parentId": null,
-        "x": 768,
-        "y": 120,
         "dataSource": {
           "url": "",
           "target": "fetch",
@@ -605,10 +616,9 @@
         "repeat": {
           "path": "",
           "as": "item",
-          "index": "i",
-          "manual": false
+          "index": "i"
         },
-        "subscriptions": [],
+        "dataWires": [],
         "boundary": {
           "entryId": "",
           "exitId": "",
@@ -616,75 +626,78 @@
           "exitDisabled": false,
           "title": "",
           "note": ""
-        }
+        },
+        "parentId": null,
+        "x": 768,
+        "y": 120
       },
       {
-        "id": "schnittstellen",
-        "title": "Schnittstellen",
+        "id": "ergebnis",
+        "title": "Ergebnis",
         "renderMode": "state",
         "components": [
           {
-            "id": "schnittstellen_nav",
+            "id": "ergebnis_nav",
             "type": "daisy",
             "text": "",
             "url": "",
             "variant": "navbar",
-            "dataPath": "states.schnittstellen.nav",
+            "dataPath": "states.ergebnis.nav",
             "dataRole": "widget",
             "dataLabel": "Navigation"
           },
           {
-            "id": "api_grid",
+            "id": "ergebnis_hero",
+            "type": "daisy",
+            "text": "",
+            "url": "",
+            "variant": "hero",
+            "dataPath": "states.ergebnis.hero",
+            "dataRole": "widget",
+            "dataLabel": "Ergebnis"
+          },
+          {
+            "id": "ergebnis_grid",
             "type": "daisy",
             "text": "",
             "url": "",
             "variant": "feature-grid",
-            "dataPath": "states.schnittstellen.api",
+            "dataPath": "states.ergebnis.lieferung",
             "dataRole": "widget",
-            "dataLabel": "API"
+            "dataLabel": "Lieferung"
           },
           {
-            "id": "api_steps",
-            "type": "daisy",
-            "text": "",
-            "url": "",
-            "variant": "steps",
-            "dataPath": "states.schnittstellen.ablauf",
-            "dataRole": "widget",
-            "dataLabel": "API Ablauf"
-          },
-          {
-            "id": "schnittstellen_footer",
+            "id": "ergebnis_footer",
             "type": "daisy",
             "text": "",
             "url": "",
             "variant": "footer",
-            "dataPath": "states.schnittstellen.footer",
+            "dataPath": "states.ergebnis.footer",
             "dataRole": "widget",
             "dataLabel": "Fußbereich"
           }
         ],
         "data": {
-          "states.schnittstellen.nav": {
+          "states.ergebnis.nav": {
             "layout": "menu-submenu",
-            "brand": "Zustand",
-            "selected": "Schnittstellen",
+            "brand": "Digitalisierungsplan",
+            "selected": "Ergebnis",
             "items": [
               {
                 "label": "Start",
-                "transitionId": "nav_schnittstellen_startseite"
+                "transitionId": "nav_ergebnis_startseite"
               },
               {
-                "label": "Prinzip",
-                "transitionId": "nav_schnittstellen_prinzipien"
+                "label": "Nutzen",
+                "transitionId": "nav_ergebnis_nutzen"
               },
               {
-                "label": "Werkzeug",
-                "transitionId": "nav_schnittstellen_werkzeug"
+                "label": "Vorgehen",
+                "transitionId": "nav_ergebnis_vorgehen"
               },
               {
-                "label": "Schnittstellen",
-                "transitionId": "nav_schnittstellen_schnittstellen"
+                "label": "Ergebnis",
+                "transitionId": "nav_ergebnis_ergebnis"
               },
               {
                 "label": "Editor",
@@ -695,85 +708,77 @@
             "submenu": [],
             "submenuOpen": false
           },
-          "states.schnittstellen.api": {
-            "eyebrow": "API / MCP",
-            "heading": "KI-steuerbar ohne Schattenzustand",
-            "body": "Die Schnittstelle schreibt dieselbe kanonische JSON-Definition wie der visuelle Editor.",
+          "states.ergebnis.hero": {
+            "layout": "overlay",
+            "title": "Ein Plan, den Business und IT gemeinsam tragen.",
+            "body": "Am Ende steht kein PDF, das veraltet. Es steht ein lebendes Prozessmodell: sichtbar, testbar, exportierbar und als Grundlage für Umsetzung nutzbar.",
+            "actionLabel": "Editor öffnen",
+            "url": "./state.html",
+            "image": "/assets/landing-automate-business.png",
+            "imageAlt": "Business-Verantwortliche planen die Automatisierung"
+          },
+          "states.ergebnis.lieferung": {
+            "eyebrow": "Liefergegenstand",
+            "heading": "Vom Entscheidungsprozess zur digitalen Oberfläche",
+            "body": "Der Digitalisierungsplan verbindet Strategie, Prozess, Daten und Benutzerführung. Genau dort entsteht Umsetzungssicherheit.",
             "selected": "",
             "items": [
               {
-                "title": "State erzeugen",
-                "body": "Aktionen erstellen States mit eindeutigen IDs und gescopten Variablen.",
-                "image": "data:image/svg+xml;base64,CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2aWV3Qm94PSIwIDAgODAwIDUwMCI+CiAgPGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agc3RvcC1jb2xvcj0iIzA1MTExZiIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzM4YmRmOCIgc3RvcC1vcGFjaXR5PSIuNzIiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz4KICA8cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCIgZmlsbD0idXJsKCNnKSIvPgogIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UwZjJmZSIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiIG9wYWNpdHk9Ii45Ij4KICAgIDxyZWN0IHg9IjkwIiB5PSIxMjAiIHdpZHRoPSIxODAiIGhlaWdodD0iOTYiIHJ4PSIyMiIvPjxyZWN0IHg9IjUyMCIgeT0iMTIwIiB3aWR0aD0iMTkwIiBoZWlnaHQ9Ijk2IiByeD0iMjIiLz48cmVjdCB4PSIzMTAiIHk9IjI5NCIgd2lkdGg9IjE4MCIgaGVpZ2h0PSI5NiIgcng9IjIyIi8+CiAgICA8cGF0aCBkPSJNMjcwIDE2OGgyNTBNNDAwIDIxNnY3OCIvPgogIDwvZz4KICA8dGV4dCB4PSI5MCIgeT0iNDMwIiBmaWxsPSIjZjhmYWZjIiBmb250LWZhbWlseT0iU2Vnb2UgVUksIEFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjQ0IiBmb250LXdlaWdodD0iOTAwIj5TdGF0ZSBBUEk8L3RleHQ+Cjwvc3ZnPg==",
+                "title": "Prozesslandkarte",
+                "body": "Zustände, Übergänge und Verantwortlichkeiten sind nachvollziehbar dokumentiert.",
+                "image": "/assets/landing-understand-business.png",
                 "features": [
-                  "upsert_state",
-                  "set_initial"
+                  "Management-verständlich",
+                  "auditierbar"
                 ],
-                "actionLabel": "Werkzeug",
-                "transitionId": "nav_schnittstellen_werkzeug"
+                "actionLabel": "Start",
+                "transitionId": "nav_ergebnis_startseite",
+                "imageAlt": "Business-Team klärt einen Prozess auf Papier"
               },
               {
-                "title": "Transition verdrahten",
-                "body": "Edges verbinden nur existierende States und bleiben im FSM-Vertrag.",
-                "image": "data:image/svg+xml;base64,CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2aWV3Qm94PSIwIDAgODAwIDUwMCI+CiAgPGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agc3RvcC1jb2xvcj0iIzA1MTExZiIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzM0ZDM5OSIgc3RvcC1vcGFjaXR5PSIuNzIiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz4KICA8cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCIgZmlsbD0idXJsKCNnKSIvPgogIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UwZjJmZSIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiIG9wYWNpdHk9Ii45Ij4KICAgIDxyZWN0IHg9IjkwIiB5PSIxMjAiIHdpZHRoPSIxODAiIGhlaWdodD0iOTYiIHJ4PSIyMiIvPjxyZWN0IHg9IjUyMCIgeT0iMTIwIiB3aWR0aD0iMTkwIiBoZWlnaHQ9Ijk2IiByeD0iMjIiLz48cmVjdCB4PSIzMTAiIHk9IjI5NCIgd2lkdGg9IjE4MCIgaGVpZ2h0PSI5NiIgcng9IjIyIi8+CiAgICA8cGF0aCBkPSJNMjcwIDE2OGgyNTBNNDAwIDIxNnY3OCIvPgogIDwvZz4KICA8dGV4dCB4PSI5MCIgeT0iNDMwIiBmaWxsPSIjZjhmYWZjIiBmb250LWZhbWlseT0iU2Vnb2UgVUksIEFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjQ0IiBmb250LXdlaWdodD0iOTAwIj5UcmFuc2l0aW9uIEFQSTwvdGV4dD4KPC9zdmc+",
+                "title": "Klickbarer Ablauf",
+                "body": "Entscheider können den Ablauf durchspielen, bevor Entwicklung startet.",
+                "image": "/assets/landing-model-business.png",
                 "features": [
-                  "upsert_transition",
-                  "Trigger-Typen"
+                  "schnelle Validierung",
+                  "weniger Missverstaendnisse"
                 ],
-                "actionLabel": "Prinzip",
-                "transitionId": "nav_schnittstellen_prinzipien"
+                "actionLabel": "Vorgehen",
+                "transitionId": "nav_ergebnis_vorgehen",
+                "imageAlt": "Entscheider prueft ein ausführbares Prozessmodell"
               },
               {
-                "title": "HTML exportieren",
-                "body": "Die API kann dieselbe Runtime bauen wie der Export-Button im Editor.",
-                "image": "data:image/svg+xml;base64,CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2aWV3Qm94PSIwIDAgODAwIDUwMCI+CiAgPGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agc3RvcC1jb2xvcj0iIzA1MTExZiIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2E3OGJmYSIgc3RvcC1vcGFjaXR5PSIuNzIiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz4KICA8cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCIgZmlsbD0idXJsKCNnKSIvPgogIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UwZjJmZSIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiIG9wYWNpdHk9Ii45Ij4KICAgIDxyZWN0IHg9IjkwIiB5PSIxMjAiIHdpZHRoPSIxODAiIGhlaWdodD0iOTYiIHJ4PSIyMiIvPjxyZWN0IHg9IjUyMCIgeT0iMTIwIiB3aWR0aD0iMTkwIiBoZWlnaHQ9Ijk2IiByeD0iMjIiLz48cmVjdCB4PSIzMTAiIHk9IjI5NCIgd2lkdGg9IjE4MCIgaGVpZ2h0PSI5NiIgcng9IjIyIi8+CiAgICA8cGF0aCBkPSJNMjcwIDE2OGgyNTBNNDAwIDIxNnY3OCIvPgogIDwvZz4KICA8dGV4dCB4PSI5MCIgeT0iNDMwIiBmaWxsPSIjZjhmYWZjIiBmb250LWZhbWlseT0iU2Vnb2UgVUksIEFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjQ0IiBmb250LXdlaWdodD0iOTAwIj5IVE1MIEV4cG9ydDwvdGV4dD4KPC9zdmc+",
+                "title": "Umsetzungsvorlage",
+                "body": "Ein sauberer Daten- und Eventvertrag macht den Prozess für Automatisierung anschlussfähig.",
+                "image": "/assets/landing-automate-business.png",
                 "features": [
-                  "state_blueprint_export_html",
-                  "validierbares Modell"
+                  "IT-ready",
+                  "KI/API-steuerbar"
                 ],
-                "actionLabel": "Editor",
-                "url": "./state.html"
+                "actionLabel": "Editor öffnen",
+                "url": "./state.html",
+                "imageAlt": "Business-Verantwortliche planen die Automatisierung"
               }
             ]
           },
-          "states.schnittstellen.ablauf": {
-            "current": "Exportieren",
-            "items": [
-              {
-                "label": "Modell ändern",
-                "description": "Editor und API schreiben dieselbe JSON-Definition.",
-                "transitionId": "nav_schnittstellen_werkzeug"
-              },
-              {
-                "label": "Validieren",
-                "description": "FSM, IDs und Bus bleiben am Contract prüfbar.",
-                "transitionId": "nav_schnittstellen_prinzipien"
-              },
-              {
-                "label": "Exportieren",
-                "description": "Die Website entsteht aus dem Modell, nicht aus Nachbearbeitung.",
-                "transitionId": "nav_schnittstellen_schnittstellen"
-              }
-            ]
-          },
-          "states.schnittstellen.footer": {
+          "states.ergebnis.footer": {
             "brand": "Zustand GmbH",
-            "note": "Business-Prozesse verstehen, visualisieren und digitalisieren.",
+            "note": "Digitalisierung beginnt nicht mit Software. Sie beginnt mit einem Prozess, den alle verstehen.",
             "columns": [
               {
-                "title": "Projekt",
+                "title": "Digitalisierungsplan",
                 "items": [
                   {
                     "label": "Start",
-                    "transitionId": "nav_schnittstellen_startseite"
+                    "transitionId": "nav_ergebnis_startseite"
                   },
                   {
-                    "label": "Prinzip",
-                    "transitionId": "nav_schnittstellen_prinzipien"
+                    "label": "Nutzen",
+                    "transitionId": "nav_ergebnis_nutzen"
                   },
                   {
-                    "label": "Werkzeug",
-                    "transitionId": "nav_schnittstellen_werkzeug"
+                    "label": "Vorgehen",
+                    "transitionId": "nav_ergebnis_vorgehen"
                   }
                 ]
               },
@@ -781,8 +786,8 @@
                 "title": "Umsetzung",
                 "items": [
                   {
-                    "label": "Schnittstellen",
-                    "transitionId": "nav_schnittstellen_schnittstellen"
+                    "label": "Ergebnis",
+                    "transitionId": "nav_ergebnis_ergebnis"
                   },
                   {
                     "label": "Editor",
@@ -794,15 +799,11 @@
           }
         },
         "dataTypes": {
-          "states.schnittstellen.nav": "object",
-          "states.schnittstellen.api": "object",
-          "states.schnittstellen.ablauf": "object",
-          "states.schnittstellen.footer": "object"
+          "states.ergebnis.nav": "object",
+          "states.ergebnis.hero": "object",
+          "states.ergebnis.lieferung": "object",
+          "states.ergebnis.footer": "object"
         },
-        "dataWires": [],
-        "parentId": null,
-        "x": 1104,
-        "y": 72,
         "dataSource": {
           "url": "",
           "target": "fetch",
@@ -813,10 +814,9 @@
         "repeat": {
           "path": "",
           "as": "item",
-          "index": "i",
-          "manual": false
+          "index": "i"
         },
-        "subscriptions": [],
+        "dataWires": [],
         "boundary": {
           "entryId": "",
           "exitId": "",
@@ -824,7 +824,10 @@
           "exitDisabled": false,
           "title": "",
           "note": ""
-        }
+        },
+        "parentId": null,
+        "x": 1104,
+        "y": 72
       }
     ],
     "transitions": [
@@ -842,195 +845,195 @@
         "groupExitId": ""
       },
       {
-        "id": "nav_startseite_prinzipien",
+        "id": "nav_startseite_nutzen",
         "from": "startseite",
-        "to": "prinzipien",
-        "label": "Prinzip",
+        "to": "nutzen",
+        "label": "Nutzen",
         "condition": "",
         "triggerType": "button",
-        "triggerEvent": "button.nav_startseite_prinzipien.clicked",
+        "triggerEvent": "button.nav_startseite_nutzen.clicked",
         "timerMs": 3000,
         "set": {},
         "groupEntryId": "",
         "groupExitId": ""
       },
       {
-        "id": "nav_startseite_werkzeug",
+        "id": "nav_startseite_vorgehen",
         "from": "startseite",
-        "to": "werkzeug",
-        "label": "Werkzeug",
+        "to": "vorgehen",
+        "label": "Vorgehen",
         "condition": "",
         "triggerType": "button",
-        "triggerEvent": "button.nav_startseite_werkzeug.clicked",
+        "triggerEvent": "button.nav_startseite_vorgehen.clicked",
         "timerMs": 3000,
         "set": {},
         "groupEntryId": "",
         "groupExitId": ""
       },
       {
-        "id": "nav_startseite_schnittstellen",
+        "id": "nav_startseite_ergebnis",
         "from": "startseite",
-        "to": "schnittstellen",
-        "label": "Schnittstellen",
+        "to": "ergebnis",
+        "label": "Ergebnis",
         "condition": "",
         "triggerType": "button",
-        "triggerEvent": "button.nav_startseite_schnittstellen.clicked",
+        "triggerEvent": "button.nav_startseite_ergebnis.clicked",
         "timerMs": 3000,
         "set": {},
         "groupEntryId": "",
         "groupExitId": ""
       },
       {
-        "id": "nav_prinzipien_startseite",
-        "from": "prinzipien",
+        "id": "nav_nutzen_startseite",
+        "from": "nutzen",
         "to": "startseite",
         "label": "Start",
         "condition": "",
         "triggerType": "button",
-        "triggerEvent": "button.nav_prinzipien_startseite.clicked",
+        "triggerEvent": "button.nav_nutzen_startseite.clicked",
         "timerMs": 3000,
         "set": {},
         "groupEntryId": "",
         "groupExitId": ""
       },
       {
-        "id": "nav_prinzipien_prinzipien",
-        "from": "prinzipien",
-        "to": "prinzipien",
-        "label": "Prinzip",
+        "id": "nav_nutzen_nutzen",
+        "from": "nutzen",
+        "to": "nutzen",
+        "label": "Nutzen",
         "condition": "",
         "triggerType": "button",
-        "triggerEvent": "button.nav_prinzipien_prinzipien.clicked",
+        "triggerEvent": "button.nav_nutzen_nutzen.clicked",
         "timerMs": 3000,
         "set": {},
         "groupEntryId": "",
         "groupExitId": ""
       },
       {
-        "id": "nav_prinzipien_werkzeug",
-        "from": "prinzipien",
-        "to": "werkzeug",
-        "label": "Werkzeug",
+        "id": "nav_nutzen_vorgehen",
+        "from": "nutzen",
+        "to": "vorgehen",
+        "label": "Vorgehen",
         "condition": "",
         "triggerType": "button",
-        "triggerEvent": "button.nav_prinzipien_werkzeug.clicked",
+        "triggerEvent": "button.nav_nutzen_vorgehen.clicked",
         "timerMs": 3000,
         "set": {},
         "groupEntryId": "",
         "groupExitId": ""
       },
       {
-        "id": "nav_prinzipien_schnittstellen",
-        "from": "prinzipien",
-        "to": "schnittstellen",
-        "label": "Schnittstellen",
+        "id": "nav_nutzen_ergebnis",
+        "from": "nutzen",
+        "to": "ergebnis",
+        "label": "Ergebnis",
         "condition": "",
         "triggerType": "button",
-        "triggerEvent": "button.nav_prinzipien_schnittstellen.clicked",
+        "triggerEvent": "button.nav_nutzen_ergebnis.clicked",
         "timerMs": 3000,
         "set": {},
         "groupEntryId": "",
         "groupExitId": ""
       },
       {
-        "id": "nav_werkzeug_startseite",
-        "from": "werkzeug",
+        "id": "nav_vorgehen_startseite",
+        "from": "vorgehen",
         "to": "startseite",
         "label": "Start",
         "condition": "",
         "triggerType": "button",
-        "triggerEvent": "button.nav_werkzeug_startseite.clicked",
+        "triggerEvent": "button.nav_vorgehen_startseite.clicked",
         "timerMs": 3000,
         "set": {},
         "groupEntryId": "",
         "groupExitId": ""
       },
       {
-        "id": "nav_werkzeug_prinzipien",
-        "from": "werkzeug",
-        "to": "prinzipien",
-        "label": "Prinzip",
+        "id": "nav_vorgehen_nutzen",
+        "from": "vorgehen",
+        "to": "nutzen",
+        "label": "Nutzen",
         "condition": "",
         "triggerType": "button",
-        "triggerEvent": "button.nav_werkzeug_prinzipien.clicked",
+        "triggerEvent": "button.nav_vorgehen_nutzen.clicked",
         "timerMs": 3000,
         "set": {},
         "groupEntryId": "",
         "groupExitId": ""
       },
       {
-        "id": "nav_werkzeug_werkzeug",
-        "from": "werkzeug",
-        "to": "werkzeug",
-        "label": "Werkzeug",
+        "id": "nav_vorgehen_vorgehen",
+        "from": "vorgehen",
+        "to": "vorgehen",
+        "label": "Vorgehen",
         "condition": "",
         "triggerType": "button",
-        "triggerEvent": "button.nav_werkzeug_werkzeug.clicked",
+        "triggerEvent": "button.nav_vorgehen_vorgehen.clicked",
         "timerMs": 3000,
         "set": {},
         "groupEntryId": "",
         "groupExitId": ""
       },
       {
-        "id": "nav_werkzeug_schnittstellen",
-        "from": "werkzeug",
-        "to": "schnittstellen",
-        "label": "Schnittstellen",
+        "id": "nav_vorgehen_ergebnis",
+        "from": "vorgehen",
+        "to": "ergebnis",
+        "label": "Ergebnis",
         "condition": "",
         "triggerType": "button",
-        "triggerEvent": "button.nav_werkzeug_schnittstellen.clicked",
+        "triggerEvent": "button.nav_vorgehen_ergebnis.clicked",
         "timerMs": 3000,
         "set": {},
         "groupEntryId": "",
         "groupExitId": ""
       },
       {
-        "id": "nav_schnittstellen_startseite",
-        "from": "schnittstellen",
+        "id": "nav_ergebnis_startseite",
+        "from": "ergebnis",
         "to": "startseite",
         "label": "Start",
         "condition": "",
         "triggerType": "button",
-        "triggerEvent": "button.nav_schnittstellen_startseite.clicked",
+        "triggerEvent": "button.nav_ergebnis_startseite.clicked",
         "timerMs": 3000,
         "set": {},
         "groupEntryId": "",
         "groupExitId": ""
       },
       {
-        "id": "nav_schnittstellen_prinzipien",
-        "from": "schnittstellen",
-        "to": "prinzipien",
-        "label": "Prinzip",
+        "id": "nav_ergebnis_nutzen",
+        "from": "ergebnis",
+        "to": "nutzen",
+        "label": "Nutzen",
         "condition": "",
         "triggerType": "button",
-        "triggerEvent": "button.nav_schnittstellen_prinzipien.clicked",
+        "triggerEvent": "button.nav_ergebnis_nutzen.clicked",
         "timerMs": 3000,
         "set": {},
         "groupEntryId": "",
         "groupExitId": ""
       },
       {
-        "id": "nav_schnittstellen_werkzeug",
-        "from": "schnittstellen",
-        "to": "werkzeug",
-        "label": "Werkzeug",
+        "id": "nav_ergebnis_vorgehen",
+        "from": "ergebnis",
+        "to": "vorgehen",
+        "label": "Vorgehen",
         "condition": "",
         "triggerType": "button",
-        "triggerEvent": "button.nav_schnittstellen_werkzeug.clicked",
+        "triggerEvent": "button.nav_ergebnis_vorgehen.clicked",
         "timerMs": 3000,
         "set": {},
         "groupEntryId": "",
         "groupExitId": ""
       },
       {
-        "id": "nav_schnittstellen_schnittstellen",
-        "from": "schnittstellen",
-        "to": "schnittstellen",
-        "label": "Schnittstellen",
+        "id": "nav_ergebnis_ergebnis",
+        "from": "ergebnis",
+        "to": "ergebnis",
+        "label": "Ergebnis",
         "condition": "",
         "triggerType": "button",
-        "triggerEvent": "button.nav_schnittstellen_schnittstellen.clicked",
+        "triggerEvent": "button.nav_ergebnis_ergebnis.clicked",
         "timerMs": 3000,
         "set": {},
         "groupEntryId": "",
@@ -1040,8 +1043,8 @@
   },
   "stateTemplates": [],
   "camera": {
-    "x": 48,
-    "y": 64,
+    "x": 0,
+    "y": 0,
     "scale": 1
   },
   "previewCollapsed": false
