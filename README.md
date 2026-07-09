@@ -79,6 +79,30 @@ Kurzfassung:
 
 `index.html` ist die generierte öffentliche Landingpage für `digitalisierungsplanung.de`.
 
+## Realtime
+
+Der optionale Realtime-Server in `server/` ist nur Transport fuer Runtime-Events.
+
+- WSS-Endpunkt: `wss://realtime.digitalisierungsplanung.de/ws`
+- Token-Endpunkt: `https://realtime.digitalisierungsplanung.de/token`
+- Aktivierung im Editor: `state.html?room=<room-id>`
+- Zwischen Clients werden nur `realtime.*` Events weitergereicht.
+
+Realtime erzeugt keine zweite Wahrheit. Eingehende Nachrichten werden als `STATE_BLUEPRINT_REALTIME_EVENT` an die generierte Runtime gegeben und laufen dann durch `emitRuntimeEvent(...)` in den globalen JSON-Bus. Der Host behandelt Runtime-Kontext weiter nur als read-only Snapshot.
+
+Beispiel:
+
+```js
+window.__stateBlueprintRealtime.emit("realtime.canvas.pulse", { stateId: "start" });
+```
+
+Passende Transition:
+
+```text
+triggerType: event
+triggerEvent: realtime.canvas.pulse
+```
+
 ## MCP/API
 
 Die MCP/API-Schicht bearbeitet dasselbe kanonische JSON-Modell wie der Editor. Sie klickt nicht die Benutzeroberfläche und hält keinen parallelen Laufzeit-Store.
@@ -162,6 +186,7 @@ Wichtige Testbereiche:
 |-- package.json
 |-- playwright.config.js
 |-- assets/
+|-- server/
 |-- docs/
 |   |-- state-blueprint-api.md
 |   `-- state-blueprint-mcp.md
@@ -176,3 +201,13 @@ Wichtige Testbereiche:
 ## Veröffentlichung
 
 GitHub Pages veröffentlicht die statische App erst nach grünem Smoke-Lauf. Die Root-Seite ist `index.html`, der Editor ist direkt über `state.html` erreichbar.
+
+Der Realtime-Server laeuft separat auf dem Droplet:
+
+```bash
+cd /var/www/digitalisierungsplanung.de
+git pull --ff-only origin main
+bash server/deploy.sh
+```
+
+`server/deploy.sh` installiert Production-Dependencies, startet oder aktualisiert PM2, speichert den Prozess fuer Reboots und laedt Nginx neu.

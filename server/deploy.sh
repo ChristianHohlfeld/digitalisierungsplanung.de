@@ -2,7 +2,7 @@
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-/var/www/digitalisierungsplanung.de}"
-BRANCH="${BRANCH:-agent/realtime-wss-server}"
+BRANCH="${BRANCH:-main}"
 DOMAIN="${REALTIME_DOMAIN:-realtime.digitalisierungsplanung.de}"
 REPO_URL="${REPO_URL:-https://github.com/ChristianHohlfeld/digitalisierungsplanung.de.git}"
 ENV_FILE="${ENV_FILE:-/etc/digitalisierungsplanung-realtime.env}"
