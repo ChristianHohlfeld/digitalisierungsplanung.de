@@ -1,50 +1,52 @@
 # Digitalisierungsplanung
 
-Zustand is a standalone visual FSM builder for understanding, modeling, testing, and exporting digital business processes.
+Zustand ist ein eigenständiger visueller FSM-Builder für digitale Geschäftsprozesse. Das Werkzeug macht Abläufe sichtbar, prüfbar und als statische HTML-Anwendung exportierbar.
 
-The repository is intentionally narrow. It contains the app, its generated preview runtime, the MCP/API control layer, and the tests that protect the state-machine contract.
+Das Repository ist bewusst schmal gehalten. Es enthält die Hauptanwendung, die erzeugte Laufzeitumgebung, die MCP/API-Schicht und die Tests, die den State-Machine-Kontrakt schützen.
 
 ## Screenshots
 
-These screenshots are generated from the real `state.html` app in CI after successful pushes, so the README stays aligned with the current UI.
+Diese Screenshots werden nach erfolgreichen Läufen aus der echten `state.html`-App erzeugt. Die README bleibt dadurch nah an der aktuellen Oberfläche.
 
-The editor keeps the process, the generated app, and the global-state contract visible in one place.
+Der Editor zeigt Prozessmodell, generierte App und globalen State-Kontrakt an einem Ort.
 
-![Zustand editor canvas with a demo business flow](assets/screenshots/zustand-editor-flow.png)
+![Zustand Editor mit Business-Flow](assets/screenshots/zustand-editor-flow.png)
 
-The preview is the same FSM running as an app. Buttons and widgets fire real transitions and write through the global JSON bus.
+Die Vorschau ist dieselbe FSM als laufende App. Buttons und Widgets feuern echte Transitionen und schreiben über den globalen JSON-Bus.
 
-![Generated app preview showing checkout flow](assets/screenshots/zustand-preview-checkout.png)
+![Generierte App-Vorschau mit Checkout-Flow](assets/screenshots/zustand-preview-checkout.png)
 
-The state inspector edits the selected state's trigger, widgets, screen fields, and scoped bus data without creating hidden local state.
+Der State-Inspector bearbeitet Trigger, Widgets, sichtbare Felder und gescopte Bus-Daten des ausgewählten States, ohne versteckten lokalen Zustand zu erzeugen.
 
-![State inspector with widget and screen-field controls](assets/screenshots/zustand-inspector-widgets.png)
+![State-Inspector mit Widget- und Feldsteuerung](assets/screenshots/zustand-inspector-widgets.png)
 
-## Contract
+## Kontrakt
 
-There is one source of truth:
+Es gibt genau eine Quelle der Wahrheit:
 
 ```text
-global JSON state/event bus
+globaler JSON-State- und Event-Bus
 ```
 
-Everything that affects flow or data must be represented in the model and must read from or write to that bus through the official runtime path.
+Alles, was Daten oder Ablauf beeinflusst, muss im Modell beschrieben sein und über den offiziellen Laufzeitpfad aus diesem Bus lesen oder in diesen Bus schreiben.
 
-Allowed local state:
+Die vollständige schriftliche Kontrakt-Spezifikation steht in [`statereadme.md`](statereadme.md).
 
-- Drag, hover, focus, and selection affordances.
-- Viewport pan/zoom.
-- Animation frame and timer handles.
-- Temporary editor UI state.
+Erlaubter lokaler UI-Zustand:
 
-Not allowed:
+- Ziehen, Hover, Fokus und Auswahl im Editor.
+- Canvas-Pan und Canvas-Zoom.
+- Handles für Animationen und Timer.
+- Temporärer UI-Zustand des Editors.
 
-- Hidden component stores.
-- DOM-only flow decisions.
-- Stored HTML as component truth.
-- Preset caches that act like runtime data.
-- Shadow copies of `state.current`, transition results, widget values, or flow state.
-- Legacy migrations or demo-specific behavior paths in the core model.
+Nicht erlaubt:
+
+- Versteckte Komponenten-Stores.
+- DOM-only-Entscheidungen für den Ablauf.
+- HTML als Wahrheit einer Komponente.
+- Preset-Caches, die wie Laufzeitdaten wirken.
+- Schattenkopien von `state.current`, Transition-Ergebnissen, Widget-Werten oder Flow-Zustand.
+- Legacy-Migrationen oder demo-spezifische Sonderpfade im Kernmodell.
 
 ## Repository
 
@@ -57,50 +59,50 @@ Not allowed:
 |-- tests/
 |-- mcp/
 |-- docs/
-|   `-- state-blueprint-mcp.md
+|   `-- state-blueprint-api.md
 |-- statereadme.md
 |-- CNAME
 |-- .github/workflows/deploy.yml
 `-- .gitea/workflows/test.yml
 ```
 
-## App
+## Anwendung
 
-`state.html` contains the visual editor host and the generated preview runtime.
+`state.html` enthält den visuellen Editor und die eingebettete Vorschau-Laufzeit.
 
-Main responsibilities:
+Zentrale Aufgaben:
 
-- Model normalization and validation.
-- Canvas rendering, SVG ports, boundary proxies, routing, drag/drop, pan, and zoom.
-- State inspector and render editor.
-- Global state/data tree UI.
-- Data defaults, data types, data wires, repeat mappings, and fetch-on-enter configuration.
-- DaisyUI preset catalog and preset instantiation.
-- Generated app preview runtime.
-- Save/load/export/import helpers.
+- Modell-Normalisierung und Validierung.
+- Canvas-Rendering, SVG-Ports, Boundary-Proxies, Routing, Drag-and-drop, Pan und Zoom.
+- State-Inspector und Render-Editor.
+- Oberfläche für globalen State, Datenbaum und relevante Bus-Pfade.
+- State-Daten, Datentypen, Data-Wires, Repeat-Mappings und Fetch-on-enter-Konfiguration.
+- DaisyUI-Preset-Katalog und Preset-Instanziierung.
+- Generierte App-Vorschau.
+- Speichern, Laden, Export und Import.
 
-The file stays self-contained so it can be served as a single static app.
+Die Datei bleibt selbstständig, damit die Anwendung als statische App ausgeliefert werden kann.
 
-## Runtime
+## Laufzeit
 
-The generated preview runtime is bus-driven:
+Die generierte Vorschau-Laufzeit ist busgetrieben:
 
-- Host sends `STATE_BLUEPRINT_MODEL`.
-- Runtime sends `STATE_BLUEPRINT_RUNTIME_STATE`.
-- Runtime asks the host to open external links with `STATE_BLUEPRINT_OPEN_URL`.
+- Der Host sendet `STATE_BLUEPRINT_MODEL`.
+- Die Laufzeit sendet `STATE_BLUEPRINT_RUNTIME_STATE`.
+- Die Laufzeit bittet den Host mit `STATE_BLUEPRINT_OPEN_URL`, externe Links zu öffnen.
 
-Runtime rules:
+Laufzeitregeln:
 
-- `defaultContext(model)` creates bus defaults such as `state.current`, `state.previous`, `state.lastTransition`, and `runtime.paused`.
-- `runtimeSet(...)` and `writeRuntimeState(...)` are the write path into the bus.
-- Entry effects, such as fetch, run on state entry, not during render.
-- Render reads the model plus the bus. It does not invent model state.
+- `defaultContext(model)` erzeugt Bus-Defaults wie `state.current`, `state.previous`, `state.lastTransition` und `runtime.paused`.
+- `runtimeSet(...)` und `writeRuntimeState(...)` sind der Schreibpfad in den Bus.
+- Entry-Effekte wie Fetch laufen beim Betreten eines States, nicht während des Renderns.
+- Render liest Modell und Bus. Render erfindet keinen Modellzustand.
 
 ## MCP/API
 
-The MCP layer is the structured API surface for automation and external tools. It edits the same canonical JSON model as the app.
+Die MCP-Schicht ist die strukturierte API-Oberfläche für Automatisierung und externe Werkzeuge. Sie bearbeitet dasselbe kanonische JSON-Modell wie der visuelle Editor.
 
-Main tools:
+Zentrale Tools:
 
 - `state_blueprint_get_model`
 - `state_blueprint_replace_model`
@@ -113,26 +115,26 @@ Main tools:
 - `state_blueprint_import_definition`
 - `state_blueprint_action_catalog`
 
-Run the MCP server:
+MCP-Server starten:
 
 ```bash
 STATE_BLUEPRINT_MODEL_PATH=./state-blueprint.workspace.json npm run mcp:state
 ```
 
-The API applies ordered model actions, normalizes the result, validates the contract, and persists only the canonical JSON model. It does not click the UI and does not keep a parallel runtime store.
+Die API wendet geordnete Modellaktionen an, normalisiert das Ergebnis, validiert den Kontrakt und persistiert nur das kanonische JSON-Modell. Sie klickt nicht die UI und hält keinen parallelen Laufzeit-Store.
 
-Full API documentation: [`docs/state-blueprint-api.md`](docs/state-blueprint-api.md)
+Vollständige API-Dokumentation: [`docs/state-blueprint-api.md`](docs/state-blueprint-api.md)
 
 ## Tests
 
-The tests are part of the architecture.
+Die Tests sind Teil der Architektur.
 
-- `core-contracts.spec.js` protects source-level and browser-level contracts.
-- `state-tool.spec.js` is the broad app smoke suite for canvas, proxies, nested states, routing, presets, Daisy behavior, touch gestures, undo/redo, render ordering, save/load, and preview behavior.
-- `nested-runtime-regressions.spec.js` protects generated app flow through composite states.
-- `state-blueprint-mcp.spec.js` protects the MCP/API contract.
+- `core-contracts.spec.js` schützt Quellcode- und Browser-Kontrakte.
+- `state-tool.spec.js` ist die breite App-Smoke-Suite für Canvas, Proxies, Nested States, Routing, Presets, Daisy-Verhalten, Touch-Gesten, Undo/Redo, Render-Reihenfolge, Save/Load und Vorschauverhalten.
+- `nested-runtime-regressions.spec.js` schützt den generierten App-Flow durch Composite States.
+- `state-blueprint-mcp.spec.js` schützt den MCP/API-Kontrakt.
 
-Run:
+Tests ausführen:
 
 ```bash
 npm test
@@ -140,6 +142,6 @@ npm run test:contracts
 npm run test:full
 ```
 
-## Deploy
+## Veröffentlichung
 
-The GitHub Pages workflow runs the smoke suite before publishing the static app.
+Der GitHub-Pages-Workflow führt die Smoke-Suite aus, bevor die statische App veröffentlicht wird.
