@@ -8889,6 +8889,32 @@ test.describe("State Blueprint tool", () => {
       hasTouchCalloutRule: true
     });
 
+    const passiveTouchFeedback = await appFrame(page).locator("body").evaluate(async body => {
+      const passive = document.createElement("div");
+      passive.className = "card daisy-widget alert";
+      passive.textContent = "Passive surface";
+      body.appendChild(passive);
+      passive.dispatchEvent(new PointerEvent("pointerdown", {
+        bubbles: true,
+        cancelable: true,
+        pointerType: "touch",
+        pointerId: 250,
+        clientX: 24,
+        clientY: 24
+      }));
+      await new Promise(resolve => requestAnimationFrame(resolve));
+      const result = {
+        passivePressed: passive.classList.contains("runtime-touch-pressed"),
+        pressedCount: document.querySelectorAll(".runtime-touch-pressed").length
+      };
+      passive.remove();
+      return result;
+    });
+    expect(passiveTouchFeedback).toEqual({
+      passivePressed: false,
+      pressedCount: 0
+    });
+
     const loginButton = appFrame(page).getByRole("button", { name: "Login" });
     await loginButton.dispatchEvent("pointerdown", {
       bubbles: true,
@@ -9201,6 +9227,57 @@ test.describe("State Blueprint tool", () => {
       if (!map || !preview) return false;
       return map.bottom <= preview.top + 1 && map.height > preview.height;
     })).toBe(true);
+    await expect(page.locator("#previewResizeHandle")).toBeVisible();
+    const beforeResizeModel = await savedModel(page);
+    const beforeSplit = await page.evaluate(() => {
+      const map = document.querySelector("#map")?.getBoundingClientRect();
+      const preview = document.querySelector(".preview")?.getBoundingClientRect();
+      const handle = document.querySelector("#previewResizeHandle")?.getBoundingClientRect();
+      return {
+        mapHeight: Math.round(map?.height || 0),
+        previewHeight: Math.round(preview?.height || 0),
+        handleX: Math.round((handle?.left || 0) + (handle?.width || 0) / 2),
+        handleY: Math.round((handle?.top || 0) + (handle?.height || 0) / 2)
+      };
+    });
+    await page.mouse.move(beforeSplit.handleX, beforeSplit.handleY);
+    await page.mouse.down();
+    await page.mouse.move(beforeSplit.handleX, beforeSplit.handleY - 82, { steps: 5 });
+    await page.mouse.up();
+    await expect.poll(() => page.evaluate(() => {
+      const map = document.querySelector("#map")?.getBoundingClientRect();
+      const preview = document.querySelector(".preview")?.getBoundingClientRect();
+      const workspace = document.querySelector("#workspace");
+      const tabs = document.querySelector("#mobileTabs")?.getBoundingClientRect();
+      return {
+        mapHeight: Math.round(map?.height || 0),
+        previewHeight: Math.round(preview?.height || 0),
+        previewInside: Boolean(preview && tabs && preview.bottom <= tabs.top + 1),
+        savedPreview: JSON.parse(localStorage.getItem("stateBlueprintHotLinked.model.v2.ui") || "{}").previewWidth,
+        cssPreviewHeight: workspace ? parseFloat(getComputedStyle(workspace).getPropertyValue("--mobile-preview-panel-height")) : 0
+      };
+    })).toMatchObject({
+      mapHeight: expect.any(Number),
+      previewHeight: expect.any(Number),
+      previewInside: true,
+      savedPreview: expect.any(Number),
+      cssPreviewHeight: expect.any(Number)
+    });
+    const afterSplit = await page.evaluate(() => {
+      const map = document.querySelector("#map")?.getBoundingClientRect();
+      const previewEl = document.querySelector(".preview");
+      const preview = previewEl?.getBoundingClientRect();
+      const workspace = document.querySelector("#workspace");
+      return {
+        mapHeight: Math.round(map?.height || 0),
+        previewHeight: Math.round(preview?.height || 0),
+        cssPreviewHeight: workspace ? Math.round(parseFloat(getComputedStyle(workspace).getPropertyValue("--mobile-preview-panel-height"))) : 0
+      };
+    });
+    expect(afterSplit.previewHeight).toBeGreaterThan(beforeSplit.previewHeight + 40);
+    expect(afterSplit.mapHeight).toBeLessThan(beforeSplit.mapHeight - 40);
+    expect(afterSplit.cssPreviewHeight).toBeGreaterThan(beforeSplit.previewHeight + 40);
+    expect(await savedModel(page)).toEqual(beforeResizeModel);
     await expect(page.locator("#stateInspectorBody")).not.toContainText("Click a state");
     await expect(page.locator("#stateInspectorBody")).not.toContainText("Drag a state");
     await page.evaluate(() => {

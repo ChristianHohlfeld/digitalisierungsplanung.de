@@ -240,10 +240,15 @@
       z-index: 0;
       --inspector-panel-width: 340px;
       --preview-panel-width: 380px;
+      --mobile-preview-panel-height: clamp(220px, 34dvh, 320px);
       grid-template-columns: var(--inspector-panel-width) minmax(240px, 1fr) var(--preview-panel-width);
       min-height: 0;
       min-width: 0;
       transition: grid-template-columns .18s ease, grid-template-rows .18s ease;
+    }
+
+    .workspace.panel-resizing {
+      transition: none;
     }
 
     html[data-preview-collapsed="true"] .workspace,
@@ -3441,9 +3446,15 @@
         grid-template-rows: minmax(0, 1fr);
       }
 
-      .workspace.mobile-canvas-active {
+      html[data-preview-collapsed="true"] .workspace.mobile-canvas-active,
+      html[data-inspector-collapsed="true"] .workspace.mobile-canvas-active,
+      html[data-inspector-collapsed="true"][data-preview-collapsed="true"] .workspace.mobile-canvas-active,
+      .workspace.mobile-canvas-active,
+      .workspace.mobile-canvas-active.preview-collapsed,
+      .workspace.mobile-canvas-active.inspector-collapsed,
+      .workspace.mobile-canvas-active.inspector-collapsed.preview-collapsed {
         grid-template-columns: 1fr;
-        grid-template-rows: minmax(220px, 1fr) clamp(220px, 34dvh, 320px);
+        grid-template-rows: minmax(120px, 1fr) var(--mobile-preview-panel-height);
       }
 
       .inspector,
@@ -3458,6 +3469,30 @@
 
       .panel-resizer {
         display: none;
+      }
+
+      html[data-preview-collapsed="true"] .workspace.mobile-canvas-active .preview-resizer,
+      .workspace.mobile-canvas-active.preview-collapsed .preview-resizer,
+      .workspace.mobile-canvas-active .preview-resizer {
+        display: block;
+        top: auto;
+        right: 0;
+        bottom: calc(var(--mobile-preview-panel-height) - 9px);
+        left: 0;
+        width: auto;
+        height: 18px;
+        min-width: 0;
+        min-height: 18px;
+        cursor: row-resize;
+      }
+
+      .workspace.mobile-canvas-active .preview-resizer::after {
+        top: 8px;
+        right: 16px;
+        bottom: auto;
+        left: 16px;
+        width: auto;
+        height: 2px;
       }
 
       .workspace.mobile-canvas-active .inspector,
@@ -3868,8 +3903,14 @@
     }
 
     @media (max-width: 899px) and (pointer: coarse) and (orientation: landscape) {
-      .workspace.mobile-canvas-active {
-        grid-template-columns: minmax(300px, 1fr) clamp(280px, 38vw, 380px);
+      html[data-preview-collapsed="true"] .workspace.mobile-canvas-active,
+      html[data-inspector-collapsed="true"] .workspace.mobile-canvas-active,
+      html[data-inspector-collapsed="true"][data-preview-collapsed="true"] .workspace.mobile-canvas-active,
+      .workspace.mobile-canvas-active,
+      .workspace.mobile-canvas-active.preview-collapsed,
+      .workspace.mobile-canvas-active.inspector-collapsed,
+      .workspace.mobile-canvas-active.inspector-collapsed.preview-collapsed {
+        grid-template-columns: minmax(300px, 1fr) var(--preview-panel-width);
         grid-template-rows: minmax(0, 1fr);
       }
 
@@ -3883,6 +3924,29 @@
         grid-row: 1;
         border-top: 0;
         border-left: 1px solid #18314d;
+      }
+
+      html[data-preview-collapsed="true"] .workspace.mobile-canvas-active .preview-resizer,
+      .workspace.mobile-canvas-active.preview-collapsed .preview-resizer,
+      .workspace.mobile-canvas-active .preview-resizer {
+        top: 0;
+        right: calc(var(--preview-panel-width) - 9px);
+        bottom: 0;
+        left: auto;
+        width: 18px;
+        height: auto;
+        min-width: 18px;
+        min-height: 0;
+        cursor: col-resize;
+      }
+
+      .workspace.mobile-canvas-active .preview-resizer::after {
+        top: 16px;
+        right: auto;
+        bottom: 16px;
+        left: 8px;
+        width: 2px;
+        height: auto;
       }
     }
 
@@ -4834,9 +4898,10 @@
       const touchFeedbackCss = `    .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 9px 13px; border-radius: 999px; background: var(--primary); color: var(--primary-text); font-weight: 950; }`;
       const touchFeedbackCssEnhanced = `    .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 9px 13px; border-radius: 8px; background: var(--primary); color: var(--primary-text); font-weight: 950; }
     button:active,
-    a:active,
-    .btn:active,
-    .daisy-widget:active,
+    a[href]:active,
+    [role="button"]:active,
+    summary:active,
+    .switch:active,
     .runtime-touch-pressed { filter: brightness(1.14); transform: translateY(1px) scale(.985); }`;
       const runtimeTouchFeedbackJs = `    document.addEventListener("dragstart", evt => {
       evt.preventDefault();
@@ -4845,7 +4910,7 @@
 
     function runtimeTouchFeedbackTarget(target) {
       if (!target || target.closest?.("input, textarea, select, [contenteditable='true']")) return null;
-      return target.closest?.("button, a[href], [role='button'], .daisy-widget, .card, .alert") || null;
+      return target.closest?.("button, a[href], [role='button'], summary, .switch") || null;
     }
 
     function clearRuntimeTouchPressed() {
@@ -7740,7 +7805,9 @@
     const INSPECTOR_PANEL_DEFAULT = 340;
     const INSPECTOR_PANEL_MAX = 680;
     const PREVIEW_PANEL_MIN = 240;
+    const PREVIEW_PANEL_MOBILE_MIN = 80;
     const PREVIEW_PANEL_DEFAULT = 380;
+    const PREVIEW_PANEL_MOBILE_DEFAULT = PREVIEW_PANEL_MOBILE_MIN;
     const PREVIEW_PANEL_MAX = 720;
     const MIN_CANVAS_COLUMN = 240;
     const initialEditorState = loadEditorState();
@@ -8503,6 +8570,8 @@
     }
 
     function loadUiState() {
+      const mobilePreviewLayout = isMobileWorkspaceLayout();
+      const previewMin = mobilePreviewLayout ? PREVIEW_PANEL_MOBILE_MIN : PREVIEW_PANEL_MIN;
       const fallback = {
         inspectorCollapsed: true,
         previewCollapsed: defaultPreviewCollapsed(),
@@ -8510,7 +8579,7 @@
         stateExplorerGroup: "website",
         mobileWorkspaceView: "canvas",
         inspectorWidth: INSPECTOR_PANEL_DEFAULT,
-        previewWidth: PREVIEW_PANEL_DEFAULT
+        previewWidth: mobilePreviewLayout ? PREVIEW_PANEL_MOBILE_DEFAULT : PREVIEW_PANEL_DEFAULT
       };
       try {
         const stored = JSON.parse(localStorage.getItem(UI_STATE_KEY) || "null");
@@ -8522,7 +8591,7 @@
           stateExplorerGroup: normalizeStateExplorerGroup(stored.stateExplorerGroup),
           mobileWorkspaceView: normalizeMobileWorkspaceView(stored.mobileWorkspaceView),
           inspectorWidth: normalizeStoredPanelWidth(stored.inspectorWidth, INSPECTOR_PANEL_MIN, INSPECTOR_PANEL_MAX, fallback.inspectorWidth),
-          previewWidth: normalizeStoredPanelWidth(stored.previewWidth, PREVIEW_PANEL_MIN, PREVIEW_PANEL_MAX, fallback.previewWidth)
+          previewWidth: normalizeStoredPanelWidth(stored.previewWidth, previewMin, PREVIEW_PANEL_MAX, fallback.previewWidth)
         };
       } catch (_) {
         return fallback;
@@ -8551,8 +8620,28 @@
       return workspaceEl.getBoundingClientRect().width || window.innerWidth || 1280;
     }
 
+    function workspacePanelHeight() {
+      return workspaceEl.getBoundingClientRect().height || window.innerHeight || 720;
+    }
+
     function usesStackedPreviewLayout() {
       return Boolean(window.matchMedia?.("(max-width: 900px)")?.matches);
+    }
+
+    function mobileCanvasPreviewSideBySide() {
+      return Boolean(window.matchMedia?.("(max-width: 899px) and (pointer: coarse) and (orientation: landscape)")?.matches);
+    }
+
+    function mobileWorkspaceAvailableHeight() {
+      const topbarBottom = document.querySelector(".topbar")?.getBoundingClientRect().bottom || 0;
+      const tabsTop = document.getElementById("mobileTabs")?.getBoundingClientRect().top || window.innerHeight || 720;
+      return Math.max(workspacePanelHeight(), tabsTop - topbarBottom);
+    }
+
+    function maxMobilePreviewPanelSize() {
+      const available = mobileCanvasPreviewSideBySide() ? workspacePanelWidth() : mobileWorkspaceAvailableHeight();
+      const max = Math.min(PREVIEW_PANEL_MAX, available - 120);
+      return Math.max(PREVIEW_PANEL_MOBILE_MIN, max);
     }
 
     function maxInspectorPanelWidth() {
@@ -8566,6 +8655,7 @@
     }
 
     function maxPreviewPanelWidth() {
+      if (isMobileWorkspaceLayout()) return maxMobilePreviewPanelSize();
       if (usesStackedPreviewLayout()) return PREVIEW_PANEL_MAX;
       const workspaceWidth = workspacePanelWidth();
       const inspectorColumn = inspectorCollapsed ? 46 : inspectorPanelWidth;
@@ -8573,14 +8663,33 @@
     }
 
     function clampPanelWidths() {
-      previewPanelWidth = clampNumber(Math.round(previewPanelWidth), PREVIEW_PANEL_MIN, maxPreviewPanelWidth());
+      const previewMin = isMobileWorkspaceLayout() ? PREVIEW_PANEL_MOBILE_MIN : PREVIEW_PANEL_MIN;
+      previewPanelWidth = clampNumber(Math.round(previewPanelWidth), previewMin, maxPreviewPanelWidth());
       inspectorPanelWidth = clampNumber(Math.round(inspectorPanelWidth), INSPECTOR_PANEL_MIN, maxInspectorPanelWidth());
+    }
+
+    function applyWorkspaceSplitStyle() {
+      const mobileCanvas = isMobileWorkspaceLayout() && mobileWorkspaceView === "canvas";
+      if (!mobileCanvas) {
+        workspaceEl.style.gridTemplateColumns = "";
+        workspaceEl.style.gridTemplateRows = "";
+        return;
+      }
+      if (mobileCanvasPreviewSideBySide()) {
+        workspaceEl.style.gridTemplateColumns = `minmax(300px, 1fr) ${previewPanelWidth}px`;
+        workspaceEl.style.gridTemplateRows = "";
+      } else {
+        workspaceEl.style.gridTemplateColumns = "";
+        workspaceEl.style.gridTemplateRows = `minmax(120px, 1fr) ${previewPanelWidth}px`;
+      }
     }
 
     function applyPanelWidths(opts = {}) {
       clampPanelWidths();
       workspaceEl.style.setProperty("--inspector-panel-width", inspectorPanelWidth + "px");
       workspaceEl.style.setProperty("--preview-panel-width", previewPanelWidth + "px");
+      workspaceEl.style.setProperty("--mobile-preview-panel-height", previewPanelWidth + "px");
+      applyWorkspaceSplitStyle();
       if (opts.persist !== false) saveUiState();
       if (opts.redraw === false) return;
       requestAnimationFrame(() => {
@@ -8590,14 +8699,18 @@
     }
 
     function startPanelResize(kind, evt) {
-      if (isMobileWorkspaceLayout()) return;
+      const mobilePreviewResize = kind === "preview" && isMobileWorkspaceLayout() && mobileWorkspaceView === "canvas";
+      if (isMobileWorkspaceLayout() && !mobilePreviewResize) return;
       evt.preventDefault();
       evt.stopPropagation();
       clearQuickRenameSession();
       panelResize = {
         kind,
+        mobilePreviewResize,
+        mobileSideBySide: mobilePreviewResize && mobileCanvasPreviewSideBySide(),
         pointerId: evt.pointerId,
         startX: evt.clientX,
+        startY: evt.clientY,
         inspectorWidth: inspectorPanelWidth,
         previewWidth: previewPanelWidth
       };
@@ -8610,7 +8723,10 @@
       evt.preventDefault();
       evt.stopImmediatePropagation();
       const deltaX = evt.clientX - panelResize.startX;
-      if (panelResize.kind === "inspector") {
+      const deltaY = evt.clientY - panelResize.startY;
+      if (panelResize.mobilePreviewResize) {
+        previewPanelWidth = panelResize.previewWidth - (panelResize.mobileSideBySide ? deltaX : deltaY);
+      } else if (panelResize.kind === "inspector") {
         inspectorPanelWidth = panelResize.inspectorWidth + deltaX;
       } else {
         previewPanelWidth = panelResize.previewWidth - deltaX;
@@ -8726,6 +8842,7 @@
       workspaceEl.classList.toggle("mobile-presets-active", mobileWorkspaceView === "presets");
       workspaceEl.classList.toggle("mobile-edit-active", mobileWorkspaceView === "edit");
       workspaceEl.classList.toggle("mobile-app-active", mobileWorkspaceView === "app");
+      applyWorkspaceSplitStyle();
       mobileTabEls.forEach(button => {
         const active = button.dataset.mobileView === mobileWorkspaceView;
         button.classList.toggle("active", active);
