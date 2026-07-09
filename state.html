@@ -5799,6 +5799,14 @@
         setRuntimePaused(Boolean(data.paused));
         return;
       }
+      if (data.type === "STATE_BLUEPRINT_REALTIME_EVENT") {
+        const name = normalizeTransitionEvent(data.name || "");
+        const detail = data.detail && typeof data.detail === "object" && !Array.isArray(data.detail)
+          ? JSON.parse(JSON.stringify(data.detail))
+          : {};
+        if (name) emitRuntimeEvent(name, detail);
+        return;
+      }
       if (data.type !== "STATE_BLUEPRINT_MODEL") return;
       const previousModel = model;`;
       const runtimeModelPauseJs = `      if (data.reset) context = defaultContext(model);
@@ -7176,6 +7184,8 @@
 
     const GENERATED_APP_HTML = enhanceGeneratedAppHtml(APP_HTML);
     const APP_URL = URL.createObjectURL(new Blob([GENERATED_APP_HTML], { type: "text/html" }));
+    const REALTIME_WSS_URL = "wss://realtime.digitalisierungsplanung.de/ws";
+    const REALTIME_TOKEN_URL = "https://realtime.digitalisierungsplanung.de/token";
     const WORLD_MIN_X = -10000;
     const WORLD_MIN_Y = -8000;
     const WORLD_MAX_X = 20000;
@@ -7276,6 +7286,19 @@
     let pendingAppStartStateId = null;
     let pendingAppStartSuppressLayerFollow = false;
     let lastAppTransitionId = null;
+    const realtimeTransport = {
+      roomId: "",
+      clientId: "",
+      socket: null,
+      joined: false,
+      started: false,
+      connecting: false,
+      seq: 0,
+      reconnectAttempt: 0,
+      reconnectTimer: 0,
+      outboundQueue: [],
+      lastSentBusEventKey: ""
+    };
     let hoveredEdgeId = null;
     let allowInspectorProgrammaticFocusUntil = 0;
     let transitionInspectorKeyboardEditing = false;
@@ -21422,6 +21445,197 @@
       }
     }
 
+    function sanitizeRealtimeId(value) {
+      const text = String(value || "").trim();
+      if (!text || text.length > 128) return "";
+      return /^[a-zA-Z0-9_.:-]+$/.test(text) ? text : "";
+    }
+
+    function realtimeRoomFromLocation() {
+      const params = new URLSearchParams(window.location.search || "");
+      return sanitizeRealtimeId(params.get("room") || params.get("realtimeRoom") || "");
+    }
+
+    function randomRealtimeClientId() {
+      const randomId = window.crypto?.randomUUID?.();
+      if (randomId) return sanitizeRealtimeId("client-" + randomId);
+      return sanitizeRealtimeId("client-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2));
+    }
+
+    function realtimeClientId() {
+      const key = "stateBlueprint.realtime.clientId";
+      try {
+        const existing = sanitizeRealtimeId(sessionStorage.getItem(key) || "");
+        if (existing) return existing;
+        const next = randomRealtimeClientId();
+        sessionStorage.setItem(key, next);
+        return next;
+      } catch (_) {
+        return randomRealtimeClientId();
+      }
+    }
+
+    function realtimeEventDetailFromBus(eventName) {
+      const detail = jsonValueAtPath(latestRuntimeContext, "events." + eventName + ".detail");
+      return isPlainObject(detail) ? JSON.parse(JSON.stringify(detail)) : {};
+    }
+
+    function sendRealtimeRuntimeEvent(eventName, detail = {}) {
+      if (!realtimeTransport.roomId) return false;
+      const name = normalizeTransitionEvent(eventName || "");
+      if (!name || !name.startsWith("realtime.")) return false;
+      const payload = {
+        type: "runtime.event",
+        seq: ++realtimeTransport.seq,
+        name,
+        detail: isPlainObject(detail) ? JSON.parse(JSON.stringify(detail)) : {}
+      };
+      if (!realtimeTransport.joined || !realtimeTransport.socket || realtimeTransport.socket.readyState !== WebSocket.OPEN) {
+        realtimeTransport.outboundQueue.push(payload);
+        realtimeTransport.outboundQueue = realtimeTransport.outboundQueue.slice(-32);
+        return true;
+      }
+      realtimeTransport.socket.send(JSON.stringify(payload));
+      return true;
+    }
+
+    function flushRealtimeOutboundQueue() {
+      if (!realtimeTransport.joined || !realtimeTransport.socket || realtimeTransport.socket.readyState !== WebSocket.OPEN) return;
+      const queue = realtimeTransport.outboundQueue.splice(0);
+      queue.forEach(payload => realtimeTransport.socket.send(JSON.stringify(payload)));
+    }
+
+    function relayRuntimeBusEventToRealtime() {
+      if (!realtimeTransport.started || !realtimeTransport.roomId) return;
+      const name = normalizeTransitionEvent(latestRuntimeContext?.lastEvent || "");
+      if (!name || !name.startsWith("realtime.")) return;
+      const count = Number(jsonValueAtPath(latestRuntimeContext, "events." + name + ".count") || 0);
+      const lastAt = Number(latestRuntimeContext?.lastEventAt || 0);
+      const key = name + ":" + count + ":" + lastAt;
+      if (key === realtimeTransport.lastSentBusEventKey) return;
+      realtimeTransport.lastSentBusEventKey = key;
+      const detail = realtimeEventDetailFromBus(name);
+      if (detail.source === "realtime" || detail.__realtimeRemote === true) return;
+      sendRealtimeRuntimeEvent(name, detail);
+    }
+
+    function applyRealtimeRuntimeEvent(message) {
+      if (!message || message.clientId === realtimeTransport.clientId) return;
+      const name = normalizeTransitionEvent(message.name || "");
+      if (!name || !name.startsWith("realtime.")) return;
+      const sourceDetail = isPlainObject(message.detail) ? JSON.parse(JSON.stringify(message.detail)) : {};
+      postRuntimePayload({
+        type: "STATE_BLUEPRINT_REALTIME_EVENT",
+        name,
+        detail: {
+          ...sourceDetail,
+          source: "realtime",
+          __realtimeRemote: true,
+          roomId: sanitizeRealtimeId(message.roomId || realtimeTransport.roomId),
+          remoteClientId: sanitizeRealtimeId(message.clientId || ""),
+          serverTime: Number(message.serverTime) || Date.now()
+        }
+      });
+    }
+
+    async function fetchRealtimeRoomToken() {
+      const url = new URL(REALTIME_TOKEN_URL);
+      url.searchParams.set("roomId", realtimeTransport.roomId);
+      url.searchParams.set("clientId", realtimeTransport.clientId);
+      const response = await fetch(url.toString(), {
+        method: "GET",
+        cache: "no-store",
+        credentials: "omit"
+      });
+      if (!response.ok) throw new Error("Realtime token failed");
+      const payload = await response.json();
+      return String(payload.token || "");
+    }
+
+    function scheduleRealtimeReconnect() {
+      if (!realtimeTransport.started || realtimeTransport.reconnectTimer) return;
+      const delay = Math.min(10000, 500 * Math.pow(2, realtimeTransport.reconnectAttempt++));
+      realtimeTransport.reconnectTimer = setTimeout(() => {
+        realtimeTransport.reconnectTimer = 0;
+        connectRealtimeTransport();
+      }, delay);
+    }
+
+    async function connectRealtimeTransport() {
+      if (!realtimeTransport.started || realtimeTransport.connecting || !window.WebSocket || !window.fetch) return;
+      realtimeTransport.connecting = true;
+      try {
+        const token = await fetchRealtimeRoomToken();
+        const socket = new WebSocket(REALTIME_WSS_URL);
+        realtimeTransport.socket = socket;
+        realtimeTransport.joined = false;
+        socket.addEventListener("open", () => {
+          socket.send(JSON.stringify({
+            type: "join",
+            roomId: realtimeTransport.roomId,
+            clientId: realtimeTransport.clientId,
+            token
+          }));
+        });
+        socket.addEventListener("message", evt => {
+          let message = null;
+          try { message = JSON.parse(String(evt.data || "")); } catch (_) {}
+          if (!message || typeof message !== "object") return;
+          if (message.type === "joined") {
+            realtimeTransport.joined = true;
+            realtimeTransport.reconnectAttempt = 0;
+            flushRealtimeOutboundQueue();
+            return;
+          }
+          if (message.type === "runtime.event") applyRealtimeRuntimeEvent(message);
+        });
+        socket.addEventListener("close", () => {
+          realtimeTransport.joined = false;
+          scheduleRealtimeReconnect();
+        });
+        socket.addEventListener("error", () => {});
+      } catch (_) {
+        scheduleRealtimeReconnect();
+      } finally {
+        realtimeTransport.connecting = false;
+      }
+    }
+
+    function startRealtimeTransport() {
+      if (realtimeTransport.started) return;
+      const roomId = realtimeRoomFromLocation();
+      if (!roomId) return;
+      realtimeTransport.roomId = roomId;
+      realtimeTransport.clientId = realtimeClientId();
+      realtimeTransport.started = true;
+      connectRealtimeTransport();
+    }
+
+    window.__stateBlueprintRealtime = {
+      emit(eventName, detail = {}) {
+        const name = normalizeTransitionEvent(eventName || "");
+        if (!name || !name.startsWith("realtime.")) return false;
+        const sourceDetail = isPlainObject(detail) ? JSON.parse(JSON.stringify(detail)) : {};
+        postRuntimePayload({
+          type: "STATE_BLUEPRINT_REALTIME_EVENT",
+          name,
+          detail: {
+            ...sourceDetail,
+            source: sourceDetail.source || "realtime-local",
+            localClientId: realtimeTransport.clientId
+          }
+        });
+        return true;
+      },
+      status() {
+        return {
+          roomId: realtimeTransport.roomId,
+          clientId: realtimeTransport.clientId,
+          joined: realtimeTransport.joined
+        };
+      }
+    };
+
     function clearPresetPreviewUi() {
       presetPreviewActive = false;
       previewTemplateId = "";
@@ -24444,6 +24658,7 @@
       applyRuntimePaused(Boolean(data.paused ?? latestRuntimeContext?.runtime?.paused), { send: false });
       if (typeof refreshInspectorGlobalStateTree === "function") refreshInspectorGlobalStateTree();
       syncRuntimeStateLabel();
+      relayRuntimeBusEventToRealtime();
       const stateChanged = previousAppState !== currentAppState;
       const pendingStartId = pendingAppStartStateId;
       const pendingStartResolvedToDescendant = Boolean(pendingStartId && currentAppState && isDescendant(pendingStartId, currentAppState));
@@ -24743,6 +24958,7 @@
         postRuntimePayload(payload);
       } else if (pendingAppStartStateId && byId(pendingAppStartStateId)) startAppAtState(pendingAppStartStateId);
       else syncToApp(true);
+      startRealtimeTransport();
     });
     frameEl.src = APP_URL;
 
