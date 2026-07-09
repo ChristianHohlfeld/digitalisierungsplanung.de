@@ -86,16 +86,21 @@ Der optionale Realtime-Server in `server/` ist nur Transport fuer Runtime-Events
 
 - WSS-Endpunkt: `wss://realtime.digitalisierungsplanung.de/ws`
 - Token-Endpunkt: `https://realtime.digitalisierungsplanung.de/token`
-- Provider-Contract: `https://realtime.digitalisierungsplanung.de/events`
+- Marketplace-Index: `https://realtime.digitalisierungsplanung.de/marketplace`
+- Preset-Referenzen: `https://realtime.digitalisierungsplanung.de/presets`
+- Event-Definitionen: `https://realtime.digitalisierungsplanung.de/events`
+- Endpoint-Definitionen: `https://realtime.digitalisierungsplanung.de/endpoints`
+- State-Schema: `https://realtime.digitalisierungsplanung.de/state-schema`
 - Server-to-server Fire-Endpunkt: `https://realtime.digitalisierungsplanung.de/emit`
 - Test-Konsole: `https://realtime.digitalisierungsplanung.de/console.html`
 - Aktivierung im Editor: `state.html?room=<room-id>`
 - Zwischen Clients werden nur `realtime.*` Events weitergereicht.
 
-Realtime erzeugt keine zweite Wahrheit. Der Provider-Contract aus `/events` wird in `model.realtime.events` importiert und beschreibt Eventnamen, Detail-Felder und eindeutige Bindings in den globalen JSON-State. Eingehende Nachrichten werden als `STATE_BLUEPRINT_REALTIME_EVENT` an die generierte Runtime gegeben, schreiben dort erst in den JSON-Bus und koennen nur dann Transitions bewegen. Der Host behandelt Runtime-Kontext weiter nur als read-only Snapshot.
+Realtime erzeugt keine zweite Wahrheit. Der Marketplace auf dem Realtime-Server ist der Werkzeugkasten und die Single Source of Truth fuer angebotene Presets, Events, Endpoints und State-Felder. Der Canvas soll nur konkrete Referenzen speichern, die er wirklich verwendet: zum Beispiel `triggerEvent`, Feldpfade, Room-ID und Endpoint-ID. Er speichert keine Preset-Contracts, keine importierten Endpoint-Definitionen und keine Preset-Instanzen.
 
-Server-to-server Emit ist stateless: `/emit` persistiert keine Call-Objekte und haelt keinen fachlichen Zustand. Es akzeptiert nur angebotene Events aus dem Provider-Contract und broadcastet die Event-Instanz in den Room.
-Im State-Editor kann der Server-Contract bei `Realtime event` mit `Reload server events` erneut aus `/events` geladen werden.
+Die Bereiche sind strikt getrennt: `/marketplace` liefert nur Links und Counts, `/presets` nur Preset-Refs, `/events` nur Event-Definitionen, `/endpoints` nur Endpoint-Definitionen und `/state-schema` nur globale State-Felder. Eingehende Nachrichten werden als `STATE_BLUEPRINT_REALTIME_EVENT` an die generierte Runtime gegeben, schreiben dort erst in den JSON-Bus und koennen nur dann Transitions bewegen. Der Host behandelt Runtime-Kontext weiter nur als read-only Snapshot.
+
+Server-to-server Emit ist stateless: `/emit` persistiert keine Call-Objekte und haelt keinen fachlichen Zustand. Es akzeptiert nur angebotene Events aus dem Marketplace und broadcastet die Event-Instanz in den Room.
 
 Beispiel:
 

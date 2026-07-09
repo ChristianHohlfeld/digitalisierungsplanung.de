@@ -7,6 +7,11 @@ WebSocket relay for `state.html` realtime canvas/runtime events.
 - Public endpoint: `wss://realtime.digitalisierungsplanung.de/ws`
 - Token endpoint: `https://realtime.digitalisierungsplanung.de/token`
 - Test console: `https://realtime.digitalisierungsplanung.de/console.html`
+- Marketplace index: `https://realtime.digitalisierungsplanung.de/marketplace`
+- Preset refs: `https://realtime.digitalisierungsplanung.de/presets`
+- Event definitions: `https://realtime.digitalisierungsplanung.de/events`
+- Endpoint definitions: `https://realtime.digitalisierungsplanung.de/endpoints`
+- State schema: `https://realtime.digitalisierungsplanung.de/state-schema`
 - Local process: `127.0.0.1:8788`
 - Allowed browser origin: `https://digitalisierungsplanung.de`
 - Room auth: signed HMAC room token via `REALTIME_ROOM_SECRET`
@@ -53,6 +58,18 @@ triggerEvent: realtime.canvas.pulse
 ```
 
 Open `https://realtime.digitalisierungsplanung.de/console.html?room=<room-id>` for a browser test emitter. The console loads event names and detail fields from `/events`, then POSTs to `/emit` with the Bearer secret you paste into the page. It stores no server-side state.
+
+## Marketplace Catalog
+
+The marketplace is the server-side source of truth for offered realtime presets. Each area has one responsibility:
+
+- `/marketplace`: index links and counts only.
+- `/presets`: concrete preset refs only, using `eventIds`, `endpointIds`, and `statePaths`.
+- `/events`: event definitions only.
+- `/endpoints`: websocket/http endpoint definitions only.
+- `/state-schema`: global JSON state field definitions only.
+
+The canvas should store only concrete refs it uses, such as `triggerEvent`, field paths, room id, and endpoint ids. It should not store preset contracts, imported endpoint definitions, or preset instances.
 
 ## Droplet Deploy
 

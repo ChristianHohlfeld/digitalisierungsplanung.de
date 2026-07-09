@@ -12,6 +12,10 @@ const DEFAULT_TOKEN_PATH = "/token";
 const DEFAULT_EVENTS_PATH = "/events";
 const DEFAULT_EMIT_PATH = "/emit";
 const DEFAULT_CONSOLE_PATH = "/console.html";
+const DEFAULT_MARKETPLACE_PATH = "/marketplace";
+const DEFAULT_PRESETS_PATH = "/presets";
+const DEFAULT_ENDPOINTS_PATH = "/endpoints";
+const DEFAULT_STATE_SCHEMA_PATH = "/state-schema";
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 8788;
 const MAX_ID_LENGTH = 128;
@@ -115,7 +119,7 @@ const CONSOLE_HTML = `<!doctype html>
     <header>
       <div>
         <h1>Realtime Event Console</h1>
-        <div class="status" id="status">Loading provider contract...</div>
+        <div class="status" id="status">Loading event catalog...</div>
       </div>
       <a id="stateLink" href="https://digitalisierungsplanung.de/state.html?room=smoke" target="_blank" rel="noreferrer">Open state room</a>
     </header>
@@ -129,7 +133,7 @@ const CONSOLE_HTML = `<!doctype html>
       <label>Emit Secret<input id="secret" name="secret" type="password" autocomplete="off" placeholder="REALTIME_EMIT_SECRET"></label>
       <div class="actions">
         <button id="send" type="submit">Emit event</button>
-        <button id="reload" type="button">Reload contract</button>
+        <button id="reload" type="button">Reload events</button>
       </div>
       <div class="hint">Events come from <code>/events</code>. The secret stays in this browser field and is sent only as the Bearer token for <code>/emit</code>.</div>
     </form>
@@ -187,7 +191,7 @@ const CONSOLE_HTML = `<!doctype html>
     }
 
     async function loadCatalog() {
-      statusEl.textContent = "Loading provider contract...";
+      statusEl.textContent = "Loading event catalog...";
       eventSelect.innerHTML = "";
       const response = await fetch("/events", { cache: "no-store" });
       if (!response.ok) throw new Error("events failed with status " + response.status);
@@ -198,8 +202,8 @@ const CONSOLE_HTML = `<!doctype html>
         option.textContent = (event.label || event.name) + " - " + event.name;
         eventSelect.appendChild(option);
       }
-      if (!eventSelect.options.length) throw new Error("provider contract has no events");
-      statusEl.textContent = "Loaded " + eventSelect.options.length + " contract event(s).";
+      if (!eventSelect.options.length) throw new Error("event catalog has no events");
+      statusEl.textContent = "Loaded " + eventSelect.options.length + " event(s).";
       syncDetail();
       syncStateLink();
     }
@@ -248,12 +252,12 @@ const CONSOLE_HTML = `<!doctype html>
     roomEl.addEventListener("input", syncStateLink);
     eventSelect.addEventListener("change", syncDetail);
     document.getElementById("reload").addEventListener("click", () => loadCatalog().catch(error => {
-      statusEl.textContent = "Contract load failed.";
+      statusEl.textContent = "Event load failed.";
       setResult(error.message, false);
     }));
     document.getElementById("emitForm").addEventListener("submit", emitEvent);
     loadCatalog().catch(error => {
-      statusEl.textContent = "Contract load failed.";
+      statusEl.textContent = "Event load failed.";
       setResult(error.message, false);
     });
   </script>
@@ -299,6 +303,10 @@ function loadConfig(options = {}) {
     eventsPath: options.eventsPath || env.REALTIME_EVENTS_PATH || DEFAULT_EVENTS_PATH,
     emitPath: options.emitPath || env.REALTIME_EMIT_PATH || DEFAULT_EMIT_PATH,
     consolePath: options.consolePath || env.REALTIME_CONSOLE_PATH || DEFAULT_CONSOLE_PATH,
+    marketplacePath: options.marketplacePath || env.REALTIME_MARKETPLACE_PATH || DEFAULT_MARKETPLACE_PATH,
+    presetsPath: options.presetsPath || env.REALTIME_PRESETS_PATH || DEFAULT_PRESETS_PATH,
+    endpointsPath: options.endpointsPath || env.REALTIME_ENDPOINTS_PATH || DEFAULT_ENDPOINTS_PATH,
+    stateSchemaPath: options.stateSchemaPath || env.REALTIME_STATE_SCHEMA_PATH || DEFAULT_STATE_SCHEMA_PATH,
     allowedOrigins: parseList(
       options.allowedOrigins ?? env.REALTIME_ALLOWED_ORIGINS,
       DEFAULT_ALLOWED_ORIGINS
@@ -532,17 +540,131 @@ function publicBaseUrl(request) {
   return `${proto}://${host}`;
 }
 
-function eventCatalogResponse(config, request) {
+function eventCatalogResponse(config) {
+  return {
+    events: config.eventCatalog.events
+  };
+}
+
+function labelFromId(id) {
+  return String(id || "")
+    .split(/[.:-]+/)
+    .filter(Boolean)
+    .map(part => part.slice(0, 1).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function presetIdForEventName(name) {
+  const parts = String(name || "").split(".").filter(Boolean);
+  if (parts.length <= 2) return parts.join(".");
+  return parts.slice(0, -1).join(".");
+}
+
+function endpointCatalogResponse(config, request) {
   const base = publicBaseUrl(request);
   const wsScheme = base.startsWith("https://") ? "wss://" : "ws://";
   const host = base.replace(/^https?:\/\//, "");
+  const eventIds = config.eventCatalog.events.map(event => event.name);
   return {
-    ...config.eventCatalog,
-    transport: {
-      websocket: `${wsScheme}${host}${config.path}`,
-      token: `${base}${config.tokenPath}`,
+    endpoints: [
+      {
+        id: "realtime.websocket",
+        label: "Realtime WebSocket",
+        kind: "websocket",
+        url: `${wsScheme}${host}${config.path}`,
+        emits: eventIds
+      },
+      {
+        id: "realtime.token",
+        label: "Realtime room token",
+        kind: "http",
+        method: "GET",
+        url: `${base}${config.tokenPath}`
+      },
+      {
+        id: "realtime.emit",
+        label: "Emit realtime event",
+        kind: "http",
+        method: "POST",
+        url: `${base}${config.emitPath}`,
+        emits: eventIds
+      }
+    ]
+  };
+}
+
+function stateSchemaResponse(config) {
+  const fields = new Map();
+  const addField = (path, type, source = "marketplace") => {
+    const cleanPath = sanitizeStatePath(path);
+    if (!cleanPath || fields.has(cleanPath)) return;
+    fields.set(cleanPath, {
+      path: cleanPath,
+      type: normalizeValueType(type),
+      source
+    });
+  };
+  const statePath = config.eventCatalog.state.path;
+  for (const [key, type] of Object.entries(config.eventCatalog.state.schema || {})) {
+    addField(`${statePath}.${key}`, type, "realtime.transport");
+  }
+  for (const event of config.eventCatalog.events) {
+    for (const binding of event.bindings || []) {
+      addField(binding.to, binding.type, event.name);
+    }
+  }
+  return {
+    rootPath: statePath,
+    fields: [...fields.values()]
+  };
+}
+
+function presetCatalogResponse(config) {
+  const groups = new Map();
+  const stateFields = stateSchemaResponse(config).fields;
+  for (const event of config.eventCatalog.events) {
+    const presetId = presetIdForEventName(event.name);
+    if (!presetId) continue;
+    if (!groups.has(presetId)) {
+      groups.set(presetId, {
+        id: presetId,
+        label: labelFromId(presetId.replace(/^realtime\./, "")),
+        kind: "realtime",
+        eventIds: [],
+        endpointIds: ["realtime.websocket", "realtime.emit"],
+        statePaths: []
+      });
+    }
+    const preset = groups.get(presetId);
+    preset.eventIds.push(event.name);
+    for (const binding of event.bindings || []) {
+      if (!preset.statePaths.includes(binding.to)) preset.statePaths.push(binding.to);
+    }
+  }
+  for (const preset of groups.values()) {
+    for (const field of stateFields) {
+      if (field.source === "realtime.transport" && !preset.statePaths.includes(field.path)) {
+        preset.statePaths.push(field.path);
+      }
+    }
+  }
+  return { presets: [...groups.values()] };
+}
+
+function marketplaceIndexResponse(config, request) {
+  const base = publicBaseUrl(request);
+  return {
+    links: {
+      presets: `${base}${config.presetsPath}`,
       events: `${base}${config.eventsPath}`,
-      emit: `${base}${config.emitPath}`
+      endpoints: `${base}${config.endpointsPath}`,
+      stateSchema: `${base}${config.stateSchemaPath}`
+    },
+    counts: {
+      presets: presetCatalogResponse(config).presets.length,
+      events: config.eventCatalog.events.length,
+      endpoints: endpointCatalogResponse(config, request).endpoints.length,
+      stateFields: stateSchemaResponse(config).fields.length
     }
   };
 }
@@ -657,6 +779,20 @@ function createRealtimeServer(options = {}) {
       "vary": "Origin"
     };
   };
+  const prepareCatalogResponse = (request, response) => {
+    const origin = request.headers.origin || "";
+    const headers = origin ? corsHeadersForOrigin(origin, request) : {};
+    if (!headers) {
+      writeJson(response, 403, { error: "origin_not_allowed" });
+      return { done: true };
+    }
+    if (request.method === "OPTIONS") {
+      response.writeHead(204, headers);
+      response.end();
+      return { done: true };
+    }
+    return { done: false, headers };
+  };
 
   const server = options.server || http.createServer((request, response) => {
     const url = new URL(request.url || "/", "http://localhost");
@@ -670,18 +806,55 @@ function createRealtimeServer(options = {}) {
       return;
     }
     if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.eventsPath) {
-      const origin = request.headers.origin || "";
-      const headers = origin ? corsHeadersForOrigin(origin, request) : {};
-      if (!headers) {
-        writeJson(response, 403, { error: "origin_not_allowed" });
+      const prepared = prepareCatalogResponse(request, response);
+      if (prepared.done) return;
+      writeJson(response, 200, eventCatalogResponse(config), prepared.headers);
+      return;
+    }
+    if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.marketplacePath) {
+      const prepared = prepareCatalogResponse(request, response);
+      if (prepared.done) return;
+      writeJson(response, 200, marketplaceIndexResponse(config, request), prepared.headers);
+      return;
+    }
+    if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.endpointsPath) {
+      const prepared = prepareCatalogResponse(request, response);
+      if (prepared.done) return;
+      writeJson(response, 200, endpointCatalogResponse(config, request), prepared.headers);
+      return;
+    }
+    if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.stateSchemaPath) {
+      const prepared = prepareCatalogResponse(request, response);
+      if (prepared.done) return;
+      writeJson(response, 200, stateSchemaResponse(config), prepared.headers);
+      return;
+    }
+    if (
+      (request.method === "GET" || request.method === "OPTIONS") &&
+      (url.pathname === config.presetsPath || url.pathname.startsWith(`${config.presetsPath}/`))
+    ) {
+      const prepared = prepareCatalogResponse(request, response);
+      if (prepared.done) return;
+      const catalog = presetCatalogResponse(config);
+      const rawPresetId = url.pathname === config.presetsPath ? "" : url.pathname.slice(config.presetsPath.length + 1);
+      let decodedPresetId = "";
+      try {
+        decodedPresetId = decodeURIComponent(rawPresetId);
+      } catch (_) {
+        writeJson(response, 400, { error: "invalid_preset" }, prepared.headers);
         return;
       }
-      if (request.method === "OPTIONS") {
-        response.writeHead(204, headers);
-        response.end();
+      const presetId = sanitizeId(decodedPresetId);
+      if (!presetId) {
+        writeJson(response, 200, catalog, prepared.headers);
         return;
       }
-      writeJson(response, 200, eventCatalogResponse(config, request), headers);
+      const preset = catalog.presets.find(item => item.id === presetId);
+      if (!preset) {
+        writeJson(response, 404, { error: "preset_not_found" }, prepared.headers);
+        return;
+      }
+      writeJson(response, 200, { preset }, prepared.headers);
       return;
     }
     if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.emitPath) {

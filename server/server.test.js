@@ -169,7 +169,7 @@ test("does not issue room tokens without a server secret", async () => {
   });
 });
 
-test("serves the realtime provider event contract to allowed origins", async () => {
+test("serves event definitions only to allowed origins", async () => {
   await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
     const response = await fetch(httpUrl(realtime, "/events"), {
       headers: { Origin: ORIGIN }
@@ -178,9 +178,9 @@ test("serves the realtime provider event contract to allowed origins", async () 
     assert.equal(response.headers.get("access-control-allow-origin"), ORIGIN);
 
     const payload = await response.json();
-    assert.equal(payload.provider.id, "digitalisierungsplanung.realtime");
-    assert.equal(payload.state.path, "realtime");
-    assert.equal(payload.transport.emit, httpUrl(realtime, "/emit"));
+    assert.equal(payload.provider, undefined);
+    assert.equal(payload.state, undefined);
+    assert.equal(payload.transport, undefined);
     assert.ok(payload.events.some(event => event.name === "realtime.sip.call.incoming"));
     assert.ok(payload.events
       .find(event => event.name === "realtime.sip.call.incoming")
@@ -190,6 +190,96 @@ test("serves the realtime provider event contract to allowed origins", async () 
       headers: { Origin: "https://evil.example" }
     });
     assert.equal(rejected.status, 403);
+  });
+});
+
+test("serves marketplace index without copying concrete catalog areas", async () => {
+  await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
+    const response = await fetch(httpUrl(realtime, "/marketplace"), {
+      headers: { Origin: ORIGIN }
+    });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("access-control-allow-origin"), ORIGIN);
+
+    const payload = await response.json();
+    assert.equal(payload.links.presets, httpUrl(realtime, "/presets"));
+    assert.equal(payload.links.events, httpUrl(realtime, "/events"));
+    assert.equal(payload.links.endpoints, httpUrl(realtime, "/endpoints"));
+    assert.equal(payload.links.stateSchema, httpUrl(realtime, "/state-schema"));
+    assert.equal(payload.counts.presets, 1);
+    assert.equal(payload.counts.events, 3);
+    assert.equal(payload.counts.endpoints, 3);
+    assert.ok(payload.counts.stateFields > 0);
+    assert.equal(payload.events, undefined);
+    assert.equal(payload.presets, undefined);
+    assert.equal(payload.endpoints, undefined);
+
+    const rejected = await fetch(httpUrl(realtime, "/marketplace"), {
+      headers: { Origin: "https://evil.example" }
+    });
+    assert.equal(rejected.status, 403);
+  });
+});
+
+test("serves preset references separately from event definitions", async () => {
+  await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
+    const response = await fetch(httpUrl(realtime, "/presets"), {
+      headers: { Origin: ORIGIN }
+    });
+    assert.equal(response.status, 200);
+
+    const payload = await response.json();
+    assert.equal(payload.presets.length, 1);
+    const [preset] = payload.presets;
+    assert.equal(preset.id, "realtime.sip.call");
+    assert.equal(preset.kind, "realtime");
+    assert.ok(preset.eventIds.includes("realtime.sip.call.incoming"));
+    assert.ok(preset.endpointIds.includes("realtime.emit"));
+    assert.ok(preset.statePaths.includes("realtime.sip.call.incoming.caller"));
+    assert.equal(preset.events, undefined);
+    assert.equal(preset.endpoints, undefined);
+
+    const single = await fetch(httpUrl(realtime, "/presets/realtime.sip.call"), {
+      headers: { Origin: ORIGIN }
+    });
+    assert.equal(single.status, 200);
+    assert.equal((await single.json()).preset.id, "realtime.sip.call");
+
+    const missing = await fetch(httpUrl(realtime, "/presets/realtime.unknown"), {
+      headers: { Origin: ORIGIN }
+    });
+    assert.equal(missing.status, 404);
+
+    const invalid = await fetch(httpUrl(realtime, "/presets/%E0%A4%A"), {
+      headers: { Origin: ORIGIN }
+    });
+    assert.equal(invalid.status, 400);
+  });
+});
+
+test("serves endpoint and state-schema catalogs as separate areas", async () => {
+  await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
+    const endpointsResponse = await fetch(httpUrl(realtime, "/endpoints"), {
+      headers: { Origin: ORIGIN }
+    });
+    assert.equal(endpointsResponse.status, 200);
+    const endpointsPayload = await endpointsResponse.json();
+    const websocket = endpointsPayload.endpoints.find(endpoint => endpoint.id === "realtime.websocket");
+    const emit = endpointsPayload.endpoints.find(endpoint => endpoint.id === "realtime.emit");
+    assert.equal(websocket.url, socketUrl(realtime));
+    assert.equal(emit.method, "POST");
+    assert.equal(emit.url, httpUrl(realtime, "/emit"));
+    assert.ok(emit.emits.includes("realtime.sip.call.incoming"));
+
+    const stateResponse = await fetch(httpUrl(realtime, "/state-schema"), {
+      headers: { Origin: ORIGIN }
+    });
+    assert.equal(stateResponse.status, 200);
+    const statePayload = await stateResponse.json();
+    assert.equal(statePayload.rootPath, "realtime");
+    assert.equal(statePayload.state, undefined);
+    assert.ok(statePayload.fields.some(field => field.path === "realtime.roomId" && field.type === "text"));
+    assert.ok(statePayload.fields.some(field => field.path === "realtime.sip.call.incoming.caller" && field.type === "text"));
   });
 });
 
