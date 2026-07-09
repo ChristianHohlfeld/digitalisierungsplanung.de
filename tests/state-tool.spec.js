@@ -6312,6 +6312,7 @@ test.describe("State Blueprint tool", () => {
     expect(templateCopy.data[originalScope]).toBeUndefined();
     expect(templateCopy.dataTypes[templateScope]).toBe("object");
     expect(Object.keys(templateCopy.dataTypes)).not.toContain(originalScope);
+
     expect(templateCopy.components[0]).toMatchObject({ type: "daisy", variant: "countdown", dataPath: templateScope });
   });
 
@@ -6326,7 +6327,7 @@ test.describe("State Blueprint tool", () => {
       label: "Lädt...",
       active: true,
       durationMs: 2000,
-      nextLabel: "Next"
+      nextLabel: "Weiter"
     });
     expect(loadingState.components[0]).toMatchObject({
       type: "daisy",
@@ -6335,7 +6336,7 @@ test.describe("State Blueprint tool", () => {
     });
     expect(loadingState.components.some(component => component.type === "transitionButton")).toBe(false);
 
-    const nextTransition = model.transitions.find(transition => transition.from === loadingId && transition.label === "Next");
+    const nextTransition = model.transitions.find(transition => transition.from === loadingId && transition.label === "Weiter");
     expect(nextTransition).toMatchObject({
       triggerType: "timer",
       triggerEvent: `timer.${nextTransition.id.replace(/[^a-zA-Z0-9_.:-]+/g, ".").replace(/^\.+|\.+$/g, "").toLowerCase()}.done`,
@@ -6344,14 +6345,14 @@ test.describe("State Blueprint tool", () => {
       set: {}
     });
     const nextState = model.states.find(state => state.id === nextTransition.to);
-    expect(nextState).toMatchObject({ title: "Next", parentId: loadingState.parentId || null });
+    expect(nextState).toMatchObject({ title: "Weiter", parentId: loadingState.parentId || null });
     expect(await page.evaluate(({ loadingId, transitionId }) => {
       const state = model.states.find(item => item.id === loadingId);
       state.components.push({ id: "bad_timer_button", type: "transitionButton", transitionId, text: "", url: "", variant: "" });
       normalizeModel(model);
       return state.components.some(component => component.type === "transitionButton" && component.transitionId === transitionId);
     }, { loadingId, transitionId: nextTransition.id })).toBe(false);
-    await expect(componentEditor(page, "Button: Next")).toHaveCount(0);
+    await expect(componentEditor(page, "Button: Weiter")).toHaveCount(0);
     await expect(page.locator("#pComponents .component-editor.transition-button-render")).toHaveCount(0);
 
     const app = appFrame(page);
@@ -6552,6 +6553,15 @@ test.describe("State Blueprint tool", () => {
       return realtime.compareDocumentPosition(empty) & Node.DOCUMENT_POSITION_FOLLOWING ? true : false;
     })).toBe(true);
     await expect.poll(async () => (await savedModel(page)).realtime).toBeUndefined();
+    await expect.poll(() => page.evaluate(() => Boolean(window.__stateBlueprintRealtime?.emit))).toBe(true);
+    await expect(page.evaluate(() => window.__stateBlueprintRealtime.emit("realtime.unknown.event", { value: "nope" }))).resolves.toBe(false);
+    await page.waitForTimeout(120);
+    expect(await page.evaluate(() => latestRuntimeContext?.lastEvent || "")).not.toBe("realtime.unknown.event");
+    await expect(page.evaluate(() => window.__stateBlueprintRealtime.emit("realtime.sip.call.incoming", {
+      caller: "+491234",
+      callId: "local-123"
+    }))).resolves.toBe(true);
+    await expect.poll(() => page.evaluate(() => latestRuntimeContext?.lastEvent || "")).toBe("realtime.sip.call.incoming");
 
     await openStateInspector(page, "auth_start");
     await page.locator("#pStateFlowTransition").selectOption("t_auth_login");

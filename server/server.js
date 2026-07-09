@@ -600,7 +600,7 @@ function validateJoinMessage(message) {
   return { ok: true, roomId, clientId, token: message.token || "" };
 }
 
-function validateRealtimeMessage(message) {
+function validateRealtimeMessage(message, offeredEventNames = new Set()) {
   if (!message || !MESSAGE_TYPES.has(message.type)) return { ok: false, code: "invalid_type" };
   if (message.seq !== undefined && !Number.isSafeInteger(message.seq)) return { ok: false, code: "invalid_seq" };
 
@@ -613,7 +613,8 @@ function validateRealtimeMessage(message) {
 
   if (message.type === "runtime.event") {
     const name = sanitizeEventName(message.name);
-    if (!name) return { ok: false, code: "invalid_event_name" };
+    if (!name || !name.startsWith("realtime.")) return { ok: false, code: "invalid_event_name" };
+    if (!offeredEventNames.has(name)) return { ok: false, code: "event_not_offered" };
     if (message.detail !== undefined && !isPlainObject(message.detail)) return { ok: false, code: "invalid_detail" };
     message.name = name;
     message.detail = message.detail || {};
@@ -920,7 +921,7 @@ function createRealtimeServer(options = {}) {
       return;
     }
 
-    const validated = validateRealtimeMessage(message);
+    const validated = validateRealtimeMessage(message, offeredEventNames);
     if (!validated.ok) {
       sendError(socket, validated.code);
       return;
