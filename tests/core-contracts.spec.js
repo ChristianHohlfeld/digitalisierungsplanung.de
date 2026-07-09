@@ -1315,11 +1315,12 @@ test.describe("Core source contracts", () => {
 
     expect(appHtml).toContain('data.type === "STATE_BLUEPRINT_REALTIME_EVENT"');
     expect(appHtml).toContain('data.type === "STATE_BLUEPRINT_REALTIME_STATUS"');
-    expect(appHtml).toContain("if (name) emitRuntimeEvent(name, detail);");
+    expect(appHtml).toContain("if (name) emitRuntimeEvent(name, detail, eventConfig);");
     expect(appHtml).toContain('writeRuntimeState("events." + name + ".detail", detail');
     expect(appHtml).toContain("function applyRealtimeEventBindings");
     expect(appHtml).toContain('runtimeSet("realtime", next');
-    expect(appHtml).toContain("m.realtime = normalizeRealtimeConfig(m.realtime);");
+    expect(appHtml).toContain("delete m.realtime;");
+    expect(appHtml).not.toContain("m.realtime = normalizeRealtimeConfig");
     expect(appHtml).toContain('writeRuntimeState("lastEvent", name');
     expect(appHtml).not.toContain("STATE_BLUEPRINT_REALTIME_EVENT\") {\n        context");
   });
@@ -1330,7 +1331,9 @@ test.describe("Core source contracts", () => {
 
     expect(hostHtml).toContain('const REALTIME_WSS_URL = "wss://realtime.digitalisierungsplanung.de/ws";');
     expect(hostHtml).toContain('const REALTIME_TOKEN_URL = "https://realtime.digitalisierungsplanung.de/token";');
+    expect(hostHtml).toContain('const REALTIME_PRESETS_URL = "https://realtime.digitalisierungsplanung.de/presets";');
     expect(hostHtml).toContain('const REALTIME_EVENTS_URL = "https://realtime.digitalisierungsplanung.de/events";');
+    expect(hostHtml).toContain("async function fetchRealtimeEventConfig(name)");
     expect(hostHtml).toContain("function relayRuntimeBusEventToRealtime()");
     expect(hostHtml).toContain("function postRealtimeStatus");
     expect(hostHtml).toContain('const name = normalizeTransitionEvent(latestRuntimeContext?.lastEvent || "");');

@@ -4835,11 +4835,10 @@
 
     function modelRealtimeDataContractPaths(m) {
       const paths = new Set(["realtime"]);
-      normalizeRealtimeConfig(m?.realtime).events.forEach(event => {
-        paths.add("events." + event.name);
-        normalizeRealtimeEventBindings(event.bindings).forEach(binding => {
-          if (binding.to) paths.add(binding.to);
-        });
+      (Array.isArray(m?.transitions) ? m.transitions : []).forEach(transition => {
+        if (normalizeTransitionTriggerType(transition) !== "realtime") return;
+        const name = normalizeTransitionEvent(transition.triggerEvent || "");
+        if (name.startsWith("realtime.")) paths.add("events." + name);
       });
       return paths;
     }
@@ -5639,18 +5638,18 @@
       const name = recordRuntimeEvent(eventName, detail);
       if (!name) return false;
       runtimeEventQueue.push({ name, detail: { ...detail, eventName: name } });`;
-      const emitRuntimeEventJsEnhanced = `    function emitRuntimeEvent(eventName, detail = {}) {
+      const emitRuntimeEventJsEnhanced = `    function emitRuntimeEvent(eventName, detail = {}, realtimeEventConfig = null) {
       if (runtimeIsPaused()) {
         notifyRuntime();
         return false;
       }
       const name = recordRuntimeEvent(eventName, detail);
       if (!name) return false;
-      if (name.startsWith("realtime.")) applyRealtimeEventBindings(name, detail);
+      if (name.startsWith("realtime.")) applyRealtimeEventBindings(name, detail, realtimeEventConfig);
       runtimeEventQueue.push({ name, detail: { ...detail, eventName: name } });`;
       const runtimeNormalizeModelRealtimeJs = `      m.transitions = Array.isArray(m.transitions) ? m.transitions : [];`;
       const runtimeNormalizeModelRealtimeJsEnhanced = `      m.transitions = Array.isArray(m.transitions) ? m.transitions : [];
-      m.realtime = normalizeRealtimeConfig(m.realtime);`;
+      delete m.realtime;`;
       const realtimeRuntimeStateAnchor = `    function pathMatchesSubscription(path, subscription) {`;
       const realtimeRuntimeStateJs = `    function normalizeRealtimeValueType(value) {
       const type = String(value || "").trim().toLowerCase();
@@ -5678,29 +5677,17 @@
       }).filter(Boolean);
     }
 
-    function normalizeRealtimeConfig(value) {
-      const source = isPlainDataObject(value) ? value : {};
-      const events = [];
-      const seen = new Set();
-      (Array.isArray(source.events) ? source.events : []).forEach(item => {
-        if (!isPlainDataObject(item)) return;
-        const name = normalizeTransitionEvent(item.name || "");
-        if (!name || !name.startsWith("realtime.") || seen.has(name)) return;
-        seen.add(name);
-        events.push({
-          name,
-          label: String(item.label || name).trim(),
-          description: String(item.description || "").trim(),
-          detail: normalizeRealtimeDetailSchema(item.detail),
-          bindings: normalizeRealtimeEventBindings(item.bindings)
-        });
-      });
-      return { events };
-    }
-
-    function realtimeEventConfigByName(name) {
-      const clean = normalizeTransitionEvent(name || "");
-      return normalizeRealtimeConfig(model?.realtime).events.find(event => event.name === clean) || null;
+    function normalizeRealtimeEventConfig(value) {
+      if (!isPlainDataObject(value)) return null;
+      const name = normalizeTransitionEvent(value.name || "");
+      if (!name || !name.startsWith("realtime.")) return null;
+      return {
+        name,
+        label: String(value.label || name).trim(),
+        description: String(value.description || "").trim(),
+        detail: normalizeRealtimeDetailSchema(value.detail),
+        bindings: normalizeRealtimeEventBindings(value.bindings)
+      };
     }
 
     function realtimeDetailValue(detail, sourcePath) {
@@ -5710,8 +5697,9 @@
       return readValueAtPath(detail, path);
     }
 
-    function applyRealtimeEventBindings(eventName, detail = {}) {
-      const event = realtimeEventConfigByName(eventName);
+    function applyRealtimeEventBindings(eventName, detail = {}, realtimeEventConfig = null) {
+      const event = normalizeRealtimeEventConfig(realtimeEventConfig);
+      if (event && event.name !== normalizeTransitionEvent(eventName || "")) return;
       if (!event) return;
       const sourceDetail = isPlainDataObject(detail) ? detail : {};
       for (const binding of normalizeRealtimeEventBindings(event.bindings)) {
@@ -6020,7 +6008,10 @@
         const detail = data.detail && typeof data.detail === "object" && !Array.isArray(data.detail)
           ? JSON.parse(JSON.stringify(data.detail))
           : {};
-        if (name) emitRuntimeEvent(name, detail);
+        const eventConfig = data.event && typeof data.event === "object" && !Array.isArray(data.event)
+          ? JSON.parse(JSON.stringify(data.event))
+          : null;
+        if (name) emitRuntimeEvent(name, detail, eventConfig);
         return;
       }
       if (data.type !== "STATE_BLUEPRINT_MODEL") return;
@@ -7446,6 +7437,7 @@
     const APP_URL = URL.createObjectURL(new Blob([GENERATED_APP_HTML], { type: "text/html" }));
     const REALTIME_WSS_URL = "wss://realtime.digitalisierungsplanung.de/ws";
     const REALTIME_TOKEN_URL = "https://realtime.digitalisierungsplanung.de/token";
+    const REALTIME_PRESETS_URL = "https://realtime.digitalisierungsplanung.de/presets";
     const REALTIME_EVENTS_URL = "https://realtime.digitalisierungsplanung.de/events";
     const WORLD_MIN_X = -10000;
     const WORLD_MIN_Y = -8000;
@@ -8667,7 +8659,6 @@
         name: String(model.name || "State App"),
         initial: String(model.initial || ""),
         boundary: normalizeBoundaryConfig(model.boundary),
-        realtime: normalizeRealtimeConfig(model.realtime),
         states: model.states.map(stateExportSnapshot),
         transitions: model.transitions
           .filter(transition => !isBoundaryFlowTransition(transition))
@@ -9060,7 +9051,6 @@
       if (source.version !== DEFINITION_SCHEMA_VERSION) throw new Error("definition.model.version must be 2.");
       assertString(source.name, "definition.model.name");
       const initial = assertString(source.initial, "definition.model.initial", { allowEmpty: true });
-      const realtime = normalizeRealtimeConfig(source.realtime);
       if (!Array.isArray(source.states)) throw new Error("definition.model.states must be an array.");
       if (!Array.isArray(source.transitions)) throw new Error("definition.model.transitions must be an array.");
 
@@ -9161,7 +9151,6 @@
         name: source.name,
         initial,
         boundary: rootBoundary,
-        realtime,
         states,
         transitions
       };
@@ -9811,13 +9800,24 @@
       return { events };
     }
 
-    function realtimeEventCatalog(sourceModel = model) {
-      return normalizeRealtimeConfig(sourceModel?.realtime).events;
+    function realtimeEventCatalog(source = null) {
+      if (Array.isArray(source)) return normalizeRealtimeConfig({ events: source }).events;
+      return normalizeRealtimeConfig(source).events;
     }
 
-    function realtimeEventConfigByName(name, sourceModel = model) {
+    function realtimeEventConfigByName(name, source = null) {
       const clean = normalizeTransitionEvent(name || "");
-      return realtimeEventCatalog(sourceModel).find(event => event.name === clean) || null;
+      return realtimeEventCatalog(source).find(event => event.name === clean) || null;
+    }
+
+    function modelRealtimeTriggerEvents(sourceModel = model) {
+      const names = new Set();
+      (Array.isArray(sourceModel?.transitions) ? sourceModel.transitions : []).forEach(transition => {
+        if (normalizeTransitionTriggerType(transition) !== "realtime") return;
+        const name = normalizeTransitionEvent(transition.triggerEvent || "");
+        if (name.startsWith("realtime.")) names.add(name);
+      });
+      return [...names].sort((a, b) => a.localeCompare(b));
     }
 
     function normalizeContextPath(path, fallback = "fetch") {
@@ -10793,7 +10793,7 @@
       m.version = 2;
       m.name = m.name || "State App";
       m.boundary = normalizeBoundaryConfig(m.boundary);
-      m.realtime = normalizeRealtimeConfig(m.realtime);
+      delete m.realtime;
       m.states = Array.isArray(m.states) ? m.states : [];
       m.transitions = Array.isArray(m.transitions) ? m.transitions : [];
       delete m.editorGroups;
@@ -17807,17 +17807,11 @@
           <div class="inspector-collapse-body">
             <div class="state-variable-panel">
               <div class="state-variable-head">
-                <div>Event catalog<span>events external systems may emit into the global bus</span></div>
+                <div>Marketplace events<span>live refs from the realtime server</span></div>
               </div>
               <div id="pRealtimeEventList" class="state-variable-list"></div>
-              <div class="field"><label>Event name</label><input id="pRealtimeEventName" placeholder="realtime.sip.call.incoming"></div>
-              <div class="field"><label>Label</label><input id="pRealtimeEventLabel" placeholder="Incoming call"></div>
-              <div class="field"><label>Detail fields</label><textarea id="pRealtimeEventDetail" spellcheck="false" placeholder="caller: text&#10;callee: text&#10;callId: text"></textarea></div>
-              <div class="field"><label>Bindings</label><textarea id="pRealtimeEventBindings" spellcheck="false" placeholder="detail.caller -> realtime.sip.call.incoming.caller&#10;detail.callId -> realtime.sip.call.incoming.callId"></textarea></div>
               <div class="row">
-                <button id="pRealtimeEventAdd" type="button">+ Event</button>
-                <button id="pRealtimeSipPreset" type="button">+ SIP preset</button>
-                <button id="pRealtimeServerPreset" type="button">Import server preset</button>
+                <button id="pRealtimeServerPreset" type="button">Load marketplace events</button>
               </div>
             </div>
           </div>
@@ -17866,138 +17860,116 @@
       }).filter(Boolean);
     }
 
-    function defaultSipRealtimeEvents() {
-      return [
-        {
-          name: "realtime.sip.call.incoming",
-          label: "Incoming call",
-          description: "SIP phone call started",
-          detail: { caller: "text", callee: "text", callId: "text" },
-          bindings: [
-            { from: "detail.caller", to: "realtime.sip.call.incoming.caller", type: "text" },
-            { from: "detail.callee", to: "realtime.sip.call.incoming.callee", type: "text" },
-            { from: "detail.callId", to: "realtime.sip.call.incoming.callId", type: "text" }
-          ]
-        },
-        {
-          name: "realtime.sip.call.answered",
-          label: "Call answered",
-          description: "SIP phone call was answered",
-          detail: { callId: "text", agent: "text" },
-          bindings: [
-            { from: "detail.callId", to: "realtime.sip.call.answered.callId", type: "text" },
-            { from: "detail.agent", to: "realtime.sip.call.answered.agent", type: "text" }
-          ]
-        },
-        {
-          name: "realtime.sip.call.ended",
-          label: "Call ended",
-          description: "SIP phone call ended",
-          detail: { callId: "text", duration: "number" },
-          bindings: [
-            { from: "detail.callId", to: "realtime.sip.call.ended.callId", type: "text" },
-            { from: "detail.duration", to: "realtime.sip.call.ended.duration", type: "number" }
-          ]
-        }
-      ];
+    function normalizeRealtimePresetRefs(value) {
+      const source = isPlainObject(value) && Array.isArray(value.presets) ? value.presets : [];
+      return source.slice(0, 64).map(preset => {
+        if (!isPlainObject(preset)) return null;
+        const id = normalizeTransitionEvent(preset.id || "");
+        if (!id) return null;
+        return {
+          id,
+          label: String(preset.label || dataPathLabel(id, "Realtime preset")).trim().slice(0, 80),
+          kind: String(preset.kind || "realtime").trim().slice(0, 40),
+          eventIds: Array.isArray(preset.eventIds) ? preset.eventIds.map(item => normalizeTransitionEvent(item)).filter(Boolean) : [],
+          endpointIds: Array.isArray(preset.endpointIds) ? preset.endpointIds.map(item => normalizeTransitionEvent(item)).filter(Boolean) : [],
+          statePaths: Array.isArray(preset.statePaths) ? preset.statePaths.map(item => normalizeBindingPath(item, "")).filter(Boolean) : []
+        };
+      }).filter(Boolean);
     }
 
-    async function importRealtimeServerEvents(historyKey = "app:realtime-events:server") {
+    async function fetchRealtimeEvents() {
       const response = await fetch(REALTIME_EVENTS_URL, { method: "GET", cache: "no-store", credentials: "omit" });
       if (!response.ok) throw new Error("events fetch failed");
       const catalog = await response.json();
-      const imported = normalizeRealtimeConfig(catalog).events;
-      if (!imported.length) throw new Error("empty events catalog");
-      const existing = new Map(realtimeEventCatalog().map(event => [event.name, event]));
-      imported.forEach(event => existing.set(event.name, event));
-      model.realtime.events = [...existing.values()];
-      saveModel(historyKey);
-      return imported;
+      const events = realtimeEventCatalog(catalog);
+      if (!events.length) throw new Error("empty events catalog");
+      return events;
+    }
+
+    async function fetchRealtimePresets() {
+      const response = await fetch(REALTIME_PRESETS_URL, { method: "GET", cache: "no-store", credentials: "omit" });
+      if (!response.ok) throw new Error("presets fetch failed");
+      return normalizeRealtimePresetRefs(await response.json());
+    }
+
+    async function fetchRealtimeMarketplace() {
+      const [events, presets] = await Promise.all([
+        fetchRealtimeEvents(),
+        fetchRealtimePresets()
+      ]);
+      return { events, presets };
+    }
+
+    async function fetchRealtimeEventConfig(name) {
+      const clean = normalizeTransitionEvent(name || "");
+      if (!clean || !clean.startsWith("realtime.")) return null;
+      return realtimeEventConfigByName(clean, { events: await fetchRealtimeEvents() });
     }
 
     function renderRealtimeCatalogInspector() {
       const list = stateInspectorBodyEl.querySelector("#pRealtimeEventList");
-      const name = stateInspectorBodyEl.querySelector("#pRealtimeEventName");
-      const label = stateInspectorBodyEl.querySelector("#pRealtimeEventLabel");
-      const detail = stateInspectorBodyEl.querySelector("#pRealtimeEventDetail");
-      const bindings = stateInspectorBodyEl.querySelector("#pRealtimeEventBindings");
-      const add = stateInspectorBodyEl.querySelector("#pRealtimeEventAdd");
-      const sip = stateInspectorBodyEl.querySelector("#pRealtimeSipPreset");
       const serverPreset = stateInspectorBodyEl.querySelector("#pRealtimeServerPreset");
-      if (!list || !name || !label || !detail || !bindings || !add || !sip || !serverPreset) return;
-      model.realtime = normalizeRealtimeConfig(model.realtime);
-      list.innerHTML = "";
-      const events = realtimeEventCatalog();
-      serverPreset.textContent = events.length ? "Reload server events" : "Import server events";
-      if (!events.length) {
+      if (!list || !serverPreset) return;
+      const renderLoading = text => {
+        list.innerHTML = "";
         const empty = document.createElement("div");
         empty.className = "state-variable-empty";
-        empty.textContent = "No realtime events yet.";
+        empty.textContent = text;
         list.appendChild(empty);
-      }
-      events.forEach(event => {
-        const row = document.createElement("div");
-        row.className = "state-variable-row";
-        const main = document.createElement("div");
-        main.className = "state-variable-main";
-        const title = document.createElement("b");
-        title.textContent = event.label || event.name;
-        const meta = document.createElement("span");
-        const bindingCount = normalizeRealtimeEventBindings(event.bindings).length;
-        meta.textContent = `${event.name}${bindingCount ? " / " + bindingCount + " bindings" : ""}`;
-        main.append(title, meta);
-        const remove = document.createElement("button");
-        remove.type = "button";
-        remove.className = "danger";
-        remove.textContent = "Delete";
-        remove.onclick = () => {
-          model.realtime.events = realtimeEventCatalog().filter(item => item.name !== event.name);
-          saveModel("app:realtime-events");
-          renderRealtimeCatalogInspector();
-        };
-        row.append(main, remove);
-        list.appendChild(row);
-      });
-      add.onclick = () => {
-        const detailSchema = parseRealtimeDetailText(detail.value);
-        const event = normalizeRealtimeEventConfig({
-          name: name.value,
-          label: label.value,
-          detail: detailSchema,
-          bindings: parseRealtimeBindingsText(bindings.value, detailSchema)
+      };
+      const renderMarketplace = ({ events, presets }) => {
+        list.innerHTML = "";
+        const byName = new Map(events.map(event => [event.name, event]));
+        const groups = presets.length ? presets : [{ id: "realtime.events", label: "Realtime events", eventIds: events.map(event => event.name), statePaths: [] }];
+        groups.forEach(preset => {
+          const presetRow = document.createElement("div");
+          presetRow.className = "state-variable-row";
+          const presetMain = document.createElement("div");
+          presetMain.className = "state-variable-main";
+          const presetTitle = document.createElement("b");
+          presetTitle.textContent = preset.label || preset.id;
+          const presetMeta = document.createElement("span");
+          presetMeta.textContent = `${preset.id} / ${preset.eventIds.length} events`;
+          presetMain.append(presetTitle, presetMeta);
+          presetRow.appendChild(presetMain);
+          list.appendChild(presetRow);
+          preset.eventIds.forEach(eventId => {
+            const event = byName.get(eventId);
+            if (!event) return;
+            const row = document.createElement("div");
+            row.className = "state-variable-row";
+            const main = document.createElement("div");
+            main.className = "state-variable-main";
+            const title = document.createElement("b");
+            title.textContent = event.label || event.name;
+            const meta = document.createElement("span");
+            const bindingCount = normalizeRealtimeEventBindings(event.bindings).length;
+            meta.textContent = `${event.name}${bindingCount ? " / " + bindingCount + " bindings" : ""}`;
+            main.append(title, meta);
+            row.appendChild(main);
+            list.appendChild(row);
+          });
         });
-        if (!event) return;
-        const next = realtimeEventCatalog().filter(item => item.name !== event.name);
-        next.push(event);
-        model.realtime.events = next;
-        saveModel("app:realtime-events");
-        name.value = "";
-        label.value = "";
-        detail.value = "";
-        bindings.value = "";
-        renderRealtimeCatalogInspector();
+        if (!list.childElementCount) renderLoading("Marketplace has no realtime events.");
       };
-      sip.onclick = () => {
-        const existing = new Map(realtimeEventCatalog().map(event => [event.name, event]));
-        defaultSipRealtimeEvents().forEach(event => existing.set(event.name, normalizeRealtimeEventConfig(event)));
-        model.realtime.events = [...existing.values()];
-        saveModel("app:realtime-events:sip");
-        renderRealtimeCatalogInspector();
-      };
-      serverPreset.onclick = async () => {
+      const load = async () => {
         const previousLabel = serverPreset.textContent;
         serverPreset.disabled = true;
-        serverPreset.textContent = "Importing...";
+        serverPreset.textContent = "Loading...";
+        renderLoading("Loading marketplace events...");
         try {
-          await importRealtimeServerEvents();
-          renderRealtimeCatalogInspector();
+          renderMarketplace(await fetchRealtimeMarketplace());
+          serverPreset.textContent = "Reload marketplace events";
         } catch (_) {
-          serverPreset.textContent = "Import failed";
+          renderLoading("Marketplace load failed.");
+          serverPreset.textContent = "Load failed";
           setTimeout(() => { if (serverPreset.isConnected) serverPreset.textContent = previousLabel; }, 1200);
         } finally {
           serverPreset.disabled = false;
         }
       };
+      serverPreset.onclick = load;
+      load();
     }
 
     function refreshInspectorForSelection() {
@@ -19137,7 +19109,7 @@
               <div class="field" id="pStateTriggerEventField" hidden>
                 <label id="pStateTriggerEventLabel">Event</label>
                 <select id="pStateTriggerEvent"></select>
-                <button id="pStateTriggerEventImport" type="button" hidden>Import server preset</button>
+                <button id="pStateTriggerEventImport" type="button" hidden>Load marketplace events</button>
               </div>
               <div id="pStateTriggerPreview" class="condition-preview empty"></div>
             </div>
@@ -19714,10 +19686,9 @@
         } else if (mode === "realtime") {
           stateTriggerEventLabel.textContent = "Realtime / WSS event";
           if (current.startsWith("realtime.")) addOption(current, current);
-          realtimeEventCatalog().forEach(event => addOption(event.name, event.label ? `${event.label} - ${event.name}` : event.name));
           if (stateTriggerEventImport) {
             stateTriggerEventImport.hidden = false;
-            stateTriggerEventImport.textContent = realtimeEventCatalog().length ? "Reload server events" : "Import server events";
+            stateTriggerEventImport.textContent = "Reload marketplace events";
           }
         }
         stateTriggerEvent.innerHTML = "";
@@ -19731,6 +19702,39 @@
           ? current
           : options[0]?.value || "";
         stateTriggerEvent.value = selected;
+        if (mode === "realtime") {
+          const transitionId = selectedTransition?.id || "";
+          fetchRealtimeEvents().then(events => {
+            const row = stateFlowRowById(flowTransitionSelect?.value);
+            if (!row?.transition || row.transition.id !== transitionId || stateTriggerType?.value !== "realtime") return;
+            let active = normalizeTransitionEvent(row.transition.triggerEvent || stateTriggerEvent.value || "");
+            const seenLive = new Set();
+            const liveOptions = [];
+            const addLive = (value, label = value) => {
+              const clean = normalizeTransitionEvent(value || "");
+              if (!clean || seenLive.has(clean)) return;
+              seenLive.add(clean);
+              liveOptions.push({ value: clean, label });
+            };
+            if (active.startsWith("realtime.")) addLive(active, active);
+            events.forEach(event => addLive(event.name, event.label ? `${event.label} - ${event.name}` : event.name));
+            stateTriggerEvent.innerHTML = "";
+            liveOptions.forEach(optionConfig => {
+              const option = document.createElement("option");
+              option.value = optionConfig.value;
+              option.textContent = optionConfig.label || optionConfig.value;
+              stateTriggerEvent.appendChild(option);
+            });
+            if (liveOptions.length) {
+              if (!liveOptions.some(option => option.value === active)) active = liveOptions[0].value;
+              stateTriggerEvent.value = active;
+              if (!row.transition.triggerEvent && active.startsWith("realtime.")) persistStateFlowTrigger();
+            }
+            if (stateTriggerEventImport) stateTriggerEventImport.textContent = "Reload marketplace events";
+          }).catch(() => {
+            if (stateTriggerEventImport && stateTriggerEventImport.isConnected) stateTriggerEventImport.textContent = "Marketplace load failed";
+          });
+        }
       };
       const renderStateFlowTriggerEditor = () => {
         const rows = stateFlowTransitionRows();
@@ -19830,13 +19834,10 @@
           transition.triggerType = "realtime";
           const selectedRealtimeEvent = normalizeTransitionEvent(stateTriggerEvent?.value || "");
           const existingEvent = normalizeTransitionEvent(transition.triggerEvent || "");
-          const firstContractEvent = realtimeEventCatalog()[0]?.name || "";
           transition.triggerEvent = selectedRealtimeEvent.startsWith("realtime.")
             ? selectedRealtimeEvent
             : existingEvent.startsWith("realtime.")
             ? existingEvent
-            : firstContractEvent
-            ? firstContractEvent
             : "";
           clearStateFlowApiCondition(transition);
         } else if (mode === "auto") {
@@ -20489,17 +20490,29 @@
         stateTriggerEventImport.onclick = async () => {
           const previousLabel = stateTriggerEventImport.textContent;
           stateTriggerEventImport.disabled = true;
-          stateTriggerEventImport.textContent = "Importing...";
+          stateTriggerEventImport.textContent = "Loading...";
           try {
-            await importRealtimeServerEvents();
-            renderStateFlowTriggerEditor();
-            const firstEvent = realtimeEventCatalog()[0]?.name || "";
-            if (firstEvent && stateTriggerEvent && !realtimeEventConfigByName(stateTriggerEvent.value)) {
-              stateTriggerEvent.value = firstEvent;
-              persistStateFlowTrigger();
+            const events = await fetchRealtimeEvents();
+            if (stateTriggerEvent) {
+              const active = normalizeTransitionEvent(stateTriggerEvent.value || "");
+              stateTriggerEvent.innerHTML = "";
+              events.forEach(event => {
+                const option = document.createElement("option");
+                option.value = event.name;
+                option.textContent = event.label ? `${event.label} - ${event.name}` : event.name;
+                stateTriggerEvent.appendChild(option);
+              });
+              const firstEvent = events[0]?.name || "";
+              if (active && events.some(event => event.name === active)) stateTriggerEvent.value = active;
+              else if (firstEvent) stateTriggerEvent.value = firstEvent;
             }
+            const firstEvent = events[0]?.name || "";
+            if (firstEvent && stateTriggerEvent && !events.some(event => event.name === normalizeTransitionEvent(stateTriggerEvent.value || ""))) {
+              stateTriggerEvent.value = firstEvent;
+            }
+            persistStateFlowTrigger();
           } catch (_) {
-            stateTriggerEventImport.textContent = "Import failed";
+            stateTriggerEventImport.textContent = "Load failed";
             setTimeout(() => { if (stateTriggerEventImport.isConnected) stateTriggerEventImport.textContent = previousLabel; }, 1200);
           } finally {
             stateTriggerEventImport.disabled = false;
@@ -21042,17 +21055,10 @@
       add("realtime.connecting", "realtime transport", "boolean");
       add("realtime.reconnectAttempt", "realtime transport", "number");
       add("realtime.error", "realtime transport", "text");
-      for (const event of realtimeEventCatalog()) {
-        const label = event.label || event.name;
-        add(`events.${event.name}.count`, `${label} realtime event`, "number");
-        add(`events.${event.name}.lastAt`, `${label} realtime event`, "number");
-        add(`events.${event.name}.detail`, `${label} detail`, "object");
-        for (const [path, type] of Object.entries(normalizeRealtimeDetailSchema(event.detail))) {
-          add(`events.${event.name}.detail.${path}`, `${label} detail`, type);
-        }
-        for (const binding of normalizeRealtimeEventBindings(event.bindings)) {
-          add(binding.to, `${label} binding`, binding.type);
-        }
+      for (const eventName of modelRealtimeTriggerEvents()) {
+        add(`events.${eventName}.count`, `${eventName} realtime event`, "number");
+        add(`events.${eventName}.lastAt`, `${eventName} realtime event`, "number");
+        add(`events.${eventName}.detail`, `${eventName} detail`, "object");
       }
       let includeKnownGlobalState = false;
       for (const state of conditionScopeStates(t)) {
@@ -21211,7 +21217,7 @@
       const triggerSuggestions = new Set(["*", "state.current"]);
       const ownedDefaultTriggerEvent = defaultTransitionEvent(t);
       if (ownedDefaultTriggerEvent) triggerSuggestions.add(ownedDefaultTriggerEvent);
-      realtimeEventCatalog().forEach(event => triggerSuggestions.add(event.name));
+      modelRealtimeTriggerEvents().forEach(eventName => triggerSuggestions.add(eventName));
       const sourceState = byId(t.from);
       normalizeSubscriptions(sourceState?.subscriptions).forEach(path => { triggerSuggestions.add(path); if (path !== "*") triggerSuggestions.add("change." + path); });
       conditionDataSuggestions(t).forEach(item => { triggerSuggestions.add(item.path); if (item.path !== "*") triggerSuggestions.add("change." + item.path); });
@@ -22227,14 +22233,16 @@
       sendRealtimeRuntimeEvent(name, detail);
     }
 
-    function applyRealtimeRuntimeEvent(message) {
+    async function applyRealtimeRuntimeEvent(message) {
       if (!message || message.clientId === realtimeTransport.clientId) return;
       const name = normalizeTransitionEvent(message.name || "");
       if (!name || !name.startsWith("realtime.")) return;
       const sourceDetail = isPlainObject(message.detail) ? JSON.parse(JSON.stringify(message.detail)) : {};
+      const event = await fetchRealtimeEventConfig(name).catch(() => null);
       postRuntimePayload({
         type: "STATE_BLUEPRINT_REALTIME_EVENT",
         name,
+        event,
         detail: {
           ...sourceDetail,
           source: "realtime",
@@ -22339,14 +22347,17 @@
         const name = normalizeTransitionEvent(eventName || "");
         if (!name || !name.startsWith("realtime.")) return false;
         const sourceDetail = isPlainObject(detail) ? JSON.parse(JSON.stringify(detail)) : {};
-        postRuntimePayload({
-          type: "STATE_BLUEPRINT_REALTIME_EVENT",
-          name,
-          detail: {
-            ...sourceDetail,
-            source: sourceDetail.source || "realtime-local",
-            localClientId: realtimeTransport.clientId
-          }
+        fetchRealtimeEventConfig(name).catch(() => null).then(event => {
+          postRuntimePayload({
+            type: "STATE_BLUEPRINT_REALTIME_EVENT",
+            name,
+            event,
+            detail: {
+              ...sourceDetail,
+              source: sourceDetail.source || "realtime-local",
+              localClientId: realtimeTransport.clientId
+            }
+          });
         });
         return true;
       },
