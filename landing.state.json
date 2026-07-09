@@ -107,8 +107,10 @@
             "layout": "overlay",
             "title": "Erst verstehen, dann digitalisieren.",
             "body": "Zustand macht aus Bauchgefühl einen prüfbaren Digitalisierungsplan: Prozess, Entscheidungen, Daten und Verantwortlichkeiten in einem Modell.",
-            "actionLabel": "Nutzen für Entscheider ansehen",
-            "transitionId": "nav_startseite_nutzen",
+            "actionLabel": "Editor öffnen",
+            "url": "./state.html?demo=zustand",
+            "secondaryActionLabel": "Nutzen ansehen",
+            "secondaryTransitionId": "nav_startseite_nutzen",
             "image": "/assets/landing-hero-business.png",
             "imageAlt": "Geschäftsführung klärt einen Digitalisierungsprozess"
           },

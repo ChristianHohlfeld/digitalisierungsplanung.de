@@ -8,6 +8,8 @@ test.describe("Landing page export", () => {
     expect(html).toContain("Erst verstehen, dann digitalisieren.");
     expect(html).toContain("Viele Projekte scheitern nicht an Technik");
     expect(html).toContain('"url":"./state.html?demo=zustand"');
+    expect(html).toContain('"actionLabel":"Editor öffnen"');
+    expect(html).toContain('"secondaryTransitionId":"nav_startseite_nutzen"');
     expect(html).toContain("button.link.daisy-transition-button:hover");
     expect(html).toContain("/manifest.webmanifest");
     expect(html).toContain("/assets/share-card.png");
@@ -35,6 +37,15 @@ test.describe("Landing page export", () => {
     await expect(page.getByRole("button", { name: "New" })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Erst verstehen, dann digitalisieren." })).toBeVisible();
     await expect(page.locator(".hero")).toHaveCSS("background-image", /landing-hero-business\.png/);
+    const hero = page.locator(".hero").first();
+    const heroEditorLink = hero.getByRole("link", { name: "Editor öffnen" });
+    await expect(heroEditorLink).toHaveAttribute("href", /state\.html\?demo=zustand$/);
+    await expect(heroEditorLink).toHaveClass(/btn-primary/);
+    const heroSecondary = hero.getByRole("button", { name: "Nutzen ansehen" });
+    await expect(heroSecondary).toHaveAttribute("data-transition-id", "nav_startseite_nutzen");
+    await expect(heroSecondary).toHaveClass(/btn-ghost/);
+    await heroSecondary.click();
+    await expect(page.locator("#statePill")).toHaveText("nutzen");
 
     const manifest = await page.request.get("/manifest.webmanifest");
     expect(manifest.ok()).toBe(true);

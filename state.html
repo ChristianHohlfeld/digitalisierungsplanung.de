@@ -6067,10 +6067,38 @@
           const layout = daisyDataText(component, "layout", "centered");
           const image = safeComponentUrl(daisyDataText(component, "image", ""));
           const appendHeroActions = parent => {
-            if (!actionLabel && !daisyActionTransitions(ownerState, renderOptions, component).length) return;
+            const primaryUrl = String(daisyDataText(component, "url", "")).trim();
+            const primaryTransitionId = daisyDataText(component, "primaryTransitionId", "") || daisyComponentTransitionId(component);
+            const secondaryActionLabel = daisyDataText(component, "secondaryActionLabel", "");
+            const secondaryUrl = String(daisyDataText(component, "secondaryUrl", "")).trim();
+            const secondaryTransitionId = daisyDataText(component, "secondaryTransitionId", "");
+            const hasPrimary = Boolean(actionLabel || primaryUrl || primaryTransitionId);
+            const hasSecondary = Boolean(secondaryActionLabel || secondaryUrl || secondaryTransitionId);
+            if (!hasPrimary && !hasSecondary && !daisyActionTransitions(ownerState, renderOptions, component).length) return;
             const actions = document.createElement("div");
-            actions.className = "card-actions justify-end";
-            if (!appendDaisyTransitionButtons(actions, ownerState, renderOptions, "hero", { component, labels: [{ label: actionLabel, transitionId: daisyComponentTransitionId(component) }] })) {
+            actions.className = "card-actions justify-center";
+            let rendered = 0;
+            if (primaryUrl && actionLabel) {
+              actions.appendChild(createDaisyLink(actionLabel, primaryUrl, "btn btn-primary"));
+              rendered += 1;
+            } else {
+              rendered += appendDaisyTransitionButtons(actions, ownerState, renderOptions, "hero", {
+                component,
+                labels: [{ label: actionLabel, transitionId: primaryTransitionId }],
+                buttonClass: "btn-primary daisy-transition-button"
+              });
+            }
+            if (secondaryUrl && secondaryActionLabel) {
+              actions.appendChild(createDaisyLink(secondaryActionLabel, secondaryUrl, "btn btn-ghost"));
+              rendered += 1;
+            } else {
+              rendered += appendDaisyTransitionButtons(actions, ownerState, renderOptions, "hero", {
+                component,
+                labels: [{ label: secondaryActionLabel, transitionId: secondaryTransitionId }],
+                buttonClass: "btn-ghost daisy-transition-button"
+              });
+            }
+            if (!rendered && actionLabel) {
               appendDaisyLocalActionButton(actions, component, actionLabel, () => daisyWrite(component, "clicked", true, { render: true }), "btn-primary");
             }
             parent.appendChild(actions);
@@ -6700,6 +6728,8 @@
       add(component?.transitionId);
       const data = daisyScopeData(component);
       add(data.transitionId);
+      add(data.primaryTransitionId);
+      add(data.secondaryTransitionId);
       for (const key of ["items", "options", "menuItems", "submenu", "columns", "links", "plans"]) {
         daisyTransitionIdSetFromValue(data[key], ids);
       }
@@ -16990,7 +17020,7 @@
         const preferred = {
           navbar: ["brand", "badge", "cartLabel", "subtotal", "actionLabel", "parent"],
           footer: ["brand", "note"],
-          hero: ["title", "body", "actionLabel", "image"],
+          hero: ["title", "body", "actionLabel", "url", "secondaryActionLabel", "secondaryTransitionId", "image"],
           card: ["title", "body", "actionLabel", "image"],
           alert: ["message"],
           avatar: ["name", "image", "status"],
