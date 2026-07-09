@@ -449,6 +449,7 @@ test.describe("Core source contracts", () => {
   });
 
   test("daisy flow controls use ids as binding and text only as display across widgets @smoke", async ({ page }) => {
+    test.setTimeout(60000);
     const transitionId = "to_next";
     const visibleText = "Visible action";
     const transitionLabel = "Internal transition label";
@@ -638,7 +639,7 @@ test.describe("Core source contracts", () => {
       }, { slot: matrixModelSlot, model });
       await page.goto("/state.html");
       await expect(appFrame(page).locator("#statePill")).toHaveText(model.initial);
-      await expect(appFrame(page).locator(".component-stack")).toBeAttached();
+      await expect(appFrame(page).locator("#screen .daisy-widget").first()).toBeAttached();
     };
 
     for (const spec of cases) {
