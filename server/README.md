@@ -57,14 +57,14 @@ Smoke checks:
 ```sh
 curl -fsS https://realtime.digitalisierungsplanung.de/healthz
 npm run server:smoke:wss
+npm run server:smoke:wss:prod
 pm2 status digitalisierungsplanung-realtime
 ```
 
-For a full signed join smoke test:
+The smoke test reads `/etc/digitalisierungsplanung-realtime.env` automatically when it exists, so `server:smoke:wss:prod` performs a signed join on the Droplet.
+
+For a custom env file:
 
 ```sh
-set -a
-. /etc/digitalisierungsplanung-realtime.env
-set +a
-npm run server:smoke:wss
+npm run server:smoke:wss -- --env-file=/path/to/realtime.env
 ```
