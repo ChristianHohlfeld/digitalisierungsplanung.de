@@ -208,8 +208,8 @@ Fields:
 | `from` | state id | yes | Source state. |
 | `to` | state id | yes | Target state. |
 | `label` | string | no | Button/edge label. |
-| `triggerType` | `button`, `change`, `event`, `timer`, `auto` | no | Defaults to `button`. |
-| `triggerEvent` | string | no | Explicit event name. Generated for button/timer/auto if omitted. |
+| `triggerType` | `button`, `change`, `event`, `realtime`, `timer`, `auto` | no | Defaults to `button`. |
+| `triggerEvent` | string | no | Explicit event name. Generated for button/timer/auto if omitted. Realtime transitions keep a concrete `realtime.*` event ref. |
 | `timerMs` | number | no | Used by timer transitions. |
 | `condition` | string | no | Guard expression over bus paths. |
 | `set` | object | no | Patch written to the global bus on transition. |
@@ -261,6 +261,25 @@ Bus-change transition:
 
 Short state-scoped paths such as `accepted` are normalized to
 `states.<source-state-id>.accepted`.
+
+Realtime transition:
+
+```json
+{
+  "type": "upsert_transition",
+  "id": "call_to_live",
+  "from": "waiting",
+  "to": "live_call",
+  "label": "Incoming call",
+  "triggerType": "realtime",
+  "triggerEvent": "realtime.sip.call.incoming",
+  "condition": "events.realtime.sip.call.incoming.count > 0"
+}
+```
+
+Realtime Marketplace definitions stay on the Realtime API (`/events`, `/presets`,
+`/endpoints`, `/state-schema`). The model stores no `model.realtime` contract
+copy.
 
 ### `delete_transition`
 

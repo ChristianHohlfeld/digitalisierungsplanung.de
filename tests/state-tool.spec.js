@@ -6274,6 +6274,7 @@ test.describe("State Blueprint tool", () => {
 
     const transitionSelect = page.locator("#pStateFlowTransition");
     const triggerType = page.locator("#pStateTriggerType");
+    const triggerEvent = page.locator("#pStateTriggerEvent");
     const timerInput = page.locator("#pStateTriggerTimer");
     await expect(transitionSelect).toBeVisible();
     await transitionSelect.selectOption("t_auth_login");
@@ -6293,6 +6294,23 @@ test.describe("State Blueprint tool", () => {
       triggerEvent: "change.states.auth_start.fetch.ok",
       condition: "states.auth_start.fetch.ok == true"
     });
+    await expect(triggerEvent).toBeVisible();
+    await expect(triggerEvent).toHaveValue("change.states.auth_start.fetch.ok");
+    await triggerEvent.selectOption("change.states.auth_start.fetch.error");
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      const transition = model.transitions.find(item => item.id === "t_auth_login");
+      return {
+        triggerType: transition?.triggerType,
+        triggerEvent: transition?.triggerEvent,
+        condition: transition?.condition
+      };
+    }).toEqual({
+      triggerType: "change",
+      triggerEvent: "change.states.auth_start.fetch.error",
+      condition: "states.auth_start.fetch.error != \"\""
+    });
+    await triggerEvent.selectOption("change.states.auth_start.fetch.ok");
     await expect(page.locator("#pDataCard")).toHaveJSProperty("open", true);
     await expect(page.locator("#pFetchCard")).toHaveJSProperty("open", true);
 
@@ -6307,9 +6325,11 @@ test.describe("State Blueprint tool", () => {
       };
     }).toEqual({
       triggerType: "event",
-      triggerEvent: "event.t.auth.login.fired",
+      triggerEvent: "",
       condition: ""
     });
+    await expect(triggerEvent).toBeVisible();
+    await expect(triggerEvent).toHaveJSProperty("length", 0);
     await expect(appFrame(page).locator('button[data-transition-id="t_auth_login"]')).toHaveCount(0);
     await expect(appFrame(page).locator('button[data-transition-id="t_auth_register"]')).toBeVisible();
 
@@ -6323,12 +6343,16 @@ test.describe("State Blueprint tool", () => {
         condition: transition?.condition
       };
     }).toEqual({
-      triggerType: "event",
-      triggerEvent: "realtime.t.auth.login.fired",
+      triggerType: "realtime",
+      triggerEvent: "",
       condition: ""
     });
+    await expect(page.locator("#pStateTriggerEventLabel")).toHaveText("Realtime / WSS event");
+    await expect(triggerEvent).toBeVisible();
+    await expect(triggerEvent).toHaveJSProperty("length", 0);
+    await expect(page.locator("#pStateTriggerEventImport")).toBeVisible();
     await expect(appFrame(page).locator('button[data-transition-id="t_auth_login"]')).toHaveCount(0);
-    await expect(page.locator("#pStateTriggerPreview")).toContainText("realtime.t.auth.login.fired");
+    await expect(page.locator("#pStateTriggerPreview")).toContainText("realtime room event");
 
     await triggerType.selectOption("button");
     await expect.poll(async () => {
@@ -6379,70 +6403,115 @@ test.describe("State Blueprint tool", () => {
     await expect(app.locator("#statePill")).toHaveText("login", { timeout: 3000 });
   });
 
-  test("imports realtime provider events as model contract @smoke", async ({ page }) => {
+  test("uses realtime marketplace events without persisting a local contract @smoke", async ({ page }) => {
+    let catalogVersion = 1;
+    const eventsPayload = () => ([
+      {
+        name: "realtime.sip.call.incoming",
+        label: "Incoming call",
+        detail: { caller: "text", callId: "text" },
+        bindings: [
+          { from: "detail.caller", to: "realtime.sip.call.incoming.caller", type: "text" },
+          { from: "detail.callId", to: "realtime.sip.call.incoming.callId", type: "text" }
+        ]
+      },
+      ...(catalogVersion > 1 ? [{
+        name: "realtime.sip.call.answered",
+        label: "Call answered",
+        detail: { callId: "text", agent: "text" },
+        bindings: [
+          { from: "detail.callId", to: "realtime.sip.call.answered.callId", type: "text" },
+          { from: "detail.agent", to: "realtime.sip.call.answered.agent", type: "text" }
+        ]
+      }] : [])
+    ]);
     await page.route("https://realtime.digitalisierungsplanung.de/events", route => route.fulfill({
       status: 200,
       contentType: "application/json",
+      body: JSON.stringify({ events: eventsPayload() })
+    }));
+    await page.route("https://realtime.digitalisierungsplanung.de/presets", route => route.fulfill({
+      status: 200,
+      contentType: "application/json",
       body: JSON.stringify({
-        provider: { id: "digitalisierungsplanung.realtime", label: "Realtime", version: 1 },
-        state: { path: "realtime" },
-        events: [
-          {
-            name: "realtime.sip.call.incoming",
-            label: "Incoming call",
-            detail: { caller: "text", callId: "text" },
-            bindings: [
-              { from: "detail.caller", to: "realtime.sip.call.incoming.caller", type: "text" },
-              { from: "detail.callId", to: "realtime.sip.call.incoming.callId", type: "text" }
-            ]
-          }
-        ]
+        presets: [{
+          id: "realtime.sip.call",
+          label: "SIP call",
+          kind: "realtime",
+          eventIds: eventsPayload().map(event => event.name),
+          endpointIds: ["realtime.websocket", "realtime.emit"],
+          statePaths: ["realtime.sip.call.incoming.caller", "realtime.sip.call.incoming.callId"]
+        }]
       })
     }));
     await openTool(page);
     await page.evaluate(() => clearSelection());
-    await page.evaluate(() => document.querySelector("#pRealtimeServerPreset")?.click());
-
-    await expect.poll(async () => {
-      const model = await savedModel(page);
-      return model.realtime?.events?.[0];
-    }).toMatchObject({
-      name: "realtime.sip.call.incoming",
-      bindings: [
-        { from: "detail.caller", to: "realtime.sip.call.incoming.caller", type: "text" },
-        { from: "detail.callId", to: "realtime.sip.call.incoming.callId", type: "text" }
-      ]
-    });
+    await expect(page.locator("#pRealtimeServerPreset")).toHaveText(/marketplace events/i);
+    await expect(page.locator("#pRealtimeEventList")).toContainText("Incoming call");
+    await expect.poll(async () => (await savedModel(page)).realtime).toBeUndefined();
 
     await openStateInspector(page, "auth_start");
     await page.locator("#pStateFlowTransition").selectOption("t_auth_login");
     await page.locator("#pStateTriggerType").selectOption("realtime");
+    await expect(page.locator("#pStateTriggerEvent")).toBeVisible();
+    await expect(page.locator("#pStateTriggerEvent")).toHaveValue("realtime.sip.call.incoming");
+    await expect(page.locator("#pStateTriggerEventImport")).toBeVisible();
+    await expect(page.locator("#pStateTriggerEventImport")).toHaveText("Reload marketplace events");
     await expect.poll(async () => {
       const model = await savedModel(page);
-      return model.transitions.find(item => item.id === "t_auth_login")?.triggerEvent;
-    }).toBe("realtime.sip.call.incoming");
-  });
-
-  test("normalizes bus-event transitions away from button click events @smoke", async ({ page }) => {
-    const model = defaultTestModel();
-    const transition = model.transitions.find(item => item.id === "t_auth_login");
-    transition.triggerType = "event";
-    transition.triggerEvent = "button.t_auth_login.clicked";
-
-    await openTool(page, { model });
-
-    await expect.poll(async () => page.evaluate(() => {
       const transition = model.transitions.find(item => item.id === "t_auth_login");
       return {
         triggerType: transition?.triggerType,
         triggerEvent: transition?.triggerEvent
       };
+    }).toEqual({
+      triggerType: "realtime",
+      triggerEvent: "realtime.sip.call.incoming"
+    });
+    await expect.poll(async () => (await savedModel(page)).realtime).toBeUndefined();
+
+    catalogVersion = 2;
+    await page.locator("#pStateTriggerEventImport").click();
+    await expect(page.locator("#pStateTriggerEvent")).toContainText("Call answered - realtime.sip.call.answered");
+    await expect.poll(async () => (await savedModel(page)).realtime).toBeUndefined();
+  });
+
+  test("normalizes bus-event transitions away from owned runtime event namespaces @smoke", async ({ page }) => {
+    const model = defaultTestModel();
+    const buttonTransition = model.transitions.find(item => item.id === "t_auth_login");
+    buttonTransition.triggerType = "event";
+    buttonTransition.triggerEvent = "button.t_auth_login.clicked";
+    const realtimeTransition = model.transitions.find(item => item.id === "t_auth_register");
+    realtimeTransition.triggerType = "event";
+    realtimeTransition.triggerEvent = "realtime.sip.call.incoming";
+
+    await openTool(page, { model });
+
+    await expect.poll(async () => page.evaluate(() => {
+      const buttonTransition = model.transitions.find(item => item.id === "t_auth_login");
+      const realtimeTransition = model.transitions.find(item => item.id === "t_auth_register");
+      return {
+        button: {
+          triggerType: buttonTransition?.triggerType,
+          triggerEvent: buttonTransition?.triggerEvent
+        },
+        realtime: {
+          triggerType: realtimeTransition?.triggerType,
+          triggerEvent: realtimeTransition?.triggerEvent
+        }
+      };
     })).toEqual({
-      triggerType: "event",
-      triggerEvent: "event.t.auth.login.fired"
+      button: {
+        triggerType: "event",
+        triggerEvent: ""
+      },
+      realtime: {
+        triggerType: "event",
+        triggerEvent: ""
+      }
     });
     await expect(appFrame(page).locator('button[data-transition-id="t_auth_login"]')).toHaveCount(0);
-    await expect(appFrame(page).locator('button[data-transition-id="t_auth_register"]')).toBeVisible();
+    await expect(appFrame(page).locator('button[data-transition-id="t_auth_register"]')).toHaveCount(0);
   });
 
   test("copies selected countdown flows without reusing scoped transition data", async ({ page }) => {

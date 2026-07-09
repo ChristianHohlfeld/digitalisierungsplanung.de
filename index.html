@@ -1486,7 +1486,7 @@
 
     const IS_STANDALONE_EXPORT = true;
     const EXPORTED_STATE_BLUEPRINT = {"version":2,"name":"Digitalisierungsplanung","initial":"startseite","boundary":{"entryId":"startseite","exitId":"startseite","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"states":[{"id":"startseite","title":"Digitalisierungsplanung","renderMode":"state","components":[{"id":"start_nav","type":"daisy","text":"","url":"","variant":"navbar","dataPath":"states.startseite.nav","dataRole":"widget","dataLabel":"Navigation"},{"id":"start_hero","type":"daisy","text":"","url":"","variant":"hero","dataPath":"states.startseite.hero","dataRole":"widget","dataLabel":"Versprechen"},{"id":"start_alert","type":"daisy","text":"","url":"","variant":"alert","dataPath":"states.startseite.alert","dataRole":"widget","dataLabel":"Kernbotschaft"},{"id":"start_grid","type":"daisy","text":"","url":"","variant":"feature-grid","dataPath":"states.startseite.nutzen","dataRole":"widget","dataLabel":"Warum das wichtig ist"},{"id":"start_footer","type":"daisy","text":"","url":"","variant":"footer","dataPath":"states.startseite.footer","dataRole":"widget","dataLabel":"Fußbereich"}],"data":{"states.startseite.nav":{"layout":"menu-submenu","brand":"Digitalisierungsplan","selected":"Start","items":[{"label":"Start","transitionId":"nav_startseite_startseite"},{"label":"Nutzen","transitionId":"nav_startseite_nutzen"},{"label":"Vorgehen","transitionId":"nav_startseite_vorgehen"},{"label":"Ergebnis","transitionId":"nav_startseite_ergebnis"},{"label":"Editor","url":"./state.html?demo=zustand"}],"parent":"","submenu":[],"submenuOpen":false},"states.startseite.hero":{"layout":"overlay","title":"Erst verstehen, dann digitalisieren.","body":"Zustand macht aus Bauchgefühl einen prüfbaren Digitalisierungsplan: Prozess, Entscheidungen, Daten und Verantwortlichkeiten in einem Modell.","actionLabel":"Editor öffnen","url":"./state.html?demo=zustand","secondaryActionLabel":"Nutzen ansehen","secondaryTransitionId":"nav_startseite_nutzen","image":"/assets/landing-hero-business.png","imageAlt":"Geschäftsführung klärt einen Digitalisierungsprozess"},"states.startseite.alert":{"tone":"info","message":"Für Geschäftsführer, die Digitalisierungsprojekte steuern wollen, bevor Budget in Software, Agenturen oder Integrationen fließt."},"states.startseite.nutzen":{"eyebrow":"Das Problem","heading":"Viele Projekte scheitern nicht an Technik, sondern an unklaren Abläufen.","body":"Wenn Fachbereich, Management und IT unterschiedliche Bilder im Kopf haben, wird Digitalisierung teuer. Zustand erzeugt ein gemeinsames, testbares Prozessbild.","selected":"","items":[{"title":"Risiko vor dem Start senken","body":"Klären, was wirklich passieren soll, bevor Lastenheft, Toolauswahl oder Entwicklung beginnen.","image":"/assets/landing-understand-business.png","features":["weniger Fehlannahmen","bessere Budgetentscheidungen"],"actionLabel":"Nutzen ansehen","transitionId":"nav_startseite_nutzen","imageAlt":"Business-Team klärt einen Prozess auf Papier"},{"title":"Entscheidungen sichtbar machen","body":"Wer entscheidet wann, auf Basis welcher Daten, mit welchem nächsten Schritt?","image":"/assets/landing-model-business.png","features":["klare Verantwortlichkeiten","prüfbarer Ablauf"],"actionLabel":"Vorgehen ansehen","transitionId":"nav_startseite_vorgehen","imageAlt":"Entscheider prueft ein ausführbares Prozessmodell"},{"title":"Umsetzung vorbereiten","body":"Aus dem verstandenen Prozess entsteht ein digitaler Ablauf, den Business und IT gemeinsam prüfen können.","image":"/assets/landing-automate-business.png","features":["ein Modell für alle","weniger Reibung in der Umsetzung"],"actionLabel":"Ergebnis ansehen","transitionId":"nav_startseite_ergebnis","imageAlt":"Business-Verantwortliche planen die Automatisierung"}]},"states.startseite.footer":{"brand":"Zustand GmbH","note":"Digitalisierung beginnt nicht mit Software. Sie beginnt mit einem Prozess, den alle verstehen.","columns":[{"title":"Digitalisierungsplan","items":[{"label":"Start","transitionId":"nav_startseite_startseite"},{"label":"Nutzen","transitionId":"nav_startseite_nutzen"},{"label":"Vorgehen","transitionId":"nav_startseite_vorgehen"}]},{"title":"Umsetzung","items":[{"label":"Ergebnis","transitionId":"nav_startseite_ergebnis"},{"label":"Editor","url":"./state.html?demo=zustand"}]}]}},"dataTypes":{"states.startseite.nav":"object","states.startseite.hero":"object","states.startseite.alert":"object","states.startseite.nutzen":"object","states.startseite.footer":"object"},"dataSource":{"url":"","target":"fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"boundary":{"entryId":"","exitId":"","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"parentId":null,"x":96,"y":120},{"id":"nutzen","title":"Nutzen","renderMode":"state","components":[{"id":"nutzen_nav","type":"daisy","text":"","url":"","variant":"navbar","dataPath":"states.nutzen.nav","dataRole":"widget","dataLabel":"Navigation"},{"id":"nutzen_grid","type":"daisy","text":"","url":"","variant":"feature-grid","dataPath":"states.nutzen.karten","dataRole":"widget","dataLabel":"Nutzen"},{"id":"nutzen_steps","type":"daisy","text":"","url":"","variant":"steps","dataPath":"states.nutzen.schritte","dataRole":"widget","dataLabel":"Entscheidungspfad"},{"id":"nutzen_footer","type":"daisy","text":"","url":"","variant":"footer","dataPath":"states.nutzen.footer","dataRole":"widget","dataLabel":"Fußbereich"}],"data":{"states.nutzen.nav":{"layout":"menu-submenu","brand":"Digitalisierungsplan","selected":"Nutzen","items":[{"label":"Start","transitionId":"nav_nutzen_startseite"},{"label":"Nutzen","transitionId":"nav_nutzen_nutzen"},{"label":"Vorgehen","transitionId":"nav_nutzen_vorgehen"},{"label":"Ergebnis","transitionId":"nav_nutzen_ergebnis"},{"label":"Editor","url":"./state.html?demo=zustand"}],"parent":"","submenu":[],"submenuOpen":false},"states.nutzen.karten":{"eyebrow":"Business Case","heading":"Was ein guter Digitalisierungsplan leisten muss","body":"Er muss schnell verständlich sein, Entscheidungen absichern und die Umsetzung konkret machen. Sonst bleibt es Workshop-Folklore.","selected":"","items":[{"title":"Kostentreiber frueh erkennen","body":"Sonderfaelle, Medienbrueche und offene Entscheidungen werden sichtbar, bevor sie Entwicklungskosten erzeugen.","image":"/assets/landing-understand-business.png","features":["weniger Nacharbeit","klarere Prioritaeten"],"actionLabel":"Vorgehen","transitionId":"nav_nutzen_vorgehen","imageAlt":"Business-Team klärt einen Prozess auf Papier"},{"title":"Management und Fachbereich ausrichten","body":"Der Ablauf wird so konkret, dass alle ueber denselben Prozess sprechen.","image":"/assets/landing-model-business.png","features":["gemeinsames Lagebild","schnellere Entscheidungen"],"actionLabel":"Ergebnis","transitionId":"nav_nutzen_ergebnis","imageAlt":"Entscheider prueft ein ausführbares Prozessmodell"},{"title":"Digitalisierung testbar machen","body":"Nicht nur Diagramm: Der Ablauf kann als klickbare Oberfläche und Datenvertrag geprueft werden.","image":"/assets/landing-automate-business.png","features":["vorfuehrbar","anschlussfähig für IT"],"actionLabel":"Editor öffnen","url":"./state.html?demo=zustand","imageAlt":"Business-Verantwortliche planen die Automatisierung"}]},"states.nutzen.schritte":{"current":"Klarheit","items":[{"label":"Klarheit","description":"Was passiert wirklich im Geschäftsprozess?","transitionId":"nav_nutzen_nutzen"},{"label":"Entscheidung","description":"Welche Regeln, Rollen und Daten treiben den Ablauf?","transitionId":"nav_nutzen_vorgehen"},{"label":"Umsetzung","description":"Welcher digitale Ablauf ist sinnvoll und prüfbar?","transitionId":"nav_nutzen_ergebnis"}]},"states.nutzen.footer":{"brand":"Zustand GmbH","note":"Digitalisierung beginnt nicht mit Software. Sie beginnt mit einem Prozess, den alle verstehen.","columns":[{"title":"Digitalisierungsplan","items":[{"label":"Start","transitionId":"nav_nutzen_startseite"},{"label":"Nutzen","transitionId":"nav_nutzen_nutzen"},{"label":"Vorgehen","transitionId":"nav_nutzen_vorgehen"}]},{"title":"Umsetzung","items":[{"label":"Ergebnis","transitionId":"nav_nutzen_ergebnis"},{"label":"Editor","url":"./state.html?demo=zustand"}]}]}},"dataTypes":{"states.nutzen.nav":"object","states.nutzen.karten":"object","states.nutzen.schritte":"object","states.nutzen.footer":"object"},"dataSource":{"url":"","target":"fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"boundary":{"entryId":"","exitId":"","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"parentId":null,"x":432,"y":72},{"id":"vorgehen","title":"Vorgehen","renderMode":"state","components":[{"id":"vorgehen_nav","type":"daisy","text":"","url":"","variant":"navbar","dataPath":"states.vorgehen.nav","dataRole":"widget","dataLabel":"Navigation"},{"id":"vorgehen_alert","type":"daisy","text":"","url":"","variant":"alert","dataPath":"states.vorgehen.hinweis","dataRole":"widget","dataLabel":"Arbeitsweise"},{"id":"vorgehen_grid","type":"daisy","text":"","url":"","variant":"feature-grid","dataPath":"states.vorgehen.plan","dataRole":"widget","dataLabel":"Vorgehen"},{"id":"vorgehen_footer","type":"daisy","text":"","url":"","variant":"footer","dataPath":"states.vorgehen.footer","dataRole":"widget","dataLabel":"Fußbereich"}],"data":{"states.vorgehen.nav":{"layout":"menu-submenu","brand":"Digitalisierungsplan","selected":"Vorgehen","items":[{"label":"Start","transitionId":"nav_vorgehen_startseite"},{"label":"Nutzen","transitionId":"nav_vorgehen_nutzen"},{"label":"Vorgehen","transitionId":"nav_vorgehen_vorgehen"},{"label":"Ergebnis","transitionId":"nav_vorgehen_ergebnis"},{"label":"Editor","url":"./state.html?demo=zustand"}],"parent":"","submenu":[],"submenuOpen":false},"states.vorgehen.hinweis":{"tone":"info","message":"Das Ziel ist kein schönes Prozessbild. Das Ziel ist ein Ablauf, den Entscheider verstehen, Fachbereiche bestätigen und IT umsetzen kann."},"states.vorgehen.plan":{"eyebrow":"Arbeitsweise","heading":"Aus einem unklaren Prozess wird ein prüfbarer Plan","body":"Wir verdichten Gespräche, Regeln und Daten zu einem Modell, das zeigt, welche Entscheidung welchen nächsten Schritt auslöst.","selected":"","items":[{"title":"1. Prozess aufnehmen","body":"Ist-Ablauf, Rollen, Ausnahmen und offene Entscheidungen werden gemeinsam sichtbar gemacht.","image":"/assets/landing-understand-business.png","features":["Workshop statt Ratespiel","Fachbereich im Bild"],"actionLabel":"Nutzen","transitionId":"nav_vorgehen_nutzen","imageAlt":"Business-Team klärt einen Prozess auf Papier"},{"title":"2. Regeln modellieren","body":"Auslöser, Daten und Bedingungen werden als echter Ablauf beschrieben, nicht als loses Diagramm.","image":"/assets/landing-model-business.png","features":["klare Trigger","eindeutige Datenbasis"],"actionLabel":"Ergebnis","transitionId":"nav_vorgehen_ergebnis","imageAlt":"Entscheider prueft ein ausführbares Prozessmodell"},{"title":"3. Ablauf testen","body":"Der Prozess wird klickbar. So sehen Entscheider sofort, ob der digitale Ablauf wirklich stimmt.","image":"/assets/landing-automate-business.png","features":["schnelles Feedback","bessere Umsetzungsvorlage"],"actionLabel":"Editor","url":"./state.html?demo=zustand","imageAlt":"Business-Verantwortliche planen die Automatisierung"}]},"states.vorgehen.footer":{"brand":"Zustand GmbH","note":"Digitalisierung beginnt nicht mit Software. Sie beginnt mit einem Prozess, den alle verstehen.","columns":[{"title":"Digitalisierungsplan","items":[{"label":"Start","transitionId":"nav_vorgehen_startseite"},{"label":"Nutzen","transitionId":"nav_vorgehen_nutzen"},{"label":"Vorgehen","transitionId":"nav_vorgehen_vorgehen"}]},{"title":"Umsetzung","items":[{"label":"Ergebnis","transitionId":"nav_vorgehen_ergebnis"},{"label":"Editor","url":"./state.html?demo=zustand"}]}]}},"dataTypes":{"states.vorgehen.nav":"object","states.vorgehen.hinweis":"object","states.vorgehen.plan":"object","states.vorgehen.footer":"object"},"dataSource":{"url":"","target":"fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"boundary":{"entryId":"","exitId":"","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"parentId":null,"x":768,"y":120},{"id":"ergebnis","title":"Ergebnis","renderMode":"state","components":[{"id":"ergebnis_nav","type":"daisy","text":"","url":"","variant":"navbar","dataPath":"states.ergebnis.nav","dataRole":"widget","dataLabel":"Navigation"},{"id":"ergebnis_hero","type":"daisy","text":"","url":"","variant":"hero","dataPath":"states.ergebnis.hero","dataRole":"widget","dataLabel":"Ergebnis"},{"id":"ergebnis_grid","type":"daisy","text":"","url":"","variant":"feature-grid","dataPath":"states.ergebnis.lieferung","dataRole":"widget","dataLabel":"Lieferung"},{"id":"ergebnis_footer","type":"daisy","text":"","url":"","variant":"footer","dataPath":"states.ergebnis.footer","dataRole":"widget","dataLabel":"Fußbereich"}],"data":{"states.ergebnis.nav":{"layout":"menu-submenu","brand":"Digitalisierungsplan","selected":"Ergebnis","items":[{"label":"Start","transitionId":"nav_ergebnis_startseite"},{"label":"Nutzen","transitionId":"nav_ergebnis_nutzen"},{"label":"Vorgehen","transitionId":"nav_ergebnis_vorgehen"},{"label":"Ergebnis","transitionId":"nav_ergebnis_ergebnis"},{"label":"Editor","url":"./state.html?demo=zustand"}],"parent":"","submenu":[],"submenuOpen":false},"states.ergebnis.hero":{"layout":"overlay","title":"Ein Plan, den Business und IT gemeinsam tragen.","body":"Am Ende steht kein PDF, das veraltet. Es steht ein lebendes Prozessmodell: sichtbar, testbar, exportierbar und als Grundlage für Umsetzung nutzbar.","actionLabel":"Editor öffnen","url":"./state.html?demo=zustand","image":"/assets/landing-automate-business.png","imageAlt":"Business-Verantwortliche planen die Automatisierung"},"states.ergebnis.lieferung":{"eyebrow":"Liefergegenstand","heading":"Vom Entscheidungsprozess zur digitalen Oberfläche","body":"Der Digitalisierungsplan verbindet Strategie, Prozess, Daten und Benutzerführung. Genau dort entsteht Umsetzungssicherheit.","selected":"","items":[{"title":"Prozesslandkarte","body":"Zustände, Übergänge und Verantwortlichkeiten sind nachvollziehbar dokumentiert.","image":"/assets/landing-understand-business.png","features":["Management-verständlich","auditierbar"],"actionLabel":"Start","transitionId":"nav_ergebnis_startseite","imageAlt":"Business-Team klärt einen Prozess auf Papier"},{"title":"Klickbarer Ablauf","body":"Entscheider können den Ablauf durchspielen, bevor Entwicklung startet.","image":"/assets/landing-model-business.png","features":["schnelle Validierung","weniger Missverstaendnisse"],"actionLabel":"Vorgehen","transitionId":"nav_ergebnis_vorgehen","imageAlt":"Entscheider prueft ein ausführbares Prozessmodell"},{"title":"Umsetzungsvorlage","body":"Ein sauberer Daten- und Eventvertrag macht den Prozess für Automatisierung anschlussfähig.","image":"/assets/landing-automate-business.png","features":["IT-ready","KI/API-steuerbar"],"actionLabel":"Editor öffnen","url":"./state.html?demo=zustand","imageAlt":"Business-Verantwortliche planen die Automatisierung"}]},"states.ergebnis.footer":{"brand":"Zustand GmbH","note":"Digitalisierung beginnt nicht mit Software. Sie beginnt mit einem Prozess, den alle verstehen.","columns":[{"title":"Digitalisierungsplan","items":[{"label":"Start","transitionId":"nav_ergebnis_startseite"},{"label":"Nutzen","transitionId":"nav_ergebnis_nutzen"},{"label":"Vorgehen","transitionId":"nav_ergebnis_vorgehen"}]},{"title":"Umsetzung","items":[{"label":"Ergebnis","transitionId":"nav_ergebnis_ergebnis"},{"label":"Editor","url":"./state.html?demo=zustand"}]}]}},"dataTypes":{"states.ergebnis.nav":"object","states.ergebnis.hero":"object","states.ergebnis.lieferung":"object","states.ergebnis.footer":"object"},"dataSource":{"url":"","target":"fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"boundary":{"entryId":"","exitId":"","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"parentId":null,"x":1104,"y":72}],"transitions":[{"id":"nav_startseite_startseite","from":"startseite","to":"startseite","label":"Start","condition":"","triggerType":"button","triggerEvent":"button.nav_startseite_startseite.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"nav_startseite_nutzen","from":"startseite","to":"nutzen","label":"Nutzen","condition":"","triggerType":"button","triggerEvent":"button.nav_startseite_nutzen.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"nav_startseite_vorgehen","from":"startseite","to":"vorgehen","label":"Vorgehen","condition":"","triggerType":"button","triggerEvent":"button.nav_startseite_vorgehen.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"nav_startseite_ergebnis","from":"startseite","to":"ergebnis","label":"Ergebnis","condition":"","triggerType":"button","triggerEvent":"button.nav_startseite_ergebnis.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"nav_nutzen_startseite","from":"nutzen","to":"startseite","label":"Start","condition":"","triggerType":"button","triggerEvent":"button.nav_nutzen_startseite.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"nav_nutzen_nutzen","from":"nutzen","to":"nutzen","label":"Nutzen","condition":"","triggerType":"button","triggerEvent":"button.nav_nutzen_nutzen.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"nav_nutzen_vorgehen","from":"nutzen","to":"vorgehen","label":"Vorgehen","condition":"","triggerType":"button","triggerEvent":"button.nav_nutzen_vorgehen.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"nav_nutzen_ergebnis","from":"nutzen","to":"ergebnis","label":"Ergebnis","condition":"","triggerType":"button","triggerEvent":"button.nav_nutzen_ergebnis.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"nav_vorgehen_startseite","from":"vorgehen","to":"startseite","label":"Start","condition":"","triggerType":"button","triggerEvent":"button.nav_vorgehen_startseite.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"nav_vorgehen_nutzen","from":"vorgehen","to":"nutzen","label":"Nutzen","condition":"","triggerType":"button","triggerEvent":"button.nav_vorgehen_nutzen.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"nav_vorgehen_vorgehen","from":"vorgehen","to":"vorgehen","label":"Vorgehen","condition":"","triggerType":"button","triggerEvent":"button.nav_vorgehen_vorgehen.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"nav_vorgehen_ergebnis","from":"vorgehen","to":"ergebnis","label":"Ergebnis","condition":"","triggerType":"button","triggerEvent":"button.nav_vorgehen_ergebnis.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"nav_ergebnis_startseite","from":"ergebnis","to":"startseite","label":"Start","condition":"","triggerType":"button","triggerEvent":"button.nav_ergebnis_startseite.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"nav_ergebnis_nutzen","from":"ergebnis","to":"nutzen","label":"Nutzen","condition":"","triggerType":"button","triggerEvent":"button.nav_ergebnis_nutzen.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"nav_ergebnis_vorgehen","from":"ergebnis","to":"vorgehen","label":"Vorgehen","condition":"","triggerType":"button","triggerEvent":"button.nav_ergebnis_vorgehen.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"nav_ergebnis_ergebnis","from":"ergebnis","to":"ergebnis","label":"Ergebnis","condition":"","triggerType":"button","triggerEvent":"button.nav_ergebnis_ergebnis.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""}]};
-    const EXPORTED_STATE_BLUEPRINT_SAVED_AT = "2026-07-09T09:13:22.514Z";
+    const EXPORTED_STATE_BLUEPRINT_SAVED_AT = "2026-07-09T12:06:53.815Z";
 
     let model = normalizeModel(JSON.parse(JSON.stringify(EXPORTED_STATE_BLUEPRINT)));
     let current = model.initial;
@@ -1548,6 +1548,7 @@
       m.name = m.name || "Generated App";
       m.states = Array.isArray(m.states) ? m.states : [];
       m.transitions = Array.isArray(m.transitions) ? m.transitions : [];
+      delete m.realtime;
       if (!m.states.length) m.states.push({ id: "start", title: "Start", components: [] });
       for (const s of m.states) {
         s.components = normalizeComponents(s.components);
@@ -1946,6 +1947,24 @@
       return entries;
     }
 
+    function modelRealtimeDataContractPaths(m) {
+      const paths = new Set(["realtime"]);
+      (Array.isArray(m?.transitions) ? m.transitions : []).forEach(transition => {
+        if (normalizeTransitionTriggerType(transition) !== "realtime") return;
+        const name = normalizeTransitionEvent(transition.triggerEvent || "");
+        if (name.startsWith("realtime.")) paths.add("events." + name);
+      });
+      return paths;
+    }
+
+    function pruneRemovedRealtimeData(previousModel, nextModel, target) {
+      const previous = modelRealtimeDataContractPaths(previousModel);
+      const next = modelRealtimeDataContractPaths(nextModel);
+      for (const path of previous) {
+        if (!next.has(path)) deleteValueAtPath(target, path);
+      }
+    }
+
     function pruneRemovedStateDataDefaults(previousModel, nextModel, target) {
       const previous = modelStateDataDefaultPaths(previousModel);
       if (!previous.size) return;
@@ -1984,8 +2003,8 @@
         }
         applyChangedStateDataContractValue(target, path, previous.get(path), nextValue);
       }
+      pruneRemovedRealtimeData(previousModel, nextModel, target);
     }
-
 
     function eventSegment(text) {
       return String(text || "event").trim().toLowerCase()
@@ -1995,7 +2014,7 @@
 
     function normalizeTransitionTriggerType(transition) {
       const value = String(transition?.triggerType || "button").toLowerCase();
-      return ["button", "change", "event", "timer", "auto"].includes(value) ? value : "button";
+      return ["button", "change", "event", "realtime", "timer", "auto"].includes(value) ? value : "button";
     }
 
     function normalizeTransitionTimerMs(value) {
@@ -2012,7 +2031,6 @@
     function defaultTransitionEvent(transition) {
       const triggerType = normalizeTransitionTriggerType(transition);
       if (triggerType === "button") return "button." + eventSegment(transition?.id || transition?.label || "next") + ".clicked";
-      if (triggerType === "event") return "event." + eventSegment(transition?.id || transition?.label || "transition") + ".fired";
       if (triggerType === "timer") return "timer." + eventSegment(transition?.label || transition?.id || "done") + ".done";
       if (triggerType === "auto") return "auto." + eventSegment(transition?.id || transition?.label || "next");
       return "";
@@ -2022,12 +2040,15 @@
       const triggerType = normalizeTransitionTriggerType(transition);
       const rawTriggerEvent = normalizeTransitionEvent(transition?.triggerEvent || "");
       if (triggerType === "change") {
-        return /^(button|event|timer|auto)\./i.test(rawTriggerEvent) ? "" : rawTriggerEvent;
+        return /^(button|event|realtime|timer|auto)\./i.test(rawTriggerEvent) ? "" : rawTriggerEvent;
       }
       if (triggerType === "event") {
-        return rawTriggerEvent && !/^(button|change|timer|auto)\./i.test(rawTriggerEvent)
+        return rawTriggerEvent && !/^(button|change|realtime|timer|auto)\./i.test(rawTriggerEvent)
           ? rawTriggerEvent
-          : normalizeTransitionEvent(defaultTransitionEvent({ ...transition, triggerType }));
+          : "";
+      }
+      if (triggerType === "realtime") {
+        return rawTriggerEvent.startsWith("realtime.") ? rawTriggerEvent : "";
       }
       if (["button", "timer", "auto"].includes(triggerType)) {
         const prefix = triggerType + ".";
@@ -2044,7 +2065,7 @@
     function transitionEventName(transition) {
       const type = transitionTriggerType(transition);
       const explicit = normalizeTransitionTriggerEvent(transition);
-      if (type === "change" && !explicit) return "";
+      if ((type === "change" || type === "event" || type === "realtime") && !explicit) return "";
       return explicit || normalizeTransitionEvent(defaultTransitionEvent(transition));
     }
 
@@ -2074,6 +2095,84 @@
       writeRuntimeState("lastEvent", name, { source: "event", metadata: false });
       writeRuntimeState("lastEventAt", now, { source: "event", metadata: false });
       return name;
+    }
+
+    function normalizeRealtimeValueType(value) {
+      const type = String(value || "").trim().toLowerCase();
+      return ["text", "email", "password", "number", "boolean", "url", "image", "object", "list"].includes(type) ? type : "text";
+    }
+
+    function normalizeRealtimeDetailSchema(value) {
+      if (!isPlainDataObject(value)) return {};
+      const out = {};
+      for (const [path, type] of Object.entries(value).slice(0, 64)) {
+        const cleanPath = runtimeNormalizeBindingPath(path, "");
+        if (cleanPath) out[cleanPath] = normalizeRealtimeValueType(type);
+      }
+      return out;
+    }
+
+    function normalizeRealtimeEventBindings(value) {
+      if (!Array.isArray(value)) return [];
+      return value.slice(0, 64).map(binding => {
+        if (!isPlainDataObject(binding)) return null;
+        const from = runtimeNormalizeBindingPath(binding.from || "", "");
+        const to = runtimeNormalizeBindingPath(binding.to || "", "");
+        if (!from || !to) return null;
+        return { from, to, type: normalizeRealtimeValueType(binding.type) };
+      }).filter(Boolean);
+    }
+
+    function normalizeRealtimeEventConfig(value) {
+      if (!isPlainDataObject(value)) return null;
+      const name = normalizeTransitionEvent(value.name || "");
+      if (!name || !name.startsWith("realtime.")) return null;
+      return {
+        name,
+        label: String(value.label || name).trim(),
+        description: String(value.description || "").trim(),
+        detail: normalizeRealtimeDetailSchema(value.detail),
+        bindings: normalizeRealtimeEventBindings(value.bindings)
+      };
+    }
+
+    function realtimeDetailValue(detail, sourcePath) {
+      const clean = runtimeNormalizeBindingPath(sourcePath || "", "");
+      if (!clean) return undefined;
+      const path = clean.startsWith("detail.") ? clean.slice("detail.".length) : clean;
+      return readValueAtPath(detail, path);
+    }
+
+    function applyRealtimeEventBindings(eventName, detail = {}, realtimeEventConfig = null) {
+      const event = normalizeRealtimeEventConfig(realtimeEventConfig);
+      if (event && event.name !== normalizeTransitionEvent(eventName || "")) return;
+      if (!event) return;
+      const sourceDetail = isPlainDataObject(detail) ? detail : {};
+      for (const binding of normalizeRealtimeEventBindings(event.bindings)) {
+        const value = realtimeDetailValue(sourceDetail, binding.from);
+        if (value === undefined) continue;
+        writeRuntimeState(binding.to, value, { source: "realtime", metadata: false });
+      }
+    }
+
+    function normalizeRealtimeStatus(value) {
+      const source = isPlainDataObject(value) ? value : {};
+      return {
+        roomId: String(source.roomId || ""),
+        clientId: String(source.clientId || ""),
+        status: String(source.status || "idle"),
+        connected: source.connected === true,
+        joined: source.joined === true,
+        connecting: source.connecting === true,
+        reconnectAttempt: Math.max(0, Math.round(Number(source.reconnectAttempt) || 0)),
+        error: String(source.error || "")
+      };
+    }
+
+    function applyRealtimeStatus(value) {
+      const previous = readValueAtPath(context, "realtime");
+      const next = { ...normalizeRealtimeStatus(previous), ...normalizeRealtimeStatus(value) };
+      runtimeSet("realtime", next, { source: "realtime", eventName: "change.realtime" });
     }
 
     function pathMatchesSubscription(path, subscription) {
@@ -2108,7 +2207,7 @@
       if (detail && detail.type === "fetch" && detail.dataSource && conditionMentionsDataSource(transition.condition, detail.dataSource)) {
         return true;
       }
-      if (type === "button" || type === "event" || type === "timer" || type === "auto") return configured === eventName;
+      if (type === "button" || type === "event" || type === "realtime" || type === "timer" || type === "auto") return configured === eventName;
       if (type === "change") {
         const path = normalizeContextPath(detail.path || "", "");
         if (!configured) return Boolean(path);
@@ -2177,13 +2276,14 @@
       return handled;
     }
 
-    function emitRuntimeEvent(eventName, detail = {}) {
+    function emitRuntimeEvent(eventName, detail = {}, realtimeEventConfig = null) {
       if (runtimeIsPaused()) {
         notifyRuntime();
         return false;
       }
       const name = recordRuntimeEvent(eventName, detail);
       if (!name) return false;
+      if (name.startsWith("realtime.")) applyRealtimeEventBindings(name, detail, realtimeEventConfig);
       runtimeEventQueue.push({ name, detail: { ...detail, eventName: name } });
       if (runtimeEventProcessing) return true;
       runtimeEventProcessing = true;
@@ -2515,7 +2615,17 @@
     function defaultContext(m) {
       return {
         state: { current: m?.initial || "", previous: "", lastTransition: "" },
-        runtime: { paused: false }
+        runtime: { paused: false },
+        realtime: {
+          roomId: "",
+          clientId: "",
+          status: "idle",
+          connected: false,
+          joined: false,
+          connecting: false,
+          reconnectAttempt: 0,
+          error: ""
+        }
       };
     }
 
@@ -3438,21 +3548,23 @@
 
     function daisyItemUrl(item) {
       if (!item || typeof item !== "object" || Array.isArray(item)) return "";
-      return safeComponentUrl(String(item.url || item.href || ""));
+      return safeComponentLinkUrl(String(item.url || item.href || ""));
     }
 
     function createDaisyLink(label, url, className = "") {
+      const href = safeComponentLinkUrl(url);
+      if (!href) return document.createTextNode("");
       const link = document.createElement("a");
       link.className = daisyClass(className || "link link-hover");
-      link.href = url;
+      link.href = href;
       link.textContent = label;
-      if (safeExternalComponentUrl(url)) {
+      if (safeExternalComponentUrl(href)) {
         link.target = "_blank";
         link.rel = "noopener noreferrer";
         link.addEventListener("click", evt => {
           if (!hasHostWindow()) return;
           evt.preventDefault();
-          openExternalComponentLink(url);
+          openExternalComponentLink(href);
         });
       }
       return link;
@@ -4183,10 +4295,10 @@
           const layout = daisyDataText(component, "layout", "centered");
           const image = safeComponentUrl(daisyDataText(component, "image", ""));
           const appendHeroActions = parent => {
-            const primaryUrl = String(daisyDataText(component, "url", "")).trim();
+            const primaryUrl = safeComponentLinkUrl(daisyDataText(component, "url", ""));
             const primaryTransitionId = daisyDataText(component, "primaryTransitionId", "") || daisyComponentTransitionId(component);
             const secondaryActionLabel = daisyDataText(component, "secondaryActionLabel", "");
-            const secondaryUrl = String(daisyDataText(component, "secondaryUrl", "")).trim();
+            const secondaryUrl = safeComponentLinkUrl(daisyDataText(component, "secondaryUrl", ""));
             const secondaryTransitionId = daisyDataText(component, "secondaryTransitionId", "");
             const hasPrimary = Boolean(actionLabel || primaryUrl || primaryTransitionId);
             const hasSecondary = Boolean(secondaryActionLabel || secondaryUrl || secondaryTransitionId);
@@ -5049,7 +5161,17 @@
       if (!raw || /^https?:\/\/?$/i.test(raw)) return "";
       if (/^https?:\/\//i.test(raw)) return raw;
       if (/^data:image\/(?:png|jpe?g|gif|webp|svg\+xml);base64,/i.test(raw)) return raw;
-      if (/^(?:\/|\.\/|\.\.\/)[^\s<>]*$/i.test(raw)) return raw;
+      if (/^(?:\/assets\/|\.\/assets\/|assets\/)[^\s<>"']*$/i.test(raw)) return raw;
+      return "";
+    }
+
+    function safeComponentLinkUrl(url) {
+      const raw = String(url || "").trim();
+      if (!raw || /[\s<>"']/.test(raw)) return "";
+      if (/^https?:\/\//i.test(raw)) return raw;
+      if (/^(?:mailto:|tel:)[^\s<>"']+$/i.test(raw)) return raw;
+      if (/^(?:\.\/|\/)?(?:state\.html|index\.html)(?:[?#][^\s<>"']*)?$/i.test(raw)) return raw;
+      if (/^#[A-Za-z0-9_-]+$/.test(raw)) return raw;
       return "";
     }
 
@@ -5456,12 +5578,19 @@
         setRuntimePaused(Boolean(data.paused));
         return;
       }
+      if (data.type === "STATE_BLUEPRINT_REALTIME_STATUS") {
+        applyRealtimeStatus(data.status || {});
+        return;
+      }
       if (data.type === "STATE_BLUEPRINT_REALTIME_EVENT") {
         const name = normalizeTransitionEvent(data.name || "");
         const detail = data.detail && typeof data.detail === "object" && !Array.isArray(data.detail)
           ? JSON.parse(JSON.stringify(data.detail))
           : {};
-        if (name) emitRuntimeEvent(name, detail);
+        const eventConfig = data.event && typeof data.event === "object" && !Array.isArray(data.event)
+          ? JSON.parse(JSON.stringify(data.event))
+          : null;
+        if (name) emitRuntimeEvent(name, detail, eventConfig);
         return;
       }
       if (data.type !== "STATE_BLUEPRINT_MODEL") return;

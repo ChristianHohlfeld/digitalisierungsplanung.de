@@ -12,7 +12,7 @@ const WORLD_MAX_X = 20000;
 const WORLD_MAX_Y = 16000;
 const STATE_VARIABLE_TYPES = ["text", "email", "password", "number", "boolean", "url", "image", "object", "list"];
 const COMPONENT_TYPES = ["heading", "text", "image", "list", "link", "note", "divider", "daisy", "transitionButton", "dataWire"];
-const TRANSITION_TRIGGER_TYPES = ["button", "change", "event", "timer", "auto"];
+const TRANSITION_TRIGGER_TYPES = ["button", "change", "event", "realtime", "timer", "auto"];
 const DATA_WIRE_ROLES = ["image", "title", "price", "description", "field", "link", "note"];
 const FORBIDDEN_COMPONENT_STATE_KEYS = ["localState", "stateStore", "store", "html"];
 
@@ -99,7 +99,7 @@ function stateVariableActualPath(state, value) {
 function stateScopedActionPath(state, value) {
   const raw = normalizeBindingPath(value, "");
   if (!raw) return "";
-  if (/^(states|state|events|runtime)(\.|$)/.test(raw)) return raw;
+  if (/^(states|state|events|runtime|realtime)(\.|$)/.test(raw)) return raw;
   return stateVariableActualPath(state, raw) || raw;
 }
 
@@ -614,6 +614,7 @@ function normalizeModel(input) {
   m.version = 2;
   m.name = String(m.name || "State App");
   m.boundary = normalizeBoundaryConfig(m.boundary);
+  delete m.realtime;
   m.states = Array.isArray(m.states) ? m.states : [];
   m.transitions = Array.isArray(m.transitions) ? m.transitions : [];
   if (!m.states.length) {

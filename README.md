@@ -86,14 +86,24 @@ Der optionale Realtime-Server in `server/` ist nur Transport fuer Runtime-Events
 
 - WSS-Endpunkt: `wss://realtime.digitalisierungsplanung.de/ws`
 - Token-Endpunkt: `https://realtime.digitalisierungsplanung.de/token`
-- Provider-Contract: `https://realtime.digitalisierungsplanung.de/events`
+- Marketplace-HTML: `https://realtime.digitalisierungsplanung.de/marketplace.html`
+- Marketplace-Index: `https://realtime.digitalisierungsplanung.de/marketplace`
+- Preset-Referenzen: `https://realtime.digitalisierungsplanung.de/presets`
+- Event-Definitionen: `https://realtime.digitalisierungsplanung.de/events`
+- Endpoint-Definitionen: `https://realtime.digitalisierungsplanung.de/endpoints`
+- State-Schema: `https://realtime.digitalisierungsplanung.de/state-schema`
 - Server-to-server Fire-Endpunkt: `https://realtime.digitalisierungsplanung.de/emit`
+- Test-Konsole: `https://realtime.digitalisierungsplanung.de/console.html`
 - Aktivierung im Editor: `state.html?room=<room-id>`
-- Zwischen Clients werden nur `realtime.*` Events weitergereicht.
+- API-Dokumentation: [`docs/realtime-api.md`](docs/realtime-api.md)
+- Der App-Contract konsumiert `realtime.*` Events; `/emit` akzeptiert nur angebotene Marketplace-Events.
 
-Realtime erzeugt keine zweite Wahrheit. Der Provider-Contract aus `/events` wird in `model.realtime.events` importiert und beschreibt Eventnamen, Detail-Felder und eindeutige Bindings in den globalen JSON-State. Eingehende Nachrichten werden als `STATE_BLUEPRINT_REALTIME_EVENT` an die generierte Runtime gegeben, schreiben dort erst in den JSON-Bus und koennen nur dann Transitions bewegen. Der Host behandelt Runtime-Kontext weiter nur als read-only Snapshot.
+Realtime erzeugt keine zweite Wahrheit. Der Marketplace auf dem Realtime-Server ist der Werkzeugkasten und die Single Source of Truth fuer angebotene Presets, Events, Endpoints und State-Felder. Der Canvas soll nur konkrete Referenzen speichern, die er wirklich verwendet: zum Beispiel `triggerEvent`, Feldpfade, Room-ID und Endpoint-ID. Er speichert keine Preset-Contracts, keine importierten Endpoint-Definitionen und keine Preset-Instanzen.
 
-Server-to-server Emit ist stateless: `/emit` persistiert keine Call-Objekte und haelt keinen fachlichen Zustand. Es akzeptiert nur angebotene Events aus dem Provider-Contract und broadcastet die Event-Instanz in den Room.
+Die Bereiche sind strikt getrennt: `/marketplace` liefert nur Links und Counts, `/presets` nur Preset-Refs, `/events` nur Event-Definitionen, `/endpoints` nur Endpoint-Definitionen und `/state-schema` nur globale State-Felder. Eingehende Nachrichten werden als `STATE_BLUEPRINT_REALTIME_EVENT` an die generierte Runtime gegeben, schreiben dort erst in den JSON-Bus und koennen nur dann Transitions bewegen. Der Host behandelt Runtime-Kontext weiter nur als read-only Snapshot.
+`state.html` liest Realtime-Presets und Events live vom Server, ohne sie ins Modell oder in exportierte Definitionen zu schreiben.
+
+Server-to-server Emit ist stateless: `/emit` persistiert keine Call-Objekte und haelt keinen fachlichen Zustand. Es akzeptiert nur angebotene Events aus dem Marketplace und broadcastet die Event-Instanz in den Room.
 
 Beispiel:
 
@@ -104,7 +114,7 @@ window.__stateBlueprintRealtime.emit("realtime.canvas.pulse", { stateId: "start"
 Passende Transition:
 
 ```text
-triggerType: event
+triggerType: realtime
 triggerEvent: realtime.canvas.pulse
 ```
 
@@ -115,6 +125,12 @@ curl -X POST https://realtime.digitalisierungsplanung.de/emit \
   -H "authorization: Bearer $REALTIME_EMIT_SECRET" \
   -H "content-type: application/json" \
   -d '{"roomId":"demo","name":"realtime.sip.call.incoming","detail":{"caller":"+491234","callee":"100","callId":"abc-123"}}'
+```
+
+CLI-Smoke:
+
+```bash
+npm run server:smoke:emit -- --room-id=demo --name=realtime.sip.call.incoming --detail='{"caller":"+491234","callee":"100","callId":"abc-123"}'
 ```
 
 ## MCP/API

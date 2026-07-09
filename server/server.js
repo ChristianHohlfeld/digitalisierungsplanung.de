@@ -11,6 +11,12 @@ const DEFAULT_PATH = "/ws";
 const DEFAULT_TOKEN_PATH = "/token";
 const DEFAULT_EVENTS_PATH = "/events";
 const DEFAULT_EMIT_PATH = "/emit";
+const DEFAULT_CONSOLE_PATH = "/console.html";
+const DEFAULT_MARKETPLACE_HTML_PATH = "/marketplace.html";
+const DEFAULT_MARKETPLACE_PATH = "/marketplace";
+const DEFAULT_PRESETS_PATH = "/presets";
+const DEFAULT_ENDPOINTS_PATH = "/endpoints";
+const DEFAULT_STATE_SCHEMA_PATH = "/state-schema";
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 8788;
 const MAX_ID_LENGTH = 128;
@@ -76,6 +82,388 @@ const MESSAGE_TYPES = new Set([
   "runtime.event"
 ]);
 const TRANSIENT_TYPES = new Set(["presence.cursor"]);
+const CONSOLE_HTML = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Realtime Event Console</title>
+  <style>
+    :root { color-scheme: dark; --bg: #07111d; --panel: #0b1b2a; --line: #20425f; --text: #e6f2ff; --muted: #9fb6cc; --accent: #38bdf8; --ok: #34d399; --bad: #fb7185; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--text); }
+    main { width: min(920px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 40px; }
+    header { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+    h1 { margin: 0; font-size: 28px; line-height: 1.1; }
+    .status { color: var(--muted); font-size: 13px; }
+    form, .result { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); padding: 16px; }
+    form { display: grid; gap: 14px; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+    input, select, textarea, button { width: 100%; border: 1px solid var(--line); border-radius: 6px; background: #06111f; color: var(--text); font: inherit; }
+    input, select { height: 42px; padding: 0 10px; }
+    textarea { min-height: 160px; padding: 10px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 13px; line-height: 1.45; }
+    button { height: 42px; padding: 0 14px; border-color: #23729b; background: #0b3a55; color: #dff7ff; font-weight: 900; cursor: pointer; }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    .actions { display: flex; gap: 10px; align-items: center; }
+    .actions button { width: auto; min-width: 120px; }
+    .hint { color: var(--muted); font-size: 13px; line-height: 1.45; }
+    .result { margin-top: 14px; white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 13px; line-height: 1.45; }
+    .ok { color: var(--ok); }
+    .bad { color: var(--bad); }
+    a { color: var(--accent); text-decoration: none; font-weight: 800; }
+    @media (max-width: 720px) { .grid, header { grid-template-columns: 1fr; display: grid; } .actions { display: grid; } .actions button { width: 100%; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Realtime Event Console</h1>
+        <div class="status" id="status">Loading event catalog...</div>
+      </div>
+      <a id="stateLink" href="https://digitalisierungsplanung.de/state.html?room=smoke" target="_blank" rel="noreferrer">Open state room</a>
+    </header>
+    <form id="emitForm">
+      <div class="grid">
+        <label>Room ID<input id="roomId" name="roomId" autocomplete="off" value="smoke"></label>
+        <label>Client ID<input id="clientId" name="clientId" autocomplete="off" value="console"></label>
+      </div>
+      <label>Event<select id="eventName" name="eventName"></select></label>
+      <label>Detail JSON<textarea id="detail" name="detail" spellcheck="false">{}</textarea></label>
+      <label>Emit Secret<input id="secret" name="secret" type="password" autocomplete="off" placeholder="REALTIME_EMIT_SECRET"></label>
+      <div class="actions">
+        <button id="send" type="submit">Emit event</button>
+        <button id="reload" type="button">Reload events</button>
+      </div>
+      <div class="hint">Events come from <code>/events</code>. The secret stays in this browser field and is sent only as the Bearer token for <code>/emit</code>.</div>
+    </form>
+    <div id="result" class="result">No event emitted yet.</div>
+  </main>
+  <script>
+    const statusEl = document.getElementById("status");
+    const resultEl = document.getElementById("result");
+    const eventSelect = document.getElementById("eventName");
+    const detailEl = document.getElementById("detail");
+    const roomEl = document.getElementById("roomId");
+    const clientEl = document.getElementById("clientId");
+    const secretEl = document.getElementById("secret");
+    const sendEl = document.getElementById("send");
+    const stateLinkEl = document.getElementById("stateLink");
+    let catalog = null;
+
+    function setResult(message, ok = true) {
+      resultEl.classList.toggle("ok", ok);
+      resultEl.classList.toggle("bad", !ok);
+      resultEl.textContent = message;
+    }
+
+    function sampleValue(path, type) {
+      const key = String(path || "").toLowerCase();
+      if (key.includes("caller")) return "+491234";
+      if (key.includes("callee")) return "100";
+      if (key.includes("callid") || key.includes("call_id")) return "call-" + Date.now();
+      if (type === "number") return 1;
+      if (type === "boolean") return true;
+      if (type === "object") return {};
+      if (type === "list") return [];
+      return "";
+    }
+
+    function detailForEvent(event) {
+      const detail = {};
+      for (const [path, type] of Object.entries(event?.detail || {})) {
+        detail[path] = sampleValue(path, type);
+      }
+      return detail;
+    }
+
+    function selectedEvent() {
+      return (catalog?.events || []).find(event => event.name === eventSelect.value) || null;
+    }
+
+    function syncDetail() {
+      detailEl.value = JSON.stringify(detailForEvent(selectedEvent()), null, 2);
+    }
+
+    function syncStateLink() {
+      const roomId = encodeURIComponent(roomEl.value.trim() || "smoke");
+      stateLinkEl.href = "https://digitalisierungsplanung.de/state.html?room=" + roomId;
+    }
+
+    async function loadCatalog() {
+      statusEl.textContent = "Loading event catalog...";
+      eventSelect.innerHTML = "";
+      const response = await fetch("/events", { cache: "no-store" });
+      if (!response.ok) throw new Error("events failed with status " + response.status);
+      catalog = await response.json();
+      for (const event of catalog.events || []) {
+        const option = document.createElement("option");
+        option.value = event.name;
+        option.textContent = (event.label || event.name) + " - " + event.name;
+        eventSelect.appendChild(option);
+      }
+      if (!eventSelect.options.length) throw new Error("event catalog has no events");
+      statusEl.textContent = "Loaded " + eventSelect.options.length + " event(s).";
+      syncDetail();
+      syncStateLink();
+    }
+
+    async function emitEvent(event) {
+      event.preventDefault();
+      const roomId = roomEl.value.trim();
+      const clientId = clientEl.value.trim() || "console";
+      const name = eventSelect.value;
+      const secret = secretEl.value.trim();
+      if (!roomId || !name || !secret) {
+        setResult("roomId, event and secret are required.", false);
+        return;
+      }
+      let detail;
+      try {
+        detail = JSON.parse(detailEl.value || "{}");
+        if (!detail || typeof detail !== "object" || Array.isArray(detail)) throw new Error("detail must be an object");
+      } catch (error) {
+        setResult("Invalid detail JSON: " + error.message, false);
+        return;
+      }
+      sendEl.disabled = true;
+      try {
+        const response = await fetch("/emit", {
+          method: "POST",
+          headers: {
+            "authorization": "Bearer " + secret,
+            "content-type": "application/json"
+          },
+          body: JSON.stringify({ roomId, clientId, name, detail })
+        });
+        const payload = await response.json().catch(() => ({}));
+        setResult(JSON.stringify({ status: response.status, ...payload }, null, 2), response.ok);
+      } catch (error) {
+        setResult("Emit failed: " + error.message, false);
+      } finally {
+        sendEl.disabled = false;
+      }
+    }
+
+    new URLSearchParams(location.search).forEach((value, key) => {
+      if (key === "room") roomEl.value = value;
+      if (key === "client") clientEl.value = value;
+    });
+    roomEl.addEventListener("input", syncStateLink);
+    eventSelect.addEventListener("change", syncDetail);
+    document.getElementById("reload").addEventListener("click", () => loadCatalog().catch(error => {
+      statusEl.textContent = "Event load failed.";
+      setResult(error.message, false);
+    }));
+    document.getElementById("emitForm").addEventListener("submit", emitEvent);
+    loadCatalog().catch(error => {
+      statusEl.textContent = "Event load failed.";
+      setResult(error.message, false);
+    });
+  </script>
+</body>
+</html>`;
+
+const MARKETPLACE_HTML = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Realtime Marketplace</title>
+  <style>
+    :root { color-scheme: dark; --bg: #07111d; --panel: #0b1b2a; --line: #20425f; --text: #e6f2ff; --muted: #9fb6cc; --accent: #38bdf8; --ok: #34d399; --bad: #fb7185; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--text); }
+    main { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 40px; }
+    header { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+    h1 { margin: 0; font-size: 28px; line-height: 1.1; }
+    h2 { margin: 0 0 10px; font-size: 17px; }
+    .status { color: var(--muted); font-size: 13px; margin-top: 6px; }
+    .actions { display: flex; gap: 10px; align-items: center; }
+    a, button { border: 1px solid #23729b; border-radius: 6px; background: #0b3a55; color: #dff7ff; font: inherit; font-weight: 900; text-decoration: none; }
+    a { display: inline-flex; align-items: center; min-height: 38px; padding: 0 12px; }
+    button { min-height: 38px; padding: 0 14px; cursor: pointer; }
+    button:disabled { opacity: .55; cursor: wait; }
+    .summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
+    .metric, section { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+    .metric { padding: 14px; }
+    .metric strong { display: block; font-size: 26px; line-height: 1; }
+    .metric span { display: block; margin-top: 6px; color: var(--muted); font-size: 12px; font-weight: 800; text-transform: uppercase; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    section { min-width: 0; padding: 14px; }
+    .items { display: grid; gap: 10px; }
+    .item { border: 1px solid #173450; border-radius: 6px; background: #06111f; padding: 10px; }
+    .item strong { display: block; overflow-wrap: anywhere; }
+    .item p { margin: 6px 0 0; color: var(--muted); font-size: 13px; line-height: 1.4; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .chip { border: 1px solid #235272; border-radius: 999px; color: #c9ebff; padding: 3px 8px; font-size: 12px; overflow-wrap: anywhere; }
+    pre { max-height: 360px; overflow: auto; margin: 12px 0 0; border: 1px solid #173450; border-radius: 6px; background: #06111f; color: #d7ecff; padding: 10px; font: 12px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .bad { color: var(--bad); }
+    @media (max-width: 880px) { header, .grid, .summary { display: grid; grid-template-columns: 1fr; } .actions { display: grid; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Realtime Marketplace</h1>
+        <div class="status" id="status">Loading marketplace...</div>
+      </div>
+      <div class="actions">
+        <a href="/console.html">Event console</a>
+        <button id="reload" type="button">Reload</button>
+      </div>
+    </header>
+    <div class="summary" id="summary"></div>
+    <div class="grid">
+      <section>
+        <h2>Presets</h2>
+        <div class="items" id="presets"></div>
+        <pre id="presetsJson"></pre>
+      </section>
+      <section>
+        <h2>Events</h2>
+        <div class="items" id="events"></div>
+        <pre id="eventsJson"></pre>
+      </section>
+      <section>
+        <h2>Endpoints</h2>
+        <div class="items" id="endpoints"></div>
+        <pre id="endpointsJson"></pre>
+      </section>
+      <section>
+        <h2>State schema</h2>
+        <div class="items" id="stateSchema"></div>
+        <pre id="stateSchemaJson"></pre>
+      </section>
+    </div>
+  </main>
+  <script>
+    const statusEl = document.getElementById("status");
+    const reloadEl = document.getElementById("reload");
+    const summaryEl = document.getElementById("summary");
+    const paths = {
+      marketplace: "/marketplace",
+      presets: "/presets",
+      events: "/events",
+      endpoints: "/endpoints",
+      stateSchema: "/state-schema"
+    };
+
+    function text(value) {
+      return String(value ?? "");
+    }
+
+    function json(id, value) {
+      document.getElementById(id).textContent = JSON.stringify(value, null, 2);
+    }
+
+    function chip(value) {
+      const el = document.createElement("span");
+      el.className = "chip";
+      el.textContent = text(value);
+      return el;
+    }
+
+    function item(title, description, chips = []) {
+      const el = document.createElement("div");
+      el.className = "item";
+      const strong = document.createElement("strong");
+      strong.textContent = title;
+      el.appendChild(strong);
+      if (description) {
+        const p = document.createElement("p");
+        p.textContent = description;
+        el.appendChild(p);
+      }
+      if (chips.length) {
+        const wrap = document.createElement("div");
+        wrap.className = "chips";
+        chips.forEach(value => wrap.appendChild(chip(value)));
+        el.appendChild(wrap);
+      }
+      return el;
+    }
+
+    function renderMetric(label, value) {
+      const el = document.createElement("div");
+      el.className = "metric";
+      const strong = document.createElement("strong");
+      strong.textContent = text(value);
+      const span = document.createElement("span");
+      span.textContent = label;
+      el.append(strong, span);
+      return el;
+    }
+
+    function setItems(id, nodes) {
+      const target = document.getElementById(id);
+      target.replaceChildren(...nodes);
+    }
+
+    async function fetchJson(path) {
+      const response = await fetch(path, { cache: "no-store" });
+      if (!response.ok) throw new Error(path + " failed with status " + response.status);
+      return response.json();
+    }
+
+    async function loadMarketplace() {
+      reloadEl.disabled = true;
+      statusEl.classList.remove("bad");
+      statusEl.textContent = "Loading marketplace...";
+      try {
+        const [marketplace, presets, events, endpoints, stateSchema] = await Promise.all([
+          fetchJson(paths.marketplace),
+          fetchJson(paths.presets),
+          fetchJson(paths.events),
+          fetchJson(paths.endpoints),
+          fetchJson(paths.stateSchema)
+        ]);
+        summaryEl.replaceChildren(
+          renderMetric("presets", marketplace.counts?.presets ?? 0),
+          renderMetric("events", marketplace.counts?.events ?? 0),
+          renderMetric("endpoints", marketplace.counts?.endpoints ?? 0),
+          renderMetric("state fields", marketplace.counts?.stateFields ?? 0)
+        );
+        setItems("presets", (presets.presets || []).map(preset => item(
+          preset.label || preset.id,
+          preset.id,
+          [...(preset.eventIds || []), ...(preset.endpointIds || []), ...(preset.statePaths || [])]
+        )));
+        setItems("events", (events.events || []).map(event => item(
+          event.label || event.name,
+          event.description || event.name,
+          [event.name, ...Object.keys(event.detail || {})]
+        )));
+        setItems("endpoints", (endpoints.endpoints || []).map(endpoint => item(
+          endpoint.label || endpoint.id,
+          [endpoint.method, endpoint.kind, endpoint.url].filter(Boolean).join(" "),
+          [endpoint.id, ...(endpoint.emits || [])]
+        )));
+        setItems("stateSchema", (stateSchema.fields || []).map(field => item(
+          field.path,
+          field.source || stateSchema.rootPath || "",
+          [field.type]
+        )));
+        json("presetsJson", presets);
+        json("eventsJson", events);
+        json("endpointsJson", endpoints);
+        json("stateSchemaJson", stateSchema);
+        statusEl.textContent = "Loaded from live marketplace endpoints.";
+      } catch (error) {
+        statusEl.classList.add("bad");
+        statusEl.textContent = error.message;
+      } finally {
+        reloadEl.disabled = false;
+      }
+    }
+
+    reloadEl.addEventListener("click", loadMarketplace);
+    loadMarketplace();
+  </script>
+</body>
+</html>`;
 
 function parseList(value, fallback = []) {
   if (Array.isArray(value)) return value.map(String).map(item => item.trim()).filter(Boolean);
@@ -115,6 +503,12 @@ function loadConfig(options = {}) {
     tokenPath: options.tokenPath || env.REALTIME_TOKEN_PATH || DEFAULT_TOKEN_PATH,
     eventsPath: options.eventsPath || env.REALTIME_EVENTS_PATH || DEFAULT_EVENTS_PATH,
     emitPath: options.emitPath || env.REALTIME_EMIT_PATH || DEFAULT_EMIT_PATH,
+    consolePath: options.consolePath || env.REALTIME_CONSOLE_PATH || DEFAULT_CONSOLE_PATH,
+    marketplaceHtmlPath: options.marketplaceHtmlPath || env.REALTIME_MARKETPLACE_HTML_PATH || DEFAULT_MARKETPLACE_HTML_PATH,
+    marketplacePath: options.marketplacePath || env.REALTIME_MARKETPLACE_PATH || DEFAULT_MARKETPLACE_PATH,
+    presetsPath: options.presetsPath || env.REALTIME_PRESETS_PATH || DEFAULT_PRESETS_PATH,
+    endpointsPath: options.endpointsPath || env.REALTIME_ENDPOINTS_PATH || DEFAULT_ENDPOINTS_PATH,
+    stateSchemaPath: options.stateSchemaPath || env.REALTIME_STATE_SCHEMA_PATH || DEFAULT_STATE_SCHEMA_PATH,
     allowedOrigins: parseList(
       options.allowedOrigins ?? env.REALTIME_ALLOWED_ORIGINS,
       DEFAULT_ALLOWED_ORIGINS
@@ -295,6 +689,19 @@ function writeJson(response, statusCode, payload, headers = {}) {
   response.end(body);
 }
 
+function writeHtml(response, statusCode, body, headers = {}) {
+  response.writeHead(statusCode, {
+    "content-type": "text/html; charset=utf-8",
+    "cache-control": "no-store",
+    "content-security-policy": "default-src 'none'; connect-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    "x-content-type-options": "nosniff",
+    "referrer-policy": "no-referrer",
+    "content-length": Buffer.byteLength(body),
+    ...headers
+  });
+  response.end(body);
+}
+
 function bearerToken(request) {
   const header = String(request.headers.authorization || "");
   const match = header.match(/^Bearer\s+(.+)$/i);
@@ -335,17 +742,131 @@ function publicBaseUrl(request) {
   return `${proto}://${host}`;
 }
 
-function eventCatalogResponse(config, request) {
+function eventCatalogResponse(config) {
+  return {
+    events: config.eventCatalog.events
+  };
+}
+
+function labelFromId(id) {
+  return String(id || "")
+    .split(/[.:-]+/)
+    .filter(Boolean)
+    .map(part => part.slice(0, 1).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function presetIdForEventName(name) {
+  const parts = String(name || "").split(".").filter(Boolean);
+  if (parts.length <= 2) return parts.join(".");
+  return parts.slice(0, -1).join(".");
+}
+
+function endpointCatalogResponse(config, request) {
   const base = publicBaseUrl(request);
   const wsScheme = base.startsWith("https://") ? "wss://" : "ws://";
   const host = base.replace(/^https?:\/\//, "");
+  const eventIds = config.eventCatalog.events.map(event => event.name);
   return {
-    ...config.eventCatalog,
-    transport: {
-      websocket: `${wsScheme}${host}${config.path}`,
-      token: `${base}${config.tokenPath}`,
+    endpoints: [
+      {
+        id: "realtime.websocket",
+        label: "Realtime WebSocket",
+        kind: "websocket",
+        url: `${wsScheme}${host}${config.path}`,
+        emits: eventIds
+      },
+      {
+        id: "realtime.token",
+        label: "Realtime room token",
+        kind: "http",
+        method: "GET",
+        url: `${base}${config.tokenPath}`
+      },
+      {
+        id: "realtime.emit",
+        label: "Emit realtime event",
+        kind: "http",
+        method: "POST",
+        url: `${base}${config.emitPath}`,
+        emits: eventIds
+      }
+    ]
+  };
+}
+
+function stateSchemaResponse(config) {
+  const fields = new Map();
+  const addField = (path, type, source = "marketplace") => {
+    const cleanPath = sanitizeStatePath(path);
+    if (!cleanPath || fields.has(cleanPath)) return;
+    fields.set(cleanPath, {
+      path: cleanPath,
+      type: normalizeValueType(type),
+      source
+    });
+  };
+  const statePath = config.eventCatalog.state.path;
+  for (const [key, type] of Object.entries(config.eventCatalog.state.schema || {})) {
+    addField(`${statePath}.${key}`, type, "realtime.transport");
+  }
+  for (const event of config.eventCatalog.events) {
+    for (const binding of event.bindings || []) {
+      addField(binding.to, binding.type, event.name);
+    }
+  }
+  return {
+    rootPath: statePath,
+    fields: [...fields.values()]
+  };
+}
+
+function presetCatalogResponse(config) {
+  const groups = new Map();
+  const stateFields = stateSchemaResponse(config).fields;
+  for (const event of config.eventCatalog.events) {
+    const presetId = presetIdForEventName(event.name);
+    if (!presetId) continue;
+    if (!groups.has(presetId)) {
+      groups.set(presetId, {
+        id: presetId,
+        label: labelFromId(presetId.replace(/^realtime\./, "")),
+        kind: "realtime",
+        eventIds: [],
+        endpointIds: ["realtime.websocket", "realtime.emit"],
+        statePaths: []
+      });
+    }
+    const preset = groups.get(presetId);
+    preset.eventIds.push(event.name);
+    for (const binding of event.bindings || []) {
+      if (!preset.statePaths.includes(binding.to)) preset.statePaths.push(binding.to);
+    }
+  }
+  for (const preset of groups.values()) {
+    for (const field of stateFields) {
+      if (field.source === "realtime.transport" && !preset.statePaths.includes(field.path)) {
+        preset.statePaths.push(field.path);
+      }
+    }
+  }
+  return { presets: [...groups.values()] };
+}
+
+function marketplaceIndexResponse(config, request) {
+  const base = publicBaseUrl(request);
+  return {
+    links: {
+      presets: `${base}${config.presetsPath}`,
       events: `${base}${config.eventsPath}`,
-      emit: `${base}${config.emitPath}`
+      endpoints: `${base}${config.endpointsPath}`,
+      stateSchema: `${base}${config.stateSchemaPath}`
+    },
+    counts: {
+      presets: presetCatalogResponse(config).presets.length,
+      events: config.eventCatalog.events.length,
+      endpoints: endpointCatalogResponse(config, request).endpoints.length,
+      stateFields: stateSchemaResponse(config).fields.length
     }
   };
 }
@@ -450,14 +971,29 @@ function createRealtimeServer(options = {}) {
   const offeredEventNames = new Set(config.eventCatalog.events.map(event => event.name));
   const rooms = new Map();
   const isOriginAllowed = origin => allowedOrigins.has("*") || allowedOrigins.has(origin);
-  const corsHeadersForOrigin = origin => {
-    if (!origin || !isOriginAllowed(origin)) return null;
+  const isSamePublicOrigin = (origin, request) => Boolean(origin) && origin === publicBaseUrl(request);
+  const corsHeadersForOrigin = (origin, request) => {
+    if (!origin || !isOriginAllowed(origin) && !isSamePublicOrigin(origin, request)) return null;
     return {
       "access-control-allow-origin": allowedOrigins.has("*") ? "*" : origin,
       "access-control-allow-methods": "GET, POST, OPTIONS",
       "access-control-allow-headers": "authorization, content-type",
       "vary": "Origin"
     };
+  };
+  const prepareCatalogResponse = (request, response) => {
+    const origin = request.headers.origin || "";
+    const headers = origin ? corsHeadersForOrigin(origin, request) : {};
+    if (!headers) {
+      writeJson(response, 403, { error: "origin_not_allowed" });
+      return { done: true };
+    }
+    if (request.method === "OPTIONS") {
+      response.writeHead(204, headers);
+      response.end();
+      return { done: true };
+    }
+    return { done: false, headers };
   };
 
   const server = options.server || http.createServer((request, response) => {
@@ -467,19 +1003,64 @@ function createRealtimeServer(options = {}) {
       writeJson(response, 200, { ok: true, rooms: rooms.size, clients });
       return;
     }
+    if (request.method === "GET" && url.pathname === config.consolePath) {
+      writeHtml(response, 200, CONSOLE_HTML);
+      return;
+    }
+    if (request.method === "GET" && url.pathname === config.marketplaceHtmlPath) {
+      writeHtml(response, 200, MARKETPLACE_HTML);
+      return;
+    }
     if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.eventsPath) {
-      const origin = request.headers.origin || "";
-      const headers = origin ? corsHeadersForOrigin(origin) : {};
-      if (!headers) {
-        writeJson(response, 403, { error: "origin_not_allowed" });
+      const prepared = prepareCatalogResponse(request, response);
+      if (prepared.done) return;
+      writeJson(response, 200, eventCatalogResponse(config), prepared.headers);
+      return;
+    }
+    if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.marketplacePath) {
+      const prepared = prepareCatalogResponse(request, response);
+      if (prepared.done) return;
+      writeJson(response, 200, marketplaceIndexResponse(config, request), prepared.headers);
+      return;
+    }
+    if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.endpointsPath) {
+      const prepared = prepareCatalogResponse(request, response);
+      if (prepared.done) return;
+      writeJson(response, 200, endpointCatalogResponse(config, request), prepared.headers);
+      return;
+    }
+    if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.stateSchemaPath) {
+      const prepared = prepareCatalogResponse(request, response);
+      if (prepared.done) return;
+      writeJson(response, 200, stateSchemaResponse(config), prepared.headers);
+      return;
+    }
+    if (
+      (request.method === "GET" || request.method === "OPTIONS") &&
+      (url.pathname === config.presetsPath || url.pathname.startsWith(`${config.presetsPath}/`))
+    ) {
+      const prepared = prepareCatalogResponse(request, response);
+      if (prepared.done) return;
+      const catalog = presetCatalogResponse(config);
+      const rawPresetId = url.pathname === config.presetsPath ? "" : url.pathname.slice(config.presetsPath.length + 1);
+      let decodedPresetId = "";
+      try {
+        decodedPresetId = decodeURIComponent(rawPresetId);
+      } catch (_) {
+        writeJson(response, 400, { error: "invalid_preset" }, prepared.headers);
         return;
       }
-      if (request.method === "OPTIONS") {
-        response.writeHead(204, headers);
-        response.end();
+      const presetId = sanitizeId(decodedPresetId);
+      if (!presetId) {
+        writeJson(response, 200, catalog, prepared.headers);
         return;
       }
-      writeJson(response, 200, eventCatalogResponse(config, request), headers);
+      const preset = catalog.presets.find(item => item.id === presetId);
+      if (!preset) {
+        writeJson(response, 404, { error: "preset_not_found" }, prepared.headers);
+        return;
+      }
+      writeJson(response, 200, { preset }, prepared.headers);
       return;
     }
     if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.emitPath) {
@@ -487,7 +1068,7 @@ function createRealtimeServer(options = {}) {
       return;
     }
     if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.tokenPath) {
-      const headers = corsHeadersForOrigin(request.headers.origin || "");
+      const headers = corsHeadersForOrigin(request.headers.origin || "", request);
       if (!headers) {
         writeJson(response, 403, { error: "origin_not_allowed" });
         return;
@@ -569,7 +1150,7 @@ function createRealtimeServer(options = {}) {
 
   async function handleEmitRequest(request, response) {
     const origin = request.headers.origin || "";
-    const headers = origin ? corsHeadersForOrigin(origin) : {};
+    const headers = origin ? corsHeadersForOrigin(origin, request) : {};
     if (!headers) {
       writeJson(response, 403, { error: "origin_not_allowed" });
       return;
