@@ -480,7 +480,7 @@ test.describe("Core source contracts", () => {
       {
         name: "feature-grid",
         variant: "feature-grid",
-        data: { eyebrow: "Features", heading: "Feature grid", body: "Body", selected: "", items: [{ title: "Feature", body: "Feature body", actionLabel: visibleText, features: [] }] },
+        data: { eyebrow: "Features", heading: "Feature-Raster", body: "Body", selected: "", items: [{ title: "Feature", body: "Feature body", actionLabel: visibleText, features: [] }] },
         bind: data => ({ ...data, items: data.items.map(item => ({ ...item, transitionId })) })
       },
       {
@@ -1006,13 +1006,13 @@ test.describe("Core source contracts", () => {
     expect(html).not.toContain("Fetch automap");
     expect(html).not.toContain("Open fetch automap");
     expect(html).not.toContain("api.escuelajs");
-    expect(html).toContain('title: "Content list"');
+    expect(html).toContain('title: "Inhaltsliste"');
     expect(html).not.toContain('title: "API list"');
     expect(html).not.toContain("builtin_api_list");
     expect(html).not.toContain('title: "Theme Controller"');
     expect(html).not.toContain('title: "Navbar - colors"');
-    expect(html).toContain('title: "Hero with image reverse"');
-    expect(html).toContain('title: "Action button"');
+    expect(html).toContain('title: "Hero mit Bild rechts"');
+    expect(html).toContain('title: "Aktionsbutton"');
     expect(html).toContain("const SUPPORTED_DAISY_VARIANTS = new Set");
     expect(html).toContain("function runtimeSupportedDaisyComponent");
     expect(html).toContain("pruneUnsupportedDaisyRuntime");
@@ -1267,7 +1267,7 @@ test.describe("Core source contracts", () => {
               variant: "button",
               dataPath: scopePath,
               dataRole: "widget",
-              dataLabel: "Action button"
+              dataLabel: "Aktionsbutton"
             }
           ]
         }

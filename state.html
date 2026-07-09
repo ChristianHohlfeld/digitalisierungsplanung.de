@@ -3574,6 +3574,7 @@
         height: 40px;
       }
 
+      #btnToggleInspector,
       #btnTogglePreview {
         display: none;
       }
@@ -3803,6 +3804,9 @@
         order: 3;
         flex: 1 1 100%;
         min-height: 32px;
+        max-width: 100%;
+        flex-wrap: wrap;
+        overflow-x: hidden;
       }
 
       .workspace.mobile-presets-active .state-explorer-hint {
@@ -3817,11 +3821,15 @@
       .workspace.mobile-presets-active .state-explorer:not(.composer-active) .state-explorer-section {
         grid-template-rows: auto auto;
         width: 100%;
+        min-width: 0;
+        max-width: 100%;
       }
 
       .workspace.mobile-presets-active .state-explorer:not(.composer-active) .state-explorer-section-items {
         display: grid;
         grid-template-columns: 1fr;
+        min-width: 0;
+        max-width: 100%;
       }
 
       .workspace.mobile-presets-active .state-explorer:not(.composer-active) .state-explorer-section + .state-explorer-section {
@@ -3836,8 +3844,18 @@
       .workspace.mobile-presets-active .state-template-card,
       .workspace.mobile-presets-active .component-preset-card {
         width: 100%;
+        max-width: 100%;
+        min-width: 0;
         flex-basis: auto;
         touch-action: pan-y;
+      }
+
+      .workspace.mobile-presets-active .state-template-empty {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        white-space: normal;
+        overflow-wrap: anywhere;
       }
 
       .workspace.mobile-presets-active .template-actions button {
@@ -3876,7 +3894,7 @@
       }
 
       .workspace.mobile-canvas-active .selection-actions {
-        bottom: max(12px, env(safe-area-inset-bottom)) !important;
+        bottom: calc(max(12px, env(safe-area-inset-bottom)) + 64px) !important;
       }
 
       .workspace.mobile-presets-active .selection-actions.visible,
@@ -4849,14 +4867,14 @@
       </div>
       <div id="stateExplorer" class="state-explorer">
         <div class="state-explorer-title">
-          <span>Presets</span>
+          <span>Vorlagen</span>
           <label class="state-explorer-search">
-            <input id="stateExplorerSearch" type="search" placeholder="Search presets" autocomplete="off" spellcheck="false" aria-label="Search presets">
+            <input id="stateExplorerSearch" type="search" placeholder="Vorlagen suchen" autocomplete="off" spellcheck="false" aria-label="Vorlagen suchen">
           </label>
-          <div id="stateExplorerGroups" class="state-explorer-tabs" aria-label="Preset groups"></div>
-          <span class="state-explorer-hint">drag / hold to canvas</span>
-          <button id="btnAddStateTemplate" class="state-explorer-add" type="button" title="Add custom preset">+ Preset</button>
-          <button id="btnToggleStateExplorer" class="state-explorer-toggle" type="button" title="Collapse presets" aria-label="Collapse presets">v</button>
+          <div id="stateExplorerGroups" class="state-explorer-tabs" aria-label="Vorlagengruppen"></div>
+          <span class="state-explorer-hint">ziehen / halten</span>
+          <button id="btnAddStateTemplate" class="state-explorer-add" type="button" title="Eigene Vorlage erstellen">+ Vorlage</button>
+          <button id="btnToggleStateExplorer" class="state-explorer-toggle" type="button" title="Vorlagen einklappen" aria-label="Vorlagen einklappen">v</button>
         </div>
         <div id="presetComposer" class="preset-composer" hidden></div>
         <div id="stateExplorerList" class="state-explorer-list"></div>
@@ -4878,8 +4896,8 @@
   </div>
   <nav id="mobileTabs" class="mobile-tabs" aria-label="Mobile workspace views">
     <button type="button" data-mobile-view="canvas" class="active" aria-pressed="true"><span class="mobile-tab-icon" aria-hidden="true"></span><span>Canvas</span></button>
-    <button type="button" data-mobile-view="presets" aria-pressed="false"><span class="mobile-tab-icon" aria-hidden="true"></span><span>Presets</span></button>
-    <button type="button" data-mobile-view="edit" aria-pressed="false"><span class="mobile-tab-icon" aria-hidden="true"></span><span>Edit</span></button>
+    <button type="button" data-mobile-view="presets" aria-pressed="false"><span class="mobile-tab-icon" aria-hidden="true"></span><span>Vorlagen</span></button>
+    <button type="button" data-mobile-view="edit" aria-pressed="false"><span class="mobile-tab-icon" aria-hidden="true"></span><span>Editieren</span></button>
     <button type="button" data-mobile-view="app" aria-pressed="false"><span class="mobile-tab-icon" aria-hidden="true"></span><span>App</span></button>
   </nav>
 
@@ -8803,7 +8821,7 @@
         .slice(0, 40)
         .map(item => ({
           id: String(item.id || uid("tpl")),
-          title: String(item.title || "State preset"),
+          title: String(item.title || "State-Vorlage"),
           renderMode: normalizeStateRenderMode(item.renderMode),
           components: normalizeComponents(item.components || []),
           data: normalizeDataObject(item.data),
@@ -16571,10 +16589,10 @@
     }
 
     function defaultComponentText(type) {
-      if (type === "heading") return "Section title";
-      if (type === "note") return "Helpful note";
-      if (type === "list") return "First item\nSecond item";
-      if (type === "link") return "Open link";
+      if (type === "heading") return "Abschnittstitel";
+      if (type === "note") return "Hilfreicher Hinweis";
+      if (type === "list") return "Erster Punkt\nZweiter Punkt";
+      if (type === "link") return "Link öffnen";
       if (type === "text") return "Text";
       return "";
     }
@@ -16632,21 +16650,21 @@
           transitions: Array.isArray(spec.transitions) ? spec.transitions : []
         });
       };
-      const officialHeroBody = "A focused introduction for a real page, product, or workflow with one clear next step.";
+      const officialHeroBody = "Eine klare Einleitung für eine echte Seite, ein Angebot oder einen Prozess mit einem eindeutigen nächsten Schritt.";
       const contentListSampleItems = [
         {
-          title: "Starter plan",
-          description: "A clear offer card with image, title, summary, and price.",
+          title: "Starter-Paket",
+          description: "Eine klare Angebotskarte mit Bild, Titel, Kurztext und Preis.",
           image: DEFAULT_IMAGE_COMPONENT_URL,
           price: "EUR 29",
-          tag: "Popular"
+          tag: "Beliebt"
         },
         {
-          title: "Team workshop",
-          description: "A second item using the same fields, ready to replace with endpoint data.",
+          title: "Team-Workshop",
+          description: "Ein zweiter Eintrag mit denselben Feldern, bereit für echte API-Daten.",
           image: DEFAULT_IMAGE_COMPONENT_URL,
           price: "EUR 149",
-          tag: "New"
+          tag: "Neu"
         }
       ];
       const contentListFetchPath = stateDataScopeForId("content_list") + ".fetch";
@@ -16666,108 +16684,108 @@
         events: "https://images.unsplash.com/photo-1518005020951-eccb494ad742?auto=format&fit=crop&w=900&q=80"
       };
       const daisySpecs = [
-        { id: "accordion", title: "FAQ accordion", description: "Expandable FAQ or help sections controlled by shared data.", data: { open: "Shipping", items: [{ label: "Shipping", body: "Orders usually ship within two business days." }, { label: "Returns", body: "Customers can request a return within 30 days." }] } },
-        { id: "alert", title: "Alert banner", description: "Status banner for success, warning, info, or errors.", data: { tone: "info", message: "New software update available." } },
-        { id: "avatar", title: "User avatar", description: "User, placeholder, or avatar group from shared data.", data: { name: "Mira Keller", image: "", status: "online", size: "w-16", shape: "rounded-full", ring: true, initials: "MK", avatars: [] } },
-        { id: "badge", title: "Status badge", description: "Compact label for status, tags, or counters.", data: { label: "New", tone: "primary" } },
-        { id: "bottom-navigation", title: "Mobile bottom nav", description: "Touch-friendly mobile navigation stored in shared data.", data: { selected: "Home", items: ["Home", "Search", "Profile"] } },
-        { id: "breadcrumbs", title: "Breadcrumb path", description: "Current page path rendered from shared items.", data: { items: [{ label: "Home", transitionId: "" }, { label: "Projects", transitionId: "" }, { label: "Current", transitionId: "" }] } },
-        { id: "button", title: "Action button", description: "Primary action button that writes click state or fires outgoing transitions.", data: { label: "Continue", clicked: false, clickedAt: 0 } },
-        { id: "card", title: "Product card", description: "Image card with title, copy, and action fields.", data: { title: "Premium sneakers", body: "Lightweight shoes for everyday work and travel.", image: "https://img.daisyui.com/images/stock/photo-1606107557195-0e29a4b5b4aa.webp", imageAlt: "Shoes", actionLabel: "Buy Now" } },
-        { id: "feature-grid", title: "Feature grid", description: "Responsive feature cards whose actions are wired to real FSM states.", data: { eyebrow: "Features", heading: "Everything for a clean flow", body: "Use this for product benefits, app sections, or navigation teasers.", selected: "", items: [{ title: "Reusable screens", body: "Compose pages from widgets without hiding behavior in HTML.", image: featurePresetImages.screens, imageAlt: "Reusable screen sections in a workspace", features: ["Scoped state data", "Explicit transition action"], actionLabel: "Reusable screens", transitionId: "" }, { title: "Data-bound UI", body: "Fields and labels read from the global JSON bus.", image: featurePresetImages.data, imageAlt: "Dashboard data powering UI cards", features: ["Single source of truth", "Editable in inspector"], actionLabel: "Data-bound UI", transitionId: "" }, { title: "FSM-safe events", body: "Buttons only fire transitions that actually exist.", image: featurePresetImages.events, imageAlt: "Structured event routing architecture", features: ["No local navigation", "No label guessing"], actionLabel: "FSM-safe events", transitionId: "" }] } },
-        { id: "pricing", title: "Pricing cards", description: "Three plan cards whose buy buttons are wired to real FSM states.", data: { selectedPlan: "", plans: [{ title: "Starter", price: "$19", period: "/mo", body: "For one polished site or workflow.", features: ["One production flow", "Shared navbar and footer", "Contact capture"], actionLabel: "Buy Starter", transitionId: "" }, { title: "Team", badge: "Popular", price: "$49", period: "/mo", body: "For small teams shipping multi-step app flows.", features: ["Reusable flow sections", "Checkout state", "FSM transition audit"], highlight: true, actionLabel: "Buy Team", transitionId: "" }, { title: "Scale", badge: "Custom", price: "$149", period: "/mo", body: "For richer journeys with stricter contracts.", features: ["Multiple branch flows", "Typed data contracts", "Workflow review"], actionLabel: "Buy Scale", transitionId: "" }] } },
-        { id: "carousel", title: "Image carousel", description: "Image index and images stored in shared data.", data: { index: 0, images: ["https://picsum.photos/seed/state-1/640/360", "https://picsum.photos/seed/state-2/640/360", "https://picsum.photos/seed/state-3/640/360"] } },
-        { id: "checkbox", title: "Checkbox field", description: "Checkbox choices are saved and can gate transitions.", data: { legend: "Preferences", items: [{ label: "Remember me", checked: false }], checked: false } },
-        { id: "countdown", title: "Countdown timer", description: "Timer values count down in shared data and can trigger the next state.", data: { duration: 20, value: 20, label: "Seconds left", running: true, finished: false, startedAt: 0, endsAt: 0 } },
-        { id: "drawer", title: "Side menu drawer", description: "Open and selected menu values are shared fields.", data: { open: false, title: "Menu", selected: "Inbox", items: ["Inbox", "Settings", "Help"] } },
-        { id: "dropdown", title: "Dropdown menu", description: "Dropdown selection is written to shared data.", data: { selected: "Option A", options: ["Option A", "Option B", "Option C"], open: false } },
-        { id: "file-input", title: "File upload", description: "Selected filename is written to shared data.", data: { label: "Upload file", filename: "" } },
-        { id: "footer", title: "Footer links", description: "Footer columns whose entries can be wired to real states.", data: { brand: "Acme Studio", note: "Reusable footer rendered from scoped state data.", columns: [{ title: "Product", items: [{ label: "Features", transitionId: "" }, { label: "Pricing", transitionId: "" }] }, { title: "Company", items: [{ label: "Contact", transitionId: "" }] }] } },
-        { id: "hero", title: "Hero section", description: "Centered page hero rendered from state data.", data: { layout: "centered", title: "Launch your offer", body: officialHeroBody, actionLabel: "Get Started" } },
-        { id: "hero-figure", variant: "hero", title: "Hero with image", description: "Hero with content and a figure image.", data: { layout: "figure", title: "Product update", body: officialHeroBody, actionLabel: "Learn more", image: "https://img.daisyui.com/images/stock/photo-1635805737707-575885ab0820.webp" } },
-        { id: "hero-figure-reverse", variant: "hero", title: "Hero with image reverse", description: "Hero with image and copy in the official reversed row layout.", data: { layout: "figure-reverse", title: "Campaign launch", body: officialHeroBody, actionLabel: "Review plan", image: "https://img.daisyui.com/images/stock/photo-1635805737707-575885ab0820.webp" } },
-        { id: "hero-form", variant: "hero", title: "Hero login form", description: "Hero with email and password fields bound to shared data.", data: { layout: "form", title: "Login to your workspace", body: "Enter your email and password to continue to your account.", actionLabel: "Sign in", emailLabel: "Email", passwordLabel: "Password", forgotLabel: "Forgot password?", email: "", password: "" } },
-        { id: "hero-overlay", variant: "hero", title: "Hero image overlay", description: "Hero content layered over an image.", data: { layout: "overlay", title: "Plan your next campaign", body: officialHeroBody, actionLabel: "Start planning", image: "https://img.daisyui.com/images/stock/photo-1507358522600-9f71e620c44e.webp" } },
-        { id: "indicator", title: "Notification badge", description: "Count and label come from shared data.", data: { label: "Inbox", count: 3 } },
-        { id: "input", title: "Text input", description: "Text input writes value into shared data.", data: { label: "Name", value: "" } },
-        { id: "loading", title: "Loading state", description: "Loading indicator that advances through a real FSM timer transition.", data: { label: "Loading...", active: true, durationMs: 2000, nextLabel: "Next" } },
-        { id: "mask", title: "Image mask", description: "Image clipped to a reusable shape from shared data.", data: { image: "https://img.daisyui.com/images/stock/photo-1635805737707-575885ab0820.webp", alt: "Masked image", shape: "squircle" } },
-        { id: "menu", title: "Navigation menu", description: "Menu item selection stored in shared data.", data: { selected: "Dashboard", items: ["Dashboard", "Tasks", "Settings"] } },
-        { id: "modal", title: "Confirm dialog", description: "Open state and confirmation are shared fields.", data: { open: false, confirmed: false, openLabel: "Open dialog", title: "Confirm action", body: "Review the details before continuing.", actionLabel: "Confirm", closeLabel: "Close" } },
-        { id: "navbar-title", variant: "navbar", title: "Navbar basic", description: "Simple brand navigation bar.", data: { layout: "title-only", brand: "Acme Studio" } },
-        { id: "navbar-menu-submenu", variant: "navbar", title: "Navbar menu", description: "Navigation bar with page links and optional submenu.", data: { layout: "menu-submenu", brand: "Acme Studio", selected: "Dashboard", items: ["Dashboard", "Projects", "Settings"], parent: "More", submenu: [], submenuOpen: true } },
-        { id: "navbar-search-dropdown", variant: "navbar", title: "Navbar search/profile", description: "Navigation bar with search input and profile menu.", data: { layout: "search-dropdown", brand: "Acme Studio", search: "", profileOpen: false, avatar: "https://img.daisyui.com/images/stock/photo-1534528741775-53994a69daeb.webp", menuItems: ["Profile", "Settings", "Logout"], badge: "New" } },
-        { id: "navbar-cart-profile", variant: "navbar", title: "Navbar shop/cart", description: "Shop navigation with cart badge and profile menu.", data: { layout: "cart-profile", brand: "Acme Store", cartOpen: false, profileOpen: false, cartCount: 8, cartLabel: "Items", subtotal: "$248", actionLabel: "View cart", avatar: "https://img.daisyui.com/images/stock/photo-1534528741775-53994a69daeb.webp", menuItems: ["Profile", "Settings", "Logout"], badge: "New" } },
-        { id: "progress", title: "Progress bar", description: "Linear progress from value and max fields.", data: { value: 45, max: 100, label: "Progress" } },
-        { id: "radial-progress", title: "Progress ring", description: "Circular progress from value and max fields.", data: { value: 66, max: 100, label: "Complete" } },
-        { id: "radio", title: "Radio group", description: "Radio choice stored in shared data.", data: { label: "Plan", value: "Team", options: ["Free", "Team", "Enterprise"] } },
-        { id: "range", title: "Slider input", description: "Numeric slider value written to shared data.", data: { label: "Priority", value: 40, min: 0, max: 100 } },
-        { id: "rating", title: "Star rating", description: "Rating value written to shared data.", data: { label: "Rating", value: 3, max: 5 } },
-        { id: "select", title: "Select field", description: "Select value written to shared data.", data: { label: "Status", value: "Open", options: ["Open", "In progress", "Done"] } },
-        { id: "stat", title: "Metric stat", description: "Metric title, value, and description from shared data.", data: { title: "Revenue", value: "EUR 12.4k", description: "+8% this week" } },
-        { id: "steps", title: "Process steps", description: "Process rail with optional real FSM transitions per step.", data: { current: "Build", items: [{ label: "Plan", description: "Define the screen and data contract." }, { label: "Build", description: "Wire components to real transitions." }, { label: "Ship", description: "Preview, test, and export." }] } },
-        { id: "table", title: "Data table", description: "Columns and rows rendered from shared data arrays.", data: { columns: ["Order", "Status"], rows: [["Order #1024", "Paid"], ["Order #1025", "Pending"]] } },
-        { id: "tabs", title: "Content tabs", description: "Active tab stored in shared data.", data: { selected: "Overview", items: ["Overview", "Details", "Activity"] } },
-        { id: "textarea", title: "Textarea field", description: "Textarea writes value into shared data.", data: { label: "Notes", value: "" } },
-        { id: "timeline", title: "Timeline", description: "Timeline items rendered from shared data.", data: { current: "Review", items: [{ title: "Draft", body: "Created" }, { title: "Review", body: "In progress" }, { title: "Ship", body: "Pending" }] } },
-        { id: "toast", title: "Toast message", description: "Toast visibility and message are shared fields; dismissal is a real timer transition.", data: { visible: true, tone: "info", message: "New message arrived." }, transitions: [{ id: "toast_dismiss", from: "toast", to: "toast", label: "Hide toast", condition: "states.toast.visible == true", triggerType: "timer", timerMs: 3000, set: { "states.toast.visible": false } }] },
-        { id: "toggle", title: "Toggle switch", description: "Toggle value is written to shared data.", data: { legend: "Preferences", label: "Remember me", checked: true } }
+        { id: "accordion", title: "FAQ-Akkordeon", description: "Aufklappbare FAQ- oder Hilfebereiche aus gemeinsamen Daten.", data: { open: "Versand", items: [{ label: "Versand", body: "Bestellungen werden in der Regel innerhalb von zwei Werktagen versendet." }, { label: "Rückgabe", body: "Kunden können innerhalb von 30 Tagen eine Rückgabe anfragen." }] } },
+        { id: "alert", title: "Hinweisbanner", description: "Statusmeldung für Erfolg, Warnung, Info oder Fehler.", data: { tone: "info", message: "Ein neues Software-Update ist verfügbar." } },
+        { id: "avatar", title: "Benutzer-Avatar", description: "Benutzerbild, Platzhalter oder Avatar-Gruppe aus gemeinsamen Daten.", data: { name: "Mira Keller", image: "", status: "online", size: "w-16", shape: "rounded-full", ring: true, initials: "MK", avatars: [] } },
+        { id: "badge", title: "Status-Badge", description: "Kompaktes Label für Status, Tags oder Zähler.", data: { label: "Neu", tone: "primary" } },
+        { id: "bottom-navigation", title: "Mobile Fußnavigation", description: "Touchfreundliche mobile Navigation aus gemeinsamen Daten.", data: { selected: "Start", items: ["Start", "Suche", "Profil"] } },
+        { id: "breadcrumbs", title: "Breadcrumb-Pfad", description: "Aktueller Seitenpfad aus strukturierten Einträgen.", data: { items: [{ label: "Start", transitionId: "" }, { label: "Projekte", transitionId: "" }, { label: "Aktuell", transitionId: "" }] } },
+        { id: "button", title: "Aktionsbutton", description: "Primärer Button, der Klickzustand schreibt oder echte ausgehende Transitions feuert.", data: { label: "Weiter", clicked: false, clickedAt: 0 } },
+        { id: "card", title: "Produktkarte", description: "Bildkarte mit Titel, Kurztext und Aktionsfeld.", data: { title: "Premium-Sneaker", body: "Leichte Schuhe für Alltag, Arbeit und Reisen.", image: "https://img.daisyui.com/images/stock/photo-1606107557195-0e29a4b5b4aa.webp", imageAlt: "Schuhe", actionLabel: "Jetzt kaufen" } },
+        { id: "feature-grid", title: "Feature-Raster", description: "Responsive Feature-Karten, deren Aktionen echte FSM-States ansteuern.", data: { eyebrow: "Vorteile", heading: "Alles für einen sauberen Ablauf", body: "Nutze dieses Preset für Produktvorteile, App-Bereiche oder Navigationsteaser.", selected: "", items: [{ title: "Wiederverwendbare Screens", body: "Seiten aus Widgets zusammensetzen, ohne Verhalten im HTML zu verstecken.", image: featurePresetImages.screens, imageAlt: "Wiederverwendbare Bildschirmbereiche in einem Arbeitsbereich", features: ["Gescopte Zustandsdaten", "Explizite Transition-Aktion"], actionLabel: "Screens ansehen", transitionId: "" }, { title: "Datengebundene UI", body: "Felder und Labels lesen aus dem globalen JSON-Bus.", image: featurePresetImages.data, imageAlt: "Dashboard-Daten als Grundlage für UI-Karten", features: ["Single Source of Truth", "Im Inspector editierbar"], actionLabel: "Datenfluss ansehen", transitionId: "" }, { title: "FSM-sichere Events", body: "Buttons feuern nur Transitions, die wirklich existieren.", image: featurePresetImages.events, imageAlt: "Strukturierte Event-Routing-Architektur", features: ["Keine lokale Navigation", "Kein Label-Raten"], actionLabel: "Events prüfen", transitionId: "" }] } },
+        { id: "pricing", title: "Preiskarten", description: "Drei Tarifkarten, deren Kauf-Buttons auf echte FSM-States verdrahtet sind.", data: { selectedPlan: "", plans: [{ title: "Starter", price: "19 EUR", period: "/Monat", body: "Für eine saubere Website oder einen klaren Workflow.", features: ["Ein Produktionsflow", "Gemeinsame Navbar und Footer", "Kontakt-Erfassung"], actionLabel: "Starter kaufen", transitionId: "" }, { title: "Team", badge: "Beliebt", price: "49 EUR", period: "/Monat", body: "Für kleine Teams mit mehrstufigen App-Flows.", features: ["Wiederverwendbare Flow-Bereiche", "Checkout-State", "FSM-Transition-Audit"], highlight: true, actionLabel: "Team kaufen", transitionId: "" }, { title: "Scale", badge: "Individuell", price: "149 EUR", period: "/Monat", body: "Für umfangreichere Journeys mit strikteren Verträgen.", features: ["Mehrere Branch-Flows", "Typisierte Datenverträge", "Workflow-Review"], actionLabel: "Scale kaufen", transitionId: "" }] } },
+        { id: "carousel", title: "Bildkarussell", description: "Bildindex und Bilder liegen in gemeinsamen Daten.", data: { index: 0, images: ["https://picsum.photos/seed/state-1/640/360", "https://picsum.photos/seed/state-2/640/360", "https://picsum.photos/seed/state-3/640/360"] } },
+        { id: "checkbox", title: "Checkbox-Feld", description: "Checkbox-Auswahlen werden gespeichert und können Transitions steuern.", data: { legend: "Einstellungen", items: [{ label: "Angemeldet bleiben", checked: false }], checked: false } },
+        { id: "countdown", title: "Countdown-Timer", description: "Timerwerte laufen in gemeinsamen Daten herunter und können den nächsten State auslösen.", data: { duration: 20, value: 20, label: "Sekunden übrig", running: true, finished: false, startedAt: 0, endsAt: 0 } },
+        { id: "drawer", title: "Seitenmenü", description: "Offen- und Auswahlwerte sind gemeinsame Felder.", data: { open: false, title: "Menü", selected: "Posteingang", items: ["Posteingang", "Einstellungen", "Hilfe"] } },
+        { id: "dropdown", title: "Dropdown-Menü", description: "Die Dropdown-Auswahl wird in gemeinsame Daten geschrieben.", data: { selected: "Option A", options: ["Option A", "Option B", "Option C"], open: false } },
+        { id: "file-input", title: "Datei-Upload", description: "Der ausgewählte Dateiname wird in gemeinsame Daten geschrieben.", data: { label: "Datei hochladen", filename: "" } },
+        { id: "footer", title: "Footer-Links", description: "Footer-Spalten, deren Einträge auf echte States verdrahtet werden können.", data: { brand: "Zustand GmbH", note: "Wiederverwendbarer Footer aus gescopten Zustandsdaten.", columns: [{ title: "Produkt", items: [{ label: "Vorteile", transitionId: "" }, { label: "Preise", transitionId: "" }] }, { title: "Unternehmen", items: [{ label: "Kontakt", transitionId: "" }] }] } },
+        { id: "hero", title: "Hero-Bereich", description: "Zentrierter Seitenhero aus State-Daten.", data: { layout: "centered", title: "Mach dein Angebot sichtbar", body: officialHeroBody, actionLabel: "Loslegen" } },
+        { id: "hero-figure", variant: "hero", title: "Hero mit Bild", description: "Hero mit Textbereich und Bild.", data: { layout: "figure", title: "Produkt-Update", body: officialHeroBody, actionLabel: "Mehr erfahren", image: "https://img.daisyui.com/images/stock/photo-1635805737707-575885ab0820.webp" } },
+        { id: "hero-figure-reverse", variant: "hero", title: "Hero mit Bild rechts", description: "Hero mit Bild und Text in umgekehrter offizieller Row-Anordnung.", data: { layout: "figure-reverse", title: "Kampagnenstart", body: officialHeroBody, actionLabel: "Plan prüfen", image: "https://img.daisyui.com/images/stock/photo-1635805737707-575885ab0820.webp" } },
+        { id: "hero-form", variant: "hero", title: "Hero mit Login-Formular", description: "Hero mit E-Mail- und Passwortfeldern aus gemeinsamen Daten.", data: { layout: "form", title: "Im Workspace anmelden", body: "E-Mail und Passwort eingeben, um zum Konto zu wechseln.", actionLabel: "Anmelden", emailLabel: "E-Mail", passwordLabel: "Passwort", forgotLabel: "Passwort vergessen?", email: "", password: "" } },
+        { id: "hero-overlay", variant: "hero", title: "Hero mit Bild-Overlay", description: "Hero-Inhalt liegt über einem Bild.", data: { layout: "overlay", title: "Plane deine nächste Kampagne", body: officialHeroBody, actionLabel: "Planung starten", image: "https://img.daisyui.com/images/stock/photo-1507358522600-9f71e620c44e.webp" } },
+        { id: "indicator", title: "Benachrichtigungs-Badge", description: "Zähler und Label kommen aus gemeinsamen Daten.", data: { label: "Posteingang", count: 3 } },
+        { id: "input", title: "Textfeld", description: "Textfeld schreibt den Wert in gemeinsame Daten.", data: { label: "Name", value: "" } },
+        { id: "loading", title: "Lade-State", description: "Ladeanzeige, die über eine echte FSM-Timer-Transition weiterläuft.", data: { label: "Lädt...", active: true, durationMs: 2000, nextLabel: "Weiter" } },
+        { id: "mask", title: "Bildmaske", description: "Bild wird über gemeinsame Daten in eine wiederverwendbare Form geschnitten.", data: { image: "https://img.daisyui.com/images/stock/photo-1635805737707-575885ab0820.webp", alt: "Maskiertes Bild", shape: "squircle" } },
+        { id: "menu", title: "Navigationsmenü", description: "Menüauswahl wird in gemeinsamen Daten gespeichert.", data: { selected: "Dashboard", items: ["Dashboard", "Aufgaben", "Einstellungen"] } },
+        { id: "modal", title: "Bestätigungsdialog", description: "Öffnungszustand und Bestätigung sind gemeinsame Felder.", data: { open: false, confirmed: false, openLabel: "Dialog öffnen", title: "Aktion bestätigen", body: "Prüfe die Details, bevor du fortfährst.", actionLabel: "Bestätigen", closeLabel: "Schließen" } },
+        { id: "navbar-title", variant: "navbar", title: "Navbar einfach", description: "Einfache Marken-Navigationsleiste.", data: { layout: "title-only", brand: "Zustand GmbH" } },
+        { id: "navbar-menu-submenu", variant: "navbar", title: "Navbar mit Menü", description: "Navigationsleiste mit Seitenlinks und optionalem Untermenü.", data: { layout: "menu-submenu", brand: "Zustand GmbH", selected: "Dashboard", items: ["Dashboard", "Projekte", "Einstellungen"], parent: "Mehr", submenu: [], submenuOpen: true } },
+        { id: "navbar-search-dropdown", variant: "navbar", title: "Navbar Suche/Profil", description: "Navigationsleiste mit Sucheingabe und Profilmenü.", data: { layout: "search-dropdown", brand: "Zustand GmbH", search: "", profileOpen: false, avatar: "https://img.daisyui.com/images/stock/photo-1534528741775-53994a69daeb.webp", menuItems: ["Profil", "Einstellungen", "Abmelden"], badge: "Neu" } },
+        { id: "navbar-cart-profile", variant: "navbar", title: "Navbar Shop/Warenkorb", description: "Shop-Navigation mit Warenkorb-Badge und Profilmenü.", data: { layout: "cart-profile", brand: "Zustand Shop", cartOpen: false, profileOpen: false, cartCount: 8, cartLabel: "Artikel", subtotal: "248 EUR", actionLabel: "Warenkorb ansehen", avatar: "https://img.daisyui.com/images/stock/photo-1534528741775-53994a69daeb.webp", menuItems: ["Profil", "Einstellungen", "Abmelden"], badge: "Neu" } },
+        { id: "progress", title: "Fortschrittsbalken", description: "Linearer Fortschritt aus Wert- und Max-Feldern.", data: { value: 45, max: 100, label: "Fortschritt" } },
+        { id: "radial-progress", title: "Fortschrittsring", description: "Kreisförmiger Fortschritt aus Wert- und Max-Feldern.", data: { value: 66, max: 100, label: "Abgeschlossen" } },
+        { id: "radio", title: "Radio-Gruppe", description: "Radio-Auswahl wird in gemeinsamen Daten gespeichert.", data: { label: "Tarif", value: "Team", options: ["Gratis", "Team", "Enterprise"] } },
+        { id: "range", title: "Schieberegler", description: "Numerischer Sliderwert wird in gemeinsame Daten geschrieben.", data: { label: "Priorität", value: 40, min: 0, max: 100 } },
+        { id: "rating", title: "Sternebewertung", description: "Bewertungswert wird in gemeinsame Daten geschrieben.", data: { label: "Bewertung", value: 3, max: 5 } },
+        { id: "select", title: "Auswahlfeld", description: "Select-Wert wird in gemeinsame Daten geschrieben.", data: { label: "Status", value: "Offen", options: ["Offen", "In Bearbeitung", "Erledigt"] } },
+        { id: "stat", title: "Kennzahl", description: "Kennzahl-Titel, Wert und Beschreibung aus gemeinsamen Daten.", data: { title: "Umsatz", value: "12,4 Tsd. EUR", description: "+8% diese Woche" } },
+        { id: "steps", title: "Prozessschritte", description: "Prozessleiste mit optionalen echten FSM-Transitions pro Schritt.", data: { current: "Bauen", items: [{ label: "Planen", description: "Screen und Datenvertrag definieren." }, { label: "Bauen", description: "Komponenten mit echten Transitions verdrahten." }, { label: "Veröffentlichen", description: "Vorschau prüfen, testen und exportieren." }] } },
+        { id: "table", title: "Datentabelle", description: "Spalten und Zeilen werden aus gemeinsamen Datenarrays gerendert.", data: { columns: ["Auftrag", "Status"], rows: [["Auftrag #1024", "Bezahlt"], ["Auftrag #1025", "Ausstehend"]] } },
+        { id: "tabs", title: "Inhalts-Tabs", description: "Aktiver Tab wird in gemeinsamen Daten gespeichert.", data: { selected: "Übersicht", items: ["Übersicht", "Details", "Aktivität"] } },
+        { id: "textarea", title: "Textbereich", description: "Textbereich schreibt den Wert in gemeinsame Daten.", data: { label: "Notizen", value: "" } },
+        { id: "timeline", title: "Zeitachse", description: "Timeline-Einträge werden aus gemeinsamen Daten gerendert.", data: { current: "Prüfung", items: [{ title: "Entwurf", body: "Erstellt" }, { title: "Prüfung", body: "In Bearbeitung" }, { title: "Livegang", body: "Ausstehend" }] } },
+        { id: "toast", title: "Toast-Meldung", description: "Toast-Sichtbarkeit und Nachricht sind gemeinsame Felder; Ausblenden ist eine echte Timer-Transition.", data: { visible: true, tone: "info", message: "Neue Nachricht eingetroffen." }, transitions: [{ id: "toast_dismiss", from: "toast", to: "toast", label: "Toast ausblenden", condition: "states.toast.visible == true", triggerType: "timer", timerMs: 3000, set: { "states.toast.visible": false } }] },
+        { id: "toggle", title: "Schalter", description: "Schalterwert wird in gemeinsame Daten geschrieben.", data: { legend: "Einstellungen", label: "Angemeldet bleiben", checked: true } }
       ];
       const coreTemplates = [
         template({
           id: "builtin_page_heading",
-          title: "Page heading",
-          description: "Plain heading for pages, dashboards, and forms.",
+          title: "Seitenüberschrift",
+          description: "Klare Überschrift für Seiten, Dashboards und Formulare.",
           renderMode: "component",
-          components: [component("builtin_page_heading_component", "heading", "Page title")]
+          components: [component("builtin_page_heading_component", "heading", "Seitentitel")]
         }),
         template({
           id: "builtin_body_copy",
-          title: "Text block",
-          description: "Plain text for instructions or summaries.",
+          title: "Textblock",
+          description: "Normaler Text für Hinweise, Erklärungen oder Zusammenfassungen.",
           renderMode: "component",
-          components: [component("builtin_body_copy_component", "text", "Write the useful explanation here.")]
+          components: [component("builtin_body_copy_component", "text", "Schreibe hier die hilfreiche Erklärung.")]
         }),
         template({
           id: "builtin_media_image",
-          title: "Image block",
-          description: "Image block for product shots, charts, avatars, or covers.",
+          title: "Bildblock",
+          description: "Bildbereich für Produkte, Diagramme, Avatare oder Cover.",
           renderMode: "component",
-          components: [component("builtin_media_image_component", "image", "Image description", DEFAULT_IMAGE_COMPONENT_URL)]
+          components: [component("builtin_media_image_component", "image", "Bildbeschreibung", DEFAULT_IMAGE_COMPONENT_URL)]
         }),
         template({
           id: "builtin_task_checklist",
-          title: "Task checklist",
-          description: "Reusable checklist for tasks, onboarding, or QA.",
+          title: "Aufgaben-Checkliste",
+          description: "Wiederverwendbare Checkliste für Aufgaben, Onboarding oder Qualitätssicherung.",
           renderMode: "component",
-          components: [component("builtin_task_checklist_component", "list", "Confirm owner\nCheck deadline\nAttach evidence\nMark done")]
+          components: [component("builtin_task_checklist_component", "list", "Verantwortung klären\nFrist prüfen\nNachweis anhängen\nErledigt markieren")]
         }),
         template({
           id: "builtin_external_link",
-          title: "External link",
-          description: "Single link to docs, support, calendar, or downloads.",
+          title: "Externer Link",
+          description: "Einzelner Link zu Dokumentation, Support, Kalender oder Download.",
           renderMode: "component",
-          components: [component("builtin_external_link_component", "link", "Open docs", "https://example.com/docs")]
+          components: [component("builtin_external_link_component", "link", "Dokumentation öffnen", "https://example.com/docs")]
         }),
         template({
           id: "builtin_info_note",
-          title: "Info note",
-          description: "Highlighted note for warnings, hints, or next steps.",
+          title: "Infobox",
+          description: "Hervorgehobener Hinweis für Warnungen, Tipps oder nächste Schritte.",
           renderMode: "component",
-          components: [component("builtin_info_note_component", "note", "Important context goes here.")]
+          components: [component("builtin_info_note_component", "note", "Wichtiger Kontext steht hier.")]
         }),
         template({
           id: "builtin_section_divider",
-          title: "Section divider",
-          description: "Visual separator between dense content groups.",
+          title: "Abschnittstrenner",
+          description: "Visuelle Trennung zwischen dichten Inhaltsgruppen.",
           renderMode: "component",
           components: [component("builtin_section_divider_component", "divider")]
         }),
         template({
           id: "builtin_content_list",
           rootStateId: "content_list",
-          title: "Content list",
-          description: "Card list from sample items or any JSON endpoint.",
+          title: "Inhaltsliste",
+          description: "Kartenliste aus Beispieldaten oder aus einem JSON-Endpunkt.",
           components: [],
           data: {
             [contentListFetchPath]: {
@@ -16784,10 +16802,10 @@
           },
           dataTypes: { [contentListFetchPath]: "object" },
           dataWires: [
-            contentListWire("builtin_content_list_image", "image", "image", "image", "Image"),
-            contentListWire("builtin_content_list_title", "title", "title", "heading", "Title"),
-            contentListWire("builtin_content_list_description", "description", "description", "text", "Description"),
-            contentListWire("builtin_content_list_price", "price", "price", "text", "Price")
+            contentListWire("builtin_content_list_image", "image", "image", "image", "Bild"),
+            contentListWire("builtin_content_list_title", "title", "title", "heading", "Titel"),
+            contentListWire("builtin_content_list_description", "description", "description", "text", "Beschreibung"),
+            contentListWire("builtin_content_list_price", "price", "price", "text", "Preis")
           ],
           dataSource: {
             url: "",
@@ -16886,12 +16904,12 @@
         const controls = document.createElement("div");
         controls.className = "widget-library-controls";
         const select = document.createElement("select");
-        select.setAttribute("aria-label", "Widget preset");
+        select.setAttribute("aria-label", "Widget-Vorlage");
         templates.forEach(({ template, info }) => {
           const attached = Boolean(widgetPresetComponentInState(state, template));
           const option = document.createElement("option");
           option.value = template.id;
-          option.textContent = info.label + (attached ? " (in render)" : "");
+          option.textContent = info.label + (attached ? " (im Render)" : "");
           select.appendChild(option);
         });
         const action = document.createElement("button");
@@ -16902,11 +16920,11 @@
           const item = selectedItem();
           const attached = Boolean(item && widgetPresetComponentInState(state, item.template));
           const count = templates.filter(item => widgetPresetComponentInState(state, item.template)).length;
-          action.textContent = "Add widget";
+          action.textContent = "Widget hinzufügen";
           action.disabled = attached;
-          action.title = attached ? "Already in render" : "Add selected widget";
+          action.title = attached ? "Bereits im Render" : "Ausgewähltes Widget hinzufügen";
           action.classList.remove("danger");
-          status.textContent = attached ? "Selected widget is already in render" : count ? `${count} in render` : "Drop preset here";
+          status.textContent = attached ? "Ausgewähltes Widget ist bereits im Render" : count ? `${count} im Render` : "Vorlage hier ablegen";
         };
         select.onchange = syncAction;
         action.onclick = evt => {
@@ -18075,9 +18093,6 @@
       stateInspectorEl.classList.remove("template-inspector", "transition-inspector", "preset-composer-inspector");
       stateInspectorTitleEl.textContent = "State Inspector";
       stateInspectorBodyEl.innerHTML = `
-        <div class="inspector-empty">
-          <strong>No state selected</strong>
-        </div>
         <details class="inspector-collapse" id="pRealtimeCatalogCard" open>
           <summary class="inspector-collapse-summary">
             <span class="inspector-collapse-title">
@@ -18097,6 +18112,9 @@
             </div>
           </div>
         </details>
+        <div class="inspector-empty">
+          <strong>No state selected</strong>
+        </div>
       `;
       renderRealtimeCatalogInspector();
       if (wasEditingTemplate) renderStateExplorer();
@@ -20865,23 +20883,23 @@
       if (opts.saveSelection) saveSelection("template:select:" + template.id);
       stateInspectorEl.classList.remove("transition-inspector");
       stateInspectorEl.classList.add("template-inspector");
-      stateInspectorTitleEl.textContent = "Preset: " + (template.title || "State preset");
+      stateInspectorTitleEl.textContent = "Vorlage: " + (template.title || "State-Vorlage");
       root.innerHTML = `
-        <h3>Reusable Preset</h3>
+        <h3>Wiederverwendbare Vorlage</h3>
         <div class="template-mode-note">
-          <strong>Build once, reuse anywhere</strong>
-          <span>Variables prepare shared values when a state from this preset opens. Existing canvas states stay unchanged.</span>
+          <strong>Einmal bauen, überall wiederverwenden</strong>
+          <span>Variablen bereiten gemeinsame Werte vor, wenn ein State aus dieser Vorlage geöffnet wird. Bestehende Canvas-States bleiben unverändert.</span>
         </div>
-        <div class="field"><label>Preset title</label><input id="pTitle"></div>
+        <div class="field"><label>Vorlagentitel</label><input id="pTitle"></div>
         <div class="state-variable-panel">
           <div class="state-variable-head">
-            <div>Variables<span>name, type, and start value for this preset</span></div>
+            <div>Variablen<span>Name, Typ und Startwert für diese Vorlage</span></div>
           </div>
           <div id="pTemplateStateVariableList" class="state-variable-list"></div>
           <div class="state-variable-add">
             <input id="pTemplateStateVariableName" list="pTemplateStateVariableNameList" placeholder="variableName">
-            <select id="pTemplateStateVariableType" aria-label="Variable type"></select>
-            <button id="pTemplateStateVariableAdd" type="button">+ Add</button>
+            <select id="pTemplateStateVariableType" aria-label="Variablentyp"></select>
+            <button id="pTemplateStateVariableAdd" type="button">+ Hinzufügen</button>
             <datalist id="pTemplateStateVariableNameList"></datalist>
           </div>
         </div>
@@ -20889,50 +20907,50 @@
         <details class="inspector-collapse inspector-subcollapse" id="pTemplateAdvancedDataCard">
           <summary class="inspector-collapse-summary">
             <span>
-              <strong>Raw data</strong>
-              <em>Advanced contract view.</em>
+              <strong>Rohdaten</strong>
+              <em>Erweiterte Vertragsansicht.</em>
             </span>
           </summary>
           <div class="inspector-collapse-body">
-            <div class="field"><label>Raw object</label><textarea id="pData" spellcheck="false" placeholder='{"name":"Ada"}'></textarea></div>
+            <div class="field"><label>Rohobjekt</label><textarea id="pData" spellcheck="false" placeholder='{"name":"Ada"}'></textarea></div>
           </div>
         </details>
         <details class="inspector-collapse inspector-subcollapse" id="pTemplateRepeatCard">
           <summary class="inspector-collapse-summary">
             <span>
-              <strong>Show a list</strong>
-              <em>Use when this preset renders one item per row.</em>
+              <strong>Liste anzeigen</strong>
+              <em>Nutzen, wenn diese Vorlage einen Eintrag pro Zeile rendert.</em>
             </span>
           </summary>
           <div class="inspector-collapse-body">
             <div class="data-source-panel">
-              <div class="field"><label>Show items from</label><input id="pRepeatPath" placeholder="states.this_state.fetch.data"></div>
+              <div class="field"><label>Einträge anzeigen aus</label><input id="pRepeatPath" placeholder="states.this_state.fetch.data"></div>
               <div class="row">
-                <div class="field"><label>Item name</label><input id="pRepeatAs" placeholder="item"></div>
-                <div class="field"><label>Index name</label><input id="pRepeatIndex" placeholder="i"></div>
+                <div class="field"><label>Eintragsname</label><input id="pRepeatAs" placeholder="item"></div>
+                <div class="field"><label>Indexname</label><input id="pRepeatIndex" placeholder="i"></div>
               </div>
               <div id="pRepeatPreview" class="condition-preview empty"></div>
             </div>
           </div>
         </details>
-        <div class="small"><b>Content</b></div>
+        <div class="small"><b>Inhalt</b></div>
         <div id="pComponents" class="component-list"></div>
-        <div class="component-empty">Edit complex preset content on the canvas, then drag the updated state back here.</div>
+        <div class="component-empty">Komplexe Vorlageninhalte auf dem Canvas bearbeiten und den aktualisierten State danach wieder hierher ziehen.</div>
         <div class="row" style="margin-top:10px">
-          <button id="pTemplateUse">Use on canvas</button>
-          <button id="pTemplateExport">Export component</button>
-          <button id="pTemplateImport">Import component</button>
-          <button id="pTemplateDelete" class="danger">Delete preset</button>
+          <button id="pTemplateUse">Auf Canvas verwenden</button>
+          <button id="pTemplateExport">Komponente exportieren</button>
+          <button id="pTemplateImport">Komponente importieren</button>
+          <button id="pTemplateDelete" class="danger">Vorlage löschen</button>
         </div>
         <details class="inspector-collapse inspector-subcollapse" id="pTemplateMetaCard">
           <summary class="inspector-collapse-summary">
             <span>
-              <strong>Preset info</strong>
-              <em>ID and storage details.</em>
+              <strong>Vorlageninfo</strong>
+              <em>ID und Speicherdetails.</em>
             </span>
           </summary>
           <div class="inspector-collapse-body">
-            <div class="small">Preset id: <b>${escapeHtml(template.id)}</b></div>
+            <div class="small">Vorlagen-ID: <b>${escapeHtml(template.id)}</b></div>
           </div>
         </details>
       `;
@@ -20989,14 +21007,14 @@
         if (!entries.length) {
           const empty = document.createElement("div");
           empty.className = "state-variable-empty";
-          empty.textContent = "No variables yet. Add one when this preset needs shared data.";
+          empty.textContent = "Noch keine Variablen. Lege eine an, wenn diese Vorlage gemeinsame Daten braucht.";
           stateVariableList.appendChild(empty);
           return;
         }
         const makeTypeSelect = (path, value) => {
           const select = document.createElement("select");
           select.dataset.stateVariableType = "true";
-          select.setAttribute("aria-label", "Variable type");
+          select.setAttribute("aria-label", "Variablentyp");
           const savedTypes = normalizeDataTypes(template.dataTypes, template.data);
           const currentType = savedTypes[path] || inferStateVariableType(path, value);
           appendStateVariableTypeOptions(select, currentType, { path, value });
@@ -21032,7 +21050,7 @@
               try {
                 const parsed = JSON.parse(control.value || (type === "list" ? "[]" : "{}"));
                 const valid = type === "list" ? Array.isArray(parsed) : isPlainObject(parsed);
-                if (!valid) throw new Error(type === "list" ? "Use a JSON array." : "Use a JSON object.");
+                if (!valid) throw new Error(type === "list" ? "JSON-Array verwenden." : "JSON-Objekt verwenden.");
                 control.classList.remove("invalid");
                 updateValue(parsed);
               } catch (_) {
@@ -21071,7 +21089,7 @@
           const name = document.createElement("input");
           name.value = path;
           name.dataset.stateVariableName = "true";
-          name.setAttribute("aria-label", "Variable name");
+          name.setAttribute("aria-label", "Variablenname");
           name.onchange = () => {
             const nextPath = normalizeBindingPath(name.value, "");
             const next = normalizeDataObject(template.data);
@@ -21096,8 +21114,8 @@
           remove.type = "button";
           remove.className = "danger state-variable-remove";
           remove.textContent = "x";
-          remove.title = "Remove variable";
-          remove.setAttribute("aria-label", "Remove variable " + path);
+          remove.title = "Variable entfernen";
+          remove.setAttribute("aria-label", "Variable entfernen " + path);
           remove.onclick = () => {
             const next = normalizeDataObject(template.data);
             const nextTypes = normalizeDataTypes(template.dataTypes, next);
@@ -21130,22 +21148,22 @@
       const updateDataPreview = (persist = true, opts = {}) => {
         try {
           const parsed = JSON.parse(data.value || "{}");
-          if (!isPlainObject(parsed)) throw new Error("Data must be a JSON object.");
+          if (!isPlainObject(parsed)) throw new Error("Daten müssen ein JSON-Objekt sein.");
           template.data = normalizeDataObject(parsed);
           template.dataTypes = normalizeDataTypes(template.dataTypes, template.data);
-          dataPreview.textContent = Object.keys(template.data).length ? "Preset prepares these shared values on enter." : "No start values.";
+          dataPreview.textContent = Object.keys(template.data).length ? "Vorlage bereitet diese gemeinsamen Werte beim Eintritt vor." : "Keine Startwerte.";
           dataPreview.classList.toggle("empty", !Object.keys(template.data).length);
           if (persist) persistTemplate(opts.historyKey || "template:data:" + template.id);
           if (opts.refreshVariables !== false) renderTemplateVariableList();
         } catch (err) {
-          dataPreview.textContent = err.message || "Invalid JSON.";
+          dataPreview.textContent = err.message || "Ungültiges JSON.";
           dataPreview.classList.remove("empty");
           if (advancedDataCard) advancedDataCard.open = true;
         }
       };
       title.oninput = () => {
-        template.title = title.value || "State preset";
-        stateInspectorTitleEl.textContent = "Preset: " + template.title;
+        template.title = title.value || "State-Vorlage";
+        stateInspectorTitleEl.textContent = "Vorlage: " + template.title;
         persistTemplate("template:title:" + template.id);
       };
       data.oninput = () => updateDataPreview(true);
@@ -22633,7 +22651,7 @@
         previewCollapsed = false;
         applyPreviewCollapsed();
       }
-      if (previewTitleTextEl) previewTitleTextEl.textContent = "Preset Preview";
+      if (previewTitleTextEl) previewTitleTextEl.textContent = "Vorlagenvorschau";
       const payload = {
         type: "STATE_BLUEPRINT_MODEL",
         model: {
@@ -22660,7 +22678,7 @@
     }
 
     function restoreGeneratedAppAfterPresetPreview() {
-      const shouldRestore = presetPreviewActive || presetComposerDraft || previewTitleTextEl?.textContent === "Preset Preview";
+      const shouldRestore = presetPreviewActive || presetComposerDraft || previewTitleTextEl?.textContent === "Vorlagenvorschau";
       clearPresetPreviewUi();
       if (!shouldRestore) return;
       if (currentAppState && byId(currentAppState)) startAppAtState(currentAppState, { preserveFocus: true, suppressLayerFollow: true });
@@ -22779,8 +22797,8 @@
     function nextStateTemplateTitle() {
       let index = stateTemplates.length + 1;
       const titles = new Set(stateTemplates.map(template => String(template.title || "").toLowerCase()));
-      while (titles.has(("State preset " + index).toLowerCase())) index++;
-      return "State preset " + index;
+      while (titles.has(("State-Vorlage " + index).toLowerCase())) index++;
+      return "State-Vorlage " + index;
     }
 
     function addBlankStateTemplate() {
@@ -22821,7 +22839,7 @@
       const selectedId = selectedNodeIdList()[0];
       const source = selectedId ? byId(selectedId) : null;
       if (!source) {
-        modalAlert("Select a canvas state first, then update the preset from it.", "No state selected");
+        modalAlert("Wähle zuerst einen Canvas-State aus und aktualisiere danach die Vorlage daraus.", "Kein State ausgewählt");
         return;
       }
       const snapshot = stateTemplateFromState(source);
@@ -22836,9 +22854,9 @@
       const template = stateTemplates.find(item => item.id === templateId);
       if (!template) return false;
       const ok = await modalConfirm(
-        `Delete preset "${template.title || "State preset"}"? You can undo this if needed.`,
-        "Delete preset",
-        { confirmText: "Delete preset", danger: true }
+        `Vorlage "${template.title || "State-Vorlage"}" löschen? Du kannst das bei Bedarf rückgängig machen.`,
+        "Vorlage löschen",
+        { confirmText: "Vorlage löschen", danger: true }
       );
       if (!ok) return false;
       stateTemplates = stateTemplates.filter(template => template.id !== templateId);
@@ -23079,7 +23097,7 @@
     function composerTemplateFrom(template) {
       const copy = simpleComponentComposerTemplate(template);
       if (!copy) return null;
-      copy.title = String(copy.title || template.title || "State preset");
+      copy.title = String(copy.title || template.title || "State-Vorlage");
       copy.description = String(template.description || copy.description || "");
       copy.builtIn = Boolean(template.builtIn);
       return copy;
@@ -23474,20 +23492,20 @@
       head.className = "preset-composer-head";
       const headText = document.createElement("div");
       const strong = document.createElement("strong");
-      strong.textContent = template.title || "State preset";
+      strong.textContent = template.title || "State-Vorlage";
       const sub = document.createElement("span");
-      sub.textContent = "Bus-backed preset setup";
+      sub.textContent = "Vorlage mit globalem Bus-Vertrag";
       headText.append(strong, sub);
       const actions = document.createElement("div");
       actions.className = "preset-composer-actions";
       const add = document.createElement("button");
       add.type = "button";
       add.className = "primary";
-      add.textContent = "+ Add";
+      add.textContent = "+ Hinzufügen";
       add.onclick = addComposedPresetToCurrentLayer;
       const close = document.createElement("button");
       close.type = "button";
-      close.textContent = "Close";
+      close.textContent = "Schließen";
       close.onclick = () => clearPresetComposerUi({ restoreApp: true });
       actions.append(add, close);
       head.append(headText, actions);
@@ -23496,14 +23514,14 @@
       const titleField = document.createElement("div");
       titleField.className = "field";
       const titleLabel = document.createElement("label");
-      titleLabel.textContent = "State title";
+      titleLabel.textContent = "State-Titel";
       const titleInput = document.createElement("input");
       titleInput.value = template.title || "";
-      titleInput.setAttribute("aria-label", "State title");
+      titleInput.setAttribute("aria-label", "State-Titel");
       titleInput.oninput = () => {
-        template.title = titleInput.value || "State preset";
-        if (previewTitleTextEl) previewTitleTextEl.textContent = "Preset Preview";
-        stateInspectorTitleEl.textContent = "Preset: " + template.title;
+        template.title = titleInput.value || "State-Vorlage";
+        if (previewTitleTextEl) previewTitleTextEl.textContent = "Vorlagenvorschau";
+        stateInspectorTitleEl.textContent = "Vorlage: " + template.title;
         strong.textContent = template.title;
         schedulePresetComposerPreview();
       };
@@ -23514,12 +23532,12 @@
       section.className = "preset-composer-section";
       const sectionTitle = document.createElement("div");
       sectionTitle.className = "preset-composer-section-title";
-      sectionTitle.innerHTML = "<strong>Variables</strong><span>name / type / value</span>";
+      sectionTitle.innerHTML = "<strong>Variablen</strong><span>Name / Typ / Wert</span>";
       section.appendChild(sectionTitle);
       if (!rows.length) {
         const empty = document.createElement("div");
         empty.className = "preset-composer-note";
-        empty.textContent = "No variables yet. Add one to create a shared value when this state opens.";
+        empty.textContent = "Noch keine Variablen. Lege eine an, wenn dieser State beim Öffnen einen gemeinsamen Wert erzeugen soll.";
         section.appendChild(empty);
       }
       rows.forEach(rowData => {
@@ -23529,7 +23547,7 @@
         const name = document.createElement("input");
         name.value = composerDisplayPath(template, rowData.path);
         name.setAttribute("list", variableListId);
-        name.setAttribute("aria-label", "Variable name");
+        name.setAttribute("aria-label", "Variablenname");
         name.onchange = () => {
           if (!renameComposerVariable(template, rowData.path, name.value)) {
             name.value = composerDisplayPath(template, rowData.path);
@@ -23541,7 +23559,7 @@
         };
         name.oninput = () => name.classList.remove("invalid");
         const type = document.createElement("select");
-        type.setAttribute("aria-label", "Variable type");
+        type.setAttribute("aria-label", "Variablentyp");
         appendStateVariableTypeOptions(type, rowData.type, { path: rowData.path, value: rowData.value });
         const makeValueControl = () => {
           const currentType = normalizeStateVariableType(type.value);
@@ -23560,7 +23578,7 @@
               }
               schedulePresetComposerPreview();
             });
-            control.setAttribute("aria-label", "Checkbox options");
+            control.setAttribute("aria-label", "Checkbox-Optionen");
             return control;
           } else if (currentType === "object") {
             control = document.createElement("textarea");
@@ -23577,7 +23595,7 @@
             }
             control.value = String(value ?? "");
           }
-          control.setAttribute("aria-label", "Variable value");
+          control.setAttribute("aria-label", "Variablenwert");
           control.oninput = () => {
             const previous = dataObjectValueAtPath(template.data, rowData.path);
             const nextValue = composerValueFromControl(control, currentType, previous);
@@ -23603,8 +23621,8 @@
         remove.type = "button";
         remove.className = "danger preset-composer-remove";
         remove.textContent = "x";
-        remove.title = "Remove variable";
-        remove.setAttribute("aria-label", "Remove variable " + composerDisplayPath(template, rowData.path));
+        remove.title = "Variable entfernen";
+        remove.setAttribute("aria-label", "Variable entfernen " + composerDisplayPath(template, rowData.path));
         remove.onclick = () => {
           removeComposerVariable(template, rowData.path);
           renderPresetComposer();
@@ -23618,9 +23636,9 @@
       const addName = document.createElement("input");
       addName.placeholder = "trackingId";
       addName.setAttribute("list", variableListId);
-      addName.setAttribute("aria-label", "New variable name");
+      addName.setAttribute("aria-label", "Neuer Variablenname");
       const addType = document.createElement("select");
-      addType.setAttribute("aria-label", "New variable type");
+      addType.setAttribute("aria-label", "Neuer Variablentyp");
       appendStateVariableTypeOptions(addType, "text");
       let addTypeTouched = false;
       const refreshAddTypeOptions = () => {
@@ -23662,7 +23680,7 @@
 
       const note = document.createElement("div");
       note.className = "preset-composer-note";
-      note.textContent = "Values become state.data and dataTypes. Render rows read them through dataWires; no local shadow state.";
+      note.textContent = "Werte werden zu state.data und dataTypes. Render-Zeilen lesen sie über dataWires; kein lokaler Shadow-State.";
       shell.appendChild(note);
       root.appendChild(shell);
       setupEditorAccessibility(root, false, {
@@ -23681,7 +23699,7 @@
       transitionInspectorKeyboardEditing = false;
       stateInspectorEl.classList.remove("template-inspector", "transition-inspector");
       stateInspectorEl.classList.add("preset-composer-inspector");
-      stateInspectorTitleEl.textContent = "Preset: " + (draft.title || "State preset");
+      stateInspectorTitleEl.textContent = "Vorlage: " + (draft.title || "State-Vorlage");
       revealInspectorForProperties({ forceOpen: true });
       setMobileWorkspaceView("edit");
       if (previewCollapsed) {
@@ -23697,7 +23715,7 @@
         presetComposerEl.hidden = true;
         presetComposerEl.innerHTML = "";
       }
-      if (previewTitleTextEl) previewTitleTextEl.textContent = "Preset Preview";
+      if (previewTitleTextEl) previewTitleTextEl.textContent = "Vorlagenvorschau";
       renderStateExplorer();
       renderPresetComposer();
       syncPresetComposerPreview();
@@ -23919,7 +23937,7 @@
         const submenuLabels = Array.isArray(data.submenu) ? data.submenu : [];
         const profileLabels = Array.isArray(data.menuItems) ? data.menuItems : [];
         if (layout === "cart-profile") return [
-          ...flowActionItemsFromLabels([data.actionLabel || "View cart"]).map(item => ({ ...item, itemKey: "transitionId" })),
+          ...flowActionItemsFromLabels([data.actionLabel || "Warenkorb ansehen"]).map(item => ({ ...item, itemKey: "transitionId" })),
           ...flowActionItemsFromValues(profileLabels, "menuItems")
         ];
         if (layout === "search-dropdown") return flowActionItemsFromValues(profileLabels, "menuItems");
@@ -23937,8 +23955,12 @@
 
     function daisyFlowTargetTitle(component, label) {
       const variant = String(component?.variant || "").toLowerCase();
-      if (variant === "button") return "Next";
-      if (variant === "pricing") return String(label || "").replace(/^buy\s+/i, "Checkout ").trim() || "Checkout";
+      if (variant === "button") return String(label || "Weiter").trim() || "Weiter";
+      if (variant === "pricing") {
+        const clean = String(label || "").trim();
+        const german = clean.match(/^(.+?)\s+kaufen$/i);
+        return german ? `Checkout ${german[1].trim()}` : clean || "Checkout";
+      }
       return label;
     }
 
@@ -23977,7 +23999,7 @@
       const set = {};
       if (!dataPath) return set;
       if (variant === "button" || variant === "card" || variant === "hero") set[`${dataPath}.clicked`] = true;
-      else if (variant === "pricing") set[`${dataPath}.selectedPlan`] = String(label || "").replace(/^buy\s+/i, "").trim();
+      else if (variant === "pricing") set[`${dataPath}.selectedPlan`] = String(label || "").replace(/\s+kaufen$/i, "").trim();
       else if (variant === "feature-grid") set[`${dataPath}.selected`] = label;
       else if (variant === "modal") {
         set[`${dataPath}.confirmed`] = true;
@@ -24599,11 +24621,11 @@
       };
       const explorerGroups = [
         { key: "website", label: "Website", cards: [] },
-        { key: "basics", label: "Basics", cards: [] },
-        { key: "forms", label: "Forms", cards: [] },
-        { key: "data", label: "Data", cards: [] },
-        { key: "more", label: "More", cards: [] },
-        { key: "saved", label: "Saved", cards: [] }
+        { key: "basics", label: "Grundlagen", cards: [] },
+        { key: "forms", label: "Formulare", cards: [] },
+        { key: "data", label: "Daten", cards: [] },
+        { key: "more", label: "Mehr", cards: [] },
+        { key: "saved", label: "Gespeichert", cards: [] }
       ];
       builtinStateTemplates().forEach(template => {
         const group = explorerGroups.find(item => item.key === explorerGroupForTemplate(template)) || explorerGroups[explorerGroups.length - 1];
@@ -24616,7 +24638,7 @@
           <div class="template-title"></div>
           <div class="template-body"></div>
           <div class="template-actions">
-            <button class="template-use" type="button" aria-label="Add ${escapeHtml(template.title)}" title="Add ${escapeHtml(template.title)}">Add</button>
+            <button class="template-use" type="button" aria-label="${escapeHtml(template.title)} hinzufügen" title="${escapeHtml(template.title)} hinzufügen">Hinzufügen</button>
           </div>
         `;
         const titleEl = card.querySelector(".template-title");
@@ -24653,7 +24675,7 @@
       if (!stateTemplates.length && !searchQuery) {
         const empty = document.createElement("div");
         empty.className = "state-template-empty";
-        empty.textContent = "Drag a canvas state here, or use + Preset for a custom state.";
+        empty.textContent = "Ziehe einen Canvas-State hierher oder erstelle mit + Vorlage eine eigene Vorlage.";
         userItems.push(empty);
       }
       for (const template of stateTemplates) {
@@ -24665,16 +24687,16 @@
           <div class="template-title"></div>
           <div class="template-body"></div>
           <div class="template-actions">
-            <button class="template-use" type="button">Use</button>
-            <button class="template-update" type="button">Update</button>
-            <button class="template-delete danger" type="button">Delete</button>
+            <button class="template-use" type="button">Verwenden</button>
+            <button class="template-update" type="button">Aktualisieren</button>
+            <button class="template-delete danger" type="button">Löschen</button>
           </div>
         `;
         const titleEl = card.querySelector(".template-title");
         const bodyEl = card.querySelector(".template-body");
-        const title = template.title || "State preset";
+        const title = template.title || "State-Vorlage";
         const description = templateCardDescription(template);
-        card.dataset.presetSearch = presetSearchHaystack(template, "Saved", description);
+        card.dataset.presetSearch = presetSearchHaystack(template, "Gespeichert", description);
         titleEl.textContent = title;
         titleEl.title = title;
         bodyEl.textContent = description;
@@ -24729,7 +24751,7 @@
       if (searchQuery && !visibleGroups.some(group => group.cards.length)) {
         const empty = document.createElement("div");
         empty.className = "state-explorer-empty-results";
-        empty.textContent = `No presets found for "${stateExplorerSearch.trim()}".`;
+        empty.textContent = `Keine Vorlagen für "${stateExplorerSearch.trim()}" gefunden.`;
         stateExplorerListEl.appendChild(empty);
       }
       requestAnimationFrame(() => {
