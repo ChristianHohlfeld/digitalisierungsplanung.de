@@ -10,6 +10,7 @@ const clientId = process.env.REALTIME_CLIENT_ID || `smoke-${Date.now()}`;
 const explicitToken = process.env.REALTIME_JOIN_TOKEN || "";
 const roomSecret = process.env.REALTIME_ROOM_SECRET || "";
 const timeoutMs = Number.parseInt(process.env.REALTIME_SMOKE_TIMEOUT_MS || "8000", 10);
+const forceIp = process.env.REALTIME_FORCE_IP || "";
 
 let settled = false;
 const timer = setTimeout(() => {
@@ -39,9 +40,26 @@ function joinToken() {
 }
 
 const token = joinToken();
-const ws = new WebSocket(url, {
+const options = {
   headers: { Origin: origin }
-});
+};
+
+if (forceIp) {
+  const family = forceIp.includes(":") ? 6 : 4;
+  options.lookup = (_hostname, lookupOptions, callback) => {
+    if (typeof lookupOptions === "function") {
+      callback = lookupOptions;
+      lookupOptions = {};
+    }
+    if (lookupOptions?.all) {
+      callback(null, [{ address: forceIp, family }]);
+      return;
+    }
+    callback(null, forceIp, family);
+  };
+}
+
+const ws = new WebSocket(url, options);
 
 ws.on("open", () => {
   console.log(`wss open ${url}`);
