@@ -8,6 +8,7 @@ test.describe("Landing page export", () => {
     expect(html).toContain("Erst verstehen, dann digitalisieren.");
     expect(html).toContain("Viele Projekte scheitern nicht an Technik");
     expect(html).toContain('"url":"./state.html?demo=zustand"');
+    expect(html).toContain("button.link.daisy-transition-button:hover");
     expect(html).toContain("/manifest.webmanifest");
     expect(html).toContain("/assets/share-card.png");
     expect(html).toContain("/assets/landing-hero-business.png");
@@ -62,6 +63,10 @@ test.describe("Landing page export", () => {
       const tops = actions.map(action => Math.round(action.getBoundingClientRect().top));
       return new Set(tops).size;
     })).toBe(1);
+    const footerTransitionButton = page.locator(".footer button[data-transition-id]").first();
+    await expect(footerTransitionButton).toBeVisible();
+    await footerTransitionButton.hover();
+    await expect(footerTransitionButton).toHaveCSS("filter", /brightness/);
 
     await editorLink.click();
     await expect(page).toHaveURL(/state\.html$/);
