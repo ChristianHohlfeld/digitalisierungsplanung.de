@@ -1,14 +1,34 @@
 # Digitalisierungsplanung
 
-Zustand ist ein eigenständiger visueller FSM-Builder für digitale Geschäftsprozesse. Das Werkzeug macht Abläufe sichtbar, prüfbar und als statische HTML-Anwendung exportierbar.
+Zustand ist ein Werkzeug, um Geschäftsprozesse zuerst zu verstehen und danach sauber zu digitalisieren. Der Kern ist keine lose Diagrammfläche, sondern ein echter endlicher Zustandsautomat: States, Transitionen, Daten, Trigger und Benutzeroberfläche liegen in einem gemeinsamen JSON-Modell.
 
-Das Repository ist bewusst schmal gehalten. Es enthält die Hauptanwendung, die erzeugte Laufzeitumgebung, die MCP/API-Schicht und die Tests, die den State-Machine-Kontrakt schützen.
+Die Startseite unter `index.html` ist selbst ein exportierter Zustand-Flow. Der Editor liegt in `state.html`.
+
+## Was sich geändert hat
+
+- Die öffentliche Landingpage wurde als deutsche Verkaufsseite für Entscheider neu aufgebaut.
+- Der Kontrakt ist schriftlich festgehalten: ein globaler JSON-State/Event-Bus, keine Schattenzustände, keine versteckte Widget-Logik.
+- DaisyUI-Presets sind strukturierte, busgebundene Komponenten. Text ist Darstellung, `transitionId` ist Bindung.
+- Die MCP/API-Schicht bleibt als steuerbare Schnittstelle für alle relevanten Modellaktionen erhalten.
+- README-Screenshots werden aus der echten App erzeugt, damit die Dokumentation nicht vom UI-Stand wegdriftet.
+- Smoke- und Kontrakt-Tests schützen Canvas, Proxies, Nested States, Render-Reihenfolge, Presets, Export, API und Laufzeit.
+
+## Warum
+
+Digitalisierung scheitert oft nicht an Software, sondern an unklaren Abläufen. Zustand macht den Ablauf sichtbar, klickbar und prüfbar, bevor Budget in Umsetzung, Agenturen, Integrationen oder Automatisierung fließt.
+
+Ein Prozess ist erst dann digitalisierbar, wenn klar ist:
+
+- welche Zustände es gibt,
+- welche Daten den Zustand beschreiben,
+- welches Ereignis den nächsten Schritt auslöst,
+- welche Bedingungen erfüllt sein müssen,
+- welche Benutzeroberfläche der Benutzer an welcher Stelle sieht,
+- und welche Daten nach einem Schritt im globalen State stehen.
 
 ## Screenshots
 
-Diese Screenshots werden nach erfolgreichen Läufen aus der echten `state.html`-App erzeugt. Die README bleibt dadurch nah an der aktuellen Oberfläche.
-
-Der Editor zeigt Prozessmodell, generierte App und globalen State-Kontrakt an einem Ort.
+Der Editor zeigt Canvas, Vorschau und State-Inspector in einem Arbeitsbereich.
 
 ![Zustand Editor mit Business-Flow](assets/screenshots/zustand-editor-flow.png)
 
@@ -16,7 +36,7 @@ Die Vorschau ist dieselbe FSM als laufende App. Buttons und Widgets feuern echte
 
 ![Generierte App-Vorschau mit Checkout-Flow](assets/screenshots/zustand-preview-checkout.png)
 
-Der State-Inspector bearbeitet Trigger, Widgets, sichtbare Felder und gescopte Bus-Daten des ausgewählten States, ohne versteckten lokalen Zustand zu erzeugen.
+Der Inspector bearbeitet Trigger, Widgets, sichtbare Felder und gescopte Bus-Daten des ausgewählten States.
 
 ![State-Inspector mit Widget- und Feldsteuerung](assets/screenshots/zustand-inspector-widgets.png)
 
@@ -30,79 +50,40 @@ globaler JSON-State- und Event-Bus
 
 Alles, was Daten oder Ablauf beeinflusst, muss im Modell beschrieben sein und über den offiziellen Laufzeitpfad aus diesem Bus lesen oder in diesen Bus schreiben.
 
-Die vollständige schriftliche Kontrakt-Spezifikation steht in [`statereadme.md`](statereadme.md).
+Der vollständige schriftliche Kontrakt steht in [`statereadme.md`](statereadme.md).
 
-Erlaubter lokaler UI-Zustand:
+Kurzfassung:
 
-- Ziehen, Hover, Fokus und Auswahl im Editor.
-- Canvas-Pan und Canvas-Zoom.
-- Handles für Animationen und Timer.
-- Temporärer UI-Zustand des Editors.
-
-Nicht erlaubt:
-
-- Versteckte Komponenten-Stores.
-- DOM-only-Entscheidungen für den Ablauf.
-- HTML als Wahrheit einer Komponente.
-- Preset-Caches, die wie Laufzeitdaten wirken.
-- Schattenkopien von `state.current`, Transition-Ergebnissen, Widget-Werten oder Flow-Zustand.
-- Legacy-Migrationen oder demo-spezifische Sonderpfade im Kernmodell.
-
-## Repository
-
-```text
-.
-|-- index.html
-|-- state.html
-|-- package.json
-|-- playwright.config.js
-|-- tests/
-|-- mcp/
-|-- docs/
-|   `-- state-blueprint-api.md
-|-- statereadme.md
-|-- CNAME
-|-- .github/workflows/deploy.yml
-`-- .gitea/workflows/test.yml
-```
+- States sind Sichten auf relevante Datenkonstellationen im globalen JSON-Baum.
+- Transitionen sind echte Kanten zwischen existierenden States.
+- Trigger, Conditions und `set`-Patches sind Modelldaten.
+- Render ist nur Sicht auf Modell und Bus.
+- DaisyUI ist Skin und Widget-Renderer, nicht die Wahrheit.
+- Labels sind Anzeige. IDs sind Bindung.
+- Presets erzeugen erst Live-Daten, wenn sie als echter State auf den Canvas gelegt werden.
+- Nested States und Boundary-Proxies folgen ausschließlich den echten Drähten.
+- Wenn kein echter Out existiert, stoppt die Maschine.
 
 ## Anwendung
 
-`state.html` enthält den visuellen Editor und die eingebettete Vorschau-Laufzeit.
+`state.html` enthält die komplette Hauptanwendung:
 
-Zentrale Aufgaben:
+- visueller FSM-Canvas mit States, Transitionen, Proxies und Nested Layers,
+- State-Inspector für Trigger, Render, Daten, Widgets und Aktionen,
+- generierte App-Vorschau,
+- DaisyUI-Preset-Katalog,
+- Render-Reihenfolge für Komponenten, Data-Wires und Transition-Buttons,
+- Fetch-on-enter als State-Effekt,
+- Save/Load/Import/Export,
+- PWA-Assets und statischer Export.
 
-- Modell-Normalisierung und Validierung.
-- Canvas-Rendering, SVG-Ports, Boundary-Proxies, Routing, Drag-and-drop, Pan und Zoom.
-- State-Inspector und Render-Editor.
-- Oberfläche für globalen State, Datenbaum und relevante Bus-Pfade.
-- State-Daten, Datentypen, Data-Wires, Repeat-Mappings und Fetch-on-enter-Konfiguration.
-- DaisyUI-Preset-Katalog und Preset-Instanziierung.
-- Generierte App-Vorschau.
-- Speichern, Laden, Export und Import.
-
-Die Datei bleibt selbstständig, damit die Anwendung als statische App ausgeliefert werden kann.
-
-## Laufzeit
-
-Die generierte Vorschau-Laufzeit ist busgetrieben:
-
-- Der Host sendet `STATE_BLUEPRINT_MODEL`.
-- Die Laufzeit sendet `STATE_BLUEPRINT_RUNTIME_STATE`.
-- Die Laufzeit bittet den Host mit `STATE_BLUEPRINT_OPEN_URL`, externe Links zu öffnen.
-
-Laufzeitregeln:
-
-- `defaultContext(model)` erzeugt Bus-Defaults wie `state.current`, `state.previous`, `state.lastTransition` und `runtime.paused`.
-- `runtimeSet(...)` und `writeRuntimeState(...)` sind der Schreibpfad in den Bus.
-- Entry-Effekte wie Fetch laufen beim Betreten eines States, nicht während des Renderns.
-- Render liest Modell und Bus. Render erfindet keinen Modellzustand.
+`index.html` ist die generierte öffentliche Landingpage für `digitalisierungsplanung.de`.
 
 ## MCP/API
 
-Die MCP-Schicht ist die strukturierte API-Oberfläche für Automatisierung und externe Werkzeuge. Sie bearbeitet dasselbe kanonische JSON-Modell wie der visuelle Editor.
+Die MCP/API-Schicht bearbeitet dasselbe kanonische JSON-Modell wie der Editor. Sie klickt nicht die Benutzeroberfläche und hält keinen parallelen Laufzeit-Store.
 
-Zentrale Tools:
+Wichtige Tools:
 
 - `state_blueprint_get_model`
 - `state_blueprint_replace_model`
@@ -115,26 +96,44 @@ Zentrale Tools:
 - `state_blueprint_import_definition`
 - `state_blueprint_action_catalog`
 
-MCP-Server starten:
+Server starten:
 
 ```bash
 STATE_BLUEPRINT_MODEL_PATH=./state-blueprint.workspace.json npm run mcp:state
 ```
 
-Die API wendet geordnete Modellaktionen an, normalisiert das Ergebnis, validiert den Kontrakt und persistiert nur das kanonische JSON-Modell. Sie klickt nicht die UI und hält keinen parallelen Laufzeit-Store.
-
 Vollständige API-Dokumentation: [`docs/state-blueprint-api.md`](docs/state-blueprint-api.md)
+
+## Entwicklung
+
+Abhängigkeiten installieren:
+
+```bash
+npm install
+```
+
+Landingpage aus dem Zustand-Modell neu exportieren:
+
+```bash
+npm run build:landing
+```
+
+PWA-Assets und Service-Worker-Version erzeugen:
+
+```bash
+npm run build:pwa-assets
+npm run build:sw-version
+```
+
+README-Screenshots aus der echten App aktualisieren:
+
+```bash
+npm run screenshots:readme
+```
 
 ## Tests
 
-Die Tests sind Teil der Architektur.
-
-- `core-contracts.spec.js` schützt Quellcode- und Browser-Kontrakte.
-- `state-tool.spec.js` ist die breite App-Smoke-Suite für Canvas, Proxies, Nested States, Routing, Presets, Daisy-Verhalten, Touch-Gesten, Undo/Redo, Render-Reihenfolge, Save/Load und Vorschauverhalten.
-- `nested-runtime-regressions.spec.js` schützt den generierten App-Flow durch Composite States.
-- `state-blueprint-mcp.spec.js` schützt den MCP/API-Kontrakt.
-
-Tests ausführen:
+Die Tests sind Teil der Architektur und schützen den Kontrakt.
 
 ```bash
 npm test
@@ -142,6 +141,38 @@ npm run test:contracts
 npm run test:full
 ```
 
+Wichtige Testbereiche:
+
+- `core-contracts.spec.js`: Quellcode-, Runtime- und Bus-Kontrakte.
+- `state-tool.spec.js`: Canvas, Proxies, Nested States, Routing, Presets, Touch, Undo/Redo, Save/Load und Export.
+- `nested-runtime-regressions.spec.js`: generierter App-Flow durch Composite States.
+- `state-blueprint-mcp.spec.js`: MCP/API-Verhalten und Export-Gleichheit.
+- `landing-page.spec.js`: öffentliche Landingpage als exportierte FSM.
+
+## Repository
+
+```text
+.
+|-- index.html                  # exportierte öffentliche Landingpage
+|-- landing.state.json          # Modell der Landingpage
+|-- state.html                  # Editor und Preview-Runtime
+|-- manifest.webmanifest
+|-- sw.js
+|-- register-sw.js
+|-- package.json
+|-- playwright.config.js
+|-- assets/
+|-- docs/
+|   |-- state-blueprint-api.md
+|   `-- state-blueprint-mcp.md
+|-- mcp/
+|-- tests/
+|-- statereadme.md              # schriftlicher Zustand-Kontrakt
+|-- CNAME
+|-- .github/workflows/deploy.yml
+`-- .gitea/workflows/test.yml
+```
+
 ## Veröffentlichung
 
-Der GitHub-Pages-Workflow führt die Smoke-Suite aus, bevor die statische App veröffentlicht wird.
+GitHub Pages veröffentlicht die statische App erst nach grünem Smoke-Lauf. Die Root-Seite ist `index.html`, der Editor ist direkt über `state.html` erreichbar.
