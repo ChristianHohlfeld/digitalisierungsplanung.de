@@ -46,7 +46,9 @@ bash server/deploy.sh
 If TLS is not installed yet, create DNS first and then run:
 
 ```sh
-certbot certonly --nginx -d realtime.digitalisierungsplanung.de
+certbot certonly --webroot -w /var/www/certbot -d realtime.digitalisierungsplanung.de
+cp server/nginx/realtime.digitalisierungsplanung.de.conf /etc/nginx/sites-available/realtime.digitalisierungsplanung.de
+ln -sf /etc/nginx/sites-available/realtime.digitalisierungsplanung.de /etc/nginx/sites-enabled/realtime.digitalisierungsplanung.de
 nginx -t && systemctl reload nginx
 ```
 

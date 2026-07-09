@@ -8,6 +8,7 @@ REPO_URL="${REPO_URL:-https://github.com/ChristianHohlfeld/digitalisierungsplanu
 ENV_FILE="${ENV_FILE:-/etc/digitalisierungsplanung-realtime.env}"
 NGINX_AVAILABLE="/etc/nginx/sites-available/${DOMAIN}"
 NGINX_ENABLED="/etc/nginx/sites-enabled/${DOMAIN}"
+NGINX_BOOTSTRAP_AVAILABLE="/etc/nginx/sites-available/${DOMAIN}.bootstrap"
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "Run as root." >&2
@@ -45,18 +46,24 @@ pm2 save
 pm2 startup systemd -u root --hp /root >/tmp/digitalisierungsplanung-pm2-startup.txt
 
 mkdir -p /var/www/certbot
-cp server/nginx/realtime.digitalisierungsplanung.de.conf "$NGINX_AVAILABLE"
-ln -sf "$NGINX_AVAILABLE" "$NGINX_ENABLED"
 
 if [ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]; then
+  cp server/nginx/realtime.digitalisierungsplanung.de.conf "$NGINX_AVAILABLE"
+  ln -sf "$NGINX_AVAILABLE" "$NGINX_ENABLED"
   nginx -t
   systemctl reload nginx
   curl -fsS "http://127.0.0.1:8788/healthz"
   echo
   echo "Realtime server deployed. Public endpoint: wss://${DOMAIN}/ws"
 else
+  cp server/nginx/realtime.digitalisierungsplanung.de.bootstrap.conf "$NGINX_BOOTSTRAP_AVAILABLE"
+  ln -sf "$NGINX_BOOTSTRAP_AVAILABLE" "$NGINX_ENABLED"
+  nginx -t
+  systemctl reload nginx
   echo "PM2 service is running locally, but TLS cert is missing for ${DOMAIN}." >&2
   echo "Create DNS first, then run certbot and reload nginx:" >&2
-  echo "  certbot certonly --nginx -d ${DOMAIN}" >&2
+  echo "  certbot certonly --webroot -w /var/www/certbot -d ${DOMAIN}" >&2
+  echo "  cp server/nginx/realtime.digitalisierungsplanung.de.conf ${NGINX_AVAILABLE}" >&2
+  echo "  ln -sf ${NGINX_AVAILABLE} ${NGINX_ENABLED}" >&2
   echo "  nginx -t && systemctl reload nginx" >&2
 fi
