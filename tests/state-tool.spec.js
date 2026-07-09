@@ -6305,6 +6305,50 @@ test.describe("State Blueprint tool", () => {
     await expect(app.locator("#statePill")).toHaveText("login", { timeout: 3000 });
   });
 
+  test("imports realtime provider events as model contract @smoke", async ({ page }) => {
+    await page.route("https://realtime.digitalisierungsplanung.de/events", route => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        provider: { id: "digitalisierungsplanung.realtime", label: "Realtime", version: 1 },
+        state: { path: "realtime" },
+        events: [
+          {
+            name: "realtime.sip.call.incoming",
+            label: "Incoming call",
+            detail: { caller: "text", callId: "text" },
+            bindings: [
+              { from: "detail.caller", to: "realtime.sip.call.incoming.caller", type: "text" },
+              { from: "detail.callId", to: "realtime.sip.call.incoming.callId", type: "text" }
+            ]
+          }
+        ]
+      })
+    }));
+    await openTool(page);
+    await page.evaluate(() => clearSelection());
+    await page.evaluate(() => document.querySelector("#pRealtimeServerPreset")?.click());
+
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return model.realtime?.events?.[0];
+    }).toMatchObject({
+      name: "realtime.sip.call.incoming",
+      bindings: [
+        { from: "detail.caller", to: "realtime.sip.call.incoming.caller", type: "text" },
+        { from: "detail.callId", to: "realtime.sip.call.incoming.callId", type: "text" }
+      ]
+    });
+
+    await openStateInspector(page, "auth_start");
+    await page.locator("#pStateFlowTransition").selectOption("t_auth_login");
+    await page.locator("#pStateTriggerType").selectOption("realtime");
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return model.transitions.find(item => item.id === "t_auth_login")?.triggerEvent;
+    }).toBe("realtime.sip.call.incoming");
+  });
+
   test("normalizes bus-event transitions away from button click events @smoke", async ({ page }) => {
     const model = defaultTestModel();
     const transition = model.transitions.find(item => item.id === "t_auth_login");

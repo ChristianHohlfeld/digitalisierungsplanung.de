@@ -4832,6 +4832,25 @@
       return entries;
     }
 
+    function modelRealtimeDataContractPaths(m) {
+      const paths = new Set(["realtime"]);
+      normalizeRealtimeConfig(m?.realtime).events.forEach(event => {
+        paths.add("events." + event.name);
+        normalizeRealtimeEventBindings(event.bindings).forEach(binding => {
+          if (binding.to) paths.add(binding.to);
+        });
+      });
+      return paths;
+    }
+
+    function pruneRemovedRealtimeData(previousModel, nextModel, target) {
+      const previous = modelRealtimeDataContractPaths(previousModel);
+      const next = modelRealtimeDataContractPaths(nextModel);
+      for (const path of previous) {
+        if (!next.has(path)) deleteValueAtPath(target, path);
+      }
+    }
+
     function pruneRemovedStateDataDefaults(previousModel, nextModel, target) {
       const previous = modelStateDataDefaultPaths(previousModel);
       if (!previous.size) return;
@@ -4870,6 +4889,7 @@
         }
         applyChangedStateDataContractValue(target, path, previous.get(path), nextValue);
       }
+      pruneRemovedRealtimeData(previousModel, nextModel, target);
     }`;
       const navbarCss = `    .navbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-width: 0; overflow: visible; padding: 12px 14px; border: 1px solid var(--line); border-radius: 18px; background: rgba(8,24,39,.82); }`;
       const navbarCssEnhanced = `    .navbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; max-width: 100%; overflow: visible; padding: 12px 14px; border: 1px solid var(--line); border-radius: 18px; background: rgba(8,24,39,.82); }
@@ -5597,7 +5617,17 @@
       const defaultContextJsEnhanced = `    function defaultContext(m) {
       return {
         state: { current: m?.initial || "", previous: "", lastTransition: "" },
-        runtime: { paused: false }
+        runtime: { paused: false },
+        realtime: {
+          roomId: "",
+          clientId: "",
+          status: "idle",
+          connected: false,
+          joined: false,
+          connecting: false,
+          reconnectAttempt: 0,
+          error: ""
+        }
       };
     }
 
@@ -5615,7 +5645,102 @@
       }
       const name = recordRuntimeEvent(eventName, detail);
       if (!name) return false;
+      if (name.startsWith("realtime.")) applyRealtimeEventBindings(name, detail);
       runtimeEventQueue.push({ name, detail: { ...detail, eventName: name } });`;
+      const runtimeNormalizeModelRealtimeJs = `      m.transitions = Array.isArray(m.transitions) ? m.transitions : [];`;
+      const runtimeNormalizeModelRealtimeJsEnhanced = `      m.transitions = Array.isArray(m.transitions) ? m.transitions : [];
+      m.realtime = normalizeRealtimeConfig(m.realtime);`;
+      const realtimeRuntimeStateAnchor = `    function pathMatchesSubscription(path, subscription) {`;
+      const realtimeRuntimeStateJs = `    function normalizeRealtimeValueType(value) {
+      const type = String(value || "").trim().toLowerCase();
+      return ["text", "email", "password", "number", "boolean", "url", "image", "object", "list"].includes(type) ? type : "text";
+    }
+
+    function normalizeRealtimeDetailSchema(value) {
+      if (!isPlainDataObject(value)) return {};
+      const out = {};
+      for (const [path, type] of Object.entries(value).slice(0, 64)) {
+        const cleanPath = runtimeNormalizeBindingPath(path, "");
+        if (cleanPath) out[cleanPath] = normalizeRealtimeValueType(type);
+      }
+      return out;
+    }
+
+    function normalizeRealtimeEventBindings(value) {
+      if (!Array.isArray(value)) return [];
+      return value.slice(0, 64).map(binding => {
+        if (!isPlainDataObject(binding)) return null;
+        const from = runtimeNormalizeBindingPath(binding.from || "", "");
+        const to = runtimeNormalizeBindingPath(binding.to || "", "");
+        if (!from || !to) return null;
+        return { from, to, type: normalizeRealtimeValueType(binding.type) };
+      }).filter(Boolean);
+    }
+
+    function normalizeRealtimeConfig(value) {
+      const source = isPlainDataObject(value) ? value : {};
+      const events = [];
+      const seen = new Set();
+      (Array.isArray(source.events) ? source.events : []).forEach(item => {
+        if (!isPlainDataObject(item)) return;
+        const name = normalizeTransitionEvent(item.name || "");
+        if (!name || !name.startsWith("realtime.") || seen.has(name)) return;
+        seen.add(name);
+        events.push({
+          name,
+          label: String(item.label || name).trim(),
+          description: String(item.description || "").trim(),
+          detail: normalizeRealtimeDetailSchema(item.detail),
+          bindings: normalizeRealtimeEventBindings(item.bindings)
+        });
+      });
+      return { events };
+    }
+
+    function realtimeEventConfigByName(name) {
+      const clean = normalizeTransitionEvent(name || "");
+      return normalizeRealtimeConfig(model?.realtime).events.find(event => event.name === clean) || null;
+    }
+
+    function realtimeDetailValue(detail, sourcePath) {
+      const clean = runtimeNormalizeBindingPath(sourcePath || "", "");
+      if (!clean) return undefined;
+      const path = clean.startsWith("detail.") ? clean.slice("detail.".length) : clean;
+      return readValueAtPath(detail, path);
+    }
+
+    function applyRealtimeEventBindings(eventName, detail = {}) {
+      const event = realtimeEventConfigByName(eventName);
+      if (!event) return;
+      const sourceDetail = isPlainDataObject(detail) ? detail : {};
+      for (const binding of normalizeRealtimeEventBindings(event.bindings)) {
+        const value = realtimeDetailValue(sourceDetail, binding.from);
+        if (value === undefined) continue;
+        writeRuntimeState(binding.to, value, { source: "realtime", metadata: false });
+      }
+    }
+
+    function normalizeRealtimeStatus(value) {
+      const source = isPlainDataObject(value) ? value : {};
+      return {
+        roomId: String(source.roomId || ""),
+        clientId: String(source.clientId || ""),
+        status: String(source.status || "idle"),
+        connected: source.connected === true,
+        joined: source.joined === true,
+        connecting: source.connecting === true,
+        reconnectAttempt: Math.max(0, Math.round(Number(source.reconnectAttempt) || 0)),
+        error: String(source.error || "")
+      };
+    }
+
+    function applyRealtimeStatus(value) {
+      const previous = readValueAtPath(context, "realtime");
+      const next = { ...normalizeRealtimeStatus(previous), ...normalizeRealtimeStatus(value) };
+      runtimeSet("realtime", next, { source: "realtime", eventName: "change.realtime" });
+    }
+
+`;
       const scheduleAutomaticContinuationJs = `    function scheduleAutomaticContinuation(stateId, transitions) {
       const transition = transitions.find(t => continuationTriggerType(t) === "auto") || transitions.find(t => continuationTriggerType(t) === "timer");
       const key = transition ? stateId + ":" + transition.id + ":" + continuationTriggerType(transition) + ":" + continuationTimerMs(transition) : "";`;
@@ -5883,6 +6008,10 @@
       const data = evt.data || {};
       if (data.type === "STATE_BLUEPRINT_RUNTIME_CONTROL") {
         setRuntimePaused(Boolean(data.paused));
+        return;
+      }
+      if (data.type === "STATE_BLUEPRINT_REALTIME_STATUS") {
+        applyRealtimeStatus(data.status || {});
         return;
       }
       if (data.type === "STATE_BLUEPRINT_REALTIME_EVENT") {
@@ -6949,6 +7078,8 @@
         .replace(runtimeStateDeclarationsJs, runtimeStateDeclarationsJsEnhanced)
         .replace(defaultContextJs, defaultContextJsEnhanced)
         .replace(emitRuntimeEventJs, emitRuntimeEventJsEnhanced)
+        .replace(runtimeNormalizeModelRealtimeJs, runtimeNormalizeModelRealtimeJsEnhanced)
+        .replace(realtimeRuntimeStateAnchor, realtimeRuntimeStateJs + realtimeRuntimeStateAnchor)
         .replace(scheduleAutomaticContinuationJs, scheduleAutomaticContinuationJsEnhanced)
         .replace(clearDaisyCountdownTimersJs, clearDaisyCountdownTimersJsEnhanced)
         .replace(daisyCountdownRemainingJs, daisyCountdownRemainingJsEnhanced)
@@ -7314,6 +7445,7 @@
     const APP_URL = URL.createObjectURL(new Blob([GENERATED_APP_HTML], { type: "text/html" }));
     const REALTIME_WSS_URL = "wss://realtime.digitalisierungsplanung.de/ws";
     const REALTIME_TOKEN_URL = "https://realtime.digitalisierungsplanung.de/token";
+    const REALTIME_EVENTS_URL = "https://realtime.digitalisierungsplanung.de/events";
     const WORLD_MIN_X = -10000;
     const WORLD_MIN_Y = -8000;
     const WORLD_MAX_X = 20000;
@@ -7422,6 +7554,8 @@
       joined: false,
       started: false,
       connecting: false,
+      status: "idle",
+      error: "",
       seq: 0,
       reconnectAttempt: 0,
       reconnectTimer: 0,
@@ -8532,6 +8666,7 @@
         name: String(model.name || "State App"),
         initial: String(model.initial || ""),
         boundary: normalizeBoundaryConfig(model.boundary),
+        realtime: normalizeRealtimeConfig(model.realtime),
         states: model.states.map(stateExportSnapshot),
         transitions: model.transitions
           .filter(transition => !isBoundaryFlowTransition(transition))
@@ -8924,6 +9059,7 @@
       if (source.version !== DEFINITION_SCHEMA_VERSION) throw new Error("definition.model.version must be 2.");
       assertString(source.name, "definition.model.name");
       const initial = assertString(source.initial, "definition.model.initial", { allowEmpty: true });
+      const realtime = normalizeRealtimeConfig(source.realtime);
       if (!Array.isArray(source.states)) throw new Error("definition.model.states must be an array.");
       if (!Array.isArray(source.transitions)) throw new Error("definition.model.transitions must be an array.");
 
@@ -9024,6 +9160,7 @@
         name: source.name,
         initial,
         boundary: rootBoundary,
+        realtime,
         states,
         transitions
       };
@@ -9618,6 +9755,72 @@
         }
       }
       return out;
+    }
+
+    function normalizeRealtimeDetailSchema(value) {
+      if (!isPlainObject(value)) return {};
+      const out = {};
+      for (const [path, type] of Object.entries(value).slice(0, 64)) {
+        const cleanPath = normalizeBindingPath(path, "");
+        if (!cleanPath) continue;
+        out[cleanPath] = normalizeStateVariableType(type, "text");
+      }
+      return out;
+    }
+
+    function normalizeRealtimeEventBindings(value) {
+      if (!Array.isArray(value)) return [];
+      return value.slice(0, 64).map(binding => {
+        if (!isPlainObject(binding)) return null;
+        const from = normalizeBindingPath(binding.from || "", "");
+        const to = normalizeBindingPath(binding.to || "", "");
+        if (!from || !to) return null;
+        return {
+          from,
+          to,
+          type: normalizeStateVariableType(binding.type || "text")
+        };
+      }).filter(Boolean);
+    }
+
+    function normalizeRealtimeEventConfig(value) {
+      if (!isPlainObject(value)) return null;
+      let name = normalizeTransitionEvent(value.name || "");
+      if (name && !name.startsWith("realtime.")) name = "realtime." + eventSegment(name);
+      if (!name) return null;
+      return {
+        name,
+        label: String(value.label || dataPathLabel(name.replace(/^realtime\./, ""), "Realtime event")).trim().slice(0, 80),
+        description: String(value.description || "").trim().slice(0, 240),
+        detail: normalizeRealtimeDetailSchema(value.detail),
+        bindings: normalizeRealtimeEventBindings(value.bindings)
+      };
+    }
+
+    function normalizeRealtimeConfig(value) {
+      const source = isPlainObject(value) ? value : {};
+      const events = [];
+      const seen = new Set();
+      (Array.isArray(source.events) ? source.events : []).forEach(event => {
+        const normalized = normalizeRealtimeEventConfig(event);
+        if (!normalized || seen.has(normalized.name)) return;
+        seen.add(normalized.name);
+        events.push(normalized);
+      });
+      return { events };
+    }
+
+    function realtimeEventCatalog(sourceModel = model) {
+      return normalizeRealtimeConfig(sourceModel?.realtime).events;
+    }
+
+    function firstRealtimeEventName(fallbackTransition = null) {
+      return realtimeEventCatalog()[0]?.name || defaultRealtimeTransitionEvent(fallbackTransition);
+    }
+
+    function realtimeEventConfigByName(name, sourceModel = model) {
+      const clean = normalizeTransitionEvent(name || "");
+      return realtimeEventCatalog(sourceModel).find(event => event.name === clean) || null;
     }
 
     function normalizeContextPath(path, fallback = "fetch") {
@@ -10596,6 +10799,7 @@
       m.version = 2;
       m.name = m.name || "State App";
       m.boundary = normalizeBoundaryConfig(m.boundary);
+      m.realtime = normalizeRealtimeConfig(m.realtime);
       m.states = Array.isArray(m.states) ? m.states : [];
       m.transitions = Array.isArray(m.transitions) ? m.transitions : [];
       delete m.editorGroups;
@@ -17599,8 +17803,201 @@
         <div class="inspector-empty">
           <strong>No state selected</strong>
         </div>
+        <details class="inspector-collapse" id="pRealtimeCatalogCard" open>
+          <summary class="inspector-collapse-summary">
+            <span class="inspector-collapse-title">
+              <span>Realtime events</span>
+              <span>external event contract</span>
+            </span>
+          </summary>
+          <div class="inspector-collapse-body">
+            <div class="state-variable-panel">
+              <div class="state-variable-head">
+                <div>Event catalog<span>events external systems may emit into the global bus</span></div>
+              </div>
+              <div id="pRealtimeEventList" class="state-variable-list"></div>
+              <div class="field"><label>Event name</label><input id="pRealtimeEventName" placeholder="realtime.sip.call.incoming"></div>
+              <div class="field"><label>Label</label><input id="pRealtimeEventLabel" placeholder="Incoming call"></div>
+              <div class="field"><label>Detail fields</label><textarea id="pRealtimeEventDetail" spellcheck="false" placeholder="caller: text&#10;callee: text&#10;callId: text"></textarea></div>
+              <div class="field"><label>Bindings</label><textarea id="pRealtimeEventBindings" spellcheck="false" placeholder="detail.caller -> realtime.sip.call.incoming.caller&#10;detail.callId -> realtime.sip.call.incoming.callId"></textarea></div>
+              <div class="row">
+                <button id="pRealtimeEventAdd" type="button">+ Event</button>
+                <button id="pRealtimeSipPreset" type="button">+ SIP preset</button>
+                <button id="pRealtimeServerPreset" type="button">Import server preset</button>
+              </div>
+            </div>
+          </div>
+        </details>
       `;
+      renderRealtimeCatalogInspector();
       if (wasEditingTemplate) renderStateExplorer();
+    }
+
+    function realtimeDetailText(detail) {
+      return Object.entries(normalizeRealtimeDetailSchema(detail))
+        .map(([path, type]) => `${path}: ${type}`)
+        .join("\n");
+    }
+
+    function realtimeBindingsText(bindings) {
+      return normalizeRealtimeEventBindings(bindings)
+        .map(binding => `${binding.from} -> ${binding.to}`)
+        .join("\n");
+    }
+
+    function parseRealtimeDetailText(text) {
+      const detail = {};
+      String(text || "").split(/[\n,]+/).forEach(line => {
+        const clean = line.trim();
+        if (!clean) return;
+        const [rawPath, rawType = "text"] = clean.split(/[:=]/);
+        const path = normalizeBindingPath(rawPath, "");
+        if (!path) return;
+        detail[path] = normalizeStateVariableType(rawType, "text");
+      });
+      return detail;
+    }
+
+    function parseRealtimeBindingsText(text, detail = {}) {
+      const detailTypes = normalizeRealtimeDetailSchema(detail);
+      return String(text || "").split(/[\n,]+/).map(line => {
+        const clean = line.trim();
+        if (!clean) return null;
+        const [rawFrom, rawTo] = clean.split(/\s*(?:->|=>)\s*/);
+        const from = normalizeBindingPath(rawFrom, "");
+        const to = normalizeBindingPath(rawTo, "");
+        if (!from || !to) return null;
+        const sourceDetailPath = from.startsWith("detail.") ? from.slice("detail.".length) : from;
+        return { from, to, type: normalizeStateVariableType(detailTypes[sourceDetailPath] || "text") };
+      }).filter(Boolean);
+    }
+
+    function defaultSipRealtimeEvents() {
+      return [
+        {
+          name: "realtime.sip.call.incoming",
+          label: "Incoming call",
+          description: "SIP phone call started",
+          detail: { caller: "text", callee: "text", callId: "text" },
+          bindings: [
+            { from: "detail.caller", to: "realtime.sip.call.incoming.caller", type: "text" },
+            { from: "detail.callee", to: "realtime.sip.call.incoming.callee", type: "text" },
+            { from: "detail.callId", to: "realtime.sip.call.incoming.callId", type: "text" }
+          ]
+        },
+        {
+          name: "realtime.sip.call.answered",
+          label: "Call answered",
+          description: "SIP phone call was answered",
+          detail: { callId: "text", agent: "text" },
+          bindings: [
+            { from: "detail.callId", to: "realtime.sip.call.answered.callId", type: "text" },
+            { from: "detail.agent", to: "realtime.sip.call.answered.agent", type: "text" }
+          ]
+        },
+        {
+          name: "realtime.sip.call.ended",
+          label: "Call ended",
+          description: "SIP phone call ended",
+          detail: { callId: "text", duration: "number" },
+          bindings: [
+            { from: "detail.callId", to: "realtime.sip.call.ended.callId", type: "text" },
+            { from: "detail.duration", to: "realtime.sip.call.ended.duration", type: "number" }
+          ]
+        }
+      ];
+    }
+
+    function renderRealtimeCatalogInspector() {
+      const list = stateInspectorBodyEl.querySelector("#pRealtimeEventList");
+      const name = stateInspectorBodyEl.querySelector("#pRealtimeEventName");
+      const label = stateInspectorBodyEl.querySelector("#pRealtimeEventLabel");
+      const detail = stateInspectorBodyEl.querySelector("#pRealtimeEventDetail");
+      const bindings = stateInspectorBodyEl.querySelector("#pRealtimeEventBindings");
+      const add = stateInspectorBodyEl.querySelector("#pRealtimeEventAdd");
+      const sip = stateInspectorBodyEl.querySelector("#pRealtimeSipPreset");
+      const serverPreset = stateInspectorBodyEl.querySelector("#pRealtimeServerPreset");
+      if (!list || !name || !label || !detail || !bindings || !add || !sip || !serverPreset) return;
+      model.realtime = normalizeRealtimeConfig(model.realtime);
+      list.innerHTML = "";
+      const events = realtimeEventCatalog();
+      if (!events.length) {
+        const empty = document.createElement("div");
+        empty.className = "state-variable-empty";
+        empty.textContent = "No realtime events yet.";
+        list.appendChild(empty);
+      }
+      events.forEach(event => {
+        const row = document.createElement("div");
+        row.className = "state-variable-row";
+        const main = document.createElement("div");
+        main.className = "state-variable-main";
+        const title = document.createElement("b");
+        title.textContent = event.label || event.name;
+        const meta = document.createElement("span");
+        const bindingCount = normalizeRealtimeEventBindings(event.bindings).length;
+        meta.textContent = `${event.name}${bindingCount ? " / " + bindingCount + " bindings" : ""}`;
+        main.append(title, meta);
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "danger";
+        remove.textContent = "Delete";
+        remove.onclick = () => {
+          model.realtime.events = realtimeEventCatalog().filter(item => item.name !== event.name);
+          saveModel("app:realtime-events");
+          renderRealtimeCatalogInspector();
+        };
+        row.append(main, remove);
+        list.appendChild(row);
+      });
+      add.onclick = () => {
+        const detailSchema = parseRealtimeDetailText(detail.value);
+        const event = normalizeRealtimeEventConfig({
+          name: name.value,
+          label: label.value,
+          detail: detailSchema,
+          bindings: parseRealtimeBindingsText(bindings.value, detailSchema)
+        });
+        if (!event) return;
+        const next = realtimeEventCatalog().filter(item => item.name !== event.name);
+        next.push(event);
+        model.realtime.events = next;
+        saveModel("app:realtime-events");
+        name.value = "";
+        label.value = "";
+        detail.value = "";
+        bindings.value = "";
+        renderRealtimeCatalogInspector();
+      };
+      sip.onclick = () => {
+        const existing = new Map(realtimeEventCatalog().map(event => [event.name, event]));
+        defaultSipRealtimeEvents().forEach(event => existing.set(event.name, normalizeRealtimeEventConfig(event)));
+        model.realtime.events = [...existing.values()];
+        saveModel("app:realtime-events:sip");
+        renderRealtimeCatalogInspector();
+      };
+      serverPreset.onclick = async () => {
+        const previousLabel = serverPreset.textContent;
+        serverPreset.disabled = true;
+        serverPreset.textContent = "Importing...";
+        try {
+          const response = await fetch(REALTIME_EVENTS_URL, { method: "GET", cache: "no-store", credentials: "omit" });
+          if (!response.ok) throw new Error("events fetch failed");
+          const catalog = await response.json();
+          const imported = normalizeRealtimeConfig(catalog).events;
+          if (!imported.length) throw new Error("empty events catalog");
+          const existing = new Map(realtimeEventCatalog().map(event => [event.name, event]));
+          imported.forEach(event => existing.set(event.name, event));
+          model.realtime.events = [...existing.values()];
+          saveModel("app:realtime-events:server");
+          renderRealtimeCatalogInspector();
+        } catch (_) {
+          serverPreset.textContent = "Import failed";
+          setTimeout(() => { if (serverPreset.isConnected) serverPreset.textContent = previousLabel; }, 1200);
+        } finally {
+          serverPreset.disabled = false;
+        }
+      };
     }
 
     function refreshInspectorForSelection() {
@@ -19354,7 +19751,7 @@
           const existingEvent = normalizeTransitionEvent(transition.triggerEvent || "");
           transition.triggerEvent = existingEvent.startsWith("realtime.")
             ? existingEvent
-            : defaultRealtimeTransitionEvent(transition);
+            : firstRealtimeEventName(transition);
           clearStateFlowApiCondition(transition);
         } else if (mode === "auto") {
           transition.triggerType = "auto";
@@ -20529,6 +20926,26 @@
         }
       };
       add("state.current", "screen flow", "text");
+      add("realtime.status", "realtime transport", "text");
+      add("realtime.roomId", "realtime transport", "text");
+      add("realtime.clientId", "realtime transport", "text");
+      add("realtime.connected", "realtime transport", "boolean");
+      add("realtime.joined", "realtime transport", "boolean");
+      add("realtime.connecting", "realtime transport", "boolean");
+      add("realtime.reconnectAttempt", "realtime transport", "number");
+      add("realtime.error", "realtime transport", "text");
+      for (const event of realtimeEventCatalog()) {
+        const label = event.label || event.name;
+        add(`events.${event.name}.count`, `${label} realtime event`, "number");
+        add(`events.${event.name}.lastAt`, `${label} realtime event`, "number");
+        add(`events.${event.name}.detail`, `${label} detail`, "object");
+        for (const [path, type] of Object.entries(normalizeRealtimeDetailSchema(event.detail))) {
+          add(`events.${event.name}.detail.${path}`, `${label} detail`, type);
+        }
+        for (const binding of normalizeRealtimeEventBindings(event.bindings)) {
+          add(binding.to, `${label} binding`, binding.type);
+        }
+      }
       let includeKnownGlobalState = false;
       for (const state of conditionScopeStates(t)) {
         const label = state.id === t.from ? "from state" : state.id === t.to ? "target state" : "parent state";
@@ -20684,6 +21101,7 @@
       triggerTimer.value = String(normalizeTransitionTimerMs(t.timerMs));
       appendStateVariableTypeOptions(setVariableType, "text");
       const triggerSuggestions = new Set(["*", "state.current", defaultTransitionEvent(t), defaultRealtimeTransitionEvent(t)]);
+      realtimeEventCatalog().forEach(event => triggerSuggestions.add(event.name));
       const sourceState = byId(t.from);
       normalizeSubscriptions(sourceState?.subscriptions).forEach(path => { triggerSuggestions.add(path); if (path !== "*") triggerSuggestions.add("change." + path); });
       conditionDataSuggestions(t).forEach(item => { triggerSuggestions.add(item.path); if (item.path !== "*") triggerSuggestions.add("change." + item.path); });
@@ -21212,7 +21630,7 @@
         const selectedTriggerType = String(triggerType.value || "button");
         t.triggerType = selectedTriggerType === "realtime" ? "event" : normalizeTransitionTriggerType({ triggerType: selectedTriggerType });
         const requestedTriggerEvent = selectedTriggerType === "realtime" && !normalizeTransitionEvent(triggerEvent.value || "").startsWith("realtime.")
-          ? defaultRealtimeTransitionEvent(t)
+          ? firstRealtimeEventName(t)
           : triggerEvent.value;
         t.triggerEvent = normalizeTransitionTriggerEvent({ ...t, triggerEvent: requestedTriggerEvent });
         triggerEvent.value = t.triggerEvent;
@@ -21638,6 +22056,27 @@
       return isPlainObject(detail) ? JSON.parse(JSON.stringify(detail)) : {};
     }
 
+    function realtimeTransportSnapshot(status = realtimeTransport.status) {
+      return {
+        roomId: realtimeTransport.roomId,
+        clientId: realtimeTransport.clientId,
+        status: status || "idle",
+        connected: Boolean(realtimeTransport.socket && realtimeTransport.socket.readyState === WebSocket.OPEN),
+        joined: Boolean(realtimeTransport.joined),
+        connecting: Boolean(realtimeTransport.connecting),
+        reconnectAttempt: Math.max(0, Number(realtimeTransport.reconnectAttempt) || 0),
+        error: realtimeTransport.error || ""
+      };
+    }
+
+    function postRealtimeStatus(status = "") {
+      if (status) realtimeTransport.status = status;
+      postRuntimePayload({
+        type: "STATE_BLUEPRINT_REALTIME_STATUS",
+        status: realtimeTransportSnapshot(realtimeTransport.status)
+      });
+    }
+
     function sendRealtimeRuntimeEvent(eventName, detail = {}) {
       if (!realtimeTransport.roomId) return false;
       const name = normalizeTransitionEvent(eventName || "");
@@ -21712,6 +22151,7 @@
 
     function scheduleRealtimeReconnect() {
       if (!realtimeTransport.started || realtimeTransport.reconnectTimer) return;
+      postRealtimeStatus("reconnecting");
       const delay = Math.min(10000, 500 * Math.pow(2, realtimeTransport.reconnectAttempt++));
       realtimeTransport.reconnectTimer = setTimeout(() => {
         realtimeTransport.reconnectTimer = 0;
@@ -21722,12 +22162,15 @@
     async function connectRealtimeTransport() {
       if (!realtimeTransport.started || realtimeTransport.connecting || !window.WebSocket || !window.fetch) return;
       realtimeTransport.connecting = true;
+      realtimeTransport.error = "";
+      postRealtimeStatus("connecting");
       try {
         const token = await fetchRealtimeRoomToken();
         const socket = new WebSocket(REALTIME_WSS_URL);
         realtimeTransport.socket = socket;
         realtimeTransport.joined = false;
         socket.addEventListener("open", () => {
+          postRealtimeStatus("joining");
           socket.send(JSON.stringify({
             type: "join",
             roomId: realtimeTransport.roomId,
@@ -21742,6 +22185,8 @@
           if (message.type === "joined") {
             realtimeTransport.joined = true;
             realtimeTransport.reconnectAttempt = 0;
+            realtimeTransport.error = "";
+            postRealtimeStatus("joined");
             flushRealtimeOutboundQueue();
             return;
           }
@@ -21749,13 +22194,21 @@
         });
         socket.addEventListener("close", () => {
           realtimeTransport.joined = false;
+          realtimeTransport.socket = null;
+          postRealtimeStatus(realtimeTransport.started ? "reconnecting" : "closed");
           scheduleRealtimeReconnect();
         });
-        socket.addEventListener("error", () => {});
+        socket.addEventListener("error", () => {
+          realtimeTransport.error = "socket_error";
+          postRealtimeStatus("error");
+        });
       } catch (_) {
+        realtimeTransport.error = "connect_failed";
+        postRealtimeStatus("error");
         scheduleRealtimeReconnect();
       } finally {
         realtimeTransport.connecting = false;
+        postRealtimeStatus();
       }
     }
 
@@ -21766,6 +22219,7 @@
       realtimeTransport.roomId = roomId;
       realtimeTransport.clientId = realtimeClientId();
       realtimeTransport.started = true;
+      postRealtimeStatus("connecting");
       connectRealtimeTransport();
     }
 
@@ -21786,11 +22240,7 @@
         return true;
       },
       status() {
-        return {
-          roomId: realtimeTransport.roomId,
-          clientId: realtimeTransport.clientId,
-          joined: realtimeTransport.joined
-        };
+        return realtimeTransportSnapshot();
       }
     };
 

@@ -1,6 +1,7 @@
 "use strict";
 
 const crypto = require("node:crypto");
+const fs = require("node:fs");
 const http = require("node:http");
 const { URL } = require("node:url");
 const { WebSocketServer, WebSocket } = require("ws");
@@ -8,10 +9,68 @@ const { WebSocketServer, WebSocket } = require("ws");
 const DEFAULT_ALLOWED_ORIGINS = ["https://digitalisierungsplanung.de"];
 const DEFAULT_PATH = "/ws";
 const DEFAULT_TOKEN_PATH = "/token";
+const DEFAULT_EVENTS_PATH = "/events";
+const DEFAULT_EMIT_PATH = "/emit";
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 8788;
 const MAX_ID_LENGTH = 128;
 const MAX_EVENT_NAME_LENGTH = 160;
+const MAX_STATE_PATH_LENGTH = 240;
+const MAX_EMIT_BODY_BYTES = 64 * 1024;
+const VALID_VALUE_TYPES = new Set(["text", "email", "password", "number", "boolean", "url", "image", "object", "list"]);
+const DEFAULT_EVENT_CATALOG = {
+  provider: {
+    id: "digitalisierungsplanung.realtime",
+    label: "Digitalisierungsplanung Realtime",
+    version: 1
+  },
+  state: {
+    path: "realtime",
+    schema: {
+      roomId: "text",
+      clientId: "text",
+      status: "text",
+      connected: "boolean",
+      joined: "boolean",
+      connecting: "boolean",
+      reconnectAttempt: "number",
+      error: "text"
+    }
+  },
+  events: [
+    {
+      name: "realtime.sip.call.incoming",
+      label: "Incoming call",
+      description: "SIP phone call started",
+      detail: { caller: "text", callee: "text", callId: "text" },
+      bindings: [
+        { from: "detail.caller", to: "realtime.sip.call.incoming.caller", type: "text" },
+        { from: "detail.callee", to: "realtime.sip.call.incoming.callee", type: "text" },
+        { from: "detail.callId", to: "realtime.sip.call.incoming.callId", type: "text" }
+      ]
+    },
+    {
+      name: "realtime.sip.call.answered",
+      label: "Call answered",
+      description: "SIP phone call was answered",
+      detail: { callId: "text", agent: "text" },
+      bindings: [
+        { from: "detail.callId", to: "realtime.sip.call.answered.callId", type: "text" },
+        { from: "detail.agent", to: "realtime.sip.call.answered.agent", type: "text" }
+      ]
+    },
+    {
+      name: "realtime.sip.call.ended",
+      label: "Call ended",
+      description: "SIP phone call ended",
+      detail: { callId: "text", duration: "number" },
+      bindings: [
+        { from: "detail.callId", to: "realtime.sip.call.ended.callId", type: "text" },
+        { from: "detail.duration", to: "realtime.sip.call.ended.duration", type: "number" }
+      ]
+    }
+  ]
+};
 const MESSAGE_TYPES = new Set([
   "presence.cursor",
   "runtime.event"
@@ -33,9 +92,17 @@ function parseInteger(value, fallback, min = 0, max = Number.MAX_SAFE_INTEGER) {
   return Math.min(max, Math.max(min, parsed));
 }
 
+function loadEventCatalog(options = {}, env = process.env) {
+  if (options.eventCatalog) return normalizeEventCatalog(options.eventCatalog);
+  const catalogPath = options.eventCatalogPath || env.REALTIME_EVENT_CATALOG_PATH || "";
+  if (!catalogPath) return normalizeEventCatalog(DEFAULT_EVENT_CATALOG);
+  return normalizeEventCatalog(JSON.parse(fs.readFileSync(catalogPath, "utf8")));
+}
+
 function loadConfig(options = {}) {
   const env = options.env || process.env;
   const roomSecret = options.roomSecret ?? env.REALTIME_ROOM_SECRET ?? "";
+  const emitSecret = options.emitSecret ?? env.REALTIME_EMIT_SECRET ?? "";
   const nodeEnv = options.nodeEnv || env.NODE_ENV || "development";
   const allowUnsignedRooms = options.allowUnsignedRooms ?? (
     String(env.REALTIME_ALLOW_UNSIGNED_ROOMS || "").toLowerCase() === "true"
@@ -46,6 +113,8 @@ function loadConfig(options = {}) {
     port: parseInteger(options.port ?? env.REALTIME_PORT, DEFAULT_PORT, 1, 65535),
     path: options.path || env.REALTIME_PATH || DEFAULT_PATH,
     tokenPath: options.tokenPath || env.REALTIME_TOKEN_PATH || DEFAULT_TOKEN_PATH,
+    eventsPath: options.eventsPath || env.REALTIME_EVENTS_PATH || DEFAULT_EVENTS_PATH,
+    emitPath: options.emitPath || env.REALTIME_EMIT_PATH || DEFAULT_EMIT_PATH,
     allowedOrigins: parseList(
       options.allowedOrigins ?? env.REALTIME_ALLOWED_ORIGINS,
       DEFAULT_ALLOWED_ORIGINS
@@ -61,6 +130,8 @@ function loadConfig(options = {}) {
       1024
     ),
     roomSecret,
+    emitSecret,
+    eventCatalog: loadEventCatalog(options, env),
     allowUnsignedRooms: Boolean(allowUnsignedRooms),
     requireRoomSecret: options.requireRoomSecret ?? (nodeEnv === "production" && !allowUnsignedRooms)
   };
@@ -80,6 +151,72 @@ function sanitizeEventName(value) {
   const text = String(value || "").trim();
   if (!text || text.length > MAX_EVENT_NAME_LENGTH) return "";
   return /^[a-zA-Z0-9_.:-]+$/.test(text) ? text : "";
+}
+
+function sanitizeStatePath(value) {
+  const text = String(value || "").trim();
+  if (!text || text.length > MAX_STATE_PATH_LENGTH) return "";
+  return /^[a-zA-Z_][a-zA-Z0-9_:-]*(?:\.[a-zA-Z_][a-zA-Z0-9_:-]*)*$/.test(text) ? text : "";
+}
+
+function normalizeValueType(value) {
+  const type = String(value || "").trim().toLowerCase();
+  return VALID_VALUE_TYPES.has(type) ? type : "text";
+}
+
+function normalizeDetailSchema(value) {
+  if (!isPlainObject(value)) return {};
+  const out = {};
+  for (const [path, type] of Object.entries(value).slice(0, 64)) {
+    const cleanPath = sanitizeStatePath(path);
+    if (cleanPath) out[cleanPath] = normalizeValueType(type);
+  }
+  return out;
+}
+
+function normalizeEventBindings(value) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 64).map(binding => {
+    if (!isPlainObject(binding)) return null;
+    const from = sanitizeStatePath(binding.from || "");
+    const to = sanitizeStatePath(binding.to || "");
+    if (!from || !to) return null;
+    return { from, to, type: normalizeValueType(binding.type) };
+  }).filter(Boolean);
+}
+
+function normalizeEventCatalog(value) {
+  const source = isPlainObject(value) ? value : {};
+  const providerSource = isPlainObject(source.provider) ? source.provider : {};
+  const stateSource = isPlainObject(source.state) ? source.state : {};
+  const provider = {
+    id: sanitizeId(providerSource.id || source.providerId || DEFAULT_EVENT_CATALOG.provider.id) || DEFAULT_EVENT_CATALOG.provider.id,
+    label: String(providerSource.label || source.label || DEFAULT_EVENT_CATALOG.provider.label).trim(),
+    version: parseInteger(providerSource.version ?? source.version, DEFAULT_EVENT_CATALOG.provider.version, 1)
+  };
+  const events = [];
+  const seen = new Set();
+  for (const item of Array.isArray(source.events) ? source.events : []) {
+    if (!isPlainObject(item)) continue;
+    const name = sanitizeEventName(item.name || "");
+    if (!name || !name.startsWith("realtime.") || seen.has(name)) continue;
+    seen.add(name);
+    events.push({
+      name,
+      label: String(item.label || name).trim(),
+      description: String(item.description || "").trim(),
+      detail: normalizeDetailSchema(item.detail),
+      bindings: normalizeEventBindings(item.bindings)
+    });
+  }
+  return {
+    provider,
+    state: {
+      path: sanitizeStatePath(stateSource.path || DEFAULT_EVENT_CATALOG.state.path) || DEFAULT_EVENT_CATALOG.state.path,
+      schema: normalizeDetailSchema(stateSource.schema || DEFAULT_EVENT_CATALOG.state.schema)
+    },
+    events
+  };
 }
 
 function isFiniteNumber(value) {
@@ -156,6 +293,61 @@ function writeJson(response, statusCode, payload, headers = {}) {
     ...headers
   });
   response.end(body);
+}
+
+function bearerToken(request) {
+  const header = String(request.headers.authorization || "");
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  return match ? match[1].trim() : "";
+}
+
+function readJsonBody(request, maxBytes = MAX_EMIT_BODY_BYTES) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let total = 0;
+    request.on("data", chunk => {
+      total += chunk.length;
+      if (total <= maxBytes) chunks.push(chunk);
+    });
+    request.on("error", reject);
+    request.on("end", () => {
+      if (total > maxBytes) {
+        const error = new Error("payload_too_large");
+        error.code = "payload_too_large";
+        reject(error);
+        return;
+      }
+      try {
+        const parsed = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
+        resolve(parsed);
+      } catch (_) {
+        const error = new Error("invalid_json");
+        error.code = "invalid_json";
+        reject(error);
+      }
+    });
+  });
+}
+
+function publicBaseUrl(request) {
+  const proto = String(request.headers["x-forwarded-proto"] || "http").split(",")[0].trim() || "http";
+  const host = String(request.headers["x-forwarded-host"] || request.headers.host || "localhost").split(",")[0].trim();
+  return `${proto}://${host}`;
+}
+
+function eventCatalogResponse(config, request) {
+  const base = publicBaseUrl(request);
+  const wsScheme = base.startsWith("https://") ? "wss://" : "ws://";
+  const host = base.replace(/^https?:\/\//, "");
+  return {
+    ...config.eventCatalog,
+    transport: {
+      websocket: `${wsScheme}${host}${config.path}`,
+      token: `${base}${config.tokenPath}`,
+      events: `${base}${config.eventsPath}`,
+      emit: `${base}${config.emitPath}`
+    }
+  };
 }
 
 function createRoom(roomId) {
@@ -255,14 +447,15 @@ function sendError(socket, code, close = false) {
 function createRealtimeServer(options = {}) {
   const config = loadConfig(options);
   const allowedOrigins = new Set(config.allowedOrigins);
+  const offeredEventNames = new Set(config.eventCatalog.events.map(event => event.name));
   const rooms = new Map();
   const isOriginAllowed = origin => allowedOrigins.has("*") || allowedOrigins.has(origin);
   const corsHeadersForOrigin = origin => {
     if (!origin || !isOriginAllowed(origin)) return null;
     return {
       "access-control-allow-origin": allowedOrigins.has("*") ? "*" : origin,
-      "access-control-allow-methods": "GET, OPTIONS",
-      "access-control-allow-headers": "content-type",
+      "access-control-allow-methods": "GET, POST, OPTIONS",
+      "access-control-allow-headers": "authorization, content-type",
       "vary": "Origin"
     };
   };
@@ -272,6 +465,25 @@ function createRealtimeServer(options = {}) {
     if (request.method === "GET" && url.pathname === "/healthz") {
       const clients = [...rooms.values()].reduce((sum, room) => sum + room.clients.size, 0);
       writeJson(response, 200, { ok: true, rooms: rooms.size, clients });
+      return;
+    }
+    if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.eventsPath) {
+      const origin = request.headers.origin || "";
+      const headers = origin ? corsHeadersForOrigin(origin) : {};
+      if (!headers) {
+        writeJson(response, 403, { error: "origin_not_allowed" });
+        return;
+      }
+      if (request.method === "OPTIONS") {
+        response.writeHead(204, headers);
+        response.end();
+        return;
+      }
+      writeJson(response, 200, eventCatalogResponse(config, request), headers);
+      return;
+    }
+    if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.emitPath) {
+      void handleEmitRequest(request, response);
       return;
     }
     if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.tokenPath) {
@@ -326,11 +538,86 @@ function createRealtimeServer(options = {}) {
 
   function broadcast(room, sourceSocket, payload, transient = false) {
     const body = JSON.stringify(payload);
+    let delivered = 0;
     for (const peer of room.clients) {
       if (peer === sourceSocket || peer.readyState !== WebSocket.OPEN) continue;
       if (transient && peer.bufferedAmount > config.transientHighWaterMark) continue;
       peer.send(body);
+      delivered += 1;
     }
+    return delivered;
+  }
+
+  function validateEmitPayload(payload) {
+    if (!isPlainObject(payload)) return { ok: false, code: "invalid_json" };
+    const roomId = sanitizeId(payload.roomId);
+    const clientId = sanitizeId(payload.clientId || "server");
+    const name = sanitizeEventName(payload.name || "");
+    if (!roomId) return { ok: false, code: "invalid_room" };
+    if (!clientId) return { ok: false, code: "invalid_client" };
+    if (!name || !name.startsWith("realtime.")) return { ok: false, code: "invalid_event_name" };
+    if (!offeredEventNames.has(name)) return { ok: false, code: "event_not_offered" };
+    if (payload.detail !== undefined && !isPlainObject(payload.detail)) return { ok: false, code: "invalid_detail" };
+    return {
+      ok: true,
+      roomId,
+      clientId,
+      name,
+      detail: isPlainObject(payload.detail) ? payload.detail : {}
+    };
+  }
+
+  async function handleEmitRequest(request, response) {
+    const origin = request.headers.origin || "";
+    const headers = origin ? corsHeadersForOrigin(origin) : {};
+    if (!headers) {
+      writeJson(response, 403, { error: "origin_not_allowed" });
+      return;
+    }
+    if (request.method === "OPTIONS") {
+      response.writeHead(204, headers);
+      response.end();
+      return;
+    }
+    if (!config.emitSecret) {
+      writeJson(response, 503, { error: "emit_secret_required" }, headers);
+      return;
+    }
+    if (!timingSafeEqualString(bearerToken(request), config.emitSecret)) {
+      writeJson(response, 401, { error: "unauthorized" }, headers);
+      return;
+    }
+
+    let payload;
+    try {
+      payload = await readJsonBody(request, config.maxPayload);
+    } catch (error) {
+      const status = error.code === "payload_too_large" ? 413 : 400;
+      writeJson(response, status, { error: error.code || "invalid_json" }, headers);
+      return;
+    }
+
+    const emit = validateEmitPayload(payload);
+    if (!emit.ok) {
+      writeJson(response, 400, { error: emit.code }, headers);
+      return;
+    }
+
+    const room = rooms.get(emit.roomId);
+    const delivered = room ? broadcast(room, null, {
+      type: "runtime.event",
+      roomId: emit.roomId,
+      clientId: emit.clientId,
+      serverTime: Date.now(),
+      name: emit.name,
+      detail: emit.detail
+    }) : 0;
+    writeJson(response, 202, {
+      ok: true,
+      roomId: emit.roomId,
+      name: emit.name,
+      delivered
+    }, headers);
   }
 
   function removeFromRoom(socket, notify = true) {

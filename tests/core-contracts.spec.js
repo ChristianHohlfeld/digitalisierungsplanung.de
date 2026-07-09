@@ -1308,8 +1308,12 @@ test.describe("Core source contracts", () => {
     const appHtml = await generatedPreviewHtml(page);
 
     expect(appHtml).toContain('data.type === "STATE_BLUEPRINT_REALTIME_EVENT"');
+    expect(appHtml).toContain('data.type === "STATE_BLUEPRINT_REALTIME_STATUS"');
     expect(appHtml).toContain("if (name) emitRuntimeEvent(name, detail);");
     expect(appHtml).toContain('writeRuntimeState("events." + name + ".detail", detail');
+    expect(appHtml).toContain("function applyRealtimeEventBindings");
+    expect(appHtml).toContain('runtimeSet("realtime", next');
+    expect(appHtml).toContain("m.realtime = normalizeRealtimeConfig(m.realtime);");
     expect(appHtml).toContain('writeRuntimeState("lastEvent", name');
     expect(appHtml).not.toContain("STATE_BLUEPRINT_REALTIME_EVENT\") {\n        context");
   });
@@ -1320,11 +1324,14 @@ test.describe("Core source contracts", () => {
 
     expect(hostHtml).toContain('const REALTIME_WSS_URL = "wss://realtime.digitalisierungsplanung.de/ws";');
     expect(hostHtml).toContain('const REALTIME_TOKEN_URL = "https://realtime.digitalisierungsplanung.de/token";');
+    expect(hostHtml).toContain('const REALTIME_EVENTS_URL = "https://realtime.digitalisierungsplanung.de/events";');
     expect(hostHtml).toContain("function relayRuntimeBusEventToRealtime()");
+    expect(hostHtml).toContain("function postRealtimeStatus");
     expect(hostHtml).toContain('const name = normalizeTransitionEvent(latestRuntimeContext?.lastEvent || "");');
     expect(hostHtml).toContain('if (!name || !name.startsWith("realtime.")) return;');
     expect(hostHtml).toContain('if (detail.source === "realtime" || detail.__realtimeRemote === true) return;');
     expect(hostHtml).toContain('type: "STATE_BLUEPRINT_REALTIME_EVENT"');
+    expect(hostHtml).toContain('type: "STATE_BLUEPRINT_REALTIME_STATUS"');
     expect(hostHtml).not.toMatch(/latestRuntimeContext\s*=.*realtime/i);
     expect(hostHtml).not.toMatch(/setEditorContextPath\(latestRuntimeContext,[^)]*realtime/i);
     expect(hostHtml).not.toContain('localStorage.setItem("stateBlueprint.realtime');

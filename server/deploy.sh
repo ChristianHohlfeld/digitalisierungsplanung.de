@@ -41,6 +41,10 @@ if [ ! -f "$ENV_FILE" ]; then
   printf 'REALTIME_ROOM_SECRET=%s\n' "$(openssl rand -base64 48)" > "$ENV_FILE"
 fi
 
+if ! grep -q '^REALTIME_EMIT_SECRET=' "$ENV_FILE"; then
+  printf 'REALTIME_EMIT_SECRET=%s\n' "$(openssl rand -base64 48)" >> "$ENV_FILE"
+fi
+
 pm2 start server/ecosystem.config.cjs --update-env
 pm2 save
 pm2 startup systemd -u root --hp /root >/tmp/digitalisierungsplanung-pm2-startup.txt

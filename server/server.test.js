@@ -169,6 +169,30 @@ test("does not issue room tokens without a server secret", async () => {
   });
 });
 
+test("serves the realtime provider event contract to allowed origins", async () => {
+  await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
+    const response = await fetch(httpUrl(realtime, "/events"), {
+      headers: { Origin: ORIGIN }
+    });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("access-control-allow-origin"), ORIGIN);
+
+    const payload = await response.json();
+    assert.equal(payload.provider.id, "digitalisierungsplanung.realtime");
+    assert.equal(payload.state.path, "realtime");
+    assert.equal(payload.transport.emit, httpUrl(realtime, "/emit"));
+    assert.ok(payload.events.some(event => event.name === "realtime.sip.call.incoming"));
+    assert.ok(payload.events
+      .find(event => event.name === "realtime.sip.call.incoming")
+      .bindings.some(binding => binding.to === "realtime.sip.call.incoming.caller"));
+
+    const rejected = await fetch(httpUrl(realtime, "/events"), {
+      headers: { Origin: "https://evil.example" }
+    });
+    assert.equal(rejected.status, 403);
+  });
+});
+
 test("relays runtime events to peers without echoing them to the sender", async () => {
   await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
     const alice = await connectClient(realtime, { clientId: "alice" });
@@ -186,6 +210,60 @@ test("relays runtime events to peers without echoing them to the sender", async 
     assert.equal(received.name, "realtime.canvas.clicked");
     assert.deepEqual(received.detail, { stateId: "start" });
     await assertNoMessage(alice, message => message.type === "runtime.event");
+  });
+});
+
+test("emits catalogued server events into a room without server-side state", async () => {
+  await withRealtimeServer({ roomSecret: SECRET, emitSecret: "emit-secret" }, async realtime => {
+    const alice = await connectClient(realtime, { clientId: "alice" });
+    const bob = await connectClient(realtime, { clientId: "bob" });
+    const aliceRuntimeEvent = nextMessage(alice, message => message.type === "runtime.event");
+    const bobRuntimeEvent = nextMessage(bob, message => message.type === "runtime.event");
+
+    const response = await fetch(httpUrl(realtime, "/emit"), {
+      method: "POST",
+      headers: {
+        authorization: "Bearer emit-secret",
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        roomId: "room",
+        name: "realtime.sip.call.incoming",
+        detail: { caller: "+491234", callee: "100", callId: "abc-123" }
+      })
+    });
+    assert.equal(response.status, 202);
+    assert.deepEqual(await response.json(), {
+      ok: true,
+      roomId: "room",
+      name: "realtime.sip.call.incoming",
+      delivered: 2
+    });
+
+    const [aliceEvent, bobEvent] = await Promise.all([aliceRuntimeEvent, bobRuntimeEvent]);
+    for (const received of [aliceEvent, bobEvent]) {
+      assert.equal(received.clientId, "server");
+      assert.equal(received.name, "realtime.sip.call.incoming");
+      assert.deepEqual(received.detail, { caller: "+491234", callee: "100", callId: "abc-123" });
+    }
+
+    const unauthorized = await fetch(httpUrl(realtime, "/emit"), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ roomId: "room", name: "realtime.sip.call.incoming" })
+    });
+    assert.equal(unauthorized.status, 401);
+
+    const unknown = await fetch(httpUrl(realtime, "/emit"), {
+      method: "POST",
+      headers: {
+        authorization: "Bearer emit-secret",
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({ roomId: "room", name: "realtime.unknown.event" })
+    });
+    assert.equal(unknown.status, 400);
+    assert.deepEqual(await unknown.json(), { error: "event_not_offered" });
   });
 });
 
