@@ -3959,13 +3959,15 @@ test.describe("State Blueprint tool", () => {
     const app = appFrame(page);
     await expect(page.locator('[data-id="docs"]')).toBeVisible();
     await expect(app.locator("#statePill")).toHaveText("docs");
-    await expect(app.getByRole("link", { name: "Open docs" })).toHaveAttribute("href", "https://example.com/docs");
+    const docsLink = app.getByRole("link", { name: "Open docs" });
+    await expect(docsLink).toHaveAttribute("href", "https://example.com/docs");
+    await expect(docsLink).toHaveCSS("text-decoration-line", "none");
     const runtimeUrl = await app.locator("#statePill").evaluate(() => window.location.href);
 
-    await app.getByRole("link", { name: "Open docs" }).click();
+    await docsLink.click();
     await expect.poll(() => page.evaluate(() => window.__openedExternalUrls?.[0]?.url || "")).toBe("https://example.com/docs");
     await expect(app.locator("#statePill")).toHaveText("docs");
-    await expect(app.getByRole("link", { name: "Open docs" })).toBeVisible();
+    await expect(docsLink).toBeVisible();
     await expect.poll(() => app.locator("#statePill").evaluate(() => window.location.href)).toBe(runtimeUrl);
 
     await page.locator("#appFrame").evaluate(frame => {
@@ -8911,6 +8913,30 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator('[data-mobile-view="presets"]')).toHaveClass(/active/);
     const presetList = page.locator("#stateExplorerList");
     await expect(presetList).toHaveCSS("overflow-y", "auto");
+    const mobileSearch = page.locator("#stateExplorerSearch");
+    await expect(mobileSearch).toBeVisible();
+    await expect.poll(() => page.locator("#stateExplorer").evaluate(explorer => {
+      const list = explorer.querySelector("#stateExplorerList");
+      const search = explorer.querySelector("#stateExplorerSearch");
+      const explorerRect = explorer.getBoundingClientRect();
+      const listRect = list.getBoundingClientRect();
+      const searchRect = search.getBoundingClientRect();
+      return {
+        listOverflowX: getComputedStyle(list).overflowX,
+        searchInside: searchRect.left >= explorerRect.left - 1 && searchRect.right <= explorerRect.right + 1,
+        listInside: listRect.left >= explorerRect.left - 1 && listRect.right <= explorerRect.right + 1,
+        hasHorizontalOverflow: explorer.scrollWidth > explorer.clientWidth + 2 || list.scrollWidth > list.clientWidth + 2
+      };
+    })).toEqual({
+      listOverflowX: "hidden",
+      searchInside: true,
+      listInside: true,
+      hasHorizontalOverflow: false
+    });
+    await mobileSearch.fill("avatar");
+    await expect(componentPreset(page, "User avatar")).toBeVisible();
+    await expect(componentPreset(page, "Text block")).toHaveCount(0);
+    await mobileSearch.press("Escape");
     await expect(componentPreset(page, "Text block")).toHaveCSS("touch-action", "pan-y");
     await expect.poll(() => presetList.evaluate(el => ({
       canScroll: el.scrollHeight > el.clientHeight,
@@ -10991,6 +11017,26 @@ test.describe("State Blueprint tool", () => {
       dataWires: ["link"]
     });
     await expect(appFrame(page).getByRole("link", { name: "Open docs" })).toBeVisible();
+  });
+
+  test("filters state explorer presets by search text without breaking group layout @smoke", async ({ page }) => {
+    await openTool(page);
+
+    const search = page.locator("#stateExplorerSearch");
+    await expect(search).toBeVisible();
+    await search.fill("pricing");
+
+    await expect(componentPreset(page, "Pricing cards")).toBeVisible();
+    await expect(componentPreset(page, "Text block")).toHaveCount(0);
+    await expect(page.locator(".state-explorer-empty-results")).toHaveCount(0);
+
+    await search.fill("does-not-exist");
+    await expect(page.locator(".component-preset-card, .state-template-card")).toHaveCount(0);
+    await expect(page.locator(".state-explorer-empty-results")).toContainText("No presets found");
+
+    await search.press("Escape");
+    await expect(componentPreset(page, "Text block")).toBeVisible();
+    await expect(componentPreset(page, "Pricing cards")).toBeVisible();
   });
 
   test("groups explorer presets into usable website basecases without drawer overflow @smoke", async ({ page }) => {

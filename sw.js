@@ -17,7 +17,10 @@ const APP_SHELL = [
   "/assets/maskable-512.png",
   "/assets/apple-touch-icon.png",
   "/assets/share-card.png",
-  "/assets/hero-process.png"
+  "/assets/landing-hero-business.png",
+  "/assets/landing-understand-business.png",
+  "/assets/landing-model-business.png",
+  "/assets/landing-automate-business.png"
 ];
 
 self.addEventListener("install", event => {

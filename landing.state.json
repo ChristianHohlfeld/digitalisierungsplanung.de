@@ -96,22 +96,23 @@
           "states.startseite.hero": {
             "layout": "overlay",
             "title": "Zustand macht Prozesse sichtbar",
-            "body": "Nur verstandene Prozesse sind Prozesse, die digitalisiert werden können. Dieses Werkzeug modelliert Abläufe als echte State Machine: sichtbar, testbar, exportierbar.",
+            "body": "Nur verstandene Prozesse sind Prozesse, die digitalisiert werden können. Zustand macht Abläufe sichtbar, prüfbar und direkt als digitale Oberfläche nutzbar.",
             "actionLabel": "Werkzeug ansehen",
             "transitionId": "nav_startseite_werkzeug",
-            "image": "/assets/hero-process.png"
+            "image": "/assets/landing-hero-business.png",
+            "imageAlt": "Geschaeftsfuehrung visualisiert einen Business-Prozess"
           },
           "states.startseite.kern": {
             "eyebrow": "Digitalisierungsplanung",
             "heading": "Vom Bauchgefühl zum prüfbaren Ablauf",
-            "body": "Zustand verbindet Prozessbild, Datenvertrag und ausführbare Oberfläche in einem Modell.",
+            "body": "Zustand verbindet Prozessbild, Verantwortlichkeiten und digitale Ausführung in einem Modell.",
             "selected": "",
             "items": [
               {
                 "title": "Verstehen",
                 "body": "Abläufe werden als Zustände, Übergänge und Auslöser sichtbar.",
-                "image": "data:image/svg+xml;base64,CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2aWV3Qm94PSIwIDAgODAwIDUwMCI+CiAgPGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agc3RvcC1jb2xvcj0iIzA1MTExZiIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzM4YmRmOCIgc3RvcC1vcGFjaXR5PSIuNzIiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz4KICA8cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCIgZmlsbD0idXJsKCNnKSIvPgogIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UwZjJmZSIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiIG9wYWNpdHk9Ii45Ij4KICAgIDxyZWN0IHg9IjkwIiB5PSIxMjAiIHdpZHRoPSIxODAiIGhlaWdodD0iOTYiIHJ4PSIyMiIvPjxyZWN0IHg9IjUyMCIgeT0iMTIwIiB3aWR0aD0iMTkwIiBoZWlnaHQ9Ijk2IiByeD0iMjIiLz48cmVjdCB4PSIzMTAiIHk9IjI5NCIgd2lkdGg9IjE4MCIgaGVpZ2h0PSI5NiIgcng9IjIyIi8+CiAgICA8cGF0aCBkPSJNMjcwIDE2OGgyNTBNNDAwIDIxNnY3OCIvPgogIDwvZz4KICA8dGV4dCB4PSI5MCIgeT0iNDMwIiBmaWxsPSIjZjhmYWZjIiBmb250LWZhbWlseT0iU2Vnb2UgVUksIEFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjQ0IiBmb250LXdlaWdodD0iOTAwIj5WZXJzdGVoZW48L3RleHQ+Cjwvc3ZnPg==",
-                "imageAlt": "Prozesszustände",
+                "image": "/assets/landing-understand-business.png",
+                "imageAlt": "Business-Team klaert einen Prozess auf Papier",
                 "features": [
                   "gemeinsames Bild",
                   "weniger Missverständnisse"
@@ -121,24 +122,24 @@
               },
               {
                 "title": "Modellieren",
-                "body": "Buttons, Timer, Events und Bedingungen sind echte FSM-Transitionen.",
-                "image": "data:image/svg+xml;base64,CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2aWV3Qm94PSIwIDAgODAwIDUwMCI+CiAgPGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agc3RvcC1jb2xvcj0iIzA1MTExZiIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2Y1OWUwYiIgc3RvcC1vcGFjaXR5PSIuNzIiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz4KICA8cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCIgZmlsbD0idXJsKCNnKSIvPgogIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UwZjJmZSIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiIG9wYWNpdHk9Ii45Ij4KICAgIDxyZWN0IHg9IjkwIiB5PSIxMjAiIHdpZHRoPSIxODAiIGhlaWdodD0iOTYiIHJ4PSIyMiIvPjxyZWN0IHg9IjUyMCIgeT0iMTIwIiB3aWR0aD0iMTkwIiBoZWlnaHQ9Ijk2IiByeD0iMjIiLz48cmVjdCB4PSIzMTAiIHk9IjI5NCIgd2lkdGg9IjE4MCIgaGVpZ2h0PSI5NiIgcng9IjIyIi8+CiAgICA8cGF0aCBkPSJNMjcwIDE2OGgyNTBNNDAwIDIxNnY3OCIvPgogIDwvZz4KICA8dGV4dCB4PSI5MCIgeT0iNDMwIiBmaWxsPSIjZjhmYWZjIiBmb250LWZhbWlseT0iU2Vnb2UgVUksIEFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjQ0IiBmb250LXdlaWdodD0iOTAwIj5Nb2RlbGxpZXJlbjwvdGV4dD4KPC9zdmc+",
-                "imageAlt": "State Machine Modell",
+                "body": "Entscheidungen, Verantwortlichkeiten und Auslöser werden als prüfbarer Ablauf festgehalten.",
+                "image": "/assets/landing-model-business.png",
+                "imageAlt": "Entscheider prueft ein ausfuehrbares Prozessmodell",
                 "features": [
-                  "keine Schattenlogik",
-                  "reproduzierbarer Flow"
+                  "klare Entscheidungspunkte",
+                  "reproduzierbarer Ablauf"
                 ],
                 "actionLabel": "Werkzeug ansehen",
                 "transitionId": "nav_startseite_werkzeug"
               },
               {
                 "title": "Automatisieren",
-                "body": "MCP/API steuert dasselbe Modell wie der Editor. Keine zweite Wahrheit.",
-                "image": "data:image/svg+xml;base64,CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2aWV3Qm94PSIwIDAgODAwIDUwMCI+CiAgPGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agc3RvcC1jb2xvcj0iIzA1MTExZiIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzM0ZDM5OSIgc3RvcC1vcGFjaXR5PSIuNzIiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz4KICA8cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCIgZmlsbD0idXJsKCNnKSIvPgogIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UwZjJmZSIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiIG9wYWNpdHk9Ii45Ij4KICAgIDxyZWN0IHg9IjkwIiB5PSIxMjAiIHdpZHRoPSIxODAiIGhlaWdodD0iOTYiIHJ4PSIyMiIvPjxyZWN0IHg9IjUyMCIgeT0iMTIwIiB3aWR0aD0iMTkwIiBoZWlnaHQ9Ijk2IiByeD0iMjIiLz48cmVjdCB4PSIzMTAiIHk9IjI5NCIgd2lkdGg9IjE4MCIgaGVpZ2h0PSI5NiIgcng9IjIyIi8+CiAgICA8cGF0aCBkPSJNMjcwIDE2OGgyNTBNNDAwIDIxNnY3OCIvPgogIDwvZz4KICA8dGV4dCB4PSI5MCIgeT0iNDMwIiBmaWxsPSIjZjhmYWZjIiBmb250LWZhbWlseT0iU2Vnb2UgVUksIEFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjQ0IiBmb250LXdlaWdodD0iOTAwIj5BdXRvbWF0aXNpZXJlbjwvdGV4dD4KPC9zdmc+",
-                "imageAlt": "API und Automatisierung",
+                "body": "Wenn der Ablauf stimmt, wird er als Anwendung und Schnittstelle nutzbar.",
+                "image": "/assets/landing-automate-business.png",
+                "imageAlt": "Business-Verantwortliche planen die Automatisierung",
                 "features": [
-                  "globaler JSON-Bus",
-                  "maschinensteuerbar"
+                  "eine Datenbasis",
+                  "automatisierbar"
                 ],
                 "actionLabel": "Schnittstellen ansehen",
                 "transitionId": "nav_startseite_schnittstellen"
@@ -301,35 +302,38 @@
               {
                 "title": "FSM zuerst",
                 "body": "Ein State ist eine Sicht auf relevante Daten und zulässige Übergänge.",
-                "image": "data:image/svg+xml;base64,CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2aWV3Qm94PSIwIDAgODAwIDUwMCI+CiAgPGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agc3RvcC1jb2xvcj0iIzA1MTExZiIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzM4YmRmOCIgc3RvcC1vcGFjaXR5PSIuNzIiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz4KICA8cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCIgZmlsbD0idXJsKCNnKSIvPgogIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UwZjJmZSIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiIG9wYWNpdHk9Ii45Ij4KICAgIDxyZWN0IHg9IjkwIiB5PSIxMjAiIHdpZHRoPSIxODAiIGhlaWdodD0iOTYiIHJ4PSIyMiIvPjxyZWN0IHg9IjUyMCIgeT0iMTIwIiB3aWR0aD0iMTkwIiBoZWlnaHQ9Ijk2IiByeD0iMjIiLz48cmVjdCB4PSIzMTAiIHk9IjI5NCIgd2lkdGg9IjE4MCIgaGVpZ2h0PSI5NiIgcng9IjIyIi8+CiAgICA8cGF0aCBkPSJNMjcwIDE2OGgyNTBNNDAwIDIxNnY3OCIvPgogIDwvZz4KICA8dGV4dCB4PSI5MCIgeT0iNDMwIiBmaWxsPSIjZjhmYWZjIiBmb250LWZhbWlseT0iU2Vnb2UgVUksIEFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjQ0IiBmb250LXdlaWdodD0iOTAwIj5GU00genVlcnN0PC90ZXh0Pgo8L3N2Zz4=",
+                "image": "/assets/landing-understand-business.png",
                 "features": [
                   "kein versteckter Rückweg",
                   "kein lokaler Flow"
                 ],
                 "actionLabel": "Werkzeug",
-                "transitionId": "nav_prinzipien_werkzeug"
+                "transitionId": "nav_prinzipien_werkzeug",
+                "imageAlt": "Business-Team klaert einen Prozess auf Papier"
               },
               {
                 "title": "Globaler JSON-Bus",
                 "body": "Alle Daten liegen im gemeinsamen Baum und werden eindeutig gescoped.",
-                "image": "data:image/svg+xml;base64,CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2aWV3Qm94PSIwIDAgODAwIDUwMCI+CiAgPGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agc3RvcC1jb2xvcj0iIzA1MTExZiIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzM0ZDM5OSIgc3RvcC1vcGFjaXR5PSIuNzIiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz4KICA8cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCIgZmlsbD0idXJsKCNnKSIvPgogIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UwZjJmZSIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiIG9wYWNpdHk9Ii45Ij4KICAgIDxyZWN0IHg9IjkwIiB5PSIxMjAiIHdpZHRoPSIxODAiIGhlaWdodD0iOTYiIHJ4PSIyMiIvPjxyZWN0IHg9IjUyMCIgeT0iMTIwIiB3aWR0aD0iMTkwIiBoZWlnaHQ9Ijk2IiByeD0iMjIiLz48cmVjdCB4PSIzMTAiIHk9IjI5NCIgd2lkdGg9IjE4MCIgaGVpZ2h0PSI5NiIgcng9IjIyIi8+CiAgICA8cGF0aCBkPSJNMjcwIDE2OGgyNTBNNDAwIDIxNnY3OCIvPgogIDwvZz4KICA8dGV4dCB4PSI5MCIgeT0iNDMwIiBmaWxsPSIjZjhmYWZjIiBmb250LWZhbWlseT0iU2Vnb2UgVUksIEFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjQ0IiBmb250LXdlaWdodD0iOTAwIj5KU09OLUJ1czwvdGV4dD4KPC9zdmc+",
+                "image": "/assets/landing-model-business.png",
                 "features": [
                   "Single Source of Truth",
                   "keine doppelten Stores"
                 ],
                 "actionLabel": "Schnittstellen",
-                "transitionId": "nav_prinzipien_schnittstellen"
+                "transitionId": "nav_prinzipien_schnittstellen",
+                "imageAlt": "Entscheider prueft ein ausfuehrbares Prozessmodell"
               },
               {
                 "title": "Export als Runtime",
                 "body": "Aus dem Modell entsteht eine bedienbare HTML-Anwendung.",
-                "image": "data:image/svg+xml;base64,CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2aWV3Qm94PSIwIDAgODAwIDUwMCI+CiAgPGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agc3RvcC1jb2xvcj0iIzA1MTExZiIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2E3OGJmYSIgc3RvcC1vcGFjaXR5PSIuNzIiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz4KICA8cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCIgZmlsbD0idXJsKCNnKSIvPgogIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UwZjJmZSIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiIG9wYWNpdHk9Ii45Ij4KICAgIDxyZWN0IHg9IjkwIiB5PSIxMjAiIHdpZHRoPSIxODAiIGhlaWdodD0iOTYiIHJ4PSIyMiIvPjxyZWN0IHg9IjUyMCIgeT0iMTIwIiB3aWR0aD0iMTkwIiBoZWlnaHQ9Ijk2IiByeD0iMjIiLz48cmVjdCB4PSIzMTAiIHk9IjI5NCIgd2lkdGg9IjE4MCIgaGVpZ2h0PSI5NiIgcng9IjIyIi8+CiAgICA8cGF0aCBkPSJNMjcwIDE2OGgyNTBNNDAwIDIxNnY3OCIvPgogIDwvZz4KICA8dGV4dCB4PSI5MCIgeT0iNDMwIiBmaWxsPSIjZjhmYWZjIiBmb250LWZhbWlseT0iU2Vnb2UgVUksIEFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjQ0IiBmb250LXdlaWdodD0iOTAwIj5FeHBvcnQ8L3RleHQ+Cjwvc3ZnPg==",
+                "image": "/assets/landing-automate-business.png",
                 "features": [
                   "Preview",
                   "HTML-Export"
                 ],
                 "actionLabel": "Editor",
-                "url": "./state.html"
+                "url": "./state.html",
+                "imageAlt": "Business-Verantwortliche planen die Automatisierung"
               }
             ]
           },
@@ -513,38 +517,41 @@
               {
                 "title": "Canvas",
                 "body": "States und Transitionen bilden den Prozess als Karte ab.",
-                "image": "data:image/svg+xml;base64,CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2aWV3Qm94PSIwIDAgODAwIDUwMCI+CiAgPGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agc3RvcC1jb2xvcj0iIzA1MTExZiIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzM4YmRmOCIgc3RvcC1vcGFjaXR5PSIuNzIiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz4KICA8cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCIgZmlsbD0idXJsKCNnKSIvPgogIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UwZjJmZSIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiIG9wYWNpdHk9Ii45Ij4KICAgIDxyZWN0IHg9IjkwIiB5PSIxMjAiIHdpZHRoPSIxODAiIGhlaWdodD0iOTYiIHJ4PSIyMiIvPjxyZWN0IHg9IjUyMCIgeT0iMTIwIiB3aWR0aD0iMTkwIiBoZWlnaHQ9Ijk2IiByeD0iMjIiLz48cmVjdCB4PSIzMTAiIHk9IjI5NCIgd2lkdGg9IjE4MCIgaGVpZ2h0PSI5NiIgcng9IjIyIi8+CiAgICA8cGF0aCBkPSJNMjcwIDE2OGgyNTBNNDAwIDIxNnY3OCIvPgogIDwvZz4KICA8dGV4dCB4PSI5MCIgeT0iNDMwIiBmaWxsPSIjZjhmYWZjIiBmb250LWZhbWlseT0iU2Vnb2UgVUksIEFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjQ0IiBmb250LXdlaWdodD0iOTAwIj5DYW52YXM8L3RleHQ+Cjwvc3ZnPg==",
+                "image": "/assets/landing-understand-business.png",
                 "features": [
                   "Drag & Drop",
                   "Proxy-Ports",
                   "Nested States"
                 ],
                 "actionLabel": "Prinzip",
-                "transitionId": "nav_werkzeug_prinzipien"
+                "transitionId": "nav_werkzeug_prinzipien",
+                "imageAlt": "Business-Team klaert einen Prozess auf Papier"
               },
               {
                 "title": "Render",
                 "body": "DaisyUI-Components lesen aus dem globalen State und feuern explizite Events.",
-                "image": "data:image/svg+xml;base64,CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2aWV3Qm94PSIwIDAgODAwIDUwMCI+CiAgPGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agc3RvcC1jb2xvcj0iIzA1MTExZiIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2Y1OWUwYiIgc3RvcC1vcGFjaXR5PSIuNzIiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz4KICA8cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCIgZmlsbD0idXJsKCNnKSIvPgogIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UwZjJmZSIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiIG9wYWNpdHk9Ii45Ij4KICAgIDxyZWN0IHg9IjkwIiB5PSIxMjAiIHdpZHRoPSIxODAiIGhlaWdodD0iOTYiIHJ4PSIyMiIvPjxyZWN0IHg9IjUyMCIgeT0iMTIwIiB3aWR0aD0iMTkwIiBoZWlnaHQ9Ijk2IiByeD0iMjIiLz48cmVjdCB4PSIzMTAiIHk9IjI5NCIgd2lkdGg9IjE4MCIgaGVpZ2h0PSI5NiIgcng9IjIyIi8+CiAgICA8cGF0aCBkPSJNMjcwIDE2OGgyNTBNNDAwIDIxNnY3OCIvPgogIDwvZz4KICA8dGV4dCB4PSI5MCIgeT0iNDMwIiBmaWxsPSIjZjhmYWZjIiBmb250LWZhbWlseT0iU2Vnb2UgVUksIEFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjQ0IiBmb250LXdlaWdodD0iOTAwIj5SZW5kZXI8L3RleHQ+Cjwvc3ZnPg==",
+                "image": "/assets/landing-model-business.png",
                 "features": [
                   "Navbar",
                   "Formulare",
                   "Karten"
                 ],
                 "actionLabel": "Schnittstellen",
-                "transitionId": "nav_werkzeug_schnittstellen"
+                "transitionId": "nav_werkzeug_schnittstellen",
+                "imageAlt": "Entscheider prueft ein ausfuehrbares Prozessmodell"
               },
               {
                 "title": "Export",
                 "body": "Das Ergebnis ist eine eigenständige HTML-App mit nachvollziehbarem Ablauf.",
-                "image": "data:image/svg+xml;base64,CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2aWV3Qm94PSIwIDAgODAwIDUwMCI+CiAgPGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agc3RvcC1jb2xvcj0iIzA1MTExZiIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzM0ZDM5OSIgc3RvcC1vcGFjaXR5PSIuNzIiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz4KICA8cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCIgZmlsbD0idXJsKCNnKSIvPgogIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UwZjJmZSIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiIG9wYWNpdHk9Ii45Ij4KICAgIDxyZWN0IHg9IjkwIiB5PSIxMjAiIHdpZHRoPSIxODAiIGhlaWdodD0iOTYiIHJ4PSIyMiIvPjxyZWN0IHg9IjUyMCIgeT0iMTIwIiB3aWR0aD0iMTkwIiBoZWlnaHQ9Ijk2IiByeD0iMjIiLz48cmVjdCB4PSIzMTAiIHk9IjI5NCIgd2lkdGg9IjE4MCIgaGVpZ2h0PSI5NiIgcng9IjIyIi8+CiAgICA8cGF0aCBkPSJNMjcwIDE2OGgyNTBNNDAwIDIxNnY3OCIvPgogIDwvZz4KICA8dGV4dCB4PSI5MCIgeT0iNDMwIiBmaWxsPSIjZjhmYWZjIiBmb250LWZhbWlseT0iU2Vnb2UgVUksIEFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjQ0IiBmb250LXdlaWdodD0iOTAwIj5FeHBvcnQ8L3RleHQ+Cjwvc3ZnPg==",
+                "image": "/assets/landing-automate-business.png",
                 "features": [
                   "statische Seite",
                   "Flow-Debug",
                   "FSM-Runtime"
                 ],
                 "actionLabel": "Editor öffnen",
-                "url": "./state.html"
+                "url": "./state.html",
+                "imageAlt": "Business-Verantwortliche planen die Automatisierung"
               }
             ]
           },
@@ -704,35 +711,38 @@
               {
                 "title": "State erzeugen",
                 "body": "Aktionen erstellen States mit eindeutigen IDs und gescopten Variablen.",
-                "image": "data:image/svg+xml;base64,CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2aWV3Qm94PSIwIDAgODAwIDUwMCI+CiAgPGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agc3RvcC1jb2xvcj0iIzA1MTExZiIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzM4YmRmOCIgc3RvcC1vcGFjaXR5PSIuNzIiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz4KICA8cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCIgZmlsbD0idXJsKCNnKSIvPgogIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UwZjJmZSIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiIG9wYWNpdHk9Ii45Ij4KICAgIDxyZWN0IHg9IjkwIiB5PSIxMjAiIHdpZHRoPSIxODAiIGhlaWdodD0iOTYiIHJ4PSIyMiIvPjxyZWN0IHg9IjUyMCIgeT0iMTIwIiB3aWR0aD0iMTkwIiBoZWlnaHQ9Ijk2IiByeD0iMjIiLz48cmVjdCB4PSIzMTAiIHk9IjI5NCIgd2lkdGg9IjE4MCIgaGVpZ2h0PSI5NiIgcng9IjIyIi8+CiAgICA8cGF0aCBkPSJNMjcwIDE2OGgyNTBNNDAwIDIxNnY3OCIvPgogIDwvZz4KICA8dGV4dCB4PSI5MCIgeT0iNDMwIiBmaWxsPSIjZjhmYWZjIiBmb250LWZhbWlseT0iU2Vnb2UgVUksIEFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjQ0IiBmb250LXdlaWdodD0iOTAwIj5TdGF0ZSBBUEk8L3RleHQ+Cjwvc3ZnPg==",
+                "image": "/assets/landing-understand-business.png",
                 "features": [
                   "upsert_state",
                   "set_initial"
                 ],
                 "actionLabel": "Werkzeug",
-                "transitionId": "nav_schnittstellen_werkzeug"
+                "transitionId": "nav_schnittstellen_werkzeug",
+                "imageAlt": "Business-Team klaert einen Prozess auf Papier"
               },
               {
                 "title": "Transition verdrahten",
                 "body": "Edges verbinden nur existierende States und bleiben im FSM-Vertrag.",
-                "image": "data:image/svg+xml;base64,CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2aWV3Qm94PSIwIDAgODAwIDUwMCI+CiAgPGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agc3RvcC1jb2xvcj0iIzA1MTExZiIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzM0ZDM5OSIgc3RvcC1vcGFjaXR5PSIuNzIiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz4KICA8cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCIgZmlsbD0idXJsKCNnKSIvPgogIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UwZjJmZSIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiIG9wYWNpdHk9Ii45Ij4KICAgIDxyZWN0IHg9IjkwIiB5PSIxMjAiIHdpZHRoPSIxODAiIGhlaWdodD0iOTYiIHJ4PSIyMiIvPjxyZWN0IHg9IjUyMCIgeT0iMTIwIiB3aWR0aD0iMTkwIiBoZWlnaHQ9Ijk2IiByeD0iMjIiLz48cmVjdCB4PSIzMTAiIHk9IjI5NCIgd2lkdGg9IjE4MCIgaGVpZ2h0PSI5NiIgcng9IjIyIi8+CiAgICA8cGF0aCBkPSJNMjcwIDE2OGgyNTBNNDAwIDIxNnY3OCIvPgogIDwvZz4KICA8dGV4dCB4PSI5MCIgeT0iNDMwIiBmaWxsPSIjZjhmYWZjIiBmb250LWZhbWlseT0iU2Vnb2UgVUksIEFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjQ0IiBmb250LXdlaWdodD0iOTAwIj5UcmFuc2l0aW9uIEFQSTwvdGV4dD4KPC9zdmc+",
+                "image": "/assets/landing-model-business.png",
                 "features": [
                   "upsert_transition",
                   "Trigger-Typen"
                 ],
                 "actionLabel": "Prinzip",
-                "transitionId": "nav_schnittstellen_prinzipien"
+                "transitionId": "nav_schnittstellen_prinzipien",
+                "imageAlt": "Entscheider prueft ein ausfuehrbares Prozessmodell"
               },
               {
                 "title": "HTML exportieren",
                 "body": "Die API kann dieselbe Runtime bauen wie der Export-Button im Editor.",
-                "image": "data:image/svg+xml;base64,CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2aWV3Qm94PSIwIDAgODAwIDUwMCI+CiAgPGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agc3RvcC1jb2xvcj0iIzA1MTExZiIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2E3OGJmYSIgc3RvcC1vcGFjaXR5PSIuNzIiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz4KICA8cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCIgZmlsbD0idXJsKCNnKSIvPgogIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UwZjJmZSIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiIG9wYWNpdHk9Ii45Ij4KICAgIDxyZWN0IHg9IjkwIiB5PSIxMjAiIHdpZHRoPSIxODAiIGhlaWdodD0iOTYiIHJ4PSIyMiIvPjxyZWN0IHg9IjUyMCIgeT0iMTIwIiB3aWR0aD0iMTkwIiBoZWlnaHQ9Ijk2IiByeD0iMjIiLz48cmVjdCB4PSIzMTAiIHk9IjI5NCIgd2lkdGg9IjE4MCIgaGVpZ2h0PSI5NiIgcng9IjIyIi8+CiAgICA8cGF0aCBkPSJNMjcwIDE2OGgyNTBNNDAwIDIxNnY3OCIvPgogIDwvZz4KICA8dGV4dCB4PSI5MCIgeT0iNDMwIiBmaWxsPSIjZjhmYWZjIiBmb250LWZhbWlseT0iU2Vnb2UgVUksIEFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjQ0IiBmb250LXdlaWdodD0iOTAwIj5IVE1MIEV4cG9ydDwvdGV4dD4KPC9zdmc+",
+                "image": "/assets/landing-automate-business.png",
                 "features": [
                   "state_blueprint_export_html",
                   "validierbares Modell"
                 ],
                 "actionLabel": "Editor",
-                "url": "./state.html"
+                "url": "./state.html",
+                "imageAlt": "Business-Verantwortliche planen die Automatisierung"
               }
             ]
           },

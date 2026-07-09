@@ -9,7 +9,9 @@ test.describe("Landing page export", () => {
     expect(html).toContain('"url":"./state.html"');
     expect(html).toContain("/manifest.webmanifest");
     expect(html).toContain("/assets/share-card.png");
-    expect(html).toContain("/assets/hero-process.png");
+    expect(html).toContain("/assets/landing-hero-business.png");
+    expect(html).toContain("/assets/landing-understand-business.png");
+    expect(html).not.toContain("data:image/svg+xml;base64");
     expect(html).not.toContain('document.addEventListener("click", evt =>');
     expect(html).not.toContain("window.location.replace");
     expect(html).not.toContain('"editorGroups"');
@@ -30,7 +32,7 @@ test.describe("Landing page export", () => {
     await expect(page).toHaveTitle("Digitalisierungsplanung");
     await expect(page.getByRole("button", { name: "New" })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Zustand macht Prozesse sichtbar" })).toBeVisible();
-    await expect(page.locator(".hero")).toHaveCSS("background-image", /hero-process\.png/);
+    await expect(page.locator(".hero")).toHaveCSS("background-image", /landing-hero-business\.png/);
 
     const manifest = await page.request.get("/manifest.webmanifest");
     expect(manifest.ok()).toBe(true);
@@ -38,6 +40,7 @@ test.describe("Landing page export", () => {
 
     const editorLink = page.locator('a[href="./state.html"]').first();
     await expect(editorLink).toHaveAttribute("href", /state\.html$/);
+    await expect(editorLink).toHaveCSS("text-decoration-line", "none");
 
     await page.locator(".navbar").getByRole("button", { name: "Prinzip", exact: true }).click();
     await expect(page.locator("#statePill")).toHaveText("prinzipien");
@@ -46,6 +49,7 @@ test.describe("Landing page export", () => {
       "Visualisieren",
       "Digitalisieren"
     ]);
+    await expect(page.locator(".steps button[data-transition-id] .daisy-step-label").first()).toHaveCSS("text-decoration-line", "none");
     await page.locator(".steps").getByRole("button", { name: /Visualisieren/ }).click();
     await expect(page.locator("#statePill")).toHaveText("werkzeug");
     await expect(page.locator(".daisy-feature-cards .daisy-feature-card")).toHaveCount(3);
