@@ -56,5 +56,15 @@ Smoke checks:
 
 ```sh
 curl -fsS https://realtime.digitalisierungsplanung.de/healthz
+npm run server:smoke:wss
 pm2 status digitalisierungsplanung-realtime
+```
+
+For a full signed join smoke test:
+
+```sh
+set -a
+. /etc/digitalisierungsplanung-realtime.env
+set +a
+npm run server:smoke:wss
 ```
