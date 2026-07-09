@@ -2,9 +2,6 @@ name: Update README screenshots
 
 on:
   workflow_dispatch:
-  workflow_run:
-    workflows: ["Deploy static site"]
-    types: [completed]
 
 concurrency:
   group: readme-screenshots
@@ -15,14 +12,6 @@ permissions:
 
 jobs:
   update-readme-screenshots:
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      (
-        github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.event == 'push' &&
-        github.event.workflow_run.head_branch == 'main' &&
-        github.event.workflow_run.actor.login != 'github-actions[bot]'
-      )
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
