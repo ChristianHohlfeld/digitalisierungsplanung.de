@@ -6,6 +6,7 @@ WebSocket relay for `state.html` realtime canvas/runtime events.
 
 - Public endpoint: `wss://realtime.digitalisierungsplanung.de/ws`
 - Token endpoint: `https://realtime.digitalisierungsplanung.de/token`
+- Marketplace HTML: `https://realtime.digitalisierungsplanung.de/marketplace.html`
 - Test console: `https://realtime.digitalisierungsplanung.de/console.html`
 - Marketplace index: `https://realtime.digitalisierungsplanung.de/marketplace`
 - Preset refs: `https://realtime.digitalisierungsplanung.de/presets`
@@ -63,6 +64,7 @@ Open `https://realtime.digitalisierungsplanung.de/console.html?room=<room-id>` f
 
 The marketplace is the server-side source of truth for offered realtime presets. Each area has one responsibility:
 
+- `/marketplace.html`: browser explorer for the live marketplace endpoints.
 - `/marketplace`: index links and counts only.
 - `/presets`: concrete preset refs only, using `eventIds`, `endpointIds`, and `statePaths`.
 - `/events`: event definitions only.

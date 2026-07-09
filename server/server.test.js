@@ -283,6 +283,22 @@ test("serves endpoint and state-schema catalogs as separate areas", async () => 
   });
 });
 
+test("serves a marketplace html explorer backed by live catalog endpoints", async () => {
+  await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
+    const response = await fetch(httpUrl(realtime, "/marketplace.html"));
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get("content-type") || "", /text\/html/);
+    const html = await response.text();
+    assert.match(html, /Realtime Marketplace/);
+    assert.match(html, /"\/marketplace"/);
+    assert.match(html, /"\/presets"/);
+    assert.match(html, /"\/events"/);
+    assert.match(html, /"\/endpoints"/);
+    assert.match(html, /"\/state-schema"/);
+    assert.match(html, /fetchJson\(paths\.marketplace\)/);
+  });
+});
+
 test("serves a stateless event console for catalogued test emits", async () => {
   await withRealtimeServer({ roomSecret: SECRET, emitSecret: "emit-secret" }, async realtime => {
     const consoleResponse = await fetch(httpUrl(realtime, "/console.html"));

@@ -12,6 +12,7 @@ const DEFAULT_TOKEN_PATH = "/token";
 const DEFAULT_EVENTS_PATH = "/events";
 const DEFAULT_EMIT_PATH = "/emit";
 const DEFAULT_CONSOLE_PATH = "/console.html";
+const DEFAULT_MARKETPLACE_HTML_PATH = "/marketplace.html";
 const DEFAULT_MARKETPLACE_PATH = "/marketplace";
 const DEFAULT_PRESETS_PATH = "/presets";
 const DEFAULT_ENDPOINTS_PATH = "/endpoints";
@@ -264,6 +265,206 @@ const CONSOLE_HTML = `<!doctype html>
 </body>
 </html>`;
 
+const MARKETPLACE_HTML = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Realtime Marketplace</title>
+  <style>
+    :root { color-scheme: dark; --bg: #07111d; --panel: #0b1b2a; --line: #20425f; --text: #e6f2ff; --muted: #9fb6cc; --accent: #38bdf8; --ok: #34d399; --bad: #fb7185; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--text); }
+    main { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 40px; }
+    header { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+    h1 { margin: 0; font-size: 28px; line-height: 1.1; }
+    h2 { margin: 0 0 10px; font-size: 17px; }
+    .status { color: var(--muted); font-size: 13px; margin-top: 6px; }
+    .actions { display: flex; gap: 10px; align-items: center; }
+    a, button { border: 1px solid #23729b; border-radius: 6px; background: #0b3a55; color: #dff7ff; font: inherit; font-weight: 900; text-decoration: none; }
+    a { display: inline-flex; align-items: center; min-height: 38px; padding: 0 12px; }
+    button { min-height: 38px; padding: 0 14px; cursor: pointer; }
+    button:disabled { opacity: .55; cursor: wait; }
+    .summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
+    .metric, section { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+    .metric { padding: 14px; }
+    .metric strong { display: block; font-size: 26px; line-height: 1; }
+    .metric span { display: block; margin-top: 6px; color: var(--muted); font-size: 12px; font-weight: 800; text-transform: uppercase; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    section { min-width: 0; padding: 14px; }
+    .items { display: grid; gap: 10px; }
+    .item { border: 1px solid #173450; border-radius: 6px; background: #06111f; padding: 10px; }
+    .item strong { display: block; overflow-wrap: anywhere; }
+    .item p { margin: 6px 0 0; color: var(--muted); font-size: 13px; line-height: 1.4; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .chip { border: 1px solid #235272; border-radius: 999px; color: #c9ebff; padding: 3px 8px; font-size: 12px; overflow-wrap: anywhere; }
+    pre { max-height: 360px; overflow: auto; margin: 12px 0 0; border: 1px solid #173450; border-radius: 6px; background: #06111f; color: #d7ecff; padding: 10px; font: 12px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .bad { color: var(--bad); }
+    @media (max-width: 880px) { header, .grid, .summary { display: grid; grid-template-columns: 1fr; } .actions { display: grid; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Realtime Marketplace</h1>
+        <div class="status" id="status">Loading marketplace...</div>
+      </div>
+      <div class="actions">
+        <a href="/console.html">Event console</a>
+        <button id="reload" type="button">Reload</button>
+      </div>
+    </header>
+    <div class="summary" id="summary"></div>
+    <div class="grid">
+      <section>
+        <h2>Presets</h2>
+        <div class="items" id="presets"></div>
+        <pre id="presetsJson"></pre>
+      </section>
+      <section>
+        <h2>Events</h2>
+        <div class="items" id="events"></div>
+        <pre id="eventsJson"></pre>
+      </section>
+      <section>
+        <h2>Endpoints</h2>
+        <div class="items" id="endpoints"></div>
+        <pre id="endpointsJson"></pre>
+      </section>
+      <section>
+        <h2>State schema</h2>
+        <div class="items" id="stateSchema"></div>
+        <pre id="stateSchemaJson"></pre>
+      </section>
+    </div>
+  </main>
+  <script>
+    const statusEl = document.getElementById("status");
+    const reloadEl = document.getElementById("reload");
+    const summaryEl = document.getElementById("summary");
+    const paths = {
+      marketplace: "/marketplace",
+      presets: "/presets",
+      events: "/events",
+      endpoints: "/endpoints",
+      stateSchema: "/state-schema"
+    };
+
+    function text(value) {
+      return String(value ?? "");
+    }
+
+    function json(id, value) {
+      document.getElementById(id).textContent = JSON.stringify(value, null, 2);
+    }
+
+    function chip(value) {
+      const el = document.createElement("span");
+      el.className = "chip";
+      el.textContent = text(value);
+      return el;
+    }
+
+    function item(title, description, chips = []) {
+      const el = document.createElement("div");
+      el.className = "item";
+      const strong = document.createElement("strong");
+      strong.textContent = title;
+      el.appendChild(strong);
+      if (description) {
+        const p = document.createElement("p");
+        p.textContent = description;
+        el.appendChild(p);
+      }
+      if (chips.length) {
+        const wrap = document.createElement("div");
+        wrap.className = "chips";
+        chips.forEach(value => wrap.appendChild(chip(value)));
+        el.appendChild(wrap);
+      }
+      return el;
+    }
+
+    function renderMetric(label, value) {
+      const el = document.createElement("div");
+      el.className = "metric";
+      const strong = document.createElement("strong");
+      strong.textContent = text(value);
+      const span = document.createElement("span");
+      span.textContent = label;
+      el.append(strong, span);
+      return el;
+    }
+
+    function setItems(id, nodes) {
+      const target = document.getElementById(id);
+      target.replaceChildren(...nodes);
+    }
+
+    async function fetchJson(path) {
+      const response = await fetch(path, { cache: "no-store" });
+      if (!response.ok) throw new Error(path + " failed with status " + response.status);
+      return response.json();
+    }
+
+    async function loadMarketplace() {
+      reloadEl.disabled = true;
+      statusEl.classList.remove("bad");
+      statusEl.textContent = "Loading marketplace...";
+      try {
+        const [marketplace, presets, events, endpoints, stateSchema] = await Promise.all([
+          fetchJson(paths.marketplace),
+          fetchJson(paths.presets),
+          fetchJson(paths.events),
+          fetchJson(paths.endpoints),
+          fetchJson(paths.stateSchema)
+        ]);
+        summaryEl.replaceChildren(
+          renderMetric("presets", marketplace.counts?.presets ?? 0),
+          renderMetric("events", marketplace.counts?.events ?? 0),
+          renderMetric("endpoints", marketplace.counts?.endpoints ?? 0),
+          renderMetric("state fields", marketplace.counts?.stateFields ?? 0)
+        );
+        setItems("presets", (presets.presets || []).map(preset => item(
+          preset.label || preset.id,
+          preset.id,
+          [...(preset.eventIds || []), ...(preset.endpointIds || []), ...(preset.statePaths || [])]
+        )));
+        setItems("events", (events.events || []).map(event => item(
+          event.label || event.name,
+          event.description || event.name,
+          [event.name, ...Object.keys(event.detail || {})]
+        )));
+        setItems("endpoints", (endpoints.endpoints || []).map(endpoint => item(
+          endpoint.label || endpoint.id,
+          [endpoint.method, endpoint.kind, endpoint.url].filter(Boolean).join(" "),
+          [endpoint.id, ...(endpoint.emits || [])]
+        )));
+        setItems("stateSchema", (stateSchema.fields || []).map(field => item(
+          field.path,
+          field.source || stateSchema.rootPath || "",
+          [field.type]
+        )));
+        json("presetsJson", presets);
+        json("eventsJson", events);
+        json("endpointsJson", endpoints);
+        json("stateSchemaJson", stateSchema);
+        statusEl.textContent = "Loaded from live marketplace endpoints.";
+      } catch (error) {
+        statusEl.classList.add("bad");
+        statusEl.textContent = error.message;
+      } finally {
+        reloadEl.disabled = false;
+      }
+    }
+
+    reloadEl.addEventListener("click", loadMarketplace);
+    loadMarketplace();
+  </script>
+</body>
+</html>`;
+
 function parseList(value, fallback = []) {
   if (Array.isArray(value)) return value.map(String).map(item => item.trim()).filter(Boolean);
   const items = String(value || "")
@@ -303,6 +504,7 @@ function loadConfig(options = {}) {
     eventsPath: options.eventsPath || env.REALTIME_EVENTS_PATH || DEFAULT_EVENTS_PATH,
     emitPath: options.emitPath || env.REALTIME_EMIT_PATH || DEFAULT_EMIT_PATH,
     consolePath: options.consolePath || env.REALTIME_CONSOLE_PATH || DEFAULT_CONSOLE_PATH,
+    marketplaceHtmlPath: options.marketplaceHtmlPath || env.REALTIME_MARKETPLACE_HTML_PATH || DEFAULT_MARKETPLACE_HTML_PATH,
     marketplacePath: options.marketplacePath || env.REALTIME_MARKETPLACE_PATH || DEFAULT_MARKETPLACE_PATH,
     presetsPath: options.presetsPath || env.REALTIME_PRESETS_PATH || DEFAULT_PRESETS_PATH,
     endpointsPath: options.endpointsPath || env.REALTIME_ENDPOINTS_PATH || DEFAULT_ENDPOINTS_PATH,
@@ -803,6 +1005,10 @@ function createRealtimeServer(options = {}) {
     }
     if (request.method === "GET" && url.pathname === config.consolePath) {
       writeHtml(response, 200, CONSOLE_HTML);
+      return;
+    }
+    if (request.method === "GET" && url.pathname === config.marketplaceHtmlPath) {
+      writeHtml(response, 200, MARKETPLACE_HTML);
       return;
     }
     if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.eventsPath) {

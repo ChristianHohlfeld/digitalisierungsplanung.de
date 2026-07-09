@@ -86,6 +86,7 @@ Der optionale Realtime-Server in `server/` ist nur Transport fuer Runtime-Events
 
 - WSS-Endpunkt: `wss://realtime.digitalisierungsplanung.de/ws`
 - Token-Endpunkt: `https://realtime.digitalisierungsplanung.de/token`
+- Marketplace-HTML: `https://realtime.digitalisierungsplanung.de/marketplace.html`
 - Marketplace-Index: `https://realtime.digitalisierungsplanung.de/marketplace`
 - Preset-Referenzen: `https://realtime.digitalisierungsplanung.de/presets`
 - Event-Definitionen: `https://realtime.digitalisierungsplanung.de/events`
