@@ -203,6 +203,11 @@
       text-align: left;
     }
 
+    .topbar-mobile-only,
+    .topbar-mobile-divider {
+      display: none;
+    }
+
     @media (max-width: 900px) {
       .topbar-menu[open] .topbar-menu-panel {
         position: fixed;
@@ -3360,7 +3365,7 @@
       .topbar {
         gap: 7px;
         padding: calc(7px + env(safe-area-inset-top)) 10px 7px;
-        overflow-x: auto;
+        overflow: visible;
         scrollbar-width: none;
         -ms-overflow-style: none;
       }
@@ -3368,11 +3373,45 @@
       .topbar::-webkit-scrollbar { display: none; }
 
       .brand {
-        position: sticky;
-        left: 0;
-        z-index: 2;
+        flex: 1 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
         padding-right: 6px;
         background: #050b14;
+      }
+
+      .topbar > #btnLoad,
+      .topbar > #btnExport,
+      .topbar > #btnUndo,
+      .topbar > #btnRedo,
+      .topbar > #btnFit,
+      .topbar > #btnRun,
+      .topbar > #btnPause {
+        display: none;
+      }
+
+      .topbar-menu {
+        margin-left: 0;
+      }
+
+      .topbar-menu-panel {
+        width: min(260px, calc(100vw - 20px));
+        max-height: min(520px, calc(100dvh - 78px));
+        overflow-y: auto;
+        overscroll-behavior: contain;
+      }
+
+      .topbar-mobile-only {
+        display: block;
+      }
+
+      .topbar-mobile-divider {
+        display: block;
+        height: 1px;
+        margin: 2px 0;
+        background: rgba(56,189,248,.16);
       }
 
       button {
@@ -3424,6 +3463,17 @@
       .workspace.mobile-edit-active .preview,
       .workspace.mobile-app-active .inspector,
       .workspace.mobile-app-active .map {
+        display: none;
+      }
+
+      .workspace.mobile-presets-active .map {
+        overflow: hidden;
+        background: #050b14;
+      }
+
+      .workspace.mobile-presets-active #mapScene,
+      .workspace.mobile-presets-active #layerHud,
+      .workspace.mobile-presets-active #selectRect {
         display: none;
       }
 
@@ -3496,7 +3546,7 @@
       .mobile-tabs {
         display: grid;
         flex: 0 0 auto;
-        grid-template-columns: repeat(5, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 8px;
         width: 100%;
         min-height: calc(61px + env(safe-area-inset-bottom));
@@ -3621,6 +3671,9 @@
         top: 8px;
         bottom: 8px;
         height: auto;
+        z-index: 70;
+        background: rgba(3,7,18,.98);
+        backdrop-filter: none;
       }
 
       .workspace.template-touch-dragging .state-explorer {
@@ -3737,12 +3790,18 @@
 
       .canvas-history-actions {
         right: max(10px, env(safe-area-inset-right));
-        bottom: max(12px, env(safe-area-inset-bottom)) !important;
+        bottom: calc(max(12px, env(safe-area-inset-bottom)) + 62px) !important;
       }
 
       .workspace.mobile-presets-active .selection-actions.visible,
       .workspace.mobile-edit-active .selection-actions.visible,
       .workspace.mobile-app-active .selection-actions.visible {
+        display: none;
+      }
+
+      .workspace.mobile-presets-active .canvas-history-actions,
+      .workspace.mobile-edit-active .canvas-history-actions,
+      .workspace.mobile-app-active .canvas-history-actions {
         display: none;
       }
 
@@ -4581,10 +4640,18 @@
     <details class="topbar-menu" id="topbarMore">
       <summary>More</summary>
       <div class="topbar-menu-panel">
-        <button id="btnWebsiteExample">Zustand Demo</button>
-        <button id="btnLandingPageExample">Hauptseiten-Demo</button>
-        <button id="btnResetView">Reset View</button>
-        <button id="btnReset" class="danger">Reset canvas</button>
+        <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnLoad">Load</button>
+        <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnExport">Export HTML</button>
+        <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnUndo">Undo</button>
+        <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnRedo">Redo</button>
+        <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnFit">Fit</button>
+        <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnRun">Reset App</button>
+        <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnPause">Pause</button>
+        <div class="topbar-mobile-divider" aria-hidden="true"></div>
+        <button id="btnWebsiteExample" type="button">Zustand Demo</button>
+        <button id="btnLandingPageExample" type="button">Hauptseiten-Demo</button>
+        <button id="btnResetView" type="button">Reset View</button>
+        <button id="btnReset" class="danger" type="button">Reset canvas</button>
       </div>
     </details>
     <div class="status" id="runtimeState">Screen: start</div>
@@ -4813,7 +4880,8 @@
       for (const path of previous) {
         if (!next.has(path)) deleteValueAtPath(target, path);
       }
-    }`;
+    }
+`;
       const stateDataContractSyncJsEnhanced = `    function runtimeJsonEqual(a, b) {
       return JSON.stringify(a) === JSON.stringify(b);
     }
@@ -7524,6 +7592,8 @@
     const modalCancelEl = document.getElementById("modalCancel");
     const modalConfirmEl = document.getElementById("modalConfirm");
     const mobileTabEls = [...document.querySelectorAll("[data-mobile-view]")];
+    const topbarMoreEl = document.getElementById("topbarMore");
+    const topbarProxyEls = [...document.querySelectorAll("[data-topbar-proxy]")];
 
     let appWindow = null;
     let selected = null;
@@ -25461,7 +25531,7 @@
       return demoId === "landing" ? "Hauptseiten-Demo" : "Zustand Demo";
     }
 
-    async function demoModelForId(demoId) {
+    async function loadDemoDefinitionForId(demoId) {
       if (demoId === "landing") {
         const response = await fetch("landing.state.json", { cache: "no-store" });
         if (!response.ok) throw new Error("Hauptseiten-Demo konnte nicht geladen werden.");
@@ -25472,7 +25542,7 @@
     }
 
     async function loadDemoModelById(demoId, shouldFit = true) {
-      const nextModel = await demoModelForId(demoId);
+      const nextModel = await loadDemoDefinitionForId(demoId);
       loadEditorModel(nextModel, shouldFit);
     }
 
@@ -25500,6 +25570,20 @@
       });
     }
 
+    function syncTopbarProxyActions() {
+      topbarProxyEls.forEach(proxy => {
+        const target = document.getElementById(proxy.dataset.topbarProxy || "");
+        proxy.disabled = !target || target.disabled;
+        proxy.hidden = Boolean(target?.hidden);
+        if (target?.classList.contains("runtime-paused")) proxy.classList.add("runtime-paused");
+        else proxy.classList.remove("runtime-paused");
+        const pressed = target?.getAttribute("aria-pressed");
+        if (pressed === "true" || pressed === "false") proxy.setAttribute("aria-pressed", pressed);
+        else proxy.removeAttribute("aria-pressed");
+        if (target?.id === "btnPause") proxy.textContent = target.textContent || "Pause";
+      });
+    }
+
     function runTopbarAction(action) {
       closeTopbarMenus();
       return action();
@@ -25515,6 +25599,26 @@
     document.addEventListener("keydown", evt => {
       if (evt.key === "Escape") closeTopbarMenus();
     }, { capture: true });
+
+    topbarMoreEl?.addEventListener("toggle", syncTopbarProxyActions);
+    topbarProxyEls.forEach(proxy => {
+      const target = document.getElementById(proxy.dataset.topbarProxy || "");
+      if (!target) return;
+      new MutationObserver(syncTopbarProxyActions).observe(target, {
+        attributes: true,
+        childList: true,
+        subtree: true,
+        characterData: true
+      });
+      proxy.onclick = () => {
+        syncTopbarProxyActions();
+        const actionTarget = document.getElementById(proxy.dataset.topbarProxy || "");
+        if (!actionTarget || actionTarget.disabled) return;
+        closeTopbarMenus();
+        actionTarget.click();
+      };
+    });
+    syncTopbarProxyActions();
 
     document.getElementById("btnNew").onclick = () => runTopbarAction(requestNewCanvas);
 
@@ -25582,7 +25686,10 @@
       togglePreviewCollapsed();
     };
     mobileTabEls.forEach(button => {
-      button.onclick = () => setMobileWorkspaceView(button.dataset.mobileView);
+      button.onclick = () => {
+        closeTopbarMenus();
+        setMobileWorkspaceView(button.dataset.mobileView);
+      };
     });
     inspectorResizeHandleEl.addEventListener("pointerdown", evt => startPanelResize("inspector", evt));
     previewResizeHandleEl.addEventListener("pointerdown", evt => startPanelResize("preview", evt));

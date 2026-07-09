@@ -9096,7 +9096,7 @@ test.describe("State Blueprint tool", () => {
     };
 
     await expect(page.locator("#mobileTabs")).toBeVisible();
-    await expect.poll(() => page.locator("#mobileTabs").evaluate(el => getComputedStyle(el).gridTemplateColumns.split(" ").filter(Boolean).length)).toBe(5);
+    await expect.poll(() => page.locator("#mobileTabs").evaluate(el => getComputedStyle(el).gridTemplateColumns.split(" ").filter(Boolean).length)).toBe(4);
     await expect(page.locator("#map")).toBeVisible();
     await expectElementAboveMobileTabs("#map");
     await expect(page.locator("#stateExplorer")).toBeHidden();
@@ -9113,9 +9113,11 @@ test.describe("State Blueprint tool", () => {
     await page.locator('[data-mobile-view="presets"]').tap();
     await expect(page.locator("#map")).toBeVisible();
     await expectElementAboveMobileTabs("#map");
+    await expect(page.locator("#mapScene")).toBeHidden();
     await expect(page.locator("#stateExplorer")).toBeVisible();
     await expectElementAboveMobileTabs("#stateExplorer");
     await expect(page.locator("#selectionActions")).toBeHidden();
+    await expect(page.locator("#canvasHistoryActions")).toBeHidden();
     await expect(page.locator("#stateInspector")).toBeHidden();
     await expect(page.locator(".preview")).toBeHidden();
     await expect(page.locator('[data-mobile-view="presets"]')).toHaveClass(/active/);
@@ -9199,7 +9201,7 @@ test.describe("State Blueprint tool", () => {
         topbarAboveWorkspace: topbarZ > workspaceZ
       };
     })).toEqual({ hitMenu: true, topbarAboveWorkspace: true });
-    await page.locator("#btnRun").tap();
+    await page.locator('[data-topbar-proxy="btnRun"]').tap();
     await expect.poll(() => page.evaluate(() => document.getElementById("topbarMore").open)).toBe(false);
     await page.locator("#topbarMore summary").tap();
     await page.locator("#btnResetView").tap();
@@ -9216,7 +9218,7 @@ test.describe("State Blueprint tool", () => {
     const landscapePage = await landscapeContext.newPage();
     await openTool(landscapePage);
     await expect(landscapePage.locator("#mobileTabs")).toBeVisible();
-    await expect.poll(() => landscapePage.locator("#mobileTabs").evaluate(el => getComputedStyle(el).gridTemplateColumns.split(" ").filter(Boolean).length)).toBe(5);
+    await expect.poll(() => landscapePage.locator("#mobileTabs").evaluate(el => getComputedStyle(el).gridTemplateColumns.split(" ").filter(Boolean).length)).toBe(4);
     await landscapePage.locator('[data-mobile-view="app"]').tap();
     await expect(landscapePage.locator(".preview")).toBeVisible();
     await expect.poll(() => landscapePage.locator(".preview").evaluate(el => {
