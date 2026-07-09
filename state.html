@@ -3717,6 +3717,20 @@
         width: 46px;
       }
 
+      .workspace.mobile-presets-active .state-explorer.collapsed {
+        left: 8px;
+        right: 8px;
+        top: 8px;
+        bottom: 8px;
+        width: auto;
+        height: auto;
+        opacity: 1;
+      }
+
+      .workspace.mobile-presets-active .state-explorer.collapsed .state-explorer-list {
+        display: flex;
+      }
+
       .state-explorer.composer-active {
         width: auto;
         height: auto;
@@ -5886,7 +5900,8 @@
         continuationScheduleKey = "";
         return;
       }
-      const transition = transitions.find(t => continuationTriggerType(t) === "auto") || transitions.find(t => continuationTriggerType(t) === "timer");
+      const eligibleTransitions = transitions.filter(t => conditionOk(t.condition));
+      const transition = eligibleTransitions.find(t => continuationTriggerType(t) === "auto") || eligibleTransitions.find(t => continuationTriggerType(t) === "timer");
       const key = transition ? stateId + ":" + transition.id + ":" + continuationTriggerType(transition) + ":" + continuationTimerMs(transition) : "";`;
       const clearDaisyCountdownTimersJs = `    function clearDaisyCountdownTimers() {
       for (const timer of daisyCountdownTimers.values()) clearTimeout(timer);
@@ -10895,7 +10910,7 @@
     function defaultTransitionEvent(transition) {
       const triggerType = normalizeTransitionTriggerType(transition);
       if (triggerType === "button") return "button." + eventSegment(transition?.id || transition?.label || "next") + ".clicked";
-      if (triggerType === "timer") return "timer." + eventSegment(transition?.label || transition?.id || "done") + ".done";
+      if (triggerType === "timer") return "timer." + eventSegment(transition?.id || transition?.label || "done") + ".done";
       if (triggerType === "auto") return "auto." + eventSegment(transition?.id || transition?.label || "next");
       return "";
     }
@@ -16497,7 +16512,8 @@
           description: spec.description || "Component bound to this state's shared data.",
           components: [daisy(spec.variant || spec.id, spec.title, spec.id)],
           data: { [scopePath]: defaults },
-          dataTypes: { [scopePath]: "object" }
+          dataTypes: { [scopePath]: "object" },
+          transitions: Array.isArray(spec.transitions) ? spec.transitions : []
         });
       };
       const officialHeroBody = "A focused introduction for a real page, product, or workflow with one clear next step.";
@@ -16578,7 +16594,7 @@
         { id: "tabs", title: "Content tabs", description: "Active tab stored in shared data.", data: { selected: "Overview", items: ["Overview", "Details", "Activity"] } },
         { id: "textarea", title: "Textarea field", description: "Textarea writes value into shared data.", data: { label: "Notes", value: "" } },
         { id: "timeline", title: "Timeline", description: "Timeline items rendered from shared data.", data: { current: "Review", items: [{ title: "Draft", body: "Created" }, { title: "Review", body: "In progress" }, { title: "Ship", body: "Pending" }] } },
-        { id: "toast", title: "Toast message", description: "Toast visibility and message are shared fields.", data: { visible: true, tone: "info", message: "New message arrived." } },
+        { id: "toast", title: "Toast message", description: "Toast visibility and message are shared fields; dismissal is a real timer transition.", data: { visible: true, tone: "info", message: "New message arrived." }, transitions: [{ id: "toast_dismiss", from: "toast", to: "toast", label: "Hide toast", condition: "states.toast.visible == true", triggerType: "timer", timerMs: 3000, set: { "states.toast.visible": false } }] },
         { id: "toggle", title: "Toggle switch", description: "Toggle value is written to shared data.", data: { legend: "Preferences", label: "Remember me", checked: true } }
       ];
       const coreTemplates = [
@@ -19650,17 +19666,28 @@
         saveModel("state:subscriptions:" + s.id);
         scheduleSync(false);
       };
-      const stateFlowTransitionRows = () => editorRuntimeOutgoing(s.id)
-        .map(transition => {
+      const stateFlowTransitionRows = () => {
+        const rows = [];
+        const seen = new Set();
+        const addRow = row => {
+          const id = String(row?.transition?.id || "");
+          if (!id || seen.has(id)) return;
+          seen.add(id);
+          rows.push(row);
+        };
+        editorGraphOutgoing(s.id).forEach(transition => addRow({ transition, runtime: transition }));
+        editorRuntimeOutgoing(s.id).forEach(transition => {
           if (transition?.runtimeBoundaryEntry) {
-            return { transition: { ...transition }, runtime: transition, boundaryEntry: true };
+            addRow({ transition: { ...transition }, runtime: transition, boundaryEntry: true });
+            return;
           }
-          if (transition?.runtimeGenerated) return null;
+          if (transition?.runtimeGenerated) return;
           const source = model.transitions.find(item => item.id === transition.id);
-          if (!source) return null;
-          return { transition: source, runtime: transition };
-        })
-        .filter(Boolean);
+          if (!source) return;
+          addRow({ transition: source, runtime: transition });
+        });
+        return rows;
+      };
       const stateFlowRowById = (id, rows = stateFlowTransitionRows()) =>
         rows.find(row => row.transition.id === String(id || "")) || null;
       const stateFlowFetchTargetPath = () => {
@@ -19863,7 +19890,7 @@
           option.textContent = boundaryEntry
             ? `${label} (child entry)`
             : runtime?.runtimeParentExit
-            ? `${label} (parent out)`
+            ? target ? `${label} -> ${target.title || target.id} (parent out)` : `${label} (parent out)`
             : target ? `${label} -> ${target.title || target.id}` : label;
           flowTransitionSelect.appendChild(option);
         });
@@ -23813,7 +23840,7 @@
         const values = data && typeof data === "object" && !Array.isArray(data) ? data : {};
         return {
           triggerType: "timer",
-          triggerEvent: "timer.next.done",
+          triggerEvent: "",
           condition: "",
           timerMs: normalizeTransitionTimerMs(values.durationMs || 2000)
         };
@@ -23873,7 +23900,7 @@
         );
         states.push(next);
         const transitionId = nextTransitionId(states, transitions);
-        transitions.push({
+        const nextTransition = {
           id: transitionId,
           from: root.id,
           to: next.id,
@@ -23883,7 +23910,9 @@
           triggerEvent: trigger.triggerEvent,
           ...(trigger.timerMs ? { timerMs: normalizeTransitionTimerMs(trigger.timerMs) } : {}),
           set: daisyFlowTransitionSet(action.component, action.dataPath, action.label)
-        });
+        };
+        nextTransition.triggerEvent = normalizeTransitionTriggerEvent(nextTransition);
+        transitions.push(nextTransition);
         const actionVariant = daisyVariantName(action.component);
         if (actionVariant === "pricing" && Number.isInteger(action.itemIndex) && action.dataPath) {
           const plans = dataObjectValueAtPath(root.data, `${action.dataPath}.plans`);

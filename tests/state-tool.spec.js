@@ -3465,6 +3465,80 @@ test.describe("State Blueprint tool", () => {
     await expect(app.getByRole("button", { name: "Child", exact: true })).toHaveCount(0);
   });
 
+  test("lists real selected-state outs and nested parent proxy outs in the state trigger dropdown @smoke", async ({ page }) => {
+    const model = {
+      version: 2,
+      name: "Nested Outgoing Inspector",
+      initial: "start",
+      states: [
+        { id: "start", title: "Start", components: [], x: 90, y: 180 },
+        { id: "parent", title: "Parent", components: [], boundary: { entryId: "child", exitId: "nested", entryDisabled: false, exitDisabled: false }, x: 330, y: 180 },
+        { id: "done", title: "Done", components: [], x: 690, y: 120 },
+        { id: "retry", title: "Retry", components: [], x: 690, y: 300 },
+        { id: "child", title: "Child", components: [], parentId: "parent", x: 90, y: 120 },
+        { id: "nested", title: "Nested", components: [], parentId: "parent", boundary: { entryId: "leaf", exitId: "leaf", entryDisabled: false, exitDisabled: false }, x: 360, y: 160 },
+        { id: "leaf", title: "Leaf", components: [], parentId: "nested", x: 120, y: 150 },
+        { id: "leaf_local", title: "Leaf local", components: [], parentId: "nested", x: 360, y: 150 }
+      ],
+      transitions: [
+        { id: "start_parent", from: "start", to: "parent", label: "Open Parent", condition: "", set: {} },
+        { id: "parent_done", from: "parent", to: "done", label: "Finish Parent", condition: "", set: {} },
+        { id: "parent_retry", from: "parent", to: "retry", label: "Retry Parent", condition: "", set: {} },
+        { id: "child_nested", from: "child", to: "nested", label: "Open Nested", condition: "", set: {} },
+        { id: "t_leaf_local", from: "leaf", to: "leaf_local", label: "Leaf Local", condition: "", set: {} }
+      ]
+    };
+    await page.addInitScript(({ key, model }) => {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(key, JSON.stringify(model));
+    }, { key: STORAGE_KEY, model });
+    await page.goto("/state.html");
+    await expect(page.locator('[data-id="start"]')).toBeVisible();
+
+    await openStateInspector(page, "parent");
+    const parentOptions = await page.locator("#pStateFlowTransition option").evaluateAll(options =>
+      options.map(option => ({ value: option.value, text: option.textContent || "" }))
+    );
+    expect(parentOptions.map(option => option.value)).toEqual([
+      "parent_done",
+      "parent_retry",
+      "__runtime_enter_child:parent:child"
+    ]);
+    expect(parentOptions.map(option => option.text)).toContain("Child (child entry)");
+    await page.locator("#pStateFlowTransition").selectOption("parent_retry");
+    await page.locator("#pStateTriggerType").selectOption("timer");
+    await expect.poll(async () => {
+      const stored = await savedModel(page);
+      const transition = stored.transitions.find(item => item.id === "parent_retry");
+      const parent = stored.states.find(item => item.id === "parent");
+      return {
+        transitionCount: stored.transitions.length,
+        syntheticTransitions: stored.transitions.filter(item => String(item.id || "").startsWith("__runtime_enter_child")).length,
+        parentBoundaryTrigger: parent?.boundary?.entryTriggerType || "",
+        retryTrigger: transition?.triggerType,
+        retryEvent: transition?.triggerEvent
+      };
+    }).toEqual({
+      transitionCount: 5,
+      syntheticTransitions: 0,
+      parentBoundaryTrigger: "",
+      retryTrigger: "timer",
+      retryEvent: "timer.parent.retry.done"
+    });
+
+    await openStateLayer(page, "parent");
+    await openStateLayer(page, "nested");
+    await openStateInspector(page, "leaf");
+    const leafOptions = await page.locator("#pStateFlowTransition option").evaluateAll(options =>
+      options.map(option => ({ value: option.value, text: option.textContent || "" }))
+    );
+    expect(leafOptions.map(option => option.value)).toEqual(["t_leaf_local", "parent_done", "parent_retry"]);
+    expect(leafOptions.map(option => option.text)).toContain("Finish Parent -> Done (parent out)");
+    expect(leafOptions.map(option => option.text)).toContain("Retry Parent -> Retry (parent out)");
+  });
+
   test("child output proxy stops when the collapsed parent has no real outgoing transition @smoke", async ({ page }) => {
     const model = {
       version: 2,
@@ -5537,7 +5611,7 @@ test.describe("State Blueprint tool", () => {
     }, scopePath)).toBeUndefined();
   });
 
-  test("renders daisy toast as a passive bus message without an implicit button", async ({ page }) => {
+  test("renders daisy toast as a bus-timer message without an implicit button", async ({ page }) => {
     await openTool(page);
 
     await addComponentState(page, "Toast message");
@@ -5563,12 +5637,28 @@ test.describe("State Blueprint tool", () => {
       tone: "info",
       message: "New message arrived."
     });
+    const dismissTransition = model.transitions.find(transition =>
+      transition.from === toastState.id &&
+      transition.to === toastState.id &&
+      transition.triggerType === "timer"
+    );
+    expect(dismissTransition).toBeTruthy();
+    expect(dismissTransition).toMatchObject({
+      label: "Hide toast",
+      condition: `${scopePath}.visible == true`,
+      timerMs: 3000,
+      set: { [`${scopePath}.visible`]: false }
+    });
+    expect(dismissTransition.triggerEvent).toBe(
+      `timer.${dismissTransition.id.replace(/[^a-zA-Z0-9_.:-]+/g, ".").replace(/^\.+|\.+$/g, "").toLowerCase()}.done`
+    );
 
     await page.locator(`[data-id="${toastState.id}"]`).click();
     const toast = appFrame(page).locator(".toast");
     await expect(toast).toBeVisible();
     await expect(toast.locator(".alert.alert-info")).toContainText("New message arrived.");
     await expect(toast.getByRole("button")).toHaveCount(0);
+    await expect(toast).toHaveCount(0, { timeout: 4500 });
   });
 
   test("materializes every built-in daisy preset as a scoped global-state contract @smoke", async ({ page }) => {
@@ -5720,6 +5810,24 @@ test.describe("State Blueprint tool", () => {
 
     for (const item of audit) {
       const labels = item.transitions.map(transition => transition.label);
+      if (item.variant === "toast") {
+        expect(labels, item.title).toEqual(["Hide toast"]);
+        expect(item.transitions).toHaveLength(1);
+        expect(item.transitions[0]).toMatchObject({
+          fromExists: true,
+          toExists: true,
+          targetTitle: "Toast message",
+          targetParentId: "parent",
+          triggerType: "timer",
+          timerMs: 3000,
+          condition: `${item.scopePath}.visible == true`,
+          set: { [`${item.scopePath}.visible`]: false }
+        });
+        expect(item.transitions[0].triggerEvent, item.title).toBe(
+          `timer.${item.transitions[0].id.replace(/[^a-zA-Z0-9_.:-]+/g, ".").replace(/^\.+|\.+$/g, "").toLowerCase()}.done`
+        );
+        continue;
+      }
       expect(labels, item.title).toEqual(item.expectedLabels);
       if (!item.expectedLabels.length) {
         expect(item.transitions, item.title).toEqual([]);
@@ -5749,7 +5857,9 @@ test.describe("State Blueprint tool", () => {
         }
         if (item.variant === "loading") {
           expect(transition.triggerType, item.title).toBe("timer");
-          expect(transition.triggerEvent, item.title).toBe("timer.next.done");
+          expect(transition.triggerEvent, item.title).toBe(
+            `timer.${transition.id.replace(/[^a-zA-Z0-9_.:-]+/g, ".").replace(/^\.+|\.+$/g, "").toLowerCase()}.done`
+          );
           expect(transition.timerMs, item.title).toBe(2000);
           expect(transition.condition, item.title).toBe("");
         }
@@ -6235,7 +6345,7 @@ test.describe("State Blueprint tool", () => {
     const nextTransition = model.transitions.find(transition => transition.from === loadingId && transition.label === "Next");
     expect(nextTransition).toMatchObject({
       triggerType: "timer",
-      triggerEvent: "timer.next.done",
+      triggerEvent: `timer.${nextTransition.id.replace(/[^a-zA-Z0-9_.:-]+/g, ".").replace(/^\.+|\.+$/g, "").toLowerCase()}.done`,
       timerMs: 2000,
       condition: "",
       set: {}
@@ -6397,7 +6507,7 @@ test.describe("State Blueprint tool", () => {
       };
     }).toEqual({
       triggerType: "timer",
-      triggerEvent: "timer.login.done",
+      triggerEvent: "timer.t.auth.login.done",
       timerMs: 2000,
       loadingData: { label: "Loading...", active: true, durationMs: 2000 },
       loadingComponent: true
@@ -9180,12 +9290,35 @@ test.describe("State Blueprint tool", () => {
       draw();
     });
     await expect(page.locator("#selectionActions")).toBeVisible();
+    await page.evaluate(() => {
+      document.getElementById("stateExplorer")?.classList.add("collapsed");
+    });
 
     await page.locator('[data-mobile-view="presets"]').tap();
     await expect(page.locator("#map")).toBeVisible();
     await expectElementAboveMobileTabs("#map");
     await expect(page.locator("#mapScene")).toBeHidden();
     await expect(page.locator("#stateExplorer")).toBeVisible();
+    await expect.poll(() => page.locator("#stateExplorer").evaluate(explorer => {
+      const list = explorer.querySelector("#stateExplorerList");
+      return {
+        explorerWidth: Math.round(explorer.getBoundingClientRect().width),
+        listDisplay: getComputedStyle(list).display,
+        visibleCards: [...explorer.querySelectorAll(".component-preset-card, .state-template-card")]
+          .filter(card => card.getBoundingClientRect().width > 40 && card.getBoundingClientRect().height > 40).length
+      };
+    })).toMatchObject({
+      explorerWidth: expect.any(Number),
+      listDisplay: "flex",
+      visibleCards: expect.any(Number)
+    });
+    await expect.poll(() => page.locator("#stateExplorer").evaluate(explorer =>
+      Math.round(explorer.getBoundingClientRect().width)
+    )).toBeGreaterThan(300);
+    await expect.poll(() => page.locator("#stateExplorer").evaluate(explorer =>
+      [...explorer.querySelectorAll(".component-preset-card, .state-template-card")]
+        .filter(card => card.getBoundingClientRect().width > 40 && card.getBoundingClientRect().height > 40).length
+    )).toBeGreaterThan(3);
     await expectElementAboveMobileTabs("#stateExplorer");
     await expect(page.locator("#selectionActions")).toBeHidden();
     await expect(page.locator("#canvasHistoryActions")).toBeHidden();

@@ -1305,6 +1305,7 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("runtimeEventQueue = [];");
     expect(html).toContain("scheduleAutomaticContinuationJsEnhanced");
     expect(html).toContain("if (runtimeIsPaused()) {");
+    expect(html).toContain("const eligibleTransitions = transitions.filter(t => conditionOk(t.condition));");
     expect(html).not.toContain('writeRuntimeState("runtime.paused", runtimePaused');
     expect(html).not.toContain("if (runtimePaused) {");
   });
