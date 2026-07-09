@@ -268,15 +268,34 @@ test("relays runtime events to peers without echoing them to the sender", async 
     alice.send(JSON.stringify({
       type: "runtime.event",
       seq: 1,
-      name: "realtime.canvas.clicked",
-      detail: { stateId: "start" }
+      name: "realtime.sip.call.incoming",
+      detail: { caller: "+491234", callee: "100", callId: "ws-123" }
     }));
 
     const received = await nextMessage(bob, message => message.type === "runtime.event");
     assert.equal(received.clientId, "alice");
-    assert.equal(received.name, "realtime.canvas.clicked");
-    assert.deepEqual(received.detail, { stateId: "start" });
+    assert.equal(received.name, "realtime.sip.call.incoming");
+    assert.deepEqual(received.detail, { caller: "+491234", callee: "100", callId: "ws-123" });
     await assertNoMessage(alice, message => message.type === "runtime.event");
+  });
+});
+
+test("rejects uncatalogued runtime events over WebSocket", async () => {
+  await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
+    const alice = await connectClient(realtime, { clientId: "alice" });
+    const bob = await connectClient(realtime, { clientId: "bob" });
+    const errorMessage = nextMessage(alice, message => message.type === "error");
+
+    alice.send(JSON.stringify({
+      type: "runtime.event",
+      seq: 1,
+      name: "realtime.canvas.clicked",
+      detail: { stateId: "start" }
+    }));
+
+    const error = await errorMessage;
+    assert.equal(error.code, "event_not_offered");
+    await assertNoMessage(bob, message => message.type === "runtime.event");
   });
 });
 
@@ -342,15 +361,15 @@ test("drops duplicate runtime event client sequences", async () => {
     const event = {
       type: "runtime.event",
       seq: 1,
-      name: "realtime.canvas.clicked",
-      detail: { stateId: "start" }
+      name: "realtime.sip.call.incoming",
+      detail: { caller: "+491234", callee: "100", callId: "dupe-123" }
     };
     alice.send(JSON.stringify(event));
     alice.send(JSON.stringify(event));
 
     const received = await nextMessage(bob, message => message.type === "runtime.event");
     assert.equal(received.clientId, "alice");
-    assert.equal(received.name, "realtime.canvas.clicked");
+    assert.equal(received.name, "realtime.sip.call.incoming");
     assert.deepEqual(received.detail, event.detail);
     await assertNoMessage(bob, message => message.type === "runtime.event");
   });

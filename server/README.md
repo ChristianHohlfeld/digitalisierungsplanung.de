@@ -18,7 +18,7 @@ Full API reference: [`../docs/realtime-api.md`](../docs/realtime-api.md)
 
 - `join`: first client message, requires `roomId`, `clientId`, and signed `token` in production.
 - `presence.cursor`: transient cursor/drag presence, dropped for slow peers.
-- `runtime.event`: relayed event name and detail for state-machine runtime reactions. The app contract consumes `realtime.*` names.
+- `runtime.event`: relayed event name and detail for state-machine runtime reactions. The server accepts only catalogued `realtime.*` names from `/events`.
 
 The server broadcasts to other clients in the same room only. It does not echo messages to the sender.
 The server does not accept model patches or snapshots. Model writes stay in the canonical State Blueprint JSON/API layer.
@@ -45,21 +45,25 @@ Graph/model collaboration must go through the documented State Blueprint API, no
 Example:
 
 ```js
-window.__stateBlueprintRealtime.emit("realtime.canvas.pulse", { stateId: "start" });
+await window.__stateBlueprintRealtime.emit("realtime.sip.call.incoming", {
+  caller: "+491234",
+  callee: "100",
+  callId: "local-123"
+});
 ```
 
 Use a matching transition in the model:
 
 ```text
 triggerType: realtime
-triggerEvent: realtime.canvas.pulse
+triggerEvent: realtime.sip.call.incoming
 ```
 
 Open `https://realtime.digitalisierungsplanung.de/console.html?room=<room-id>` for a browser test emitter. The console loads event names and detail fields from `/events`, then POSTs to `/emit` with the Bearer secret you paste into the page. It stores no server-side state.
 
 ## Event Catalog
 
-The event catalog is the server-side source of truth for offered realtime events.
+The event catalog is the server-side source of truth for offered realtime events. Unknown `realtime.*` names are rejected on `/emit`, rejected on `/ws`, and ignored by the host bridge before they can enter the generated runtime.
 
 - `/events`: event definitions only.
 - `/ws`: WebSocket relay only.

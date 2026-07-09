@@ -6471,6 +6471,15 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#pRealtimeServerEvents")).toHaveText(/realtime events/i);
     await expect(page.locator("#pRealtimeEventList")).toContainText("Incoming call");
     await expect.poll(async () => (await savedModel(page)).realtime).toBeUndefined();
+    await expect.poll(() => page.evaluate(() => Boolean(window.__stateBlueprintRealtime?.emit))).toBe(true);
+    await expect(page.evaluate(() => window.__stateBlueprintRealtime.emit("realtime.unknown.event", { value: "nope" }))).resolves.toBe(false);
+    await page.waitForTimeout(120);
+    expect(await page.evaluate(() => latestRuntimeContext?.lastEvent || "")).not.toBe("realtime.unknown.event");
+    await expect(page.evaluate(() => window.__stateBlueprintRealtime.emit("realtime.sip.call.incoming", {
+      caller: "+491234",
+      callId: "local-123"
+    }))).resolves.toBe(true);
+    await expect.poll(() => page.evaluate(() => latestRuntimeContext?.lastEvent || "")).toBe("realtime.sip.call.incoming");
 
     await openStateInspector(page, "auth_start");
     await page.locator("#pStateFlowTransition").selectOption("t_auth_login");

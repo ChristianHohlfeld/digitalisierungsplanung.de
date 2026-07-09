@@ -68,7 +68,7 @@ Realtime-Events im App-Contract beginnen mit:
 realtime.
 ```
 
-`/emit` akzeptiert nur Events, die im aktuellen `/events`-Katalog angeboten werden.
+`/emit` und WSS-`runtime.event` akzeptieren nur Events, die im aktuellen `/events`-Katalog angeboten werden.
 
 ## REST Endpoints
 
@@ -269,7 +269,7 @@ Beim Disconnect:
 
 ### Runtime Event
 
-Client sendet:
+Client sendet ein Event, das im aktuellen `/events`-Katalog angeboten wird:
 
 ```json
 {
@@ -334,6 +334,7 @@ invalid_type
 invalid_seq
 invalid_cursor
 invalid_event_name
+event_not_offered
 invalid_detail
 rate_limited
 room_missing

@@ -7781,7 +7781,8 @@
       reconnectAttempt: 0,
       reconnectTimer: 0,
       outboundQueue: [],
-      lastSentBusEventKey: ""
+      lastSentBusEventKey: "",
+      pendingBusEventKey: ""
     };
     let hoveredEdgeId = null;
     let allowInspectorProgrammaticFocusUntil = 0;
@@ -19960,7 +19961,6 @@
               seenLive.add(clean);
               liveOptions.push({ value: clean, label });
             };
-            if (active.startsWith("realtime.")) addLive(active, active);
             events.forEach(event => addLive(event.name, event.label ? `${event.label} - ${event.name}` : event.name));
             stateTriggerEvent.innerHTML = "";
             liveOptions.forEach(optionConfig => {
@@ -19970,9 +19970,9 @@
               stateTriggerEvent.appendChild(option);
             });
             if (liveOptions.length) {
-              if (!liveOptions.some(option => option.value === active)) active = liveOptions[0].value;
-              stateTriggerEvent.value = active;
-              if (!row.transition.triggerEvent && active.startsWith("realtime.")) persistStateFlowTrigger();
+              const selectedLive = liveOptions.some(option => option.value === active) ? active : liveOptions[0].value;
+              stateTriggerEvent.value = selectedLive;
+              if (row.transition.triggerEvent !== selectedLive) persistStateFlowTrigger();
             }
             if (stateTriggerEventImport) stateTriggerEventImport.textContent = "Reload realtime events";
           }).catch(() => {
@@ -22438,10 +22438,12 @@
       });
     }
 
-    function sendRealtimeRuntimeEvent(eventName, detail = {}) {
+    async function sendRealtimeRuntimeEvent(eventName, detail = {}) {
       if (!realtimeTransport.roomId) return false;
       const name = normalizeTransitionEvent(eventName || "");
       if (!name || !name.startsWith("realtime.")) return false;
+      const event = await fetchRealtimeEventConfig(name).catch(() => null);
+      if (!event) return false;
       const payload = {
         type: "runtime.event",
         seq: ++realtimeTransport.seq,
@@ -22453,8 +22455,12 @@
         realtimeTransport.outboundQueue = realtimeTransport.outboundQueue.slice(-32);
         return true;
       }
-      realtimeTransport.socket.send(JSON.stringify(payload));
-      return true;
+      try {
+        realtimeTransport.socket.send(JSON.stringify(payload));
+        return true;
+      } catch (_) {
+        return false;
+      }
     }
 
     function flushRealtimeOutboundQueue() {
@@ -22463,7 +22469,7 @@
       queue.forEach(payload => realtimeTransport.socket.send(JSON.stringify(payload)));
     }
 
-    function relayRuntimeBusEventToRealtime() {
+    async function relayRuntimeBusEventToRealtime() {
       if (!realtimeTransport.started || !realtimeTransport.roomId) return;
       const name = normalizeTransitionEvent(latestRuntimeContext?.lastEvent || "");
       if (!name || !name.startsWith("realtime.")) return;
@@ -22471,10 +22477,13 @@
       const lastAt = Number(latestRuntimeContext?.lastEventAt || 0);
       const key = name + ":" + count + ":" + lastAt;
       if (key === realtimeTransport.lastSentBusEventKey) return;
-      realtimeTransport.lastSentBusEventKey = key;
+      if (key === realtimeTransport.pendingBusEventKey) return;
       const detail = realtimeEventDetailFromBus(name);
       if (detail.source === "realtime" || detail.__realtimeRemote === true) return;
-      sendRealtimeRuntimeEvent(name, detail);
+      realtimeTransport.pendingBusEventKey = key;
+      const sent = await sendRealtimeRuntimeEvent(name, detail);
+      if (realtimeTransport.pendingBusEventKey === key) realtimeTransport.pendingBusEventKey = "";
+      if (sent) realtimeTransport.lastSentBusEventKey = key;
     }
 
     async function applyRealtimeRuntimeEvent(message) {
@@ -22483,6 +22492,7 @@
       if (!name || !name.startsWith("realtime.")) return;
       const sourceDetail = isPlainObject(message.detail) ? JSON.parse(JSON.stringify(message.detail)) : {};
       const event = await fetchRealtimeEventConfig(name).catch(() => null);
+      if (!event) return;
       postRuntimePayload({
         type: "STATE_BLUEPRINT_REALTIME_EVENT",
         name,
@@ -22589,9 +22599,10 @@
     window.__stateBlueprintRealtime = {
       emit(eventName, detail = {}) {
         const name = normalizeTransitionEvent(eventName || "");
-        if (!name || !name.startsWith("realtime.")) return false;
+        if (!name || !name.startsWith("realtime.")) return Promise.resolve(false);
         const sourceDetail = isPlainObject(detail) ? JSON.parse(JSON.stringify(detail)) : {};
-        fetchRealtimeEventConfig(name).catch(() => null).then(event => {
+        return fetchRealtimeEventConfig(name).catch(() => null).then(event => {
+          if (!event) return false;
           postRuntimePayload({
             type: "STATE_BLUEPRINT_REALTIME_EVENT",
             name,
@@ -22602,8 +22613,8 @@
               localClientId: realtimeTransport.clientId
             }
           });
+          return true;
         });
-        return true;
       },
       status() {
         return realtimeTransportSnapshot();
@@ -25685,7 +25696,7 @@
       applyRuntimePaused(Boolean(data.paused ?? latestRuntimeContext?.runtime?.paused), { send: false });
       if (typeof refreshInspectorGlobalStateTree === "function") refreshInspectorGlobalStateTree();
       syncRuntimeStateLabel();
-      relayRuntimeBusEventToRealtime();
+      void relayRuntimeBusEventToRealtime();
       const stateChanged = previousAppState !== currentAppState;
       const pendingStartId = pendingAppStartStateId;
       const pendingStartResolvedToDescendant = Boolean(pendingStartId && currentAppState && isDescendant(pendingStartId, currentAppState));
