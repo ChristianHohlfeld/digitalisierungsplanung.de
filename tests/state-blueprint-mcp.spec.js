@@ -257,7 +257,7 @@ test.describe("State Blueprint MCP", () => {
     }
   });
 
-  test("keeps MCP realtime transitions conformant without local marketplace contracts @smoke", async () => {
+  test("keeps MCP realtime transitions conformant without local event-catalog contracts @smoke", async () => {
     const tempDir = path.join(process.cwd(), "tmp", "mcp-tests");
     fs.mkdirSync(tempDir, { recursive: true });
     const modelPath = path.join(tempDir, `realtime-workspace-${Date.now()}.json`);

@@ -71,24 +71,19 @@ Der optionale Realtime-Server in `server/` ist nur Transport fuer Runtime-Events
 
 - WSS-Endpunkt: `wss://realtime.digitalisierungsplanung.de/ws`
 - Token-Endpunkt: `https://realtime.digitalisierungsplanung.de/token`
-- Marketplace-HTML: `https://realtime.digitalisierungsplanung.de/marketplace.html`
-- Marketplace-Index: `https://realtime.digitalisierungsplanung.de/marketplace`
-- Preset-Referenzen: `https://realtime.digitalisierungsplanung.de/presets`
 - Event-Definitionen: `https://realtime.digitalisierungsplanung.de/events`
-- Endpoint-Definitionen: `https://realtime.digitalisierungsplanung.de/endpoints`
-- State-Schema: `https://realtime.digitalisierungsplanung.de/state-schema`
 - Server-to-server Fire-Endpunkt: `https://realtime.digitalisierungsplanung.de/emit`
 - Test-Konsole: `https://realtime.digitalisierungsplanung.de/console.html`
 - Aktivierung im Editor: `state.html?room=<room-id>`
 - API-Dokumentation: [`docs/realtime-api.md`](docs/realtime-api.md)
-- Der App-Contract konsumiert `realtime.*` Events; `/emit` akzeptiert nur angebotene Marketplace-Events.
+- Der App-Contract konsumiert `realtime.*` Events; `/emit` akzeptiert nur Events aus `/events`.
 
-Realtime erzeugt keine zweite Wahrheit. Der Marketplace auf dem Realtime-Server ist der Werkzeugkasten und die Single Source of Truth fuer angebotene Presets, Events, Endpoints und State-Felder. Der Canvas soll nur konkrete Referenzen speichern, die er wirklich verwendet: zum Beispiel `triggerEvent`, Feldpfade, Room-ID und Endpoint-ID. Er speichert keine Preset-Contracts, keine importierten Endpoint-Definitionen und keine Preset-Instanzen.
+Realtime erzeugt keine zweite Wahrheit. Der Realtime-Server ist nur Transport plus Event-Katalog. Der Canvas speichert nur konkrete Referenzen, die er wirklich verwendet: `triggerType: realtime`, `triggerEvent`, und optional die Room-ID aus der URL. Er speichert keine Preset-Contracts, keine importierten Endpoint-Definitionen und keinen parallelen Realtime-State.
 
-Die Bereiche sind strikt getrennt: `/marketplace` liefert nur Links und Counts, `/presets` nur Preset-Refs, `/events` nur Event-Definitionen, `/endpoints` nur Endpoint-Definitionen und `/state-schema` nur globale State-Felder. Eingehende Nachrichten werden als `STATE_BLUEPRINT_REALTIME_EVENT` an die generierte Runtime gegeben, schreiben dort erst in den JSON-Bus und koennen nur dann Transitions bewegen. Der Host behandelt Runtime-Kontext weiter nur als read-only Snapshot.
-`state.html` liest Realtime-Presets und Events live vom Server, ohne sie ins Modell oder in exportierte Definitionen zu schreiben.
+Der Kern bleibt: `/ws` relayt Runtime-Events, `/emit` feuert externe Events in einen Room, `/events` definiert erlaubte Eventnamen, Details und Bindings. Eingehende Nachrichten werden als `STATE_BLUEPRINT_REALTIME_EVENT` an die generierte Runtime gegeben, schreiben dort erst in den JSON-Bus und koennen nur dann Transitions bewegen. Der Host behandelt Runtime-Kontext weiter nur als read-only Snapshot.
+`state.html` liest Realtime-Events live vom Server, ohne sie ins Modell oder in exportierte Definitionen zu schreiben.
 
-Server-to-server Emit ist stateless: `/emit` persistiert keine Call-Objekte und haelt keinen fachlichen Zustand. Es akzeptiert nur angebotene Events aus dem Marketplace und broadcastet die Event-Instanz in den Room.
+Server-to-server Emit ist stateless: `/emit` persistiert keine Call-Objekte und haelt keinen fachlichen Zustand. Es akzeptiert nur angebotene Events aus `/events` und broadcastet die Event-Instanz in den Room.
 
 Beispiel:
 

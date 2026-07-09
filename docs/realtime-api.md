@@ -1,16 +1,17 @@
 # Realtime API
 
-Diese API gehoert zum Realtime-Server unter `server/`. Sie transportiert Runtime-Events fuer `state.html` und stellt den Marketplace bereit. Sie ist nicht die Modell-API und persistiert keinen fachlichen Zustand.
+Diese API gehoert zum Realtime-Server unter `server/`. Sie transportiert Runtime-Events fuer `state.html`. Sie ist nicht die Modell-API und persistiert keinen fachlichen Zustand.
 
 ## Grundsatz
 
-Der globale JSON-State/Event-Bus bleibt die einzige fachliche Wahrheit. Der Realtime-Server ist:
+Der globale JSON-State/Event-Bus bleibt die einzige fachliche Wahrheit. Der Realtime-Server hat nur diese Aufgaben:
 
-- Transport fuer WSS-Runtime-Events,
-- Live-Marketplace fuer angebotene Presets, Events, Endpoints und State-Felder,
-- stateless Fire-Endpunkt fuer externe Systeme.
+- WSS-Transport fuer Runtime-Events,
+- Event-Katalog fuer erlaubte `realtime.*` Events,
+- stateless Fire-Endpunkt fuer externe Systeme,
+- Browser-Testkonsole fuer manuelles Emitten.
 
-Der Canvas speichert keine Marketplace-Kopie. Er speichert nur konkrete Referenzen, die er wirklich verwendet, zum Beispiel `triggerEvent: "realtime.sip.call.incoming"`.
+Es gibt keinen Marketplace, keine Preset-Kopie, keine Endpoint-Kataloge und kein serverseitiges State-Schema. Der Canvas speichert nur konkrete Referenzen, die er wirklich verwendet, zum Beispiel `triggerEvent: "realtime.sip.call.incoming"`.
 
 ## Base URLs
 
@@ -29,7 +30,7 @@ http://127.0.0.1:8788
 
 Browser-Origin ist in Production auf `https://digitalisierungsplanung.de` begrenzt. Konfiguriert wird das ueber `REALTIME_ALLOWED_ORIGINS`.
 
-REST-Kataloge erlauben:
+`/events` erlaubt:
 
 - Requests ohne `Origin`, z.B. `curl` oder Server-to-server,
 - Requests mit erlaubtem `Origin`,
@@ -56,9 +57,9 @@ a-z A-Z 0-9 _ . : -
 
 Limits:
 
-- `roomId`, `clientId`, Preset-IDs: maximal 128 Zeichen
+- `roomId`, `clientId`: maximal 128 Zeichen
 - Eventnamen: maximal 160 Zeichen
-- State-Pfade: maximal 240 Zeichen
+- State-Pfade in Event-Details/Bindings: maximal 240 Zeichen
 - Request-Body: default maximal 64 KiB
 
 Realtime-Events im App-Contract beginnen mit:
@@ -85,36 +86,9 @@ Response:
 }
 ```
 
-### `GET /marketplace.html`
-
-HTML-Explorer fuer den Live-Marketplace. Laedt `/marketplace`, `/presets`, `/events`, `/endpoints` und `/state-schema` direkt vom Server.
-
 ### `GET /console.html`
 
 HTML-Testkonsole fuer `/emit`. Die Seite speichert serverseitig nichts. Das Emit-Secret wird nur im Browserfeld verwendet und als Bearer-Token an `/emit` gesendet.
-
-### `GET /marketplace`
-
-Index. Liefert nur Links und Counts, keine konkreten Contracts.
-
-Response:
-
-```json
-{
-  "links": {
-    "presets": "https://realtime.digitalisierungsplanung.de/presets",
-    "events": "https://realtime.digitalisierungsplanung.de/events",
-    "endpoints": "https://realtime.digitalisierungsplanung.de/endpoints",
-    "stateSchema": "https://realtime.digitalisierungsplanung.de/state-schema"
-  },
-  "counts": {
-    "presets": 1,
-    "events": 3,
-    "endpoints": 3,
-    "stateFields": 10
-  }
-}
-```
 
 ### `GET /events`
 
@@ -158,130 +132,6 @@ Unterstuetzte Typen:
 
 ```text
 text, email, password, number, boolean, url, image, object, list
-```
-
-### `GET /presets`
-
-Preset-Referenzen. Keine Contract-Kopie, sondern Gruppierung konkreter IDs.
-
-Response:
-
-```json
-{
-  "presets": [
-    {
-      "id": "realtime.sip.call",
-      "label": "Sip Call",
-      "kind": "realtime",
-      "eventIds": [
-        "realtime.sip.call.incoming",
-        "realtime.sip.call.answered",
-        "realtime.sip.call.ended"
-      ],
-      "endpointIds": [
-        "realtime.websocket",
-        "realtime.emit"
-      ],
-      "statePaths": [
-        "realtime.sip.call.incoming.caller"
-      ]
-    }
-  ]
-}
-```
-
-### `GET /presets/:presetId`
-
-Ein einzelnes Preset.
-
-Response:
-
-```json
-{
-  "preset": {
-    "id": "realtime.sip.call",
-    "label": "Sip Call",
-    "kind": "realtime",
-    "eventIds": [
-      "realtime.sip.call.incoming"
-    ],
-    "endpointIds": [
-      "realtime.websocket",
-      "realtime.emit"
-    ],
-    "statePaths": [
-      "realtime.sip.call.incoming.caller"
-    ]
-  }
-}
-```
-
-Fehler:
-
-- `400 {"error":"invalid_preset"}`
-- `404 {"error":"preset_not_found"}`
-
-### `GET /endpoints`
-
-Technische Endpoints, die der Marketplace anbietet.
-
-Response:
-
-```json
-{
-  "endpoints": [
-    {
-      "id": "realtime.websocket",
-      "label": "Realtime WebSocket",
-      "kind": "websocket",
-      "url": "wss://realtime.digitalisierungsplanung.de/ws",
-      "emits": [
-        "realtime.sip.call.incoming"
-      ]
-    },
-    {
-      "id": "realtime.token",
-      "label": "Realtime room token",
-      "kind": "http",
-      "method": "GET",
-      "url": "https://realtime.digitalisierungsplanung.de/token"
-    },
-    {
-      "id": "realtime.emit",
-      "label": "Emit realtime event",
-      "kind": "http",
-      "method": "POST",
-      "url": "https://realtime.digitalisierungsplanung.de/emit",
-      "emits": [
-        "realtime.sip.call.incoming"
-      ]
-    }
-  ]
-}
-```
-
-### `GET /state-schema`
-
-State-Felder, die durch Realtime-Transport und Event-Bindings im globalen JSON-State auftauchen koennen.
-
-Response:
-
-```json
-{
-  "rootPath": "realtime",
-  "fields": [
-    {
-      "path": "realtime.connected",
-      "type": "boolean",
-      "source": "realtime.transport"
-    },
-    {
-      "path": "realtime.sip.call.incoming.caller",
-      "type": "text",
-      "source": "realtime.sip.call.incoming"
-    }
-  ]
-}
 ```
 
 ### `GET /token?roomId=<room>&clientId=<client>`
@@ -434,23 +284,7 @@ Client sendet:
 }
 ```
 
-Andere Clients im selben Room bekommen:
-
-```json
-{
-  "type": "runtime.event",
-  "roomId": "smoke",
-  "clientId": "browser-1",
-  "serverTime": 1780000000000,
-  "seq": 1,
-  "name": "realtime.sip.call.incoming",
-  "detail": {
-    "caller": "+491234",
-    "callee": "100",
-    "callId": "abc-123"
-  }
-}
-```
+Andere Clients im selben Room bekommen denselben Event mit `roomId`, `clientId`, `serverTime`, optionaler `seq`, `name` und `detail`.
 
 `seq` ist optional. Wenn vorhanden, droppt der Server alte oder doppelte Sequenzen pro `clientId` und Room.
 
@@ -556,11 +390,6 @@ REALTIME_TOKEN_PATH=/token
 REALTIME_EVENTS_PATH=/events
 REALTIME_EMIT_PATH=/emit
 REALTIME_CONSOLE_PATH=/console.html
-REALTIME_MARKETPLACE_HTML_PATH=/marketplace.html
-REALTIME_MARKETPLACE_PATH=/marketplace
-REALTIME_PRESETS_PATH=/presets
-REALTIME_ENDPOINTS_PATH=/endpoints
-REALTIME_STATE_SCHEMA_PATH=/state-schema
 REALTIME_ALLOWED_ORIGINS=https://digitalisierungsplanung.de
 REALTIME_ROOM_SECRET=<secret>
 REALTIME_EMIT_SECRET=<secret>
@@ -574,24 +403,7 @@ REALTIME_MAX_PAYLOAD_BYTES=65536
 ## Externer SIP-Call als Beispiel
 
 1. SIP-Anlage erkennt eingehenden Anruf.
-2. SIP-Bridge ruft `/emit` auf:
-
-```bash
-curl -X POST https://realtime.digitalisierungsplanung.de/emit \
-  -H "Authorization: Bearer $REALTIME_EMIT_SECRET" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "roomId": "sales-floor",
-    "clientId": "sip",
-    "name": "realtime.sip.call.incoming",
-    "detail": {
-      "caller": "+491234",
-      "callee": "100",
-      "callId": "call-42"
-    }
-  }'
-```
-
+2. SIP-Bridge ruft `/emit` auf.
 3. Ein geoeffneter Canvas in `state.html?room=sales-floor` empfaengt das Event.
 4. Die Runtime schreibt:
 

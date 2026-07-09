@@ -7585,7 +7585,6 @@
     const APP_URL = URL.createObjectURL(new Blob([GENERATED_APP_HTML], { type: "text/html" }));
     const REALTIME_WSS_URL = "wss://realtime.digitalisierungsplanung.de/ws";
     const REALTIME_TOKEN_URL = "https://realtime.digitalisierungsplanung.de/token";
-    const REALTIME_PRESETS_URL = "https://realtime.digitalisierungsplanung.de/presets";
     const REALTIME_EVENTS_URL = "https://realtime.digitalisierungsplanung.de/events";
     const WORLD_MIN_X = -10000;
     const WORLD_MIN_Y = -8000;
@@ -17952,16 +17951,16 @@
             <span class="inspector-collapse-title">
               <span>Realtime events</span>
               <span>external event contract</span>
-            </span>
-          </summary>
-          <div class="inspector-collapse-body">
-            <div class="state-variable-panel">
-              <div class="state-variable-head">
-                <div>Marketplace events<span>live refs from the realtime server</span></div>
+              </span>
+            </summary>
+            <div class="inspector-collapse-body">
+              <div class="state-variable-panel">
+                <div class="state-variable-head">
+                <div>Event catalog<span>live events from the realtime server</span></div>
               </div>
               <div id="pRealtimeEventList" class="state-variable-list"></div>
               <div class="row">
-                <button id="pRealtimeServerPreset" type="button">Load marketplace events</button>
+                <button id="pRealtimeServerEvents" type="button">Load realtime events</button>
               </div>
             </div>
           </div>
@@ -18010,23 +18009,6 @@
       }).filter(Boolean);
     }
 
-    function normalizeRealtimePresetRefs(value) {
-      const source = isPlainObject(value) && Array.isArray(value.presets) ? value.presets : [];
-      return source.slice(0, 64).map(preset => {
-        if (!isPlainObject(preset)) return null;
-        const id = normalizeTransitionEvent(preset.id || "");
-        if (!id) return null;
-        return {
-          id,
-          label: String(preset.label || dataPathLabel(id, "Realtime preset")).trim().slice(0, 80),
-          kind: String(preset.kind || "realtime").trim().slice(0, 40),
-          eventIds: Array.isArray(preset.eventIds) ? preset.eventIds.map(item => normalizeTransitionEvent(item)).filter(Boolean) : [],
-          endpointIds: Array.isArray(preset.endpointIds) ? preset.endpointIds.map(item => normalizeTransitionEvent(item)).filter(Boolean) : [],
-          statePaths: Array.isArray(preset.statePaths) ? preset.statePaths.map(item => normalizeBindingPath(item, "")).filter(Boolean) : []
-        };
-      }).filter(Boolean);
-    }
-
     async function fetchRealtimeEvents() {
       const response = await fetch(REALTIME_EVENTS_URL, { method: "GET", cache: "no-store", credentials: "omit" });
       if (!response.ok) throw new Error("events fetch failed");
@@ -18034,20 +18016,6 @@
       const events = realtimeEventCatalog(catalog);
       if (!events.length) throw new Error("empty events catalog");
       return events;
-    }
-
-    async function fetchRealtimePresets() {
-      const response = await fetch(REALTIME_PRESETS_URL, { method: "GET", cache: "no-store", credentials: "omit" });
-      if (!response.ok) throw new Error("presets fetch failed");
-      return normalizeRealtimePresetRefs(await response.json());
-    }
-
-    async function fetchRealtimeMarketplace() {
-      const [events, presets] = await Promise.all([
-        fetchRealtimeEvents(),
-        fetchRealtimePresets()
-      ]);
-      return { events, presets };
     }
 
     async function fetchRealtimeEventConfig(name) {
@@ -18058,8 +18026,8 @@
 
     function renderRealtimeCatalogInspector() {
       const list = stateInspectorBodyEl.querySelector("#pRealtimeEventList");
-      const serverPreset = stateInspectorBodyEl.querySelector("#pRealtimeServerPreset");
-      if (!list || !serverPreset) return;
+      const serverEvents = stateInspectorBodyEl.querySelector("#pRealtimeServerEvents");
+      if (!list || !serverEvents) return;
       const renderLoading = text => {
         list.innerHTML = "";
         const empty = document.createElement("div");
@@ -18067,58 +18035,41 @@
         empty.textContent = text;
         list.appendChild(empty);
       };
-      const renderMarketplace = ({ events, presets }) => {
+      const renderEvents = events => {
         list.innerHTML = "";
-        const byName = new Map(events.map(event => [event.name, event]));
-        const groups = presets.length ? presets : [{ id: "realtime.events", label: "Realtime events", eventIds: events.map(event => event.name), statePaths: [] }];
-        groups.forEach(preset => {
-          const presetRow = document.createElement("div");
-          presetRow.className = "state-variable-row";
-          const presetMain = document.createElement("div");
-          presetMain.className = "state-variable-main";
-          const presetTitle = document.createElement("b");
-          presetTitle.textContent = preset.label || preset.id;
-          const presetMeta = document.createElement("span");
-          presetMeta.textContent = `${preset.id} / ${preset.eventIds.length} events`;
-          presetMain.append(presetTitle, presetMeta);
-          presetRow.appendChild(presetMain);
-          list.appendChild(presetRow);
-          preset.eventIds.forEach(eventId => {
-            const event = byName.get(eventId);
-            if (!event) return;
-            const row = document.createElement("div");
-            row.className = "state-variable-row";
-            const main = document.createElement("div");
-            main.className = "state-variable-main";
-            const title = document.createElement("b");
-            title.textContent = event.label || event.name;
-            const meta = document.createElement("span");
-            const bindingCount = normalizeRealtimeEventBindings(event.bindings).length;
-            meta.textContent = `${event.name}${bindingCount ? " / " + bindingCount + " bindings" : ""}`;
-            main.append(title, meta);
-            row.appendChild(main);
-            list.appendChild(row);
-          });
+        events.forEach(event => {
+          const row = document.createElement("div");
+          row.className = "state-variable-row";
+          const main = document.createElement("div");
+          main.className = "state-variable-main";
+          const title = document.createElement("b");
+          title.textContent = event.label || event.name;
+          const meta = document.createElement("span");
+          const bindingCount = normalizeRealtimeEventBindings(event.bindings).length;
+          meta.textContent = `${event.name}${bindingCount ? " / " + bindingCount + " bindings" : ""}`;
+          main.append(title, meta);
+          row.appendChild(main);
+          list.appendChild(row);
         });
-        if (!list.childElementCount) renderLoading("Marketplace has no realtime events.");
+        if (!list.childElementCount) renderLoading("Event catalog has no realtime events.");
       };
       const load = async () => {
-        const previousLabel = serverPreset.textContent;
-        serverPreset.disabled = true;
-        serverPreset.textContent = "Loading...";
-        renderLoading("Loading marketplace events...");
+        const previousLabel = serverEvents.textContent;
+        serverEvents.disabled = true;
+        serverEvents.textContent = "Loading...";
+        renderLoading("Loading realtime events...");
         try {
-          renderMarketplace(await fetchRealtimeMarketplace());
-          serverPreset.textContent = "Reload marketplace events";
+          renderEvents(await fetchRealtimeEvents());
+          serverEvents.textContent = "Reload realtime events";
         } catch (_) {
-          renderLoading("Marketplace load failed.");
-          serverPreset.textContent = "Load failed";
-          setTimeout(() => { if (serverPreset.isConnected) serverPreset.textContent = previousLabel; }, 1200);
+          renderLoading("Event load failed.");
+          serverEvents.textContent = "Load failed";
+          setTimeout(() => { if (serverEvents.isConnected) serverEvents.textContent = previousLabel; }, 1200);
         } finally {
-          serverPreset.disabled = false;
+          serverEvents.disabled = false;
         }
       };
-      serverPreset.onclick = load;
+      serverEvents.onclick = load;
       load();
     }
 
@@ -19259,7 +19210,7 @@
               <div class="field" id="pStateTriggerEventField" hidden>
                 <label id="pStateTriggerEventLabel">Event</label>
                 <select id="pStateTriggerEvent"></select>
-                <button id="pStateTriggerEventImport" type="button" hidden>Load marketplace events</button>
+                <button id="pStateTriggerEventImport" type="button" hidden>Load realtime events</button>
               </div>
               <div id="pStateTriggerPreview" class="condition-preview empty"></div>
             </div>
@@ -19838,7 +19789,7 @@
           if (current.startsWith("realtime.")) addOption(current, current);
           if (stateTriggerEventImport) {
             stateTriggerEventImport.hidden = false;
-            stateTriggerEventImport.textContent = "Reload marketplace events";
+            stateTriggerEventImport.textContent = "Reload realtime events";
           }
         }
         stateTriggerEvent.innerHTML = "";
@@ -19880,9 +19831,9 @@
               stateTriggerEvent.value = active;
               if (!row.transition.triggerEvent && active.startsWith("realtime.")) persistStateFlowTrigger();
             }
-            if (stateTriggerEventImport) stateTriggerEventImport.textContent = "Reload marketplace events";
+            if (stateTriggerEventImport) stateTriggerEventImport.textContent = "Reload realtime events";
           }).catch(() => {
-            if (stateTriggerEventImport && stateTriggerEventImport.isConnected) stateTriggerEventImport.textContent = "Marketplace load failed";
+            if (stateTriggerEventImport && stateTriggerEventImport.isConnected) stateTriggerEventImport.textContent = "Event load failed";
           });
         }
       };

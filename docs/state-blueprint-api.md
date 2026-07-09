@@ -277,9 +277,8 @@ Realtime transition:
 }
 ```
 
-Realtime Marketplace definitions stay on the Realtime API (`/events`, `/presets`,
-`/endpoints`, `/state-schema`). The model stores no `model.realtime` contract
-copy.
+Realtime event definitions stay on the Realtime API (`/events`). The model stores
+no `model.realtime` contract copy.
 
 ### `delete_transition`
 

@@ -6411,7 +6411,7 @@ test.describe("State Blueprint tool", () => {
     await expect(app.locator("#statePill")).toHaveText("login", { timeout: 3000 });
   });
 
-  test("uses realtime marketplace events without persisting a local contract @smoke", async ({ page }) => {
+  test("uses realtime event catalog without persisting a local contract @smoke", async ({ page }) => {
     let catalogVersion = 1;
     const eventsPayload = () => ([
       {
@@ -6438,23 +6438,9 @@ test.describe("State Blueprint tool", () => {
       contentType: "application/json",
       body: JSON.stringify({ events: eventsPayload() })
     }));
-    await page.route("https://realtime.digitalisierungsplanung.de/presets", route => route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        presets: [{
-          id: "realtime.sip.call",
-          label: "SIP call",
-          kind: "realtime",
-          eventIds: eventsPayload().map(event => event.name),
-          endpointIds: ["realtime.websocket", "realtime.emit"],
-          statePaths: ["realtime.sip.call.incoming.caller", "realtime.sip.call.incoming.callId"]
-        }]
-      })
-    }));
     await openTool(page);
     await page.evaluate(() => clearSelection());
-    await expect(page.locator("#pRealtimeServerPreset")).toHaveText(/marketplace events/i);
+    await expect(page.locator("#pRealtimeServerEvents")).toHaveText(/realtime events/i);
     await expect(page.locator("#pRealtimeEventList")).toContainText("Incoming call");
     await expect.poll(async () => (await savedModel(page)).realtime).toBeUndefined();
 
@@ -6464,7 +6450,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#pStateTriggerEvent")).toBeVisible();
     await expect(page.locator("#pStateTriggerEvent")).toHaveValue("realtime.sip.call.incoming");
     await expect(page.locator("#pStateTriggerEventImport")).toBeVisible();
-    await expect(page.locator("#pStateTriggerEventImport")).toHaveText("Reload marketplace events");
+    await expect(page.locator("#pStateTriggerEventImport")).toHaveText("Reload realtime events");
     await expect.poll(async () => {
       const model = await savedModel(page);
       const transition = model.transitions.find(item => item.id === "t_auth_login");

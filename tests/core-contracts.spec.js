@@ -1331,8 +1331,10 @@ test.describe("Core source contracts", () => {
 
     expect(hostHtml).toContain('const REALTIME_WSS_URL = "wss://realtime.digitalisierungsplanung.de/ws";');
     expect(hostHtml).toContain('const REALTIME_TOKEN_URL = "https://realtime.digitalisierungsplanung.de/token";');
-    expect(hostHtml).toContain('const REALTIME_PRESETS_URL = "https://realtime.digitalisierungsplanung.de/presets";');
     expect(hostHtml).toContain('const REALTIME_EVENTS_URL = "https://realtime.digitalisierungsplanung.de/events";');
+    expect(hostHtml).not.toContain("REALTIME_PRESETS_URL");
+    expect(hostHtml).not.toContain("fetchRealtimePresets");
+    expect(hostHtml).not.toContain("fetchRealtimeMarketplace");
     expect(hostHtml).toContain("async function fetchRealtimeEventConfig(name)");
     expect(hostHtml).toContain("function relayRuntimeBusEventToRealtime()");
     expect(hostHtml).toContain("function postRealtimeStatus");

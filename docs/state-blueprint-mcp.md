@@ -71,7 +71,7 @@ For ambiguous text, inspect `plan.assumptions` and then call `state_blueprint_ap
 - State variables are `state.data` plus `state.dataTypes`; they are defaults and shape declarations, not local runtime state.
 - Visible data uses `dataWires` and structured components.
 - Transitions own triggers, conditions, timers, and `set` patches.
-- Realtime transitions use `triggerType: "realtime"` plus a concrete `realtime.*` `triggerEvent`; MCP does not copy Marketplace contracts into `model.realtime`.
+- Realtime transitions use `triggerType: "realtime"` plus a concrete `realtime.*` `triggerEvent`; MCP does not copy event-catalog contracts into `model.realtime`.
 - Fetch is configured as a state-entry effect into an explicit bus path; generated plans default to `states.<stateId>.fetch`.
 - Repeat renders an explicit bus list path.
 - Nested flows use boundary input/output references and proxy transitions.
