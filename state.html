@@ -7423,7 +7423,9 @@
     const PREVIEW_PANEL_MAX = 720;
     const MIN_CANVAS_COLUMN = 240;
     const initialEditorState = loadEditorState();
-    let model = initialEditorState?.model ? normalizeModel(initialEditorState.model) : (loadModel() || blankModel());
+    const initialStoredModel = initialEditorState?.model ? null : loadModel();
+    const initialPersistedModelExists = Boolean(initialEditorState?.model || initialStoredModel);
+    let model = initialEditorState?.model ? normalizeModel(initialEditorState.model) : (initialStoredModel || blankModel());
     let camera = loadCamera() || { x: 32, y: 32, scale: 1 };
     const uiState = loadUiState();
     let previewCollapsed = uiState.previewCollapsed;
@@ -24925,6 +24927,26 @@
       syncToApp(true);
     }
 
+    function landingDemoEntryRequested() {
+      try {
+        const url = new URL(window.location.href);
+        const requested = String(url.searchParams.get("demo") || "").trim().toLowerCase();
+        return requested === "zustand" || requested === "website" || requested === "true" || requested === "1";
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function consumeLandingDemoEntryUrl() {
+      try {
+        const url = new URL(window.location.href);
+        if (!url.searchParams.has("demo")) return;
+        url.searchParams.delete("demo");
+        const query = url.searchParams.toString();
+        window.history.replaceState(null, "", url.pathname + (query ? "?" + query : "") + url.hash);
+      } catch (_) {}
+    }
+
     async function requestNewCanvas() {
       const ok = await modalConfirm("Canvas wirklich neu und leer starten?", "New canvas", {
         confirmText: "Neu starten",
@@ -25120,6 +25142,14 @@
     wiresEl.style.width = WORLD_W + "px";
     wiresEl.style.height = WORLD_H + "px";
 
+    const landingDemoEntry = landingDemoEntryRequested();
+    if (landingDemoEntry && !initialPersistedModelExists) {
+      model = normalizeModel(exampleWebsiteModel());
+      selected = null;
+      currentLayerId = null;
+      currentAppState = null;
+      consumeLandingDemoEntryUrl();
+    }
     normalizeModel(model);
     applyPanelWidths({ persist: false, redraw: false });
     applyPreviewCollapsed();
@@ -25135,6 +25165,17 @@
     initHistory();
     persistModel(false);
     setTimeout(fitView, 50);
+    if (landingDemoEntry && initialPersistedModelExists) {
+      consumeLandingDemoEntryUrl();
+      setTimeout(async () => {
+        const ok = await modalConfirm("Es gibt bereits eine gespeicherte Szene. Zustand Demo trotzdem laden und aktuelle Szene ersetzen?", "Zustand Demo", {
+          confirmText: "Demo laden",
+          cancelText: "Aktuelle Szene behalten",
+          danger: false
+        });
+        if (ok) loadEditorModel(exampleWebsiteModel(), true);
+      }, 0);
+    }
   
 
 

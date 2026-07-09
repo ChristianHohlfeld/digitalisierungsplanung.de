@@ -7,7 +7,7 @@ test.describe("Landing page export", () => {
     expect(html).toContain("EXPORTED_STATE_BLUEPRINT");
     expect(html).toContain("Erst verstehen, dann digitalisieren.");
     expect(html).toContain("Viele Projekte scheitern nicht an Technik");
-    expect(html).toContain('"url":"./state.html"');
+    expect(html).toContain('"url":"./state.html?demo=zustand"');
     expect(html).toContain("/manifest.webmanifest");
     expect(html).toContain("/assets/share-card.png");
     expect(html).toContain("/assets/landing-hero-business.png");
@@ -39,8 +39,8 @@ test.describe("Landing page export", () => {
     expect(manifest.ok()).toBe(true);
     expect((await manifest.json()).name).toBe("Zustand Digitalisierungsplanung");
 
-    const editorLink = page.locator('a[href="./state.html"]').first();
-    await expect(editorLink).toHaveAttribute("href", /state\.html$/);
+    const editorLink = page.locator('a[href="./state.html?demo=zustand"]').first();
+    await expect(editorLink).toHaveAttribute("href", /state\.html\?demo=zustand$/);
     await expect(editorLink).toHaveCSS("text-decoration-line", "none");
 
     await page.locator(".navbar").getByRole("button", { name: "Nutzen", exact: true }).click();

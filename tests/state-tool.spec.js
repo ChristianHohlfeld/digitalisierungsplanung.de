@@ -1669,6 +1669,79 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator('[data-id="start"]')).toBeVisible();
   });
 
+  test("loads the Zustand demo scene from the landing editor entry URL when no scene is stored @smoke", async ({ page }) => {
+    await page.addInitScript(key => {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+    }, STORAGE_KEY);
+
+    await page.goto("/state.html?demo=zustand");
+
+    await expect(page).toHaveURL(/\/state\.html$/);
+    await expect(page.getByRole("dialog", { name: "Zustand Demo" })).toBeHidden();
+    await expect(page.locator('[data-id="site_home"]')).toBeVisible();
+    await expect(appFrame(page).locator("#statePill")).toHaveText("site_home");
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return {
+        name: model?.name || "",
+        initial: model?.initial || "",
+        loginHeroTransitionId: model?.states?.find(state => state.id === "site_login")?.data?.["states.site_login.hero"]?.transitionId || ""
+      };
+    }).toEqual({
+      name: "Zustand Demo",
+      initial: "site_home",
+      loginHeroTransitionId: "site_login_submit"
+    });
+  });
+
+  test("asks before replacing stored work from the landing demo entry URL @smoke", async ({ page }) => {
+    await page.addInitScript(({ key, model }) => {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(key, JSON.stringify(model));
+    }, { key: STORAGE_KEY, model: defaultTestModel() });
+
+    await page.goto("/state.html?demo=zustand");
+
+    await expect(page).toHaveURL(/\/state\.html$/);
+    await expect(page.locator('[data-id="auth_start"]')).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Zustand Demo" })).toBeVisible();
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return {
+        name: model?.name || "",
+        initial: model?.initial || "",
+        hasStoredWork: Boolean(model?.states?.some(state => state.id === "auth_start"))
+      };
+    }).toEqual({
+      name: "Standard Auth Flow",
+      initial: "auth_start",
+      hasStoredWork: true
+    });
+
+    await page.getByRole("button", { name: "Demo laden" }).click();
+
+    await expect(page.locator('[data-id="site_home"]')).toBeVisible();
+    await expect(appFrame(page).locator("#statePill")).toHaveText("site_home");
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return {
+        name: model?.name || "",
+        initial: model?.initial || "",
+        hasOldLocalModel: Boolean(model?.states?.some(state => state.id === "auth_start")),
+        loginHeroTransitionId: model?.states?.find(state => state.id === "site_login")?.data?.["states.site_login.hero"]?.transitionId || ""
+      };
+    }).toEqual({
+      name: "Zustand Demo",
+      initial: "site_home",
+      hasOldLocalModel: false,
+      loginHeroTransitionId: "site_login_submit"
+    });
+  });
+
   test("loads a clean website demo scene with real FSM navigation @smoke", async ({ page }) => {
     await openTool(page);
 

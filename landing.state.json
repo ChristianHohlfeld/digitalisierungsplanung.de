@@ -96,7 +96,7 @@
               },
               {
                 "label": "Editor",
-                "url": "./state.html"
+                "url": "./state.html?demo=zustand"
               }
             ],
             "parent": "",
@@ -190,7 +190,7 @@
                   },
                   {
                     "label": "Editor",
-                    "url": "./state.html"
+                    "url": "./state.html?demo=zustand"
                   }
                 ]
               }
@@ -299,7 +299,7 @@
               },
               {
                 "label": "Editor",
-                "url": "./state.html"
+                "url": "./state.html?demo=zustand"
               }
             ],
             "parent": "",
@@ -345,7 +345,7 @@
                   "anschlussfähig für IT"
                 ],
                 "actionLabel": "Editor öffnen",
-                "url": "./state.html",
+                "url": "./state.html?demo=zustand",
                 "imageAlt": "Business-Verantwortliche planen die Automatisierung"
               }
             ]
@@ -400,7 +400,7 @@
                   },
                   {
                     "label": "Editor",
-                    "url": "./state.html"
+                    "url": "./state.html?demo=zustand"
                   }
                 ]
               }
@@ -508,7 +508,7 @@
               },
               {
                 "label": "Editor",
-                "url": "./state.html"
+                "url": "./state.html?demo=zustand"
               }
             ],
             "parent": "",
@@ -558,7 +558,7 @@
                   "bessere Umsetzungsvorlage"
                 ],
                 "actionLabel": "Editor",
-                "url": "./state.html",
+                "url": "./state.html?demo=zustand",
                 "imageAlt": "Business-Verantwortliche planen die Automatisierung"
               }
             ]
@@ -593,7 +593,7 @@
                   },
                   {
                     "label": "Editor",
-                    "url": "./state.html"
+                    "url": "./state.html?demo=zustand"
                   }
                 ]
               }
@@ -701,7 +701,7 @@
               },
               {
                 "label": "Editor",
-                "url": "./state.html"
+                "url": "./state.html?demo=zustand"
               }
             ],
             "parent": "",
@@ -713,7 +713,7 @@
             "title": "Ein Plan, den Business und IT gemeinsam tragen.",
             "body": "Am Ende steht kein PDF, das veraltet. Es steht ein lebendes Prozessmodell: sichtbar, testbar, exportierbar und als Grundlage für Umsetzung nutzbar.",
             "actionLabel": "Editor öffnen",
-            "url": "./state.html",
+            "url": "./state.html?demo=zustand",
             "image": "/assets/landing-automate-business.png",
             "imageAlt": "Business-Verantwortliche planen die Automatisierung"
           },
@@ -756,7 +756,7 @@
                   "KI/API-steuerbar"
                 ],
                 "actionLabel": "Editor öffnen",
-                "url": "./state.html",
+                "url": "./state.html?demo=zustand",
                 "imageAlt": "Business-Verantwortliche planen die Automatisierung"
               }
             ]
@@ -791,7 +791,7 @@
                   },
                   {
                     "label": "Editor",
-                    "url": "./state.html"
+                    "url": "./state.html?demo=zustand"
                   }
                 ]
               }
