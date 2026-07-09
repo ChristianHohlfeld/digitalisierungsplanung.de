@@ -9,6 +9,7 @@ test.describe("Root demo export", () => {
     expect(html).toContain('"name":"Zustand Demo"');
     expect(html).toContain('"initial":"site_home"');
     expect(html).toContain('"site_checkout"');
+    expect(html).toContain("state.html?demo=zustand");
     expect(html).toContain("/manifest.webmanifest");
     expect(html).toContain("/assets/share-card.png");
     expect(html).not.toContain('id="appFrame"');
@@ -20,6 +21,7 @@ test.describe("Root demo export", () => {
     await expect(page.getByRole("button", { name: "New" })).toHaveCount(0);
     await expect(page.locator("#statePill")).toHaveText("site_home");
     await expect(page.getByRole("heading", { name: "Zustand" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Editor öffnen" })).toHaveAttribute("href", /state\.html\?demo=zustand$/);
 
     const manifest = await page.request.get("/manifest.webmanifest");
     expect(manifest.ok()).toBe(true);

@@ -4010,7 +4010,7 @@ test.describe("State Blueprint tool", () => {
     await page.keyboard.press("Alt+ArrowLeft");
     await page.locator('[data-id="login"]').click();
     const image = appFrame(page).locator(".component-image").first();
-    await expect(image).toHaveAttribute("alt", "Image description");
+    await expect(image).toHaveAttribute("alt", "Bildbeschreibung");
     await expect(image).toHaveAttribute("src", imageUrl);
     await expect(image).toBeVisible();
   });
@@ -6164,8 +6164,8 @@ test.describe("State Blueprint tool", () => {
     const state = model.states.find(item => item.id === stateId);
     expect(state).toBeTruthy();
     const breadcrumbTransitions = model.transitions.filter(transition => transition.from === stateId);
-    expect(breadcrumbTransitions.map(transition => transition.label)).toEqual(["Home", "Projects"]);
-    expect(state.data[scopePath].items.map(item => item.label)).toEqual(["Home", "Projects", "Current"]);
+    expect(breadcrumbTransitions.map(transition => transition.label)).toEqual(["Start", "Projekte"]);
+    expect(state.data[scopePath].items.map(item => item.label)).toEqual(["Start", "Projekte", "Aktuell"]);
     expect(state.data[scopePath].items.map(item => item.transitionId || "")).toEqual([
       breadcrumbTransitions[0].id,
       breadcrumbTransitions[1].id,
@@ -6184,14 +6184,14 @@ test.describe("State Blueprint tool", () => {
         transitionId: item.transitionId || ""
       }));
     }).toEqual([
-      { label: "Home", transitionId: breadcrumbTransitions[0].id },
-      { label: "Projects", transitionId: breadcrumbTransitions[1].id },
-      { label: "Current", transitionId: "" }
+      { label: "Start", transitionId: breadcrumbTransitions[0].id },
+      { label: "Projekte", transitionId: breadcrumbTransitions[1].id },
+      { label: "Aktuell", transitionId: "" }
     ]);
 
     const app = appFrame(page);
     await expect(app.locator("#statePill")).toHaveText(stateId);
-    await expectRenderedBreadcrumbs(app, ["Home", "Projects", "Current"], {
+    await expectRenderedBreadcrumbs(app, ["Start", "Projekte", "Aktuell"], {
       transitionIds: breadcrumbTransitions.map(transition => transition.id)
     });
     await expect(app.locator(".breadcrumbs select, .breadcrumbs summary, .breadcrumbs a")).toHaveCount(0);
@@ -6230,14 +6230,14 @@ test.describe("State Blueprint tool", () => {
     await expect.poll(async () => {
       const context = await runtimeContext(page);
       return (context.states?.[stateId]?.items || []).map(item => item.label);
-    }).toEqual(["Home", "Projects", "Current"]);
+    }).toEqual(["Start", "Projekte", "Aktuell"]);
 
     await expect(appFrame(page).locator("#statePill")).toHaveText(stateId);
-    await expectRenderedBreadcrumbs(appFrame(page), ["Home", "Projects", "Current"]);
+    await expectRenderedBreadcrumbs(appFrame(page), ["Start", "Projekte", "Aktuell"]);
     const model = await savedModel(page);
     const state = model.states.find(item => item.id === stateId);
     const breadcrumbTransitions = model.transitions.filter(transition => transition.from === stateId);
-    expect(state.data[scopePath].items.map(item => item.label)).toEqual(["Home", "Projects", "Current"]);
+    expect(state.data[scopePath].items.map(item => item.label)).toEqual(["Start", "Projekte", "Aktuell"]);
     expect(state.data[scopePath].items.slice(0, 2).map(item => item.transitionId)).toEqual(breadcrumbTransitions.map(transition => transition.id));
   });
 
@@ -6702,7 +6702,7 @@ test.describe("State Blueprint tool", () => {
     expect(checkboxState).toBeTruthy();
     const scopePath = `states.${checkboxState.id}`;
     expect(checkboxState.data[scopePath]).toMatchObject({
-      legend: "Preferences",
+      legend: "Einstellungen",
       items: [{ label: "Angemeldet bleiben", checked: false }],
       checked: false
     });
@@ -6726,7 +6726,7 @@ test.describe("State Blueprint tool", () => {
     await page.locator(`[data-id="${checkboxState.id}"]`).click();
     const app = appFrame(page);
     await expect(app.locator("fieldset.fieldset.bg-base-100.border-base-300.rounded-box.w-64.border.p-4")).toBeVisible();
-    await expect(app.locator("legend.fieldset-legend")).toHaveText("Preferences");
+    await expect(app.locator("legend.fieldset-legend")).toHaveText("Einstellungen");
     await expect(app.locator("input.checkbox.checkbox-primary")).toBeVisible();
     await expect(app.locator(`button[data-transition-id="${transition.id}"]`, { hasText: "Continue" })).toBeVisible();
   });
@@ -6888,22 +6888,22 @@ test.describe("State Blueprint tool", () => {
     const stepTransitions = model.transitions
       .filter(transition => transition.from === stepsState.id)
       .sort((a, b) => a.label.localeCompare(b.label));
-    expect(stepTransitions.map(transition => transition.label)).toEqual(["Build", "Plan", "Ship"]);
+    expect(stepTransitions.map(transition => transition.label)).toEqual(["Bauen", "Planen", "Veröffentlichen"]);
     for (const transition of stepTransitions) {
       expect(transition.set).toEqual({ [`${scopePath}.current`]: transition.label });
     }
 
     const app = appFrame(page);
-    await expect(app.locator("li.step-primary")).toContainText("Build");
-    await expect(app.locator(".steps button[data-transition-id] .daisy-step-label")).toHaveText(["Plan", "Build", "Ship"]);
+    await expect(app.locator("li.step-primary")).toContainText("Bauen");
+    await expect(app.locator(".steps button[data-transition-id] .daisy-step-label")).toHaveText(["Planen", "Bauen", "Veröffentlichen"]);
     await expect(app.locator(".steps .daisy-step-copy")).toContainText([
-      "Define the screen and data contract.",
-      "Wire components to real transitions.",
-      "Preview, test, and export."
+      "Screen und Datenvertrag definieren.",
+      "Komponenten mit echten Transitions verdrahten.",
+      "Vorschau prüfen, testen und exportieren."
     ]);
-    await app.locator(".steps").getByRole("button", { name: /Ship/ }).click();
-    await expect.poll(async () => (await runtimeContext(page)).states?.[stepsState.id]?.current).toBe("Ship");
-    const shipTarget = model.states.find(state => state.title === "Ship" && state.parentId === stepsState.parentId);
+    await app.locator(".steps").getByRole("button", { name: /Veröffentlichen/ }).click();
+    await expect.poll(async () => (await runtimeContext(page)).states?.[stepsState.id]?.current).toBe("Veröffentlichen");
+    const shipTarget = model.states.find(state => state.title === "Veröffentlichen" && state.parentId === stepsState.parentId);
     expect(shipTarget).toBeTruthy();
     await expect(app.locator("#statePill")).toHaveText(shipTarget.id);
 
@@ -6970,7 +6970,7 @@ test.describe("State Blueprint tool", () => {
 
     await addRenderSelect.selectOption(`${scopePath}.selected`);
     await page.locator(".data-wire-render-panel").getByRole("button", { name: "Show selected field" }).click();
-    await expect(app.locator("#screen")).toContainText("Selected: Overview");
+    await expect(app.locator("#screen")).toContainText("Selected: Übersicht");
     await expect(app.locator("#screen")).not.toContainText("Events:");
     await expect(app.locator("#screen")).not.toContainText('{"change"');
 
@@ -7084,17 +7084,17 @@ test.describe("State Blueprint tool", () => {
     await addComponentState(page, "Produktkarte");
     const model = await savedModel(page);
     const cardState = model.states.find(state => state.title === "Produktkarte");
-    const cardTransition = model.transitions.find(transition => transition.from === cardState.id && transition.label === "Buy Now");
+    const cardTransition = model.transitions.find(transition => transition.from === cardState.id && transition.label === "Jetzt kaufen");
     const cardTarget = model.states.find(state => state.id === cardTransition?.to);
     expect(cardTransition).toBeTruthy();
     expect(cardTransition.triggerType).toBe("button");
     expect(cardTransition.set).toEqual({ [`states.${cardState.id}.clicked`]: true });
-    expect(cardTarget).toMatchObject({ title: "Buy Now", parentId: cardState.parentId || null });
+    expect(cardTarget).toMatchObject({ title: "Jetzt kaufen", parentId: cardState.parentId || null });
     await page.locator(`[data-id="${cardState.id}"]`).click();
     let app = appFrame(page);
     await expect(app.locator(`button.card-image-action[data-transition-id="${cardTransition.id}"]`)).toHaveCount(0);
     const imageLink = app.locator(".runtime-image-link").first();
-    await expect(imageLink.locator("img")).toHaveAttribute("alt", "Shoes");
+    await expect(imageLink.locator("img")).toHaveAttribute("alt", "Schuhe");
     await page.evaluate(() => {
       window.__stateBlueprintOpenedUrls = [];
       window.open = url => {
@@ -7105,8 +7105,8 @@ test.describe("State Blueprint tool", () => {
     await imageLink.click();
     await expect(app.locator("#statePill")).toHaveText(cardState.id);
     await expect.poll(() => page.evaluate(() => window.__stateBlueprintOpenedUrls?.length || 0)).toBe(1);
-    await expect(app.locator(`button[data-transition-id="${cardTransition.id}"]`, { hasText: "Buy Now" })).toBeVisible();
-    await app.locator(`button[data-transition-id="${cardTransition.id}"]`, { hasText: "Buy Now" }).click();
+    await expect(app.locator(`button[data-transition-id="${cardTransition.id}"]`, { hasText: "Jetzt kaufen" })).toBeVisible();
+    await app.locator(`button[data-transition-id="${cardTransition.id}"]`, { hasText: "Jetzt kaufen" }).click();
     await expect(app.locator("#statePill")).toHaveText(cardTarget.id);
   });
 
@@ -7129,9 +7129,9 @@ test.describe("State Blueprint tool", () => {
 
     await expect.poll(() => page.evaluate(() => {
       const card = model.states.find(state => state.title === "Produktkarte");
-      const action = card ? model.transitions.find(transition => transition.from === card.id && transition.label === "Buy Now") : null;
+      const action = card ? model.transitions.find(transition => transition.from === card.id && transition.label === "Jetzt kaufen") : null;
       return {
-        actionTargetExists: Boolean(action && model.states.some(state => state.id === action.to && state.title === "Buy Now")),
+        actionTargetExists: Boolean(action && model.states.some(state => state.id === action.to && state.title === "Jetzt kaufen")),
         entryMatchesCard: Boolean(card && model.boundary?.entryId === card.id),
         exitMatchesCard: Boolean(card && model.boundary?.exitId === card.id),
         inputFlow: model.transitions.some(transition =>
@@ -7160,17 +7160,17 @@ test.describe("State Blueprint tool", () => {
     await addComponentState(page, "Bestätigungsdialog");
     const model = await savedModel(page);
     const modalState = model.states.find(state => state.title === "Bestätigungsdialog");
-    const modalTransition = model.transitions.find(transition => transition.from === modalState.id && transition.label === "Confirm");
+    const modalTransition = model.transitions.find(transition => transition.from === modalState.id && transition.label === "Bestätigen");
     const modalTarget = model.states.find(state => state.id === modalTransition?.to);
     expect(modalTransition).toBeTruthy();
     expect(modalTransition.set).toEqual({
       [`states.${modalState.id}.confirmed`]: true,
       [`states.${modalState.id}.open`]: false
     });
-    expect(modalTarget).toMatchObject({ title: "Confirm", parentId: modalState.parentId || null });
+    expect(modalTarget).toMatchObject({ title: "Bestätigen", parentId: modalState.parentId || null });
     const app = appFrame(page);
-    await app.getByRole("button", { name: "Open dialog" }).click();
-    await expect(app.locator(`dialog.modal[open] button[data-transition-id="${modalTransition.id}"]`, { hasText: "Confirm" })).toBeVisible();
+    await app.getByRole("button", { name: "Dialog öffnen" }).click();
+    await expect(app.locator(`dialog.modal[open] button[data-transition-id="${modalTransition.id}"]`, { hasText: "Bestätigen" })).toBeVisible();
     await app.locator(`dialog.modal[open] button[data-transition-id="${modalTransition.id}"]`).click();
     await expect(app.locator("#statePill")).toHaveText(modalTarget.id);
   });
@@ -7184,14 +7184,14 @@ test.describe("State Blueprint tool", () => {
     const navbarTransitions = model.transitions
       .filter(transition => transition.from === navbarState.id)
       .sort((a, b) => a.label.localeCompare(b.label));
-    expect(navbarTransitions.map(transition => transition.label)).toEqual(["Dashboard", "Projects", "Settings"]);
-    const projectsTransition = navbarTransitions.find(transition => transition.label === "Projects");
+    expect(navbarTransitions.map(transition => transition.label)).toEqual(["Dashboard", "Einstellungen", "Projekte"]);
+    const projectsTransition = navbarTransitions.find(transition => transition.label === "Projekte");
     const projectsTarget = model.states.find(state => state.id === projectsTransition.to);
     expect(projectsTransition.set).toEqual({
-      [`states.${navbarState.id}.selected`]: "Projects",
-      [`states.${navbarState.id}.lastAction`]: "Projects"
+      [`states.${navbarState.id}.selected`]: "Projekte",
+      [`states.${navbarState.id}.lastAction`]: "Projekte"
     });
-    expect(projectsTarget).toMatchObject({ title: "Projects", parentId: navbarState.parentId || null });
+    expect(projectsTarget).toMatchObject({ title: "Projekte", parentId: navbarState.parentId || null });
     const app = appFrame(page);
     await expect(app.locator(".navbar button[data-transition-id]")).toHaveCount(3);
     await app.locator(`.navbar button[data-transition-id="${projectsTransition.id}"]`).click();
@@ -7213,8 +7213,8 @@ test.describe("State Blueprint tool", () => {
       .filter(transition => transition.from === cartState.id)
       .sort((a, b) => a.label.localeCompare(b.label));
 
-    expect(searchTransitions.map(transition => transition.label)).toEqual(["Logout", "Profile", "Settings"]);
-    expect(cartTransitions.map(transition => transition.label)).toEqual(["Logout", "Profile", "Settings", "View cart"]);
+    expect(searchTransitions.map(transition => transition.label)).toEqual(["Abmelden", "Einstellungen", "Profil"]);
+    expect(cartTransitions.map(transition => transition.label)).toEqual(["Abmelden", "Einstellungen", "Profil", "Warenkorb ansehen"]);
     for (const transition of [...searchTransitions, ...cartTransitions]) {
       const source = transition.from === searchState.id ? searchState : cartState;
       expect(model.states.find(state => state.id === transition.to)).toMatchObject({
@@ -7285,25 +7285,25 @@ test.describe("State Blueprint tool", () => {
     let navbar = app.locator(".navbar").first();
     await navbar.locator(".dropdown.dropdown-end [role='button']").click();
     await expect(navbar.locator(".dropdown-content button[data-transition-id]")).toHaveCount(3);
-    await expect(navbar.locator(".dropdown-content button[data-transition-id]")).toHaveText(["Profile", "Settings", "Logout"]);
+    await expect(navbar.locator(".dropdown-content button[data-transition-id]")).toHaveText(["Profil", "Einstellungen", "Abmelden"]);
     await expectOpenNavbarDropdownsToFlow(1);
-    const settingsTransition = searchTransitions.find(transition => transition.label === "Settings");
+    const settingsTransition = searchTransitions.find(transition => transition.label === "Einstellungen");
     await navbar.locator(`button[data-transition-id="${settingsTransition.id}"]`).click();
     await expect(app.locator("#statePill")).toHaveText(settingsTransition.to);
 
     await page.locator(`[data-id="${cartState.id}"] .node-edit`).click({ force: true });
     await expect(page.locator("#pTitle")).toHaveValue("Navbar Shop/Warenkorb");
     navbar = app.locator(".navbar").first();
-    const viewCartTransition = cartTransitions.find(transition => transition.label === "View cart");
+    const viewCartTransition = cartTransitions.find(transition => transition.label === "Warenkorb ansehen");
     await navbar.locator(".dropdown.dropdown-end").first().locator("[role='button']").click();
     await expect(navbar.locator(".card.dropdown-content button[data-transition-id]")).toHaveCount(1);
-    await expect(navbar.locator(".card.dropdown-content button[data-transition-id]")).toHaveText("View cart");
+    await expect(navbar.locator(".card.dropdown-content button[data-transition-id]")).toHaveText("Warenkorb ansehen");
     await expect(navbar.locator(`.card.dropdown-content button[data-transition-id="${viewCartTransition.id}"]`)).toBeVisible();
     await expectOpenNavbarDropdownsToFlow(1);
     await navbar.locator(".dropdown.dropdown-end").nth(1).locator("[role='button']").click();
     await expect(navbar.locator(".menu.dropdown-content button[data-transition-id]")).toHaveCount(3);
-    await expect(navbar.locator(".menu.dropdown-content button[data-transition-id]")).toHaveText(["Profile", "Settings", "Logout"]);
-    await expect(navbar.locator(".menu.dropdown-content button", { hasText: "View cart" })).toHaveCount(0);
+    await expect(navbar.locator(".menu.dropdown-content button[data-transition-id]")).toHaveText(["Profil", "Einstellungen", "Abmelden"]);
+    await expect(navbar.locator(".menu.dropdown-content button", { hasText: "Warenkorb ansehen" })).toHaveCount(0);
     await expectOpenNavbarDropdownsToFlow(2);
   });
 
@@ -7704,26 +7704,26 @@ test.describe("State Blueprint tool", () => {
     });
     expect(heroState.data[scopePath]).toMatchObject({
       layout: "overlay",
-      actionLabel: "Start planning"
+      actionLabel: "Planung starten"
     });
 
-    const transition = model.transitions.find(item => item.from === heroState.id && item.label === "Start planning");
+    const transition = model.transitions.find(item => item.from === heroState.id && item.label === "Planung starten");
     expect(transition).toBeTruthy();
     expect(transition.set).toEqual({ [`${scopePath}.clicked`]: true });
     const app = appFrame(page);
     await expect(app.locator(".hero.min-h-screen .hero-overlay")).toBeVisible();
     await expect(app.locator(".hero.min-h-screen .hero-content.text-neutral-content.text-center")).toBeVisible();
-    await expect(app.locator(`.hero button[data-transition-id="${transition.id}"]`, { hasText: "Start planning" })).toBeVisible();
+    await expect(app.locator(`.hero button[data-transition-id="${transition.id}"]`, { hasText: "Planung starten" })).toBeVisible();
     await expect(app.locator("#screen > h1")).toHaveCount(0);
 
     await addComponentState(page, "Hero mit Bild rechts");
     const reverseModel = await savedModel(page);
     const reverseState = reverseModel.states.find(state => state.title === "Hero mit Bild rechts");
     expect(reverseState.data[`states.${reverseState.id}`]).toMatchObject({ layout: "figure-reverse" });
-    const reverseTransition = reverseModel.transitions.find(item => item.from === reverseState.id && item.label === "Review plan");
+    const reverseTransition = reverseModel.transitions.find(item => item.from === reverseState.id && item.label === "Plan prüfen");
     expect(reverseTransition).toBeTruthy();
     await expect(app.locator(".hero-content.flex-col.lg\\:flex-row-reverse img.max-w-sm.rounded-lg.shadow-2xl")).toBeVisible();
-    await expect(app.locator(`.hero button[data-transition-id="${reverseTransition.id}"]`, { hasText: "Review plan" })).toBeVisible();
+    await expect(app.locator(`.hero button[data-transition-id="${reverseTransition.id}"]`, { hasText: "Plan prüfen" })).toBeVisible();
   });
 
   test("runs while loops as conditional self-transitions with a normal exit", async ({ page }) => {
@@ -7795,16 +7795,16 @@ test.describe("State Blueprint tool", () => {
     const contentListDataPath = `${contentListFetchPath}.data`;
     await openRepeatEditor(page);
     await expect(page.locator("#pRepeatPath")).toHaveValue(contentListDataPath);
-    await expect(dataRenderRows(page).filter({ hasText: "Field: Image" })).toBeVisible();
-    await expect(dataRenderRows(page).filter({ hasText: "Field: Title" })).toBeVisible();
-    await expect(dataRenderRows(page).filter({ hasText: "Field: Description" })).toBeVisible();
-    await expect(dataRenderRows(page).filter({ hasText: "Field: Price" })).toBeVisible();
+    await expect(dataRenderRows(page).filter({ hasText: "Field: Bild" })).toBeVisible();
+    await expect(dataRenderRows(page).filter({ hasText: "Field: Titel" })).toBeVisible();
+    await expect(dataRenderRows(page).filter({ hasText: "Field: Beschreibung" })).toBeVisible();
+    await expect(dataRenderRows(page).filter({ hasText: "Field: Preis" })).toBeVisible();
 
     const app = appFrame(page);
-    await expect(app.getByRole("heading", { name: "Starter plan" })).toBeVisible();
-    await expect(app.getByText("A clear offer card with image, title, summary, and price.")).toBeVisible();
-    await expect(app.getByText("Price: EUR 29")).toBeVisible();
-    await expect(app.getByRole("heading", { name: "Team workshop" })).toBeVisible();
+    await expect(app.getByRole("heading", { name: "Starter-Paket" })).toBeVisible();
+    await expect(app.getByText("Eine klare Angebotskarte mit Bild, Titel, Kurztext und Preis.")).toBeVisible();
+    await expect(app.getByText("Preis: EUR 29")).toBeVisible();
+    await expect(app.getByRole("heading", { name: "Team-Workshop" })).toBeVisible();
     await expect(app.locator(".component-image")).toHaveCount(2);
 
     const model = await savedModel(page);
@@ -11446,7 +11446,7 @@ test.describe("State Blueprint tool", () => {
     }).not.toBe("");
 
     await expect(appFrame(page).locator("#statePill")).toHaveText(createdId);
-    await expectRenderedBreadcrumbs(appFrame(page), ["Home", "Projects", "Current"]);
+    await expectRenderedBreadcrumbs(appFrame(page), ["Start", "Projekte", "Aktuell"]);
   });
 
   test("previews a built-in preset on single click and restores the generated app on state selection @smoke", async ({ page }) => {
