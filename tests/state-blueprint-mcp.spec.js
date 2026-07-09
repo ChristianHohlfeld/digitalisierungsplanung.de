@@ -108,7 +108,11 @@ test.describe("State Blueprint MCP", () => {
 
     for (const tool of tools) expect(apiDoc).toContain(tool);
     for (const action of actions) expect(apiDoc).toContain(action);
+    expect(apiDoc).toContain("`realtime`");
+    expect(apiDoc).toContain("triggerType");
+    expect(apiDoc).toContain("model.realtime");
     expect(mcpDoc).toContain("state-blueprint-api.md");
+    expect(mcpDoc).toContain('triggerType: "realtime"');
     expect(readme).toContain("docs/state-blueprint-api.md");
   });
 
@@ -247,6 +251,105 @@ test.describe("State Blueprint MCP", () => {
 
       const promptIntents = await client.request("resources/read", { uri: "state-blueprint://prompt-intents" });
       expect(promptIntents.contents[0].text).toContain("füge timer hinzu");
+    } finally {
+      await client.close();
+      try { fs.unlinkSync(modelPath); } catch (_) {}
+    }
+  });
+
+  test("keeps MCP realtime transitions conformant without local marketplace contracts @smoke", async () => {
+    const tempDir = path.join(process.cwd(), "tmp", "mcp-tests");
+    fs.mkdirSync(tempDir, { recursive: true });
+    const modelPath = path.join(tempDir, `realtime-workspace-${Date.now()}.json`);
+    const client = createMcpClient(modelPath);
+
+    try {
+      await client.request("initialize", {
+        protocolVersion: "2025-11-25",
+        capabilities: {},
+        clientInfo: { name: "state-blueprint-mcp-test", version: "1.0.0" }
+      });
+
+      const applied = await client.request("tools/call", {
+        name: "state_blueprint_apply_actions",
+        arguments: {
+          actions: [
+            { type: "create_flow", name: "Realtime MCP Flow" },
+            { type: "upsert_state", id: "waiting", title: "Waiting", x: 96, y: 120 },
+            { type: "upsert_state", id: "live_call", title: "Live call", x: 360, y: 120 },
+            { type: "upsert_data_wire", stateId: "waiting", id: "wire_realtime_status", sourcePath: "realtime.connected", role: "field", componentType: "text", label: "Realtime connected" },
+            { type: "add_component", stateId: "waiting", component: { id: "realtime_status", type: "dataWire", wireId: "wire_realtime_status" } },
+            {
+              type: "upsert_transition",
+              id: "call_incoming",
+              from: "waiting",
+              to: "live_call",
+              label: "Incoming call",
+              triggerType: "realtime",
+              triggerEvent: "realtime.sip.call.incoming",
+              condition: "events.realtime.sip.call.incoming.count > 0 && realtime.connected == true",
+              set: {
+                "realtime.lastHandledCall": "incoming",
+                "events.realtime.sip.call.incoming.ack": true,
+                handled: true
+              }
+            },
+            { type: "set_initial", stateId: "waiting" }
+          ]
+        }
+      });
+
+      expect(applied.structuredContent.validation.ok).toBe(true);
+      const stored = JSON.parse(fs.readFileSync(modelPath, "utf8")).model;
+      expect(stored.realtime).toBeUndefined();
+      expect(stored.states.find(state => state.id === "waiting").dataWires).toEqual([
+        expect.objectContaining({ id: "wire_realtime_status", sourcePath: "realtime.connected" })
+      ]);
+      expect(stored.transitions.find(transition => transition.id === "call_incoming")).toEqual(expect.objectContaining({
+        triggerType: "realtime",
+        triggerEvent: "realtime.sip.call.incoming",
+        condition: "events.realtime.sip.call.incoming.count > 0 && realtime.connected == true",
+        set: {
+          "realtime.lastHandledCall": "incoming",
+          "events.realtime.sip.call.incoming.ack": true,
+          "states.waiting.handled": true
+        }
+      }));
+
+      const replaced = await client.request("tools/call", {
+        name: "state_blueprint_replace_model",
+        arguments: {
+          model: {
+            ...stored,
+            realtime: {
+              events: [{
+                name: "realtime.sip.call.incoming",
+                label: "Should not persist"
+              }]
+            }
+          }
+        }
+      });
+      expect(replaced.structuredContent.validation.ok).toBe(true);
+      const replacedStored = JSON.parse(fs.readFileSync(modelPath, "utf8")).model;
+      expect(replacedStored.realtime).toBeUndefined();
+      expect(replacedStored.transitions.find(transition => transition.id === "call_incoming").triggerType).toBe("realtime");
+
+      const exported = await client.request("tools/call", {
+        name: "state_blueprint_export_definition",
+        arguments: {}
+      });
+      expect(exported.structuredContent.model.realtime).toBeUndefined();
+      expect(exported.structuredContent.model.transitions.find(transition => transition.id === "call_incoming")).toMatchObject({
+        triggerType: "realtime",
+        triggerEvent: "realtime.sip.call.incoming"
+      });
+
+      const catalog = await client.request("tools/call", {
+        name: "state_blueprint_action_catalog",
+        arguments: {}
+      });
+      expect(JSON.stringify(catalog.structuredContent.actions)).toContain("triggerType=realtime");
     } finally {
       await client.close();
       try { fs.unlinkSync(modelPath); } catch (_) {}

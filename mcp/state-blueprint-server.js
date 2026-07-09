@@ -170,7 +170,7 @@ const tools = [
       actions: {
         type: "array",
         items: actionSchema,
-        description: "Actions are applied in dependency order so declared states exist before transitions. Supported types include create_flow, set_model_name, upsert_state, delete_state, move_state, set_initial, upsert_transition, delete_transition, upsert_state_variable, delete_state_variable, configure_fetch, configure_repeat, upsert_data_wire, remove_data_wire, add_component, update_component, remove_component, reorder_components, set_boundary, upsert_editor_group, delete_editor_group."
+        description: "Actions are applied in dependency order so declared states exist before transitions. Supported types include create_flow, set_model_name, upsert_state, delete_state, move_state, set_initial, upsert_transition, delete_transition, upsert_state_variable, delete_state_variable, configure_fetch, configure_repeat, upsert_data_wire, remove_data_wire, add_component, update_component, remove_component, reorder_components, set_boundary, upsert_editor_group, delete_editor_group. upsert_transition accepts triggerType values button, change, event, realtime, timer, and auto."
       },
       dryRun: { type: "boolean", description: "Validate and return the result without writing to disk." },
       allowInvalid: { type: "boolean", description: "Return invalid results for diagnostics instead of rejecting." }
@@ -238,7 +238,7 @@ const actionCatalog = [
   ["delete_editor_group", "Remove an editor group without deleting member states or transitions."],
   ["move_state", "Move a state on the canvas using snapped world coordinates."],
   ["set_initial", "Set the initial state."],
-  ["upsert_transition", "Create or update an explicit transition in one layer with trigger, condition, timer, and set patch."],
+  ["upsert_transition", "Create or update an explicit transition in one layer with trigger, condition, timer, and set patch. Realtime transitions store only triggerType=realtime and a concrete realtime.* triggerEvent ref."],
   ["delete_transition", "Delete one transition without deleting connected states."],
   ["upsert_state_variable", "Write a state.data default and state.dataTypes entry. Runtime still uses the global bus as truth."],
   ["delete_state_variable", "Remove a state.data default/type and stale render wires for that path."],
@@ -447,6 +447,7 @@ function readResource(uri) {
           "- State variables are declared as `state.data` plus `state.dataTypes`; they are defaults, not local runtime storage.",
           "- Render data is expressed as `dataWires` and structured components, never as hidden HTML blobs or component-local stores.",
           "- Transition triggers, conditions, timers, and `set` patches live on transitions.",
+          "- Realtime marketplace data is not copied into the model; transitions keep only concrete `realtime.*` refs.",
           "- Nested flows use boundary input/output references and proxy transitions instead of cross-layer direct wires.",
           "- Tools apply actions in the order given and validate before writing."
         ].join("\n")
