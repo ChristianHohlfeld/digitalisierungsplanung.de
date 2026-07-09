@@ -1,6 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
 const test = require("node:test");
 const WebSocket = require("ws");
 const {
@@ -11,6 +12,7 @@ const {
 
 const ORIGIN = "https://digitalisierungsplanung.de";
 const SECRET = "test-room-secret";
+const NGINX_CONFIG_PATH = `${__dirname}/nginx/realtime.digitalisierungsplanung.de.conf`;
 
 function socketUrl(realtime) {
   const { port } = realtime.address();
@@ -297,6 +299,23 @@ test("serves a marketplace html explorer backed by live catalog endpoints", asyn
     assert.match(html, /"\/state-schema"/);
     assert.match(html, /fetchJson\(paths\.marketplace\)/);
   });
+});
+
+test("nginx proxies all public realtime catalog routes", () => {
+  const nginx = fs.readFileSync(NGINX_CONFIG_PATH, "utf8");
+  const normalized = nginx.replace(/\\\./g, ".");
+  for (const route of [
+    "console.html",
+    "marketplace.html",
+    "marketplace",
+    "presets",
+    "endpoints",
+    "state-schema"
+  ]) {
+    assert.ok(normalized.includes(route), `${route} route is missing`);
+  }
+  assert.match(nginx, /location \^~ \/presets\//);
+  assert.match(nginx, /proxy_pass\s+http:\/\/127\.0\.0\.1:8788;/);
 });
 
 test("serves a stateless event console for catalogued test emits", async () => {
