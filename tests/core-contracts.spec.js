@@ -448,6 +448,233 @@ test.describe("Core source contracts", () => {
     await expect(app.locator("#statePill")).toHaveText("start");
   });
 
+  test("daisy flow controls use ids as binding and text only as display across widgets @smoke", async ({ page }) => {
+    const transitionId = "to_next";
+    const visibleText = "Visible action";
+    const transitionLabel = "Internal transition label";
+    const cases = [
+      {
+        name: "button",
+        variant: "button",
+        data: { label: visibleText, clicked: false },
+        bind: data => ({ ...data, transitionId })
+      },
+      {
+        name: "card",
+        variant: "card",
+        data: { title: "Card", body: "Card body", actionLabel: visibleText, clicked: false },
+        bind: data => ({ ...data, transitionId })
+      },
+      {
+        name: "hero",
+        variant: "hero",
+        data: { layout: "centered", title: "Hero", body: "Hero body", actionLabel: visibleText, clicked: false },
+        bind: data => ({ ...data, transitionId })
+      },
+      {
+        name: "modal",
+        variant: "modal",
+        data: { open: true, confirmed: false, openLabel: "Open dialog", title: "Dialog", body: "Dialog body", actionLabel: visibleText, closeLabel: "Close" },
+        bind: data => ({ ...data, transitionId })
+      },
+      {
+        name: "feature-grid",
+        variant: "feature-grid",
+        data: { eyebrow: "Features", heading: "Feature grid", body: "Body", selected: "", items: [{ title: "Feature", body: "Feature body", actionLabel: visibleText, features: [] }] },
+        bind: data => ({ ...data, items: data.items.map(item => ({ ...item, transitionId })) })
+      },
+      {
+        name: "pricing",
+        variant: "pricing",
+        data: { selectedPlan: "", plans: [{ title: "Team", price: "$49", period: "/mo", body: "Plan body", features: [], actionLabel: visibleText }] },
+        bind: data => ({ ...data, plans: data.plans.map(plan => ({ ...plan, transitionId })) })
+      },
+      {
+        name: "breadcrumbs",
+        variant: "breadcrumbs",
+        data: { items: [{ label: visibleText }, { label: "Current" }] },
+        bind: data => ({ ...data, items: data.items.map((item, index) => index === 0 ? { ...item, transitionId } : item) })
+      },
+      {
+        name: "footer",
+        variant: "footer",
+        data: { brand: "Brand", note: "Footer note", columns: [{ title: "Links", items: [{ label: visibleText }] }] },
+        bind: data => ({ ...data, columns: data.columns.map(column => ({ ...column, items: column.items.map(item => ({ ...item, transitionId })) })) })
+      },
+      {
+        name: "menu",
+        variant: "menu",
+        data: { selected: "", items: [{ label: visibleText }] },
+        bind: data => ({ ...data, items: data.items.map(item => ({ ...item, transitionId })) })
+      },
+      {
+        name: "dropdown",
+        variant: "dropdown",
+        data: { selected: "", open: true, options: [{ label: visibleText }] },
+        bind: data => ({ ...data, options: data.options.map(item => ({ ...item, transitionId })) })
+      },
+      {
+        name: "bottom-navigation",
+        variant: "bottom-navigation",
+        data: { selected: "", items: [{ label: visibleText }] },
+        bind: data => ({ ...data, items: data.items.map(item => ({ ...item, transitionId })) })
+      },
+      {
+        name: "drawer",
+        variant: "drawer",
+        data: { selected: "", open: true, items: [{ label: visibleText }] },
+        bind: data => ({ ...data, items: data.items.map(item => ({ ...item, transitionId })) })
+      },
+      {
+        name: "steps",
+        variant: "steps",
+        data: { current: visibleText, items: [{ label: visibleText, description: "Step detail" }] },
+        bind: data => ({ ...data, items: data.items.map(item => ({ ...item, transitionId })) })
+      },
+      {
+        name: "tabs",
+        variant: "tabs",
+        data: { selected: visibleText, items: [{ label: visibleText }] },
+        bind: data => ({ ...data, items: data.items.map(item => ({ ...item, transitionId })) })
+      },
+      {
+        name: "navbar-menu",
+        variant: "navbar",
+        data: { layout: "menu-submenu", brand: "Brand", selected: "", items: [{ label: visibleText }], submenu: [], parent: "", submenuOpen: false },
+        bind: data => ({ ...data, items: data.items.map(item => ({ ...item, transitionId })) })
+      },
+      {
+        name: "navbar-search",
+        variant: "navbar",
+        data: { layout: "search-dropdown", brand: "Brand", selected: "", search: "", menuItems: [{ label: visibleText }] },
+        bind: data => ({ ...data, menuItems: data.menuItems.map(item => ({ ...item, transitionId })) })
+      },
+      {
+        name: "navbar-cart",
+        variant: "navbar",
+        data: { layout: "cart-profile", brand: "Brand", selected: "", actionLabel: visibleText, cartOpen: true, profileOpen: true, menuItems: [{ label: "Profile" }] },
+        bind: data => ({ ...data, transitionId })
+      },
+      {
+        name: "checkbox",
+        variant: "checkbox",
+        data: { label: "Accept", checked: false, submitted: false, actionLabel: visibleText },
+        bind: data => ({ ...data, transitionId })
+      },
+      {
+        name: "toggle",
+        variant: "toggle",
+        data: { label: "Enable", checked: false, submitted: false, actionLabel: visibleText },
+        bind: data => ({ ...data, transitionId })
+      }
+    ];
+    const clone = value => JSON.parse(JSON.stringify(value));
+    const modelFor = (spec, data) => ({
+      version: 2,
+      name: `ID binding ${spec.name}`,
+      initial: "start",
+      states: [
+        {
+          id: "start",
+          title: "Start",
+          x: 120,
+          y: 160,
+          components: [{
+            id: `widget_${spec.name.replace(/[^a-z0-9]+/g, "_")}`,
+            type: "daisy",
+            variant: spec.variant,
+            dataPath: "states.start.widget",
+            dataRole: "widget",
+            dataLabel: spec.name
+          }],
+          data: { "states.start.widget": data }
+        },
+        {
+          id: "next",
+          title: "Next",
+          x: 480,
+          y: 160,
+          components: [],
+          data: {}
+        }
+      ],
+      transitions: [{
+        id: transitionId,
+        from: "start",
+        to: "next",
+        label: transitionLabel,
+        triggerType: "button",
+        triggerEvent: `button.${transitionId}.clicked`,
+        set: { "states.start.widget.touched": true }
+      }]
+    });
+    const transitionMarkers = async app => app.locator("body").evaluate((_, id) =>
+      [...document.querySelectorAll("[data-transition-id]")]
+        .filter(element => element.dataset.transitionId === id)
+        .map(element => ({
+          text: (element.textContent || "").trim(),
+          inFallbackActions: Boolean(element.closest(".actions")),
+          inWidget: !element.closest(".actions")
+        })),
+      transitionId
+    );
+    const matrixModelSlot = "__stateBlueprintIdBindingMatrixModel";
+    await page.addInitScript(({ key, slot }) => {
+      const raw = sessionStorage.getItem(slot);
+      if (!raw) return;
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(key, raw);
+    }, { key: STORAGE_KEY, slot: matrixModelSlot });
+    let matrixPageReady = false;
+    const loadMatrixModel = async model => {
+      if (!matrixPageReady) {
+        await page.goto("/state.html");
+        matrixPageReady = true;
+      }
+      await page.evaluate(({ slot, model }) => {
+        sessionStorage.setItem(slot, JSON.stringify(model));
+      }, { slot: matrixModelSlot, model });
+      await page.goto("/state.html");
+      await expect(appFrame(page).locator("#statePill")).toHaveText(model.initial);
+      await expect(appFrame(page).locator(".component-stack")).toBeAttached();
+    };
+
+    for (const spec of cases) {
+      await test.step(`${spec.name}: visible text alone is not a binding`, async () => {
+        await loadMatrixModel(modelFor(spec, clone(spec.data)));
+        const markers = await transitionMarkers(appFrame(page));
+        expect(markers.filter(marker => marker.inWidget), spec.name).toEqual([]);
+        const visibleButtons = appFrame(page).getByRole("button", { name: visibleText, exact: true });
+        const firstVisibleButton = visibleButtons.first();
+        if (await visibleButtons.count() && await firstVisibleButton.isEnabled()) {
+          await firstVisibleButton.click();
+          await expect(appFrame(page).locator("#statePill")).toHaveText("start");
+        }
+      });
+
+      await test.step(`${spec.name}: explicit id is the binding`, async () => {
+        await loadMatrixModel(modelFor(spec, spec.bind(clone(spec.data))));
+        let markers = [];
+        await expect.poll(async () => {
+          markers = await transitionMarkers(appFrame(page));
+          return markers.filter(marker => marker.inWidget).length;
+        }, { message: `${spec.name}: waits for explicit transition marker` }).toBeGreaterThan(0);
+        const widgetMarkers = markers.filter(marker => marker.inWidget);
+        expect(widgetMarkers, `${spec.name}: ${JSON.stringify(markers)}`).not.toEqual([]);
+        expect(widgetMarkers.some(marker => marker.text.includes(visibleText)), `${spec.name}: ${JSON.stringify(markers)}`).toBe(true);
+        expect(widgetMarkers.some(marker => marker.text.includes(transitionLabel)), `${spec.name}: ${JSON.stringify(markers)}`).toBe(false);
+        expect(markers.filter(marker => marker.inFallbackActions), `${spec.name}: ${JSON.stringify(markers)}`).toEqual([]);
+        const transitionControl = appFrame(page).locator(`[data-transition-id="${transitionId}"]`).first();
+        if (await transitionControl.isVisible()) {
+          await transitionControl.click();
+          await expect(appFrame(page).locator("#statePill")).toHaveText("next");
+        }
+      });
+    }
+  });
+
   test("formal definitions reject state and transition id collisions @smoke", async ({ page }) => {
     await page.goto("/state.html");
 
