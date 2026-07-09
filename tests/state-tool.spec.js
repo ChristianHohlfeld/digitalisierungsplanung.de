@@ -1712,6 +1712,14 @@ test.describe("State Blueprint tool", () => {
     await expect(page.getByRole("dialog", { name: "Hauptseiten-Demo" })).toBeHidden();
     await expect(page.locator('[data-id="startseite"]')).toBeVisible();
     await expect(appFrame(page).locator("#statePill")).toHaveText("startseite");
+    await expect(appFrame(page).locator(".daisy-feature-image")).toHaveCount(3);
+    await expect.poll(async () => appFrame(page).locator(".daisy-feature-image").evaluateAll(images =>
+      images.map(image => image.src)
+    )).toEqual([
+      expect.stringMatching(/^https?:\/\/[^/]+\/assets\/landing-understand-business\.png$/),
+      expect.stringMatching(/^https?:\/\/[^/]+\/assets\/landing-model-business\.png$/),
+      expect.stringMatching(/^https?:\/\/[^/]+\/assets\/landing-automate-business\.png$/)
+    ]);
     await expect.poll(async () => {
       const model = await savedModel(page);
       return {

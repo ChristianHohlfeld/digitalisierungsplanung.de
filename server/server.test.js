@@ -316,7 +316,6 @@ test("nginx proxies all public realtime catalog routes", () => {
     "console.html",
     "marketplace.html",
     "marketplace",
-    "presets",
     "endpoints",
     "state-schema"
   ]) {

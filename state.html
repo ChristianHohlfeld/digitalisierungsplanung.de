@@ -4900,7 +4900,16 @@
       if (!raw || /^https?:\\/\\/?$/i.test(raw)) return "";
       if (/^https?:\\/\\//i.test(raw)) return raw;
       if (/^data:image\\/(?:png|jpe?g|gif|webp|svg\\+xml);base64,/i.test(raw)) return raw;
-      if (/^(?:\\/assets\\/|\\.\\/assets\\/|assets\\/)[^\\s<>"']*$/i.test(raw)) return raw;
+      if (/^(?:\\/assets\\/|\\.\\/assets\\/|assets\\/)[^\\s<>"']*$/i.test(raw)) {
+        try {
+          const base = location.protocol === "blob:" && location.origin && location.origin !== "null"
+            ? location.origin + "/"
+            : document.baseURI;
+          return new URL(raw, base).href;
+        } catch (_) {
+          return raw;
+        }
+      }
       return "";
     }
 
@@ -4909,7 +4918,10 @@
       if (!raw || /[\\s<>"']/.test(raw)) return "";
       if (/^https?:\\/\\//i.test(raw)) return raw;
       if (/^(?:mailto:|tel:)[^\\s<>"']+$/i.test(raw)) return raw;
-      if (/^(?:\\.\\/|\\/)?(?:state\\.html|index\\.html)(?:[?#][^\\s<>"']*)?$/i.test(raw)) return raw;
+      if (/^(?:\\.\\/|\\/)?(?:state\\.html|index\\.html)(?:[?#][^\\s<>"']*)?$/i.test(raw)) {
+        if (location.protocol !== "blob:" || !location.origin || location.origin === "null") return raw;
+        try { return new URL(raw, location.origin + "/").href; } catch (_) { return raw; }
+      }
       if (/^#[A-Za-z0-9_-]+$/.test(raw)) return raw;
       return "";
     }`;
