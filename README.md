@@ -88,12 +88,14 @@ Der optionale Realtime-Server in `server/` ist nur Transport fuer Runtime-Events
 - Token-Endpunkt: `https://realtime.digitalisierungsplanung.de/token`
 - Provider-Contract: `https://realtime.digitalisierungsplanung.de/events`
 - Server-to-server Fire-Endpunkt: `https://realtime.digitalisierungsplanung.de/emit`
+- Test-Konsole: `https://realtime.digitalisierungsplanung.de/console.html`
 - Aktivierung im Editor: `state.html?room=<room-id>`
 - Zwischen Clients werden nur `realtime.*` Events weitergereicht.
 
 Realtime erzeugt keine zweite Wahrheit. Der Provider-Contract aus `/events` wird in `model.realtime.events` importiert und beschreibt Eventnamen, Detail-Felder und eindeutige Bindings in den globalen JSON-State. Eingehende Nachrichten werden als `STATE_BLUEPRINT_REALTIME_EVENT` an die generierte Runtime gegeben, schreiben dort erst in den JSON-Bus und koennen nur dann Transitions bewegen. Der Host behandelt Runtime-Kontext weiter nur als read-only Snapshot.
 
 Server-to-server Emit ist stateless: `/emit` persistiert keine Call-Objekte und haelt keinen fachlichen Zustand. Es akzeptiert nur angebotene Events aus dem Provider-Contract und broadcastet die Event-Instanz in den Room.
+Im State-Editor kann der Server-Contract bei `Realtime event` mit `Reload server events` erneut aus `/events` geladen werden.
 
 Beispiel:
 
@@ -115,6 +117,12 @@ curl -X POST https://realtime.digitalisierungsplanung.de/emit \
   -H "authorization: Bearer $REALTIME_EMIT_SECRET" \
   -H "content-type: application/json" \
   -d '{"roomId":"demo","name":"realtime.sip.call.incoming","detail":{"caller":"+491234","callee":"100","callId":"abc-123"}}'
+```
+
+CLI-Smoke:
+
+```bash
+npm run server:smoke:emit -- --room-id=demo --name=realtime.sip.call.incoming --detail='{"caller":"+491234","callee":"100","callId":"abc-123"}'
 ```
 
 ## MCP/API

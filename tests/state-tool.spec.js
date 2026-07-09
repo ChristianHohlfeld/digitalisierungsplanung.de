@@ -6404,6 +6404,7 @@ test.describe("State Blueprint tool", () => {
   });
 
   test("imports realtime provider events as model contract @smoke", async ({ page }) => {
+    let catalogVersion = 1;
     await page.route("https://realtime.digitalisierungsplanung.de/events", route => route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -6419,7 +6420,16 @@ test.describe("State Blueprint tool", () => {
               { from: "detail.caller", to: "realtime.sip.call.incoming.caller", type: "text" },
               { from: "detail.callId", to: "realtime.sip.call.incoming.callId", type: "text" }
             ]
-          }
+          },
+          ...(catalogVersion > 1 ? [{
+            name: "realtime.sip.call.answered",
+            label: "Call answered",
+            detail: { callId: "text", agent: "text" },
+            bindings: [
+              { from: "detail.callId", to: "realtime.sip.call.answered.callId", type: "text" },
+              { from: "detail.agent", to: "realtime.sip.call.answered.agent", type: "text" }
+            ]
+          }] : [])
         ]
       })
     }));
@@ -6443,6 +6453,8 @@ test.describe("State Blueprint tool", () => {
     await page.locator("#pStateTriggerType").selectOption("realtime");
     await expect(page.locator("#pStateTriggerEvent")).toBeVisible();
     await expect(page.locator("#pStateTriggerEvent")).toHaveValue("realtime.sip.call.incoming");
+    await expect(page.locator("#pStateTriggerEventImport")).toBeVisible();
+    await expect(page.locator("#pStateTriggerEventImport")).toHaveText("Reload server events");
     await expect.poll(async () => {
       const model = await savedModel(page);
       const transition = model.transitions.find(item => item.id === "t_auth_login");
@@ -6454,6 +6466,17 @@ test.describe("State Blueprint tool", () => {
       triggerType: "realtime",
       triggerEvent: "realtime.sip.call.incoming"
     });
+
+    catalogVersion = 2;
+    await page.locator("#pStateTriggerEventImport").click();
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return (model.realtime?.events || []).map(event => event.name);
+    }).toEqual([
+      "realtime.sip.call.incoming",
+      "realtime.sip.call.answered"
+    ]);
+    await expect(page.locator("#pStateTriggerEvent")).toContainText("Call answered - realtime.sip.call.answered");
   });
 
   test("normalizes bus-event transitions away from owned runtime event namespaces @smoke", async ({ page }) => {

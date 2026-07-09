@@ -11,6 +11,7 @@ const DEFAULT_PATH = "/ws";
 const DEFAULT_TOKEN_PATH = "/token";
 const DEFAULT_EVENTS_PATH = "/events";
 const DEFAULT_EMIT_PATH = "/emit";
+const DEFAULT_CONSOLE_PATH = "/console.html";
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 8788;
 const MAX_ID_LENGTH = 128;
@@ -76,6 +77,188 @@ const MESSAGE_TYPES = new Set([
   "runtime.event"
 ]);
 const TRANSIENT_TYPES = new Set(["presence.cursor"]);
+const CONSOLE_HTML = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Realtime Event Console</title>
+  <style>
+    :root { color-scheme: dark; --bg: #07111d; --panel: #0b1b2a; --line: #20425f; --text: #e6f2ff; --muted: #9fb6cc; --accent: #38bdf8; --ok: #34d399; --bad: #fb7185; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--text); }
+    main { width: min(920px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 40px; }
+    header { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+    h1 { margin: 0; font-size: 28px; line-height: 1.1; }
+    .status { color: var(--muted); font-size: 13px; }
+    form, .result { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); padding: 16px; }
+    form { display: grid; gap: 14px; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+    input, select, textarea, button { width: 100%; border: 1px solid var(--line); border-radius: 6px; background: #06111f; color: var(--text); font: inherit; }
+    input, select { height: 42px; padding: 0 10px; }
+    textarea { min-height: 160px; padding: 10px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 13px; line-height: 1.45; }
+    button { height: 42px; padding: 0 14px; border-color: #23729b; background: #0b3a55; color: #dff7ff; font-weight: 900; cursor: pointer; }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    .actions { display: flex; gap: 10px; align-items: center; }
+    .actions button { width: auto; min-width: 120px; }
+    .hint { color: var(--muted); font-size: 13px; line-height: 1.45; }
+    .result { margin-top: 14px; white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 13px; line-height: 1.45; }
+    .ok { color: var(--ok); }
+    .bad { color: var(--bad); }
+    a { color: var(--accent); text-decoration: none; font-weight: 800; }
+    @media (max-width: 720px) { .grid, header { grid-template-columns: 1fr; display: grid; } .actions { display: grid; } .actions button { width: 100%; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Realtime Event Console</h1>
+        <div class="status" id="status">Loading provider contract...</div>
+      </div>
+      <a id="stateLink" href="https://digitalisierungsplanung.de/state.html?room=smoke" target="_blank" rel="noreferrer">Open state room</a>
+    </header>
+    <form id="emitForm">
+      <div class="grid">
+        <label>Room ID<input id="roomId" name="roomId" autocomplete="off" value="smoke"></label>
+        <label>Client ID<input id="clientId" name="clientId" autocomplete="off" value="console"></label>
+      </div>
+      <label>Event<select id="eventName" name="eventName"></select></label>
+      <label>Detail JSON<textarea id="detail" name="detail" spellcheck="false">{}</textarea></label>
+      <label>Emit Secret<input id="secret" name="secret" type="password" autocomplete="off" placeholder="REALTIME_EMIT_SECRET"></label>
+      <div class="actions">
+        <button id="send" type="submit">Emit event</button>
+        <button id="reload" type="button">Reload contract</button>
+      </div>
+      <div class="hint">Events come from <code>/events</code>. The secret stays in this browser field and is sent only as the Bearer token for <code>/emit</code>.</div>
+    </form>
+    <div id="result" class="result">No event emitted yet.</div>
+  </main>
+  <script>
+    const statusEl = document.getElementById("status");
+    const resultEl = document.getElementById("result");
+    const eventSelect = document.getElementById("eventName");
+    const detailEl = document.getElementById("detail");
+    const roomEl = document.getElementById("roomId");
+    const clientEl = document.getElementById("clientId");
+    const secretEl = document.getElementById("secret");
+    const sendEl = document.getElementById("send");
+    const stateLinkEl = document.getElementById("stateLink");
+    let catalog = null;
+
+    function setResult(message, ok = true) {
+      resultEl.classList.toggle("ok", ok);
+      resultEl.classList.toggle("bad", !ok);
+      resultEl.textContent = message;
+    }
+
+    function sampleValue(path, type) {
+      const key = String(path || "").toLowerCase();
+      if (key.includes("caller")) return "+491234";
+      if (key.includes("callee")) return "100";
+      if (key.includes("callid") || key.includes("call_id")) return "call-" + Date.now();
+      if (type === "number") return 1;
+      if (type === "boolean") return true;
+      if (type === "object") return {};
+      if (type === "list") return [];
+      return "";
+    }
+
+    function detailForEvent(event) {
+      const detail = {};
+      for (const [path, type] of Object.entries(event?.detail || {})) {
+        detail[path] = sampleValue(path, type);
+      }
+      return detail;
+    }
+
+    function selectedEvent() {
+      return (catalog?.events || []).find(event => event.name === eventSelect.value) || null;
+    }
+
+    function syncDetail() {
+      detailEl.value = JSON.stringify(detailForEvent(selectedEvent()), null, 2);
+    }
+
+    function syncStateLink() {
+      const roomId = encodeURIComponent(roomEl.value.trim() || "smoke");
+      stateLinkEl.href = "https://digitalisierungsplanung.de/state.html?room=" + roomId;
+    }
+
+    async function loadCatalog() {
+      statusEl.textContent = "Loading provider contract...";
+      eventSelect.innerHTML = "";
+      const response = await fetch("/events", { cache: "no-store" });
+      if (!response.ok) throw new Error("events failed with status " + response.status);
+      catalog = await response.json();
+      for (const event of catalog.events || []) {
+        const option = document.createElement("option");
+        option.value = event.name;
+        option.textContent = (event.label || event.name) + " - " + event.name;
+        eventSelect.appendChild(option);
+      }
+      if (!eventSelect.options.length) throw new Error("provider contract has no events");
+      statusEl.textContent = "Loaded " + eventSelect.options.length + " contract event(s).";
+      syncDetail();
+      syncStateLink();
+    }
+
+    async function emitEvent(event) {
+      event.preventDefault();
+      const roomId = roomEl.value.trim();
+      const clientId = clientEl.value.trim() || "console";
+      const name = eventSelect.value;
+      const secret = secretEl.value.trim();
+      if (!roomId || !name || !secret) {
+        setResult("roomId, event and secret are required.", false);
+        return;
+      }
+      let detail;
+      try {
+        detail = JSON.parse(detailEl.value || "{}");
+        if (!detail || typeof detail !== "object" || Array.isArray(detail)) throw new Error("detail must be an object");
+      } catch (error) {
+        setResult("Invalid detail JSON: " + error.message, false);
+        return;
+      }
+      sendEl.disabled = true;
+      try {
+        const response = await fetch("/emit", {
+          method: "POST",
+          headers: {
+            "authorization": "Bearer " + secret,
+            "content-type": "application/json"
+          },
+          body: JSON.stringify({ roomId, clientId, name, detail })
+        });
+        const payload = await response.json().catch(() => ({}));
+        setResult(JSON.stringify({ status: response.status, ...payload }, null, 2), response.ok);
+      } catch (error) {
+        setResult("Emit failed: " + error.message, false);
+      } finally {
+        sendEl.disabled = false;
+      }
+    }
+
+    new URLSearchParams(location.search).forEach((value, key) => {
+      if (key === "room") roomEl.value = value;
+      if (key === "client") clientEl.value = value;
+    });
+    roomEl.addEventListener("input", syncStateLink);
+    eventSelect.addEventListener("change", syncDetail);
+    document.getElementById("reload").addEventListener("click", () => loadCatalog().catch(error => {
+      statusEl.textContent = "Contract load failed.";
+      setResult(error.message, false);
+    }));
+    document.getElementById("emitForm").addEventListener("submit", emitEvent);
+    loadCatalog().catch(error => {
+      statusEl.textContent = "Contract load failed.";
+      setResult(error.message, false);
+    });
+  </script>
+</body>
+</html>`;
 
 function parseList(value, fallback = []) {
   if (Array.isArray(value)) return value.map(String).map(item => item.trim()).filter(Boolean);
@@ -115,6 +298,7 @@ function loadConfig(options = {}) {
     tokenPath: options.tokenPath || env.REALTIME_TOKEN_PATH || DEFAULT_TOKEN_PATH,
     eventsPath: options.eventsPath || env.REALTIME_EVENTS_PATH || DEFAULT_EVENTS_PATH,
     emitPath: options.emitPath || env.REALTIME_EMIT_PATH || DEFAULT_EMIT_PATH,
+    consolePath: options.consolePath || env.REALTIME_CONSOLE_PATH || DEFAULT_CONSOLE_PATH,
     allowedOrigins: parseList(
       options.allowedOrigins ?? env.REALTIME_ALLOWED_ORIGINS,
       DEFAULT_ALLOWED_ORIGINS
@@ -295,6 +479,19 @@ function writeJson(response, statusCode, payload, headers = {}) {
   response.end(body);
 }
 
+function writeHtml(response, statusCode, body, headers = {}) {
+  response.writeHead(statusCode, {
+    "content-type": "text/html; charset=utf-8",
+    "cache-control": "no-store",
+    "content-security-policy": "default-src 'none'; connect-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    "x-content-type-options": "nosniff",
+    "referrer-policy": "no-referrer",
+    "content-length": Buffer.byteLength(body),
+    ...headers
+  });
+  response.end(body);
+}
+
 function bearerToken(request) {
   const header = String(request.headers.authorization || "");
   const match = header.match(/^Bearer\s+(.+)$/i);
@@ -450,8 +647,9 @@ function createRealtimeServer(options = {}) {
   const offeredEventNames = new Set(config.eventCatalog.events.map(event => event.name));
   const rooms = new Map();
   const isOriginAllowed = origin => allowedOrigins.has("*") || allowedOrigins.has(origin);
-  const corsHeadersForOrigin = origin => {
-    if (!origin || !isOriginAllowed(origin)) return null;
+  const isSamePublicOrigin = (origin, request) => Boolean(origin) && origin === publicBaseUrl(request);
+  const corsHeadersForOrigin = (origin, request) => {
+    if (!origin || !isOriginAllowed(origin) && !isSamePublicOrigin(origin, request)) return null;
     return {
       "access-control-allow-origin": allowedOrigins.has("*") ? "*" : origin,
       "access-control-allow-methods": "GET, POST, OPTIONS",
@@ -467,9 +665,13 @@ function createRealtimeServer(options = {}) {
       writeJson(response, 200, { ok: true, rooms: rooms.size, clients });
       return;
     }
+    if (request.method === "GET" && url.pathname === config.consolePath) {
+      writeHtml(response, 200, CONSOLE_HTML);
+      return;
+    }
     if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.eventsPath) {
       const origin = request.headers.origin || "";
-      const headers = origin ? corsHeadersForOrigin(origin) : {};
+      const headers = origin ? corsHeadersForOrigin(origin, request) : {};
       if (!headers) {
         writeJson(response, 403, { error: "origin_not_allowed" });
         return;
@@ -487,7 +689,7 @@ function createRealtimeServer(options = {}) {
       return;
     }
     if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.tokenPath) {
-      const headers = corsHeadersForOrigin(request.headers.origin || "");
+      const headers = corsHeadersForOrigin(request.headers.origin || "", request);
       if (!headers) {
         writeJson(response, 403, { error: "origin_not_allowed" });
         return;
@@ -569,7 +771,7 @@ function createRealtimeServer(options = {}) {
 
   async function handleEmitRequest(request, response) {
     const origin = request.headers.origin || "";
-    const headers = origin ? corsHeadersForOrigin(origin) : {};
+    const headers = origin ? corsHeadersForOrigin(origin, request) : {};
     if (!headers) {
       writeJson(response, 403, { error: "origin_not_allowed" });
       return;

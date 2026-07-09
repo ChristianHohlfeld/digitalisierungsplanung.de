@@ -17928,6 +17928,7 @@
       model.realtime = normalizeRealtimeConfig(model.realtime);
       list.innerHTML = "";
       const events = realtimeEventCatalog();
+      serverPreset.textContent = events.length ? "Reload server events" : "Import server events";
       if (!events.length) {
         const empty = document.createElement("div");
         empty.className = "state-variable-empty";
@@ -19714,7 +19715,10 @@
           stateTriggerEventLabel.textContent = "Realtime / WSS event";
           if (current.startsWith("realtime.")) addOption(current, current);
           realtimeEventCatalog().forEach(event => addOption(event.name, event.label ? `${event.label} - ${event.name}` : event.name));
-          if (stateTriggerEventImport) stateTriggerEventImport.hidden = realtimeEventCatalog().length > 0;
+          if (stateTriggerEventImport) {
+            stateTriggerEventImport.hidden = false;
+            stateTriggerEventImport.textContent = realtimeEventCatalog().length ? "Reload server events" : "Import server events";
+          }
         }
         stateTriggerEvent.innerHTML = "";
         options.forEach(optionConfig => {

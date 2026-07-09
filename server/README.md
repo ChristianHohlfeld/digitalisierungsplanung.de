@@ -6,6 +6,7 @@ WebSocket relay for `state.html` realtime canvas/runtime events.
 
 - Public endpoint: `wss://realtime.digitalisierungsplanung.de/ws`
 - Token endpoint: `https://realtime.digitalisierungsplanung.de/token`
+- Test console: `https://realtime.digitalisierungsplanung.de/console.html`
 - Local process: `127.0.0.1:8788`
 - Allowed browser origin: `https://digitalisierungsplanung.de`
 - Room auth: signed HMAC room token via `REALTIME_ROOM_SECRET`
@@ -50,6 +51,8 @@ Use a matching transition in the model:
 triggerType: realtime
 triggerEvent: realtime.canvas.pulse
 ```
+
+Open `https://realtime.digitalisierungsplanung.de/console.html?room=<room-id>` for a browser test emitter. The console loads event names and detail fields from `/events`, then POSTs to `/emit` with the Bearer secret you paste into the page. It stores no server-side state.
 
 ## Droplet Deploy
 

@@ -193,6 +193,44 @@ test("serves the realtime provider event contract to allowed origins", async () 
   });
 });
 
+test("serves a stateless event console for catalogued test emits", async () => {
+  await withRealtimeServer({ roomSecret: SECRET, emitSecret: "emit-secret" }, async realtime => {
+    const consoleResponse = await fetch(httpUrl(realtime, "/console.html"));
+    assert.equal(consoleResponse.status, 200);
+    assert.match(consoleResponse.headers.get("content-type") || "", /text\/html/);
+    const html = await consoleResponse.text();
+    assert.match(html, /Realtime Event Console/);
+    assert.match(html, /fetch\("\/events"/);
+    assert.match(html, /fetch\("\/emit"/);
+    assert.doesNotMatch(html, /emit-secret/);
+
+    const socket = await connectClient(realtime, { clientId: "alice" });
+    const runtimeEvent = nextMessage(socket, message => message.type === "runtime.event");
+    const origin = httpUrl(realtime, "");
+    const response = await fetch(httpUrl(realtime, "/emit"), {
+      method: "POST",
+      headers: {
+        authorization: "Bearer emit-secret",
+        "content-type": "application/json",
+        origin
+      },
+      body: JSON.stringify({
+        roomId: "room",
+        clientId: "console",
+        name: "realtime.sip.call.incoming",
+        detail: { caller: "+491234", callee: "100", callId: "console-123" }
+      })
+    });
+    assert.equal(response.status, 202);
+    assert.equal(response.headers.get("access-control-allow-origin"), origin);
+
+    const received = await runtimeEvent;
+    assert.equal(received.clientId, "console");
+    assert.equal(received.name, "realtime.sip.call.incoming");
+    assert.deepEqual(received.detail, { caller: "+491234", callee: "100", callId: "console-123" });
+  });
+});
+
 test("relays runtime events to peers without echoing them to the sender", async () => {
   await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
     const alice = await connectClient(realtime, { clientId: "alice" });
