@@ -10521,6 +10521,15 @@
       return "";
     }
 
+    function defaultRealtimeTransitionEvent(transition) {
+      return "realtime." + eventSegment(transition?.id || transition?.label || "transition") + ".fired";
+    }
+
+    function transitionUsesRealtimeEvent(transition) {
+      return normalizeTransitionTriggerType(transition) === "event" &&
+        normalizeTransitionEvent(transition?.triggerEvent || "").startsWith("realtime.");
+    }
+
     function normalizeTransitionTriggerEvent(transition) {
       const triggerType = normalizeTransitionTriggerType(transition);
       const rawTriggerEvent = normalizeTransitionEvent(transition?.triggerEvent || "");
@@ -18692,6 +18701,7 @@
                   <option value="api">API response ok</option>
                   <option value="change">Data changes</option>
                   <option value="event">Bus event</option>
+                  <option value="realtime">Realtime event</option>
                   <option value="auto">Immediately</option>
                 </select></div>
                 <div class="field" id="pStateTriggerTimerField"><label>Delay ms</label><input id="pStateTriggerTimer" type="number" min="100" max="300000" step="100" placeholder="2000"></div>
@@ -19153,7 +19163,11 @@
         normalizeTransitionTriggerType(transition) === "change" &&
         normalizeTransitionEvent(transition?.triggerEvent || "") === `change.${stateFlowFetchTargetPath()}.ok` &&
         String(transition?.condition || "").trim() === stateFlowApiCondition();
-      const stateFlowTriggerMode = transition => stateFlowIsApiTrigger(transition) ? "api" : normalizeTransitionTriggerType(transition);
+      const stateFlowTriggerMode = transition => {
+        if (stateFlowIsApiTrigger(transition)) return "api";
+        if (transitionUsesRealtimeEvent(transition)) return "realtime";
+        return normalizeTransitionTriggerType(transition);
+      };
       const clearStateFlowApiCondition = transition => {
         if (String(transition?.condition || "").trim() === stateFlowApiCondition()) transition.condition = "";
       };
@@ -19264,6 +19278,7 @@
             : `Moves when ${stateFlowFetchTargetPath()}.ok becomes true. Add a URL or pasted response in Data.`,
           change: selectedTransition.triggerEvent ? `Listens to ${selectedTransition.triggerEvent}.` : "Listens to a data-change bus event.",
           event: selectedTransition.triggerEvent ? `Listens to ${selectedTransition.triggerEvent}.` : "Listens to an explicit bus event.",
+          realtime: selectedTransition.triggerEvent ? `Listens to ${selectedTransition.triggerEvent} from the realtime room.` : "Listens to a realtime room event.",
           auto: "Moves immediately on entry."
         };
         stateTriggerPreview.className = "condition-preview ok";
@@ -19302,6 +19317,13 @@
           transition.triggerEvent = /^(button|change|timer|auto)\./i.test(existingEvent)
             ? `event.${eventSegment(transition.id || transition.label || "transition")}.fired`
             : normalizeTransitionEvent(existingEvent || `event.${eventSegment(transition.id || transition.label || "transition")}.fired`);
+          clearStateFlowApiCondition(transition);
+        } else if (mode === "realtime") {
+          transition.triggerType = "event";
+          const existingEvent = normalizeTransitionEvent(transition.triggerEvent || "");
+          transition.triggerEvent = existingEvent.startsWith("realtime.")
+            ? existingEvent
+            : defaultRealtimeTransitionEvent(transition);
           clearStateFlowApiCondition(transition);
         } else if (mode === "auto") {
           transition.triggerType = "auto";
@@ -20531,7 +20553,7 @@
         <h3>Transition</h3>
         <div class="small"><b>${escapeHtml(fromLabel)}</b> → <b>${escapeHtml(toLabel)}</b></div>
         <div class="field"><label>Button label</label><input id="pLabel"></div>
-        <div class="field"><label>Starts when</label><select id="pTriggerType"><option value="button">Button is clicked</option><option value="change">Data value changes</option><option value="event">App event happens</option><option value="timer">After a delay</option><option value="auto">Immediately</option></select></div>
+        <div class="field"><label>Starts when</label><select id="pTriggerType"><option value="button">Button is clicked</option><option value="change">Data value changes</option><option value="event">App event happens</option><option value="realtime">Realtime event happens</option><option value="timer">After a delay</option><option value="auto">Immediately</option></select></div>
         <div class="data-source-panel transition-rule-panel">
           <div class="small"><b>Rule</b><br><span>Choose what must be true before this transition can continue.</span></div>
           <div class="transition-rule-grid">
@@ -20626,11 +20648,11 @@
       const setVariableAdd = root.querySelector("#pSetVariableAdd");
       const rawSetCard = root.querySelector("#pTransitionRawSetCard");
       label.value = transitionDisplayLabel(t);
-      triggerType.value = normalizeTransitionTriggerType(t);
+      triggerType.value = transitionUsesRealtimeEvent(t) ? "realtime" : normalizeTransitionTriggerType(t);
       triggerEvent.value = t.triggerEvent || "";
       triggerTimer.value = String(normalizeTransitionTimerMs(t.timerMs));
       appendStateVariableTypeOptions(setVariableType, "text");
-      const triggerSuggestions = new Set(["*", "state.current", defaultTransitionEvent(t)]);
+      const triggerSuggestions = new Set(["*", "state.current", defaultTransitionEvent(t), defaultRealtimeTransitionEvent(t)]);
       const sourceState = byId(t.from);
       normalizeSubscriptions(sourceState?.subscriptions).forEach(path => { triggerSuggestions.add(path); if (path !== "*") triggerSuggestions.add("change." + path); });
       conditionDataSuggestions(t).forEach(item => { triggerSuggestions.add(item.path); if (item.path !== "*") triggerSuggestions.add("change." + item.path); });
@@ -20641,6 +20663,7 @@
         if (clean === "change.state.current") return "Current screen changes";
         if (clean.startsWith("change.")) return dataPathLabel(clean.slice("change.".length), "Value") + " changes";
         if (clean.startsWith("event.")) return "Bus event";
+        if (clean.startsWith("realtime.")) return "Realtime event";
         if (clean.startsWith("button.")) return "Button click";
         return dataPathLabel(clean, "Event");
       };
@@ -21155,9 +21178,12 @@
       updateConditionPreview();
       updateSetPreview(true);
       function persistTrigger() {
-        const nextType = normalizeTransitionTriggerType({ triggerType: triggerType.value });
-        t.triggerType = nextType;
-        t.triggerEvent = normalizeTransitionTriggerEvent({ ...t, triggerEvent: triggerEvent.value });
+        const selectedTriggerType = String(triggerType.value || "button");
+        t.triggerType = selectedTriggerType === "realtime" ? "event" : normalizeTransitionTriggerType({ triggerType: selectedTriggerType });
+        const requestedTriggerEvent = selectedTriggerType === "realtime" && !normalizeTransitionEvent(triggerEvent.value || "").startsWith("realtime.")
+          ? defaultRealtimeTransitionEvent(t)
+          : triggerEvent.value;
+        t.triggerEvent = normalizeTransitionTriggerEvent({ ...t, triggerEvent: requestedTriggerEvent });
         triggerEvent.value = t.triggerEvent;
         t.timerMs = normalizeTransitionTimerMs(triggerTimer.value);
         saveModel("edge:trigger:" + t.id);

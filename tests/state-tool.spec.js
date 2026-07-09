@@ -6239,6 +6239,23 @@ test.describe("State Blueprint tool", () => {
     await expect(appFrame(page).locator('button[data-transition-id="t_auth_login"]')).toHaveCount(0);
     await expect(appFrame(page).locator('button[data-transition-id="t_auth_register"]')).toBeVisible();
 
+    await triggerType.selectOption("realtime");
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      const transition = model.transitions.find(item => item.id === "t_auth_login");
+      return {
+        triggerType: transition?.triggerType,
+        triggerEvent: transition?.triggerEvent,
+        condition: transition?.condition
+      };
+    }).toEqual({
+      triggerType: "event",
+      triggerEvent: "realtime.t.auth.login.fired",
+      condition: ""
+    });
+    await expect(appFrame(page).locator('button[data-transition-id="t_auth_login"]')).toHaveCount(0);
+    await expect(page.locator("#pStateTriggerPreview")).toContainText("realtime.t.auth.login.fired");
+
     await triggerType.selectOption("button");
     await expect.poll(async () => {
       const model = await savedModel(page);
