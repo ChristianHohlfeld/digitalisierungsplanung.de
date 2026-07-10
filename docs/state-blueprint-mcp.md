@@ -1,12 +1,12 @@
-# State Blueprint MCP
+# Zustand MCP
 
-State Blueprint stellt einen lokalen MCP-Server bereit, damit externe Tools
-dasselbe kanonische Modell bearbeiten koennen wie der visuelle Editor.
+Zustand stellt einen lokalen MCP-Server bereit, damit externe Werkzeuge
+dasselbe kanonische Modell bearbeiten können wie der visuelle Editor.
 
-Der Server spricht JSON-RPC ueber stdio. Er klickt keine UI, haelt keinen zweiten
-Runtime-Store und schreibt erst nach Normalisierung und Vertragsvalidierung.
+Der Server spricht JSON-RPC über stdio. Er klickt keine UI, hält keinen zweiten
+Runtime-Speicher und schreibt erst nach Normalisierung und Vertragsvalidierung.
 
-Die vollstaendige API-Referenz mit Actions, Commands, Beispielen und
+Die vollständige API-Referenz mit Modellaktionen, Editorbefehlen, Beispielen und
 UI-zu-API-Zuordnung steht in [`state-blueprint-api.md`](./state-blueprint-api.md).
 
 ## Start
@@ -18,7 +18,7 @@ STATE_BLUEPRINT_MODEL_PATH=./state-blueprint.workspace.json npm run mcp:state
 Ohne `STATE_BLUEPRINT_MODEL_PATH` nutzt der Server
 `./state-blueprint.workspace.json`.
 
-## Tools
+## Werkzeuge
 
 - `state_blueprint_get_model`
 - `state_blueprint_replace_model`
@@ -33,29 +33,29 @@ Ohne `STATE_BLUEPRINT_MODEL_PATH` nutzt der Server
 - `state_blueprint_action_catalog`
 - `state_blueprint_command_catalog`
 
-`state_blueprint_apply_actions` ist die niedrige Modell-API. Sie fuehrt
-kanonische Modelloperationen aus, sortiert Abhaengigkeiten und validiert danach.
+`state_blueprint_apply_actions` ist die niedrige Modell-API. Sie führt
+kanonische Modelloperationen aus, sortiert Abhängigkeiten und validiert danach.
 
-`state_blueprint_apply_commands` ist die vollstaendige Editor-API. Sie kann alles
-ausfuehren, was ein User als App-Befehl ausloest: States, Transitions, Variablen,
-Widgets, Data-Wires, Boundary, Auswahl, Layer-Navigation, Viewport, Copy/Paste,
-Collapse/Degroup und Undo/Redo. Auch diese Commands laufen ueber das Modell und
-nicht ueber DOM-Klicks.
+`state_blueprint_apply_commands` ist die vollständige Editor-API. Sie kann alles
+ausführen, was ein Nutzer als App-Befehl auslöst: Zustände, Übergänge, Variablen,
+Bausteine, Datenverbindungen, Boundary, Auswahl, Ebenen-Navigation, Ansicht, Kopieren/Einfügen,
+Gruppieren/Auflösen und Undo/Redo. Auch diese Befehle laufen über das Modell und
+nicht über DOM-Klicks.
 
 ## Vertragsregeln
 
-- Single Source of Truth bleibt der globale JSON-State/Event-Bus.
-- Das persistierte Modell beschreibt States, Transitions, Render-Komponenten,
-  Data-Wires, Boundary und Editor-Session.
+- eine Wahrheit bleibt der globale JSON-Zustands-/Ereignisbus.
+- Das persistierte Modell beschreibt Zustände, Übergänge, Render-Komponenten,
+  Datenverbindungen, Boundary und Editor-Session.
 - Runtime-Daten werden nicht in Komponenten, HTML oder lokalen Stores versteckt.
-- UI-Aktionen feuern nur explizit gebundene Transitionen oder Bus-Events.
-- `transition.set` ist Wirkung nach einem Event, nicht die Quelle einer
-  Button-Bindung.
-- Realtime-Transitions speichern `triggerType: "realtime"` plus konkrete
-  `realtime.*`-Events; Event-Kataloge werden nicht ins Modell kopiert.
-- Nested Flow laeuft ueber Boundary-Input/Output und Proxy-Transitions.
+- UI-Aktionen feuern nur explizit gebundene Übergänge oder Bus-Ereignisse.
+- `transition.set` ist Wirkung nach einem Ereignis, nicht die Quelle einer
+  Schaltflächen-Bindung.
+- Realtime-Übergänge speichern `triggerType: "realtime"` plus konkrete
+  `realtime.*`-Ereignisse; Ereigniskataloge werden nicht ins Modell kopiert.
+- Verschachtelter Ablauf läuft über Boundary-Eingang/-Ausgang und Proxy-Übergänge.
 - Exportierte Definitionen enthalten keine Undo-Historie und keinen
-  Editor-Clipboard-Zustand.
+  Editor-Zwischenablage.
 
 ## MCP-Ressourcen
 
@@ -65,7 +65,7 @@ nicht ueber DOM-Klicks.
 - `state-blueprint://commands`
 - `state-blueprint://prompt-intents`
 
-## Beispiel: Modell-Actions
+## Beispiel: Modellaktionen
 
 ```json
 {
@@ -80,7 +80,7 @@ nicht ueber DOM-Klicks.
 }
 ```
 
-## Beispiel: Editor-Commands
+## Beispiel: Editorbefehle
 
 ```json
 {
@@ -89,7 +89,7 @@ nicht ueber DOM-Klicks.
     { "command": "state.create", "id": "start", "title": "Start", "x": 96, "y": 120 },
     { "command": "state.create", "id": "fertig", "title": "Fertig", "x": 456, "y": 120 },
     { "command": "transition.create", "id": "start_fertig", "from": "start", "to": "fertig", "label": "Weiter" },
-    { "command": "graph.insert_state_on_transition", "transitionId": "start_fertig", "stateId": "pruefen", "title": "Pruefen" },
+    { "command": "graph.insert_state_on_transition", "transitionId": "start_fertig", "stateId": "prüfen", "title": "Prüfen" },
     { "command": "viewport.fit", "viewportWidth": 1200, "viewportHeight": 800 }
   ]
 }

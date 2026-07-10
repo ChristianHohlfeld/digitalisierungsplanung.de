@@ -102,7 +102,7 @@ function buildStandaloneAppHtml(appHtml, payload) {
 function loadWorkspace() {
   const stored = readJsonFile(modelPath, null);
   if (!stored) return normalizeWorkspace({ model: blankModel("State App"), stateTemplates: [] });
-  if (stored.kind === "state-blueprint.definition") {
+  if (stored.kind === "state-blueprint-definition" || stored.kind === "state-blueprint.definition") {
     return normalizeWorkspace({
       model: normalizeModel(stored.model),
       stateTemplates: Array.isArray(stored.stateTemplates) ? stored.stateTemplates : [],
@@ -253,7 +253,7 @@ const tools = [
     name: "state_blueprint_import_definition",
     description: "Import a formal State Blueprint definition payload into the MCP workspace file.",
     inputSchema: jsonSchema({
-      definition: { type: "object", description: "Formal state-blueprint.definition JSON." }
+      definition: { type: "object", description: "Formal state-blueprint-definition JSON." }
     }, ["definition"])
   },
   {
@@ -399,8 +399,8 @@ function callTool(name, args = {}) {
   }
   if (name === "state_blueprint_import_definition") {
     const definition = args.definition || {};
-    if (definition.kind !== "state-blueprint.definition" || definition.schemaVersion !== 2) {
-      throw new Error('Import expects kind "state-blueprint.definition" with schemaVersion 2.');
+    if (definition.kind !== "state-blueprint-definition" || definition.schemaVersion !== 2) {
+      throw new Error('Import expects kind "state-blueprint-definition" with schemaVersion 2.');
     }
     const validation = validateModel(definition.model);
     if (!validation.ok) {

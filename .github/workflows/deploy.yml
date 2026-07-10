@@ -30,8 +30,8 @@ jobs:
           fi
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
-      - name: Run smoke tests
-        run: npm test
+      - name: Run full contract tests
+        run: npm run test:full
       - name: Bump service worker deploy stamp
         if: github.ref == 'refs/heads/main'
         env:

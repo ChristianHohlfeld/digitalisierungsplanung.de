@@ -55,7 +55,7 @@ Der ausführliche Vertrag steht in [`statereadme.md`](statereadme.md).
 `state.html` enthält:
 
 - Arbeitsfläche für Zustände und Übergänge
-- Zustand-Inspektor für Daten, Auslöser, Darstellung und Verbindungen
+- Eigenschaften für Daten, Auslöser, Darstellung und Verbindungen
 - App-Vorschau
 - Vorlagen für häufige Oberflächenbausteine
 - verschachtelte Zustände mit Eingang und Ausgang

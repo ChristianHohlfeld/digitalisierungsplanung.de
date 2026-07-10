@@ -1,21 +1,21 @@
 # Zustand API-Referenz
 
-Dieses Dokument beschreibt den Automatisierungs-Vertrag fuer Zustand /
+Dieses Dokument beschreibt den Automatisierungs-Vertrag für Zustand /
 Digitalisierungsplanung. Die API bearbeitet dasselbe kanonische JSON-Modell wie
-der visuelle Editor. Sie klickt keine DOM-Elemente, haelt keinen zweiten
-Runtime-Store und erzeugt keinen versteckten lokalen Zustand.
+der visuelle Editor. Sie klickt keine DOM-Elemente, hält keinen zweiten
+Runtime-Speicher und erzeugt keinen versteckten lokalen Zustand.
 
 ## Kernregel
 
 Es gibt genau eine Wahrheit:
 
 ```text
-State-Blueprint-JSON-Modell -> globaler JSON-State/Event-Bus -> FSM-Runtime
+Zustand-JSON-Modell -> globaler JSON-Zustands-/Ereignisbus -> FSM-Runtime
 ```
 
-API-Aufrufe duerfen das Modell veraendern. Runtime-Werte entstehen in der
-generierten App ueber den Bus. Komponenten sind nur Views und explizite
-Event-Oberflaechen ueber diesem Bus.
+API-Aufrufe dürfen das Modell verändern. Runtime-Werte entstehen in der
+generierten App über den Bus. Komponenten sind nur Ansichten und explizite
+Ereignisoberflächen über diesem Bus.
 
 ## MCP-Server Starten
 
@@ -26,7 +26,7 @@ STATE_BLUEPRINT_MODEL_PATH=./state-blueprint.workspace.json npm run mcp:state
 Ohne `STATE_BLUEPRINT_MODEL_PATH` liest und schreibt der Server
 `./state-blueprint.workspace.json`.
 
-Der Server spricht MCP JSON-RPC ueber stdio. Jede Antwort liefert JSON-Text in
+Der Server spricht MCP JSON-RPC über stdio. Jede Antwort liefert JSON-Text in
 `content[0].text` und denselben Wert in `structuredContent`.
 
 Minimaler JSON-RPC-Aufruf:
@@ -35,47 +35,47 @@ Minimaler JSON-RPC-Aufruf:
 {"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"state_blueprint_validate","arguments":{}}}
 ```
 
-## Tools
+## Werkzeuge
 
-| Tool | Purpose |
+| Werkzeug | Zweck |
 | --- | --- |
 | `state_blueprint_get_model` | Liest das aktuelle kanonische Workspace-Modell. |
 | `state_blueprint_replace_model` | Ersetzt das ganze Modell nach Normalisierung und Validierung. |
-| `state_blueprint_apply_actions` | Fuehrt geordnete Modell-Actions atomar aus. |
-| `state_blueprint_apply_commands` | Fuehrt vollstaendige Editor-Commands aus: Modell, Auswahl, Layer, Viewport, Copy/Paste, Group/Degroup, Undo/Redo. |
-| `state_blueprint_plan_prompt` | Wandelt eine unterstuetzte Textanweisung in Actions um, ohne zu schreiben. |
-| `state_blueprint_apply_prompt` | Wandelt eine unterstuetzte Textanweisung in Actions um und wendet sie an. |
+| `state_blueprint_apply_actions` | Führt geordnete Modellaktionen atomar aus. |
+| `state_blueprint_apply_commands` | Führt vollständige Editorbefehle aus: Modell, Auswahl, Ebene, Ansicht, Kopieren/Einfügen, Gruppieren/Auflösen, Undo/Redo. |
+| `state_blueprint_plan_prompt` | Wandelt eine unterstützte Textanweisung in Modellaktionen um, ohne zu schreiben. |
+| `state_blueprint_apply_prompt` | Wandelt eine unterstützte Textanweisung in Modellaktionen um und wendet sie an. |
 | `state_blueprint_validate` | Validiert das Modell gegen den FSM-/Bus-Vertrag. |
 | `state_blueprint_export_definition` | Liefert die formale `.state.json`-Definition. |
 | `state_blueprint_import_definition` | Importiert eine formale `.state.json`-Definition. |
-| `state_blueprint_export_html` | Baut dieselbe standalone HTML-App wie der Editor-Export. |
-| `state_blueprint_action_catalog` | Liefert Modell-Action-Namen und Prompt-Beispiele. |
-| `state_blueprint_command_catalog` | Liefert alle programmatischen Editor-Commands. |
+| `state_blueprint_export_html` | Baut dieselbe eigenständige HTML-App wie der Editor-Export. |
+| `state_blueprint_action_catalog` | Liefert Modellaktionsnamen und Prompt-Beispiele. |
+| `state_blueprint_command_catalog` | Liefert alle programmatischen Editorbefehle. |
 
 ## Haupt-Schreibschnittstellen
 
-Nutze `state_blueprint_apply_actions`, wenn nur das kanonische Modell geaendert
+Nutze `state_blueprint_apply_actions`, wenn nur das kanonische Modell geändert
 werden soll.
 
 ```json
 {
   "actions": [
     { "type": "upsert_state", "id": "start", "title": "Start" },
-    { "type": "upsert_state", "id": "done", "title": "Done", "x": 360, "y": 120 },
-    { "type": "upsert_transition", "id": "start_to_done", "from": "start", "to": "done", "label": "Continue" }
+    { "type": "upsert_state", "id": "done", "title": "Fertig", "x": 360, "y": 120 },
+    { "type": "upsert_transition", "id": "start_to_done", "from": "start", "to": "done", "label": "Weiter" }
   ],
   "dryRun": false,
   "allowInvalid": false
 }
 ```
 
-Actions werden vor der Ausfuehrung in Abhaengigkeitsreihenfolge gebracht, damit
-States vor Transitions existieren. Das Ergebnis wird normalisiert und validiert,
+Modellaktionen werden vor der Ausführung in Abhängigkeitsreihenfolge gebracht, damit
+Zustände vor Übergängen existieren. Das Ergebnis wird normalisiert und validiert,
 bevor es geschrieben wird.
 
-Nutze `state_blueprint_apply_commands`, wenn ein externer Client die App wie ein
-User steuern soll, aber ohne DOM-Klicks. Commands laufen ueber dieselben
-Core-Funktionen wie die Modell-Actions und fuehren zusaetzlich Editor-Session-
+Nutze `state_blueprint_apply_commands`, wenn ein externe Anwendung die App wie ein
+Nutzer steuern soll, aber ohne DOM-Klicks. Befehle laufen über dieselben
+Kernfunktionen wie die Modellaktionen und führen zusätzlich Editor-Sitzungs-
 Aktionen aus.
 
 ```json
@@ -85,52 +85,52 @@ Aktionen aus.
     { "command": "state.create", "id": "start", "title": "Start", "x": 96, "y": 120 },
     { "command": "state.create", "id": "done", "title": "Fertig", "x": 456, "y": 120 },
     { "command": "transition.create", "id": "start_done", "from": "start", "to": "done", "label": "Weiter" },
-    { "command": "graph.insert_state_on_transition", "transitionId": "start_done", "stateId": "pruefen", "title": "Pruefen" },
+    { "command": "graph.insert_state_on_transition", "transitionId": "start_done", "stateId": "prüfen", "title": "Prüfen" },
     { "command": "viewport.fit", "viewportWidth": 1200, "viewportHeight": 800 }
   ]
 }
 ```
 
-Wichtige Commands:
+Wichtige Befehle:
 
-| Command | Zweck |
+| Befehl | Zweck |
 | --- | --- |
 | `scene.new`, `scene.rename`, `model.replace` | Szene neu anlegen, benennen oder komplett ersetzen. |
-| `state.create`, `state.upsert`, `state.move`, `state.delete`, `state.set_initial` | States erzeugen, bearbeiten, verschieben, loeschen und initial setzen. |
-| `transition.create`, `transition.update`, `transition.rewire`, `transition.delete` | Transitions erzeugen, bearbeiten, umverdrahten und loeschen. |
-| `variable.upsert`, `variable.delete` | State-gescopte Bus-Variablen anlegen oder entfernen. |
-| `fetch.configure`, `repeat.configure`, `wire.upsert`, `wire.remove` | Datenquelle, Wiederholung und Data-Wires konfigurieren. |
-| `component.add`, `component.update`, `component.remove`, `component.reorder` | Render-Komponenten und Widgets bearbeiten. |
+| `state.create`, `state.upsert`, `state.move`, `state.delete`, `state.set_initial` | Zustände erzeugen, bearbeiten, verschieben, löschen und initial setzen. |
+| `transition.create`, `transition.update`, `transition.rewire`, `transition.delete` | Übergänge erzeugen, bearbeiten, umverdrahten und löschen. |
+| `variable.upsert`, `variable.delete` | Zustandsbezogene Bus-Variablen anlegen oder entfernen. |
+| `fetch.configure`, `repeat.configure`, `wire.upsert`, `wire.remove` | Datenquelle, Wiederholung und Datenverbindungen konfigurieren. |
+| `component.add`, `component.update`, `component.remove`, `component.reorder` | Render-Komponenten und Bausteine bearbeiten. |
 | `boundary.set` | echte Boundary-/Proxy-Verbindungen setzen. |
 | `selection.set`, `selection.clear`, `selection.all` | Editor-Auswahl setzen. |
-| `layer.open`, `layer.back`, `layer.root` | Canvas-Layer navigieren. |
+| `layer.open`, `layer.back`, `layer.root` | Arbeitsebenen navigieren. |
 | `viewport.set_camera`, `viewport.reset`, `viewport.fit` | Pan/Zoom programmatisch setzen. |
 | `preview.set_collapsed`, `preview.pause`, `ui.set_panel` | Editor-UI-Zustand steuern. |
-| `graph.copy_selection`, `graph.paste`, `graph.duplicate_selection`, `graph.delete_selection` | Graph-Auswahl kopieren, einfuegen, duplizieren oder loeschen. |
-| `graph.collapse_to_parent`, `graph.degroup_parent` | States zu einem echten Parent-State gruppieren oder wieder aufloesen. |
-| `history.undo`, `history.redo` | Command-basierte Editor-Aenderungen rueckgaengig machen oder wiederholen. |
+| `graph.copy_selection`, `graph.paste`, `graph.duplicate_selection`, `graph.delete_selection` | Graph-Auswahl kopieren, einfügen, duplizieren oder löschen. |
+| `graph.collapse_to_parent`, `graph.degroup_parent` | Zustände zu einem echten Parent-Zustand gruppieren oder wieder auflösen. |
+| `history.undo`, `history.redo` | Befehlsbasierte Editor-Änderungen rückgängig machen oder wiederholen. |
 
-## Action Reference
+## Modellaktionen
 
 ### `create_flow`
 
-Clear the model and start fresh.
+Leert das Modell und startet frisch.
 
-Fields:
+Felder:
 
-| Field | Type | Required | Notes |
+| Feld | Typ | Erforderlich | Hinweise |
 | --- | --- | --- | --- |
-| `name` | string | no | Flow name. Defaults to `State App`. |
+| `name` | string | nein | Ablaufname. Standard ist `Unbenannter Ablauf`. |
 
-Example:
+Beispiel:
 
 ```json
-{ "type": "create_flow", "name": "Checkout Flow" }
+{ "type": "create_flow", "name": "Anfrageablauf" }
 ```
 
 ### `set_model_name`
 
-Rename the flow without changing states or transitions.
+Benennt den Ablauf um, ohne Zustände oder Übergänge zu ändern.
 
 ```json
 { "type": "set_model_name", "name": "Order intake" }
@@ -138,15 +138,15 @@ Rename the flow without changing states or transitions.
 
 ### `replace_model`
 
-Replace the whole canonical model. Use for complete imports or generated model
-rewrites. The model is normalized and validated.
+Ersetzt das ganze kanonische Modell. Das ist für vollständige Importe oder
+generierte Modellneubauten gedacht. Das Modell wird normalisiert und validiert.
 
 ```json
 {
   "type": "replace_model",
   "model": {
     "version": 2,
-    "name": "Tiny Flow",
+    "name": "Kleiner Ablauf",
     "initial": "start",
     "boundary": { "entryId": "start", "exitId": "start", "entryDisabled": false, "exitDisabled": false },
     "states": [{ "id": "start", "title": "Start", "x": 120, "y": 120, "components": [] }],
@@ -157,48 +157,48 @@ rewrites. The model is normalized and validated.
 
 ### `upsert_state` / `add_state`
 
-Create or update one state.
+Erzeugt oder aktualisiert einen Zustand.
 
-Fields:
+Felder:
 
-| Field | Type | Required | Notes |
+| Feld | Typ | Erforderlich | Hinweise |
 | --- | --- | --- | --- |
-| `id` | string | no | Stable state identity. Generated from title if omitted. |
-| `title` | string | no | Human label. |
-| `parentId` | string | no | Put state inside a parent layer. Omit or empty for root. |
-| `x`, `y` | number | no | Canvas world coordinates, snapped to grid. |
-| `renderMode` | `state` or `component` | no | Normal state screen or component-like state. |
-| `components` | array | no | Structured render rows. No `html`, `localState`, or hidden store fields. |
-| `data` | object | no | State-scoped defaults/shape for the global bus. |
-| `dataTypes` | object | no | Type declarations for paths present in `data`. |
-| `dataSource` | object | no | Fetch-on-enter configuration. |
-| `repeat` | object | no | List/repeat configuration. |
-| `dataWires` | array | no | Data-to-render mappings. |
-| `subscriptions` | array | no | Bus paths this state cares about. |
-| `boundary` | object | no | Child-layer entry/exit metadata. |
+| `id` | string | nein | Stabile Zustandsidentität. Wird aus dem Titel erzeugt, wenn sie fehlt. |
+| `title` | string | nein | Menschlich lesbarer Name. |
+| `parentId` | string | nein | Legt den Zustand in eine Parent-Ebene. Leer bedeutet Root. |
+| `x`, `y` | number | nein | Koordinaten auf der Arbeitsfläche, am Raster ausgerichtet. |
+| `renderMode` | `state` oder `component` | nein | Normale Zustandsansicht oder komponentenartiger Zustand. |
+| `components` | array | nein | Strukturierte Render-Zeilen. Keine `html`-, `localState`- oder versteckten Store-Felder. |
+| `data` | object | nein | Zustandsbezogene Vorgaben und Form für den globalen Bus. |
+| `dataTypes` | object | nein | Typdeklarationen für Pfade aus `data`. |
+| `dataSource` | object | nein | Fetch-beim-Betreten-Konfiguration. |
+| `repeat` | object | nein | Listen-/Wiederholungs-Konfiguration. |
+| `dataWires` | array | nein | Daten-zu-Darstellung-Zuordnungen. |
+| `subscriptions` | array | nein | Bus-Pfade, für die sich dieser Zustand interessiert. |
+| `boundary` | object | nein | Eingangs-/Ausgangsdaten für Kind-Ebenen. |
 
-Example: create a state with a text component.
+Beispiel: Zustand mit Textkomponente erzeugen.
 
 ```json
 {
   "type": "upsert_state",
   "id": "cart",
-  "title": "Cart",
+  "title": "Warenkorb",
   "x": 96,
   "y": 120,
   "components": [
-    { "id": "cart_intro", "type": "text", "text": "Review your order.", "url": "" }
+    { "id": "cart_intro", "type": "text", "text": "Bestellung prüfen.", "url": "" }
   ]
 }
 ```
 
-Example: create a child state.
+Beispiel: Kind-Zustand erzeugen.
 
 ```json
 {
   "type": "upsert_state",
   "id": "address_form",
-  "title": "Address form",
+  "title": "Adresse",
   "parentId": "checkout",
   "x": 120,
   "y": 120
@@ -221,7 +221,7 @@ Delete a state. Descendants and connected transitions are removed by default.
 { "type": "delete_state", "id": "cart" }
 ```
 
-To delete only the state itself:
+Nur den Zustand selbst löschen:
 
 ```json
 { "type": "delete_state", "id": "cart", "deleteDescendants": false }
@@ -229,7 +229,7 @@ To delete only the state itself:
 
 ### `set_initial`
 
-Set the initial runtime state.
+Setzt den initialen Runtime-Zustand.
 
 ```json
 { "type": "set_initial", "stateId": "cart" }
@@ -242,20 +242,20 @@ in the same layer. Cross-layer flow must use boundary input/output references.
 
 Fields:
 
-| Field | Type | Required | Notes |
+| Feld | Typ | Erforderlich | Hinweise |
 | --- | --- | --- | --- |
-| `id` | string | no | Stable transition identity. |
-| `from` | state id | yes | Source state. |
-| `to` | state id | yes | Target state. |
-| `label` | string | no | Button/edge label. |
-| `triggerType` | `button`, `change`, `event`, `realtime`, `timer`, `auto` | no | Defaults to `button`. |
-| `triggerEvent` | string | no | Explicit event name. Generated for button/timer/auto if omitted. Realtime transitions keep a concrete `realtime.*` event ref. |
-| `timerMs` | number | no | Used by timer transitions. |
-| `condition` | string | no | Guard expression over bus paths. |
-| `set` | object | no | Patch written to the global bus on transition. |
-| `groupEntryId`, `groupExitId` | state id | no | Editor group projection hints, not runtime state. |
+| `id` | string | nein | Stabile Übergangsidentität. |
+| `from` | Zustands-ID | ja | Quellzustand. |
+| `to` | Zustands-ID | ja | Zielzustand. |
+| `label` | string | nein | Beschriftung für Schaltfläche oder Kante. |
+| `triggerType` | `button`, `change`, `event`, `realtime`, `timer`, `auto` | nein | Standard ist `button`. |
+| `triggerEvent` | string | nein | Expliziter Ereignisname. Wird für Schaltfläche/Timer/Auto erzeugt, wenn leer. Realtime-Übergänge behalten eine konkrete `realtime.*`-Referenz. |
+| `timerMs` | number | nein | Dauer für Timer-Übergänge. |
+| `condition` | string | nein | Bedingung über Bus-Pfade. |
+| `set` | object | nein | Patch, der beim Übergang in den globalen Bus geschrieben wird. |
+| `groupEntryId`, `groupExitId` | Zustands-ID | nein | Editor-Projektionshinweise, kein Runtime-Zustand. |
 
-Button transition:
+Schaltflächen-Übergang:
 
 ```json
 {
@@ -263,13 +263,13 @@ Button transition:
   "id": "cart_to_shipping",
   "from": "cart",
   "to": "shipping",
-  "label": "Checkout",
+  "label": "Zur Kasse",
   "triggerType": "button",
   "set": { "checkoutStarted": true }
 }
 ```
 
-Timer transition:
+Timer-Übergang:
 
 ```json
 {
@@ -277,14 +277,14 @@ Timer transition:
   "id": "loading_to_done",
   "from": "loading",
   "to": "done",
-  "label": "Loaded",
+  "label": "Geladen",
   "triggerType": "timer",
   "timerMs": 2000,
   "set": { "loaded": true }
 }
 ```
 
-Bus-change transition:
+Bus-Änderungs-Übergang:
 
 ```json
 {
@@ -292,7 +292,7 @@ Bus-change transition:
   "id": "valid_to_next",
   "from": "form",
   "to": "summary",
-  "label": "Continue",
+  "label": "Weiter",
   "triggerType": "change",
   "triggerEvent": "change.states.form.accepted",
   "condition": "accepted == true"
@@ -302,7 +302,7 @@ Bus-change transition:
 Short state-scoped paths such as `accepted` are normalized to
 `states.<source-state-id>.accepted`.
 
-Realtime transition:
+Realtime-Übergang:
 
 ```json
 {
@@ -310,7 +310,7 @@ Realtime transition:
   "id": "call_to_live",
   "from": "waiting",
   "to": "live_call",
-  "label": "Incoming call",
+  "label": "Eingehender Anruf",
   "triggerType": "realtime",
   "triggerEvent": "realtime.sip.call.incoming",
   "condition": "events.realtime.sip.call.incoming.count > 0"
@@ -331,7 +331,7 @@ removed.
 
 ### `upsert_state_variable`
 
-Declare or update a state-scoped variable in the global bus tree.
+Deklariert oder aktualisiert eine zustandsbezogene Variable im globalen Busbaum.
 
 Important: the API always scopes unqualified paths under `states.<stateId>`.
 That prevents collisions between states.
@@ -360,7 +360,7 @@ Allowed `valueType`: `text`, `email`, `password`, `number`, `boolean`, `url`,
 
 ### `delete_state_variable`
 
-Remove one declared bus path from a state. Matching data-wire rows are removed.
+Entfernt einen deklarierten Bus-Pfad aus einem Zustand. Passende Datenverbindungen werden mit entfernt.
 
 ```json
 { "type": "delete_state_variable", "stateId": "form", "path": "email" }
@@ -375,12 +375,12 @@ Fields:
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `stateId` | string | Required. |
-| `url` | string | Endpoint URL. |
-| `target` | bus path | Defaults to `states.<stateId>.fetch`. |
-| `select` | path | Optional response path selector. |
-| `timeoutMs` | number | Clamped between 1000 and 30000. |
-| `retries` | number | Clamped between 0 and 5. |
+| `stateId` | string | erforderlich. |
+| `url` | string | Endpunkt-URL. |
+| `target` | Bus-Pfad | Standard ist `states.<stateId>.fetch`. |
+| `select` | Pfad | Optionaler Auswahlpfad in der Antwort. |
+| `timeoutMs` | number | Zwischen 1000 und 30000 begrenzt. |
+| `retries` | number | Zwischen 0 und 5 begrenzt. |
 
 ```json
 {
@@ -396,7 +396,7 @@ Fields:
 
 ### `configure_repeat`
 
-Render a list from an explicit bus path.
+Rendert eine Liste aus einem expliziten Bus-Pfad.
 
 ```json
 {
@@ -411,22 +411,22 @@ Render a list from an explicit bus path.
 
 ### `upsert_data_wire`
 
-Map a bus path into visible render content.
+Ordnet einen Bus-Pfad sichtbarem Render-Inhalt zu.
 
 Fields:
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `id` | string | Stable wire id. |
-| `stateId` | string | Owner state. |
-| `sourcePath` / `path` | bus path | Value to read. |
-| `scopePath` | bus path | Optional repeat collection path. |
-| `itemPath` | path | Optional path inside each repeated item. |
+| `id` | string | Stabile Verbindungs-ID. |
+| `stateId` | string | Besitzender Zustand. |
+| `sourcePath` / `path` | Bus-Pfad | Zu lesender Wert. |
+| `scopePath` | Bus-Pfad | Optionaler Listenpfad für Wiederholung. |
+| `itemPath` | Pfad | Optionaler Pfad innerhalb jedes Listeneintrags. |
 | `role` | string | `image`, `title`, `price`, `description`, `field`, `link`, `note`. |
 | `componentType` | string | `heading`, `text`, `image`, `link`, `note`. |
-| `label` | string | User-facing label. |
+| `label` | string | Sichtbarer Name für Nutzer. |
 
-Example: render product titles from a repeated list.
+Beispiel: Produkttitel aus einer wiederholten Liste rendern.
 
 ```json
 {
@@ -438,13 +438,13 @@ Example: render product titles from a repeated list.
   "itemPath": "title",
   "role": "title",
   "componentType": "heading",
-  "label": "Title"
+  "label": "Titel"
 }
 ```
 
 ### `remove_data_wire`
 
-Remove one data-to-render mapping.
+Entfernt eine Daten-zu-Darstellung-Zuordnung.
 
 ```json
 { "type": "remove_data_wire", "stateId": "products", "wireId": "wire_product_title" }
@@ -452,26 +452,26 @@ Remove one data-to-render mapping.
 
 ### `add_component`
 
-Append or insert one structured render component.
+Hängt eine strukturierte Render-Komponente an oder fügt sie ein.
 
-Allowed component `type`: `heading`, `text`, `image`, `list`, `link`, `note`,
+Erlaubter Komponenten-`type`: `heading`, `text`, `image`, `list`, `link`, `note`,
 `divider`, `daisy`, `transitionButton`, `dataWire`.
 
 No component may carry `html`, `localState`, `stateStore`, or `store`. If a
 component needs data, bind it through `dataPath` or `wireId`.
 
-Text component:
+Textkomponente:
 
 ```json
 {
   "type": "add_component",
   "stateId": "cart",
   "index": 0,
-  "component": { "id": "cart_copy", "type": "text", "text": "Review your order.", "url": "" }
+  "component": { "id": "cart_copy", "type": "text", "text": "Bestellung prüfen.", "url": "" }
 }
 ```
 
-Daisy widget:
+Daisy-Baustein:
 
 ```json
 {
@@ -483,12 +483,12 @@ Daisy widget:
     "variant": "card",
     "dataPath": "states.cart.card",
     "dataRole": "widget",
-    "dataLabel": "Cart card"
+    "dataLabel": "Warenkorbkarte"
   }
 }
 ```
 
-Placed transition button:
+Platzierte Übergangsschaltfläche:
 
 ```json
 {
@@ -498,7 +498,7 @@ Placed transition button:
 }
 ```
 
-Data-wire render row:
+Datenverbindungs-Renderzeile:
 
 ```json
 {
@@ -510,14 +510,14 @@ Data-wire render row:
 
 ### `update_component`
 
-Patch one component.
+Patcht eine Komponente.
 
 ```json
 {
   "type": "update_component",
   "stateId": "cart",
   "componentId": "cart_copy",
-  "patch": { "text": "Check items and quantities." }
+  "patch": { "text": "Artikel und Mengen prüfen." }
 }
 ```
 
@@ -548,19 +548,19 @@ order after the listed ids.
 Set root or nested layer input/output references. This creates or updates the
 matching proxy transitions.
 
-Root boundary:
+Wurzelgrenze:
 
 ```json
 {
   "type": "set_boundary",
   "entryId": "home",
   "exitId": "thanks",
-  "title": "Website flow",
-  "note": "Main public funnel"
+  "title": "Website-Ablauf",
+  "note": "Öffentlicher Hauptablauf"
 }
 ```
 
-Nested boundary:
+Verschachtelte Grenze:
 
 ```json
 {
@@ -575,7 +575,7 @@ Contract rule: child states do not jump back to the parent by magic. A child can
 only leave through an explicit boundary output and whatever real parent-layer
 transition is connected after that.
 
-### Group / Degroup
+### Gruppieren / Auflösen
 
 Grouping is not a second editor-only model. Use the command API so the same
 canonical JSON structure is used as in the visual editor:
@@ -586,51 +586,51 @@ canonical JSON structure is used as in the visual editor:
     {
       "command": "graph.collapse_to_parent",
       "id": "checkout",
-      "title": "Checkout",
+      "title": "Kasse",
       "stateIds": ["cart", "shipping", "payment"]
     }
   ]
 }
 ```
 
-Rules:
+Regeln:
 
-- A group is a real parent state with child states.
-- Entry and exit are represented by the parent boundary contract.
+- Eine Gruppe ist ein echter Parent-Zustand mit Kindzuständen.
+- Eingang und Ausgang werden durch den Boundary-Vertrag des Parents dargestellt.
 - `model.editorGroups` is invalid and stripped during normalization.
-- Degrouping uses `graph.degroup_parent` and returns the children to the outer
-  layer without changing the FSM meaning of the flow.
+- Auflösen nutzt `graph.degroup_parent` und legt die Kinder wieder in die
+  äußere Ebene, ohne die FSM-Bedeutung des Ablaufs zu verändern.
 
-## Complete Workflows
+## Vollständige Abläufe
 
-### Create Two States And Wire Them
+### Zwei Zustände erzeugen und verbinden
 
 ```json
 {
   "actions": [
-    { "type": "create_flow", "name": "Simple flow" },
+    { "type": "create_flow", "name": "Einfacher Ablauf" },
     { "type": "upsert_state", "id": "start", "title": "Start", "x": 96, "y": 120 },
-    { "type": "upsert_state", "id": "done", "title": "Done", "x": 384, "y": 120 },
-    { "type": "upsert_transition", "id": "start_to_done", "from": "start", "to": "done", "label": "Continue" },
+    { "type": "upsert_state", "id": "fertig", "title": "Fertig", "x": 384, "y": 120 },
+    { "type": "upsert_transition", "id": "start_to_fertig", "from": "start", "to": "fertig", "label": "Weiter" },
     { "type": "set_initial", "stateId": "start" }
   ]
 }
 ```
 
-### Insert A State Between Two States
+### Zustand zwischen zwei Zustände setzen
 
 ```json
 {
   "actions": [
     { "type": "delete_transition", "id": "a_to_c" },
-    { "type": "upsert_state", "id": "b", "title": "Review", "x": 360, "y": 120 },
-    { "type": "upsert_transition", "id": "a_to_b", "from": "a", "to": "b", "label": "Review" },
-    { "type": "upsert_transition", "id": "b_to_c", "from": "b", "to": "c", "label": "Continue" }
+    { "type": "upsert_state", "id": "b", "title": "Prüfen", "x": 360, "y": 120 },
+    { "type": "upsert_transition", "id": "a_to_b", "from": "a", "to": "b", "label": "Prüfen" },
+    { "type": "upsert_transition", "id": "b_to_c", "from": "b", "to": "c", "label": "Weiter" }
   ]
 }
 ```
 
-### Add A Functional Daisy Button/Card State
+### Funktionalen daisyUI-Kartenzustand anlegen
 
 ```json
 {
@@ -641,9 +641,9 @@ Rules:
       "path": "card",
       "valueType": "object",
       "value": {
-        "title": "Business process map",
-        "body": "Understand the process before digitizing it.",
-        "actionLabel": "Open"
+        "title": "Prozesskarte",
+        "body": "Erst verstehen, dann digitalisieren.",
+        "actionLabel": "Öffnen"
       }
     },
     {
@@ -655,21 +655,21 @@ Rules:
         "variant": "card",
         "dataPath": "states.product.card",
         "dataRole": "widget",
-        "dataLabel": "Product card"
+        "dataLabel": "Produktkarte"
       }
     },
     { "type": "upsert_state", "id": "details", "title": "Details", "x": 384, "y": 120 },
-    { "type": "upsert_transition", "id": "product_to_details", "from": "product", "to": "details", "label": "Open" }
+    { "type": "upsert_transition", "id": "product_to_details", "from": "product", "to": "details", "label": "Öffnen" }
   ]
 }
 ```
 
-### Fetch JSON And Render A List
+### JSON laden und Liste darstellen
 
 ```json
 {
   "actions": [
-    { "type": "upsert_state", "id": "products", "title": "Products", "x": 96, "y": 120 },
+    { "type": "upsert_state", "id": "products", "title": "Produkte", "x": 96, "y": 120 },
     {
       "type": "configure_fetch",
       "stateId": "products",
@@ -686,33 +686,33 @@ Rules:
       "itemPath": "title",
       "role": "title",
       "componentType": "heading",
-      "label": "Title"
+      "label": "Titel"
     },
     { "type": "add_component", "stateId": "products", "component": { "id": "title_row", "type": "dataWire", "wireId": "wire_title" } }
   ]
 }
 ```
 
-### Create A Nested Flow With Parent Out
+### Verschachtelten Ablauf mit Parent-Ausgang erzeugen
 
 ```json
 {
   "actions": [
-    { "type": "upsert_state", "id": "checkout", "title": "Checkout", "x": 96, "y": 120 },
-    { "type": "upsert_state", "id": "address", "title": "Address", "parentId": "checkout", "x": 120, "y": 120 },
-    { "type": "upsert_state", "id": "review", "title": "Review", "parentId": "checkout", "x": 408, "y": 120 },
+    { "type": "upsert_state", "id": "checkout", "title": "Kasse", "x": 96, "y": 120 },
+    { "type": "upsert_state", "id": "address", "title": "Adresse", "parentId": "checkout", "x": 120, "y": 120 },
+    { "type": "upsert_state", "id": "review", "title": "Prüfen", "parentId": "checkout", "x": 408, "y": 120 },
     { "type": "set_boundary", "parentId": "checkout", "entryId": "address", "exitId": "review" },
-    { "type": "upsert_transition", "id": "address_to_review", "from": "address", "to": "review", "label": "Review" },
-    { "type": "upsert_state", "id": "thanks", "title": "Thanks", "x": 384, "y": 120 },
-    { "type": "upsert_transition", "id": "checkout_to_thanks", "from": "checkout", "to": "thanks", "label": "Finish" }
+    { "type": "upsert_transition", "id": "address_to_review", "from": "address", "to": "review", "label": "Prüfen" },
+    { "type": "upsert_state", "id": "thanks", "title": "Danke", "x": 384, "y": 120 },
+    { "type": "upsert_transition", "id": "checkout_to_thanks", "from": "checkout", "to": "thanks", "label": "Abschließen" }
   ]
 }
 ```
 
-The child exits through the parent's boundary output. If the parent has no real
-outgoing transition after that, the machine stops.
+Das Kind verlässt den Parent über dessen Boundary-Ausgang. Wenn der Parent
+danach keinen echten ausgehenden Übergang hat, stoppt die Maschine.
 
-### Loading State That Continues After Two Seconds
+### Ladezustand, der nach zwei Sekunden weitergeht
 
 ```json
 {
@@ -722,7 +722,7 @@ outgoing transition after that, the machine stops.
       "stateId": "loading",
       "path": "loading",
       "valueType": "object",
-      "value": { "label": "Loading..." }
+      "value": { "label": "Lädt..." }
     },
     {
       "type": "add_component",
@@ -733,7 +733,7 @@ outgoing transition after that, the machine stops.
         "variant": "loading",
         "dataPath": "states.loading.loading",
         "dataRole": "widget",
-        "dataLabel": "Loading"
+        "dataLabel": "Laden"
       }
     },
     {
@@ -741,7 +741,7 @@ outgoing transition after that, the machine stops.
       "id": "loading_to_done",
       "from": "loading",
       "to": "done",
-      "label": "Loaded",
+      "label": "Geladen",
       "triggerType": "timer",
       "timerMs": 2000
     }
@@ -749,20 +749,20 @@ outgoing transition after that, the machine stops.
 }
 ```
 
-Timer transitions are not rendered as buttons.
+Timer-Übergänge werden nicht als Schaltflächen gerendert.
 
-## Import, Export, Save, Load
+## Import, Export, Speichern, Laden
 
-### Save / Read Current Workspace
+### Aktuellen Workspace lesen
 
 ```json
 {"name":"state_blueprint_get_model","arguments":{"includeValidation":true}}
 ```
 
-### Load / Replace Current Workspace
+### Workspace laden oder ersetzen
 
 ```json
-{"name":"state_blueprint_replace_model","arguments":{"model":{"version":2,"name":"Imported","states":[],"transitions":[]}}}
+{"name":"state_blueprint_replace_model","arguments":{"model":{"version":2,"name":"Importiert","states":[],"transitions":[]}}}
 ```
 
 ### Export `.state.json`
@@ -774,18 +774,18 @@ Timer transitions are not rendered as buttons.
 ### Import `.state.json`
 
 ```json
-{"name":"state_blueprint_import_definition","arguments":{"definition":{"kind":"state-blueprint.definition","schemaVersion":2,"model":{"version":2,"name":"Imported","states":[],"transitions":[]},"stateTemplates":[]}}}
+{"name":"state_blueprint_import_definition","arguments":{"definition":{"kind":"state-blueprint-definition","schemaVersion":2,"model":{"version":2,"name":"Importiert","states":[],"transitions":[]},"stateTemplates":[]}}}
 ```
 
-### Export Standalone HTML
+### Eigenständiges HTML exportieren
 
-Return HTML in the response:
+HTML in der Antwort zurückgeben:
 
 ```json
 {"name":"state_blueprint_export_html","arguments":{}}
 ```
 
-Write HTML to a file:
+HTML in eine Datei schreiben:
 
 ```json
 {
@@ -797,105 +797,106 @@ Write HTML to a file:
 }
 ```
 
-The exported HTML embeds `EXPORTED_STATE_BLUEPRINT` and runs without the editor.
+Das exportierte HTML bettet `EXPORTED_STATE_BLUEPRINT` ein und läuft ohne Editor.
 
-## Natural-Language API
+## Textbefehle
 
-Use this only as a convenience layer over the action API.
+Nur als bequeme Schicht über der Modellaktions-API nutzen.
 
-Plan without writing:
+Planen, ohne zu schreiben:
 
 ```json
 {
   "name": "state_blueprint_plan_prompt",
   "arguments": {
-    "prompt": "fuege timer 10s hinzu und weiter zu Done",
+    "prompt": "füge timer 10s hinzu und weiter zu Fertig",
     "selectedStateId": "start"
   }
 }
 ```
 
-Apply immediately:
+Direkt anwenden:
 
 ```json
 {
   "name": "state_blueprint_apply_prompt",
   "arguments": {
-    "prompt": "Cart -> Shipping -> Payment -> Done"
+    "prompt": "Warenkorb -> Versand -> Zahlung -> Fertig"
   }
 }
 ```
 
-Supported intent families:
+Unterstützte Absichten:
 
-- create workflow
-- add timer/countdown
-- add inner state
-- add transition/wire
-- add Daisy component/preset
-- add typed state variable
-- configure API/list fetch
+- Ablauf erzeugen
+- Timer/Countdown hinzufügen
+- inneren Zustand hinzufügen
+- Übergang/Verbindung hinzufügen
+- daisyUI-Komponente/Vorlage hinzufügen
+- typisierte Zustandsvariable hinzufügen
+- API-/Listen-Fetch konfigurieren
 
-Inspect `plan.assumptions` before applying ambiguous prompts.
+Bei mehrdeutigen Prompts vor dem Anwenden `plan.assumptions` prüfen.
 
-## Editor Action Mapping
+## Editor-zu-API-Zuordnung
 
-| User editor action | API |
+| Nutzeraktion im Editor | API |
 | --- | --- |
-| New scene | `create_flow` |
-| Rename flow | `set_model_name` |
-| Save/load model | `state_blueprint_get_model`, `state_blueprint_replace_model`, `state_blueprint_import_definition` |
+| Neue Szene | `create_flow` |
+| Ablauf umbenennen | `set_model_name` |
+| Modell speichern/laden | `state_blueprint_get_model`, `state_blueprint_replace_model`, `state_blueprint_import_definition` |
 | Export `.state.json` | `state_blueprint_export_definition` |
 | Export HTML | `state_blueprint_export_html` |
-| Create state | `upsert_state` |
-| Move state | `move_state` |
-| Delete state | `delete_state` |
-| Set initial | `set_initial` |
-| Create child state | `upsert_state` with `parentId` |
-| Connect states | `upsert_transition` |
-| Rewire transition | `upsert_transition` with same `id`, new `from`/`to` |
-| Delete transition | `delete_transition` |
-| Set trigger type | `upsert_transition` with `triggerType`, `triggerEvent`, `timerMs` |
-| Set condition | `upsert_transition.condition` |
-| Set transition bus patch | `upsert_transition.set` |
-| Add state variable/screen field | `upsert_state_variable` |
-| Remove state variable/screen field | `delete_state_variable` |
-| Configure fetch | `configure_fetch` |
-| Configure repeat/list | `configure_repeat` |
-| Add data wire | `upsert_data_wire` |
-| Remove data wire | `remove_data_wire` |
-| Add widget/render row | `add_component` |
-| Edit widget/render row | `update_component` plus `upsert_state_variable` for bound data |
-| Remove widget/render row | `remove_component` |
-| Reorder render rows/buttons/widgets | `reorder_components` |
-| Place transition button in render | `add_component` with `type: transitionButton` |
-| Set layer input/output proxies | `set_boundary` |
-| Group states | `state_blueprint_apply_commands` with `graph.collapse_to_parent` |
-| Degroup states | `state_blueprint_apply_commands` with `graph.degroup_parent` |
-| Validate contract | `state_blueprint_validate` |
+| Zustand erzeugen | `upsert_state` |
+| Zustand verschieben | `move_state` |
+| Zustand löschen | `delete_state` |
+| Initialzustand setzen | `set_initial` |
+| Kind-Zustand erzeugen | `upsert_state` mit `parentId` |
+| Zustände verbinden | `upsert_transition` |
+| Übergang umverdrahten | `upsert_transition` mit gleicher `id`, neuem `from`/`to` |
+| Übergang löschen | `delete_transition` |
+| Auslöser-Typ setzen | `upsert_transition` mit `triggerType`, `triggerEvent`, `timerMs` |
+| Bedingung setzen | `upsert_transition.condition` |
+| Bus-Wirkung des Übergangs setzen | `upsert_transition.set` |
+| Zustandsvariable/Ansichtsfeld hinzufügen | `upsert_state_variable` |
+| Zustandsvariable/Ansichtsfeld entfernen | `delete_state_variable` |
+| Fetch konfigurieren | `configure_fetch` |
+| Wiederholung/Liste konfigurieren | `configure_repeat` |
+| Datenverbindung hinzufügen | `upsert_data_wire` |
+| Datenverbindung entfernen | `remove_data_wire` |
+| Baustein/Render-Zeile hinzufügen | `add_component` |
+| Baustein/Render-Zeile bearbeiten | `update_component` plus `upsert_state_variable` für gebundene Daten |
+| Baustein/Render-Zeile entfernen | `remove_component` |
+| Render-Zeilen/Schaltflächen/Bausteine sortieren | `reorder_components` |
+| Übergangsschaltfläche im Render platzieren | `add_component` mit `type: transitionButton` |
+| Eingangs-/Ausgangs-Proxies einer Ebene setzen | `set_boundary` |
+| Zustände gruppieren | `state_blueprint_apply_commands` mit `graph.collapse_to_parent` |
+| Zustände auflösen | `state_blueprint_apply_commands` mit `graph.degroup_parent` |
+| Vertrag validieren | `state_blueprint_validate` |
 
-Session-only editor affordances such as hover, selection, box-select, pan, zoom,
-undo, redo, and preview pause are not persistent model edits. Automation should
-use dry runs, `get_model`, and explicit replacement if it needs its own history.
+Reine Editor-Sitzungsfunktionen wie Hover, Auswahl, Box-Auswahl, Pan, Zoom,
+Undo, Redo und Preview-Pause sind keine persistenten Modell-Änderungen.
+Automatisierung sollte Dry-Runs, `get_model` und explizites Ersetzen nutzen,
+wenn sie eine eigene Historie braucht.
 
-## Contract Checks
+## Vertragsprüfungen
 
-Before writing, the API rejects or normalizes these cases:
+Vor dem Schreiben lehnt die API diese Fälle ab oder normalisiert sie:
 
-- Transitions whose endpoints do not exist.
-- Transitions across layers without boundary proxies.
-- Component-local state such as `html`, `localState`, `stateStore`, or `store`.
-- Data type entries without matching `state.data`.
-- Data-wire components pointing at missing wires.
-- Transition-button components pointing at missing transitions.
-- State variable collisions, by scoping new variables under `states.<stateId>`.
+- Übergänge, deren Endpunkte nicht existieren.
+- Übergänge über Ebenen hinweg ohne Boundary-Proxies.
+- Komponentenlokaler Zustand wie `html`, `localState`, `stateStore` oder `store`.
+- Datentyp-Einträge ohne passendes `state.data`.
+- Datenverbindungs-Komponenten, die auf fehlende Verbindungen zeigen.
+- Übergangsschaltflächen, die auf fehlende Übergänge zeigen.
+- Kollisionen von Zustandsvariablen, indem neue Variablen unter `states.<stateId>` gescopet werden.
 
-Recommended write flow for agents:
+Empfohlener Schreibablauf für Agenten:
 
-1. Call `state_blueprint_get_model` with validation.
-2. Build a small action list.
-3. Call `state_blueprint_apply_actions` with `dryRun: true`.
-4. Inspect `validation.ok`, `issues`, and `warnings`.
-5. Apply the same action list without `dryRun`.
-6. Call `state_blueprint_validate`.
+1. `state_blueprint_get_model` mit Validierung aufrufen.
+2. Eine kleine Aktionsliste bauen.
+3. `state_blueprint_apply_actions` mit `dryRun: true` aufrufen.
+4. `validation.ok`, `issues` und `warnings` prüfen.
+5. Dieselbe Aktionsliste ohne `dryRun` anwenden.
+6. `state_blueprint_validate` aufrufen.
 

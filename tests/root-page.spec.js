@@ -5,8 +5,8 @@ test.describe("Root demo export", () => {
   test("serves the single Zustand demo at root @smoke", async ({ page }) => {
     const html = fs.readFileSync("index.html", "utf8");
     expect(html).toContain("EXPORTED_STATE_BLUEPRINT");
-    expect(html).toContain("<title>Zustand Demo</title>");
-    expect(html).toContain('"name":"Zustand Demo"');
+    expect(html).toContain("<title>Zustand-Beispiel</title>");
+    expect(html).toContain('"name":"Zustand-Beispiel"');
     expect(html).toContain('"initial":"site_home"');
     expect(html).toContain('"site_checkout"');
     expect(html).toContain("state.html?demo=zustand");
@@ -17,11 +17,11 @@ test.describe("Root demo export", () => {
     expect(html).not.toContain("_editor");
 
     await page.goto("/");
-    await expect(page).toHaveTitle("Zustand Demo");
+    await expect(page).toHaveTitle("Zustand-Beispiel");
     await expect(page.getByRole("button", { name: "Neu" })).toHaveCount(0);
     await expect(page.locator("#statePill")).toHaveText("site_home");
     await expect(page.getByRole("heading", { name: "Erst Klarheit. Dann digitalisieren.", exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Erstgespraech anfragen" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Erstgespräch anfragen" })).toBeVisible();
     await expect(page.locator(".hero .card-actions.justify-center")).toHaveCSS("justify-content", "center");
 
     const manifest = await page.request.get("/manifest.webmanifest");
@@ -30,7 +30,7 @@ test.describe("Root demo export", () => {
 
     await page.locator(".navbar").getByRole("button", { name: "Nutzen", exact: true }).click();
     await expect(page.locator("#statePill")).toHaveText("site_features");
-    await expect(page.getByRole("heading", { name: "Was Sie danach konkret besser koennen" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Was Sie danach konkret besser können" })).toBeVisible();
 
     await page.locator(".navbar").getByRole("button", { name: "Angebot", exact: true }).click();
     await expect(page.locator("#statePill")).toHaveText("site_pricing");

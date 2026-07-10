@@ -1,19 +1,19 @@
-# Realtime API
+# Realtime-API
 
-Diese API gehoert zum Realtime-Server unter `server/`. Sie transportiert Runtime-Events fuer `state.html`. Sie ist nicht die Modell-API und persistiert keinen fachlichen Zustand.
+Diese API gehört zum Realtime-Server unter `server/`. Sie transportiert Runtime-Ereignisse für `state.html`. Sie ist nicht die Modell-API und persistiert keinen fachlichen Zustand.
 
 ## Grundsatz
 
-Der globale JSON-State/Event-Bus bleibt die einzige fachliche Wahrheit. Der Realtime-Server hat nur diese Aufgaben:
+Der globale JSON-Zustands-/Ereignisbus bleibt die einzige fachliche Wahrheit. Der Realtime-Server hat nur diese Aufgaben:
 
-- WSS-Transport fuer Runtime-Events,
-- Event-Katalog fuer erlaubte `realtime.*` Events,
-- stateless Fire-Endpunkt fuer externe Systeme,
-- Browser-Testkonsole fuer manuelles Emitten.
+- WSS-Transport für Runtime-Ereignisse,
+- Ereigniskatalog für erlaubte `realtime.*`-Ereignisse,
+- zustandsloser Sende-Endpunkt für externe Systeme,
+- Browser-Testkonsole für manuelles Emitten.
 
-Der Realtime-Server liefert nur diesen Kern. Der Canvas speichert nur konkrete Referenzen, die er wirklich verwendet, zum Beispiel `triggerEvent: "realtime.sip.call.incoming"`.
+Der Realtime-Server liefert nur diesen Kern. Die Arbeitsfläche speichert nur konkrete Referenzen, die sie wirklich verwendet, zum Beispiel `triggerEvent: "realtime.sip.call.incoming"`.
 
-## Base URLs
+## Basis-URLs
 
 ```text
 HTTPS base: https://realtime.digitalisierungsplanung.de
@@ -26,15 +26,15 @@ Lokaler Prozess hinter Nginx:
 http://127.0.0.1:8788
 ```
 
-## Origin und Auth
+## Ursprung und Authentifizierung
 
-Browser-Origin ist in Production auf `https://digitalisierungsplanung.de` begrenzt. Konfiguriert wird das ueber `REALTIME_ALLOWED_ORIGINS`.
+Browser-Origin ist in Produktion auf `https://digitalisierungsplanung.de` begrenzt. Konfiguriert wird das über `REALTIME_ALLOWED_ORIGINS`.
 
 `/events` erlaubt:
 
-- Requests ohne `Origin`, z.B. `curl` oder Server-to-server,
-- Requests mit erlaubtem `Origin`,
-- `OPTIONS` fuer Browser-Preflight.
+- Anfragen ohne `Origin`, z.B. `curl` oder Server-zu-Server,
+- Anfragen mit erlaubtem `Origin`,
+- `OPTIONS` für Browser-Preflight.
 
 `/token` braucht einen erlaubten Browser-Origin und `REALTIME_ROOM_SECRET`.
 
@@ -45,11 +45,11 @@ Authorization: Bearer <REALTIME_EMIT_SECRET>
 Content-Type: application/json
 ```
 
-Server-to-server `/emit` darf ohne `Origin` kommen. Browser-Requests mit fremdem Origin werden abgelehnt.
+Server-zu-Server-`/emit` darf ohne `Origin` kommen. Browser-Anfragen mit fremdem Origin werden abgelehnt.
 
 ## Namensregeln
 
-IDs duerfen nur diese Zeichen enthalten:
+IDs dürfen nur diese Zeichen enthalten:
 
 ```text
 a-z A-Z 0-9 _ . : -
@@ -58,25 +58,25 @@ a-z A-Z 0-9 _ . : -
 Limits:
 
 - `roomId`, `clientId`: maximal 128 Zeichen
-- Eventnamen: maximal 160 Zeichen
-- State-Pfade in Event-Details/Bindings: maximal 240 Zeichen
-- Request-Body: default maximal 64 KiB
+- Ereignisnamen: maximal 160 Zeichen
+- Zustandspfade in Ereignisdetails/Bindings: maximal 240 Zeichen
+- Anfrage-Body: standardmäßig maximal 64 KiB
 
-Realtime-Events im App-Contract beginnen mit:
+Realtime-Ereignisse im App-Vertrag beginnen mit:
 
 ```text
 realtime.
 ```
 
-`/emit` und WSS-`runtime.event` akzeptieren nur Events, die im aktuellen `/events`-Katalog angeboten werden.
+`/emit` und WSS-`runtime.event` akzeptieren nur Ereignisse, die im aktuellen `/events`-Katalog angeboten werden.
 
-## REST Endpoints
+## REST-Endpunkte
 
 ### `GET /healthz`
 
-Public Healthcheck ohne Auth.
+Öffentlicher Healthcheck ohne Auth.
 
-Response:
+Antwort:
 
 ```json
 {
@@ -88,21 +88,21 @@ Response:
 
 ### `GET /console.html`
 
-HTML-Testkonsole fuer `/emit`. Die Seite speichert serverseitig nichts. Das Emit-Secret wird nur im Browserfeld verwendet und als Bearer-Token an `/emit` gesendet.
+HTML-Testkonsole für `/emit`. Die Seite speichert serverseitig nichts. Das Emit-Secret wird nur im Browserfeld verwendet und als Bearer-Token an `/emit` gesendet.
 
 ### `GET /events`
 
-Event-Definitionen. Das ist die Live-Quelle fuer auswaehlbare Realtime-Events im Editor.
+Ereignisdefinitionen. Das ist die Live-Quelle für auswählbare Realtime-Ereignisse im Editor.
 
-Response:
+Antwort:
 
 ```json
 {
   "events": [
     {
       "name": "realtime.sip.call.incoming",
-      "label": "Incoming call",
-      "description": "SIP phone call started",
+      "label": "Eingehender Anruf",
+      "description": "SIP-Anruf gestartet",
       "detail": {
         "caller": "text",
         "callee": "text",
@@ -122,13 +122,13 @@ Response:
 
 Felder:
 
-- `name`: Event-ID, muss mit `realtime.` beginnen.
+- `name`: Ereignis-ID, muss mit `realtime.` beginnen.
 - `label`: Anzeige im Editor.
 - `description`: optionale Beschreibung.
 - `detail`: erwartete Payload-Felder und Typen.
-- `bindings`: Mapping von `detail.*` in den globalen JSON-State.
+- `bindings`: Mapping von `detail.*` in den globalen JSON-Zustand.
 
-Unterstuetzte Typen:
+Unterstützte Typen:
 
 ```text
 text, email, password, number, boolean, url, image, object, list
@@ -136,16 +136,16 @@ text, email, password, number, boolean, url, image, object, list
 
 ### `GET /token?roomId=<room>&clientId=<client>`
 
-Erzeugt ein kurzlebiges HMAC-Token fuer den ersten WSS-Join.
+Erzeugt ein kurzlebiges HMAC-Token für den ersten WSS-Join.
 
-Request:
+Anfrage:
 
 ```bash
 curl "https://realtime.digitalisierungsplanung.de/token?roomId=smoke&clientId=browser-1" \
   -H "Origin: https://digitalisierungsplanung.de"
 ```
 
-Response:
+Antwort:
 
 ```json
 {
@@ -164,9 +164,9 @@ Fehler:
 
 ### `POST /emit`
 
-Server-to-server Fire-Endpunkt. Er persistiert keine Payload und haelt keinen fachlichen Zustand. Er broadcastet nur eine Event-Instanz in den Room.
+Server-zu-Server-Sende-Endpunkt. Er persistiert keine Payload und hält keinen fachlichen Zustand. Er sendet nur eine Ereignisinstanz in den Raum.
 
-Request:
+Anfrage:
 
 ```bash
 curl -X POST https://realtime.digitalisierungsplanung.de/emit \
@@ -184,7 +184,7 @@ curl -X POST https://realtime.digitalisierungsplanung.de/emit \
   }'
 ```
 
-Response:
+Antwort:
 
 ```json
 {
@@ -195,7 +195,7 @@ Response:
 }
 ```
 
-`delivered` ist die Anzahl verbundener anderer Clients im Room. `0` ist kein Fehler, sondern bedeutet: aktuell hoert niemand in diesem Room.
+`delivered` ist die Anzahl verbundener anderer Clients im Raum. `0` ist kein Fehler, sondern bedeutet: aktuell hört niemand in diesem Raum.
 
 Fehler:
 
@@ -210,15 +210,15 @@ Fehler:
 - `413 {"error":"payload_too_large"}`
 - `503 {"error":"emit_secret_required"}`
 
-## WebSocket API
+## WebSocket-API
 
-Endpoint:
+Endpunkt:
 
 ```text
 wss://realtime.digitalisierungsplanung.de/ws
 ```
 
-Der Browser muss mit erlaubtem `Origin` verbinden. In Production ist der erste Client-Frame immer ein `join`.
+Der Browser muss mit erlaubtem `Origin` verbinden. In Produktion ist die erste Client-Nachricht immer ein `join`.
 
 ### Join
 
@@ -245,7 +245,7 @@ Server antwortet:
 }
 ```
 
-Andere Clients im selben Room bekommen:
+Andere Clients im selben Raum bekommen:
 
 ```json
 {
@@ -256,7 +256,7 @@ Andere Clients im selben Room bekommen:
 }
 ```
 
-Beim Disconnect:
+Beim Trennen der Verbindung:
 
 ```json
 {
@@ -267,9 +267,9 @@ Beim Disconnect:
 }
 ```
 
-### Runtime Event
+### Runtime-Ereignis
 
-Client sendet ein Event, das im aktuellen `/events`-Katalog angeboten wird:
+Client sendet ein Ereignis, das im aktuellen `/events`-Katalog angeboten wird:
 
 ```json
 {
@@ -284,13 +284,13 @@ Client sendet ein Event, das im aktuellen `/events`-Katalog angeboten wird:
 }
 ```
 
-Andere Clients im selben Room bekommen denselben Event mit `roomId`, `clientId`, `serverTime`, optionaler `seq`, `name` und `detail`.
+Andere Clients im selben Raum bekommen dasselbe Ereignis mit `roomId`, `clientId`, `serverTime`, optionaler `seq`, `name` und `detail`.
 
-`seq` ist optional. Wenn vorhanden, droppt der Server alte oder doppelte Sequenzen pro `clientId` und Room.
+`seq` ist optional. Wenn vorhanden, verwirft der Server alte oder doppelte Sequenzen pro `clientId` und Raum.
 
-### Presence Cursor
+### Präsenz-Cursor
 
-Transienter Cursor/Drag-Frame. Der Server darf ihn fuer langsame Peers droppen.
+Flüchtiger Cursor-/Drag-Frame. Der Server darf ihn für langsame Empfänger verwerfen.
 
 Client sendet:
 
@@ -342,7 +342,7 @@ invalid_message
 client_replaced
 ```
 
-Einige Fehler schliessen die Verbindung mit Policy-Code `1008` oder internem Code `4008` bei `client_replaced`.
+Einige Fehler schließen die Verbindung mit Policy-Code `1008` oder internem Code `4008` bei `client_replaced`.
 
 ## Integration in `state.html`
 
@@ -352,7 +352,7 @@ Aktivierung:
 https://digitalisierungsplanung.de/state.html?room=<room-id>
 ```
 
-Flow:
+Ablauf:
 
 ```text
 state.html
@@ -362,14 +362,14 @@ state.html
   -> runtime.event
   -> STATE_BLUEPRINT_REALTIME_EVENT
   -> globaler JSON-Bus
-  -> Transitionen pruefen triggerType=realtime + triggerEvent=<name>
+  -> Übergänge prüfen triggerType=realtime + triggerEvent=<name>
 ```
 
-Der Runtime-Kontext bleibt read-only fuer den Host. Fachliche Daten werden erst in der generierten Runtime in den JSON-Bus geschrieben.
+Der Runtime-Kontext bleibt für den Host nur lesend. Fachliche Daten werden erst in der generierten Runtime in den JSON-Bus geschrieben.
 
-## Aktuelle Default-Events
+## Aktuelle Standard-Ereignisse
 
-Wenn kein `REALTIME_EVENT_CATALOG_PATH` gesetzt ist, bietet der Server diese Events an:
+Wenn kein `REALTIME_EVENT_CATALOG_PATH` gesetzt ist, bietet der Server diese Ereignisse an:
 
 ```text
 realtime.sip.call.incoming
@@ -377,11 +377,11 @@ realtime.sip.call.answered
 realtime.sip.call.ended
 ```
 
-Die Live-Wahrheit ist immer `/events`, nicht diese Dokumentation.
+Die Laufzeit-Wahrheit ist immer `/events`, nicht diese Dokumentation.
 
 ## Konfiguration
 
-Wichtige Env-Variablen:
+Wichtige Umgebungsvariablen:
 
 ```text
 REALTIME_HOST=127.0.0.1
@@ -405,7 +405,7 @@ REALTIME_MAX_PAYLOAD_BYTES=65536
 
 1. SIP-Anlage erkennt eingehenden Anruf.
 2. SIP-Bridge ruft `/emit` auf.
-3. Ein geoeffneter Canvas in `state.html?room=sales-floor` empfaengt das Event.
+3. Eine geöffnete Arbeitsfläche in `state.html?room=sales-floor` empfängt das Ereignis.
 4. Die Runtime schreibt:
 
 ```text
@@ -415,7 +415,7 @@ events.realtime.sip.call.incoming.lastAt
 lastEvent
 ```
 
-5. Eine Transition mit diesen Daten kann feuern:
+5. Ein Übergang mit diesen Daten kann feuern:
 
 ```text
 triggerType: realtime

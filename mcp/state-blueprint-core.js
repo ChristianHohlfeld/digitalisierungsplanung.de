@@ -1767,7 +1767,7 @@ function definitionPayload(model, stateTemplates = [], editor = {}) {
   const normalizedModel = normalizeModel(model);
   const session = normalizeEditorSession(editor, normalizedModel);
   return {
-    kind: "state-blueprint.definition",
+    kind: "state-blueprint-definition",
     schemaVersion: 2,
     app: "State Blueprint",
     savedAt: new Date().toISOString(),

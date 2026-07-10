@@ -362,7 +362,7 @@ function workflowSpec(prompt) {
     const german = /kasse|warenkorb|zahlung|bestell/.test(text);
     return {
       name: german ? "Checkout Ablauf" : "Checkout Flow",
-      titles: german ? ["Warenkorb", "Adresse", "Zahlung", "Pruefen", "Fertig"] : ["Cart", "Shipping", "Payment", "Review", "Done"]
+      titles: german ? ["Warenkorb", "Adresse", "Zahlung", "Prüfen", "Fertig"] : ["Cart", "Shipping", "Payment", "Review", "Done"]
     };
   }
   if (/login|auth|anmeld|sign ?in/.test(text)) {

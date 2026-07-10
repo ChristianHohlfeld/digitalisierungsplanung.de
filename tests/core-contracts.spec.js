@@ -26,7 +26,7 @@ function defaultTestModel() {
       { id: "t_register_error", from: "register", to: "error", label: "Fehler", condition: "", set: {} },
       { id: "t_logout", from: "logged_in", to: "logged_out", label: "Logout", condition: "", set: {} },
       { id: "t_relogin", from: "logged_out", to: "login", label: "Wieder einloggen", condition: "", set: {} },
-      { id: "t_error_back", from: "error", to: "auth_start", label: "Zurueck", condition: "", set: {} }
+      { id: "t_error_back", from: "error", to: "auth_start", label: "Zurück", condition: "", set: {} }
     ]
   };
 }
@@ -182,11 +182,30 @@ test.describe("Core source contracts", () => {
     }
   });
 
-  test("state tool text stays UTF-8 clean @smoke", () => {
+  test("state tool text uses clean UTF-8 and native German spelling @smoke", () => {
     const html = stateHtml();
     const mojibakePattern = new RegExp("[\\u00c2\\u00c3\\ufffd]|\\u00e2(?:[\\u0080-\\u00bf]|[^\\x00-\\x7f])");
+    const legacyGermanSpellings = [
+      ["Arbeitsfl", "aeche"].join(""),
+      ["Schaltfl", "aeche"].join(""),
+      ["Ueber", "gang"].join(""),
+      ["Zust", "aende"].join(""),
+      ["Rueck", "gaengig"].join(""),
+      ["Fuss", "zeile"].join(""),
+      ["Schlies", "sen"].join("")
+    ];
 
     expect(html).not.toMatch(mojibakePattern);
+    for (const spelling of legacyGermanSpellings) expect(html).not.toContain(spelling);
+    expect(html).toContain("Arbeitsfläche");
+    expect(html).toContain("Schaltfläche");
+    expect(html).toContain("Übergang");
+    expect(html).toContain("Zustände");
+    expect(html).toContain("Rückgängig");
+    expect(html).toContain("Fußzeile");
+    expect(html).toContain("Schließen");
+    expect(html).toContain("flushRuntimeEvents");
+    expect(html).not.toContain("flushRuntimeEreignisse");
   });
 
   test("grouping is represented by real parent states, not editorGroups metadata @smoke", () => {
@@ -498,7 +517,7 @@ test.describe("Core source contracts", () => {
     {
       name: "footer",
       variant: "footer",
-      data: { brand: "Brand", note: "Footer note", columns: [{ title: "Links", items: [{ label: daisyBindingVisibleText }] }] },
+      data: { brand: "Brand", note: "Fußleistennotiz", columns: [{ title: "Links", items: [{ label: daisyBindingVisibleText }] }] },
       bind: data => ({ ...data, columns: data.columns.map(column => ({ ...column, items: column.items.map(item => ({ ...item, transitionId: daisyBindingTransitionId })) })) })
     },
     {
@@ -636,6 +655,7 @@ test.describe("Core source contracts", () => {
     await page.goto("/state.html");
     await expect(appFrame(page).locator("#statePill")).toHaveText(model.initial);
     await expect(appFrame(page).locator("#screen .daisy-widget").first()).toBeAttached();
+    await expect(page.locator("#syncState")).toHaveText("aktiv");
   };
 
   for (const spec of daisyBindingCases) {
@@ -950,7 +970,7 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("toggleSubscriptionPath");
     expect(html).toContain("toggleRenderPath");
     expect(html).toContain("pTransitionKeyGrid");
-    expect(html).toContain("Daten aendern sich");
+    expect(html).toContain("Daten ändern sich");
     expect(html).toContain(".data-wire-row");
     expect(html).toContain("Sichtbare Felder");
     expect(html).toContain("Alle Pfade");
@@ -998,7 +1018,7 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("applyDerivedDataWires");
     expect(html).toContain("upsertDataWire");
     expect(html).toContain("runtimeDataWireComponentsForState");
-    expect(html).toContain("Liste nur waehlen, wenn dieser Zustand wiederholte Eintraege anzeigen soll.");
+    expect(html).toContain("Liste nur wählen, wenn dieser Zustand wiederholte Einträge anzeigen soll.");
     expect(html).not.toContain("autoCreateRepeatComponents");
     expect(html).not.toContain("autoDeriveRepeatForOwner(s, null, false)");
     expect(html).not.toContain("autoDeriveRepeatForOwner");
@@ -1010,8 +1030,8 @@ test.describe("Core source contracts", () => {
     expect(html).not.toContain('title: "API list"');
     expect(html).not.toContain("builtin_api_list");
     expect(html).not.toContain('title: "Theme Controller"');
-    expect(html).not.toContain('title: "Navbar - colors"');
-    expect(html).toContain('title: "Hero mit Bild rechts"');
+    expect(html).not.toContain('title: "Kopfleiste - Farben"');
+    expect(html).toContain('title: "Titelbereich mit Bild rechts"');
     expect(html).toContain('title: "Aktionsbutton"');
     expect(html).toContain("const SUPPORTED_DAISY_VARIANTS = new Set");
     expect(html).toContain("function runtimeSupportedDaisyComponent");
@@ -1954,7 +1974,7 @@ test.describe("Core browser contracts", () => {
         { id: "start", title: "Start", body: "", components: [], data: {}, x: 120, y: 180 },
         {
           id: "navbar_shop_cart",
-          title: "Navbar shop/cart",
+          title: "Kopfleiste Shop/Warenkorb",
           body: "",
           components: [],
           data: {},
@@ -1983,7 +2003,7 @@ test.describe("Core browser contracts", () => {
     await expect(app.locator("button[data-transition-id]")).toHaveCount(0);
 
     await openStateInspector(page, "settings");
-    await expect(page.locator("#pComponents .component-editor").filter({ hasText: "Button: Logout" })).toHaveCount(0);
+    await expect(page.locator("#pComponents .component-editor").filter({ hasText: "Schaltfläche: Logout" })).toHaveCount(0);
   });
 
   test("nested navbar child actions stop on an unconnected child state @smoke", async ({ page }) => {
@@ -2004,12 +2024,12 @@ test.describe("Core browser contracts", () => {
         },
         {
           id: "navbar_shop_cart",
-          title: "Navbar shop/cart",
+          title: "Kopfleiste Shop/Warenkorb",
           body: "",
           parentId: "start",
           x: 120,
           y: 120,
-          components: [{ id: "navbar", type: "daisy", variant: "navbar", dataPath: "states.navbar_shop_cart", dataRole: "widget", dataLabel: "Navbar shop/cart" }],
+          components: [{ id: "navbar", type: "daisy", variant: "navbar", dataPath: "states.navbar_shop_cart", dataRole: "widget", dataLabel: "Kopfleiste Shop/Warenkorb" }],
           data: {
             "states.navbar_shop_cart": {
               layout: "cart-profile",
@@ -2046,7 +2066,7 @@ test.describe("Core browser contracts", () => {
 
     const app = appFrame(page);
     await expect(app.locator("#statePill")).toHaveText("start");
-    await app.getByRole("button", { name: "Navbar shop/cart" }).click();
+    await app.getByRole("button", { name: "Kopfleiste Shop/Warenkorb" }).click();
     await expect(app.locator("#statePill")).toHaveText("navbar_shop_cart");
 
     const navbar = app.locator(".navbar").first();
@@ -2077,7 +2097,7 @@ test.describe("Core browser contracts", () => {
           x: 120,
           y: 180
         },
-        { id: "navbar_shop_cart", title: "Navbar shop/cart", body: "", components: [], data: {}, parentId: "start", x: 120, y: 120 },
+        { id: "navbar_shop_cart", title: "Kopfleiste Shop/Warenkorb", body: "", components: [], data: {}, parentId: "start", x: 120, y: 120 },
         { id: "settings", title: "Settings", body: "", components: [], data: {}, parentId: "start", x: 360, y: 120 },
         { id: "state_7", title: "State 7", body: "", components: [], data: {}, x: 520, y: 180 }
       ],
@@ -2089,12 +2109,18 @@ test.describe("Core browser contracts", () => {
 
     const app = appFrame(page);
     await expect(app.locator("#statePill")).toHaveText("start");
-    await app.getByRole("button", { name: "Navbar shop/cart" }).click();
+    await app.getByRole("button", { name: "Kopfleiste Shop/Warenkorb" }).click();
     await expect(app.locator("#statePill")).toHaveText("navbar_shop_cart");
 
-    await openStateInspector(page, "navbar_shop_cart");
-    await expect(page.locator("#pComponents .component-editor").filter({ hasText: "Button: To State 7" })).toHaveCount(0);
+    await page.evaluate(() => {
+      selected = selectionFromParts(["navbar_shop_cart"], []);
+      showNodeInspector(byId("navbar_shop_cart"), { forceOpen: true, manualOpen: true });
+    });
+    await expect(page.locator("#pTitle")).toHaveValue("Kopfleiste Shop/Warenkorb");
+    await expect(page.locator("#pComponents .component-editor").filter({ hasText: "Schaltfläche: To State 7" })).toHaveCount(0);
 
+    await page.evaluate(() => startAppAtState("navbar_shop_cart", { preserveFocus: true }));
+    await expect(app.locator("#statePill")).toHaveText("navbar_shop_cart");
     await app.getByRole("button", { name: "Settings" }).click();
     await expect(app.locator("#statePill")).toHaveText("settings");
     await expect(app.getByRole("button", { name: "To State 7" })).toHaveCount(0);
@@ -2120,7 +2146,7 @@ test.describe("Core browser contracts", () => {
           x: 120,
           y: 180
         },
-        { id: "navbar_shop_cart", title: "Navbar shop/cart", body: "", components: [], data: {}, parentId: "start", x: 120, y: 120 },
+        { id: "navbar_shop_cart", title: "Kopfleiste Shop/Warenkorb", body: "", components: [], data: {}, parentId: "start", x: 120, y: 120 },
         { id: "settings", title: "Settings", body: "", components: [], data: {}, parentId: "start", x: 360, y: 120 },
         { id: "state_7", title: "State 7", body: "", components: [], data: {}, x: 520, y: 180 }
       ],
@@ -2133,7 +2159,7 @@ test.describe("Core browser contracts", () => {
 
     const app = appFrame(page);
     await expect(app.locator("#statePill")).toHaveText("start");
-    await app.getByRole("button", { name: "Navbar shop/cart" }).click();
+    await app.getByRole("button", { name: "Kopfleiste Shop/Warenkorb" }).click();
     await expect(app.locator("#statePill")).toHaveText("navbar_shop_cart");
     await expect(app.getByRole("button", { name: "To State 7" })).toBeVisible();
 

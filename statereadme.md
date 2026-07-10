@@ -8,46 +8,46 @@ Stand: 2026-07-10
 
 Dieses Dokument ist der schriftliche Vertrag von Zustand / Digitalisierungsplanung.
 Es beschreibt die Invarianten, die Editor, Runtime, Export, API, MCP und
-Realtime-Transport gemeinsam einhalten muessen. Die Tests sind die ausfuehrbare
+Realtime-Transport gemeinsam einhalten müssen. Die Tests sind die ausführbare
 Absicherung dieses Vertrags.
 
-## 0. App-Prinzip und durchgaengiger Systemfluss
+## 0. App-Prinzip und durchgängiger Systemfluss
 
-- **PRN-001 Ausfuehrbares Prozessmodell:** Zustand ist kein reiner
-  Diagrammeditor. Die App modelliert einen fachlichen Prozess als ausfuehrbare
+- **PRN-001 Ausführbares Prozessmodell:** Zustand ist kein reiner
+  Diagrammeditor. Die App modelliert einen fachlichen Prozess als ausführbare
   endliche Zustandsmaschine. Der Canvas ist die visuelle Autorenansicht dieses
-  Programms; die generierte App fuehrt dasselbe Programm aus.
+  Programms; die generierte App führt dasselbe Programm aus.
 - **PRN-002 Fachliche Zuordnung:** Ein State ist ein Prozessschritt und seine
   sichtbare Ansicht. Eine Transition ist der einzige erlaubte Wechsel. Ihr
   Trigger bestimmt die Ursache, ihre Condition die Zulassung und ihr `set` die
-  Datenwirkung. Komponenten stellen Modell und Daten dar, duerfen aber keinen
+  Datenwirkung. Komponenten stellen Modell und Daten dar, dürfen aber keinen
   zweiten Ablauf erfinden.
 - **PRN-003 Zwei Wahrheiten, klare Grenze:** Das normalisierte Modell ist die
   persistierte strukturelle Wahrheit. Der globale JSON-Bus ist die einzige
-  veraenderliche Laufzeit-Wahrheit. Editor-DOM, SVG, Vorschau, Inspektor,
-  Host-Snapshot und Server sind ausschliesslich Projektionen oder Transport.
+  veränderliche Laufzeit-Wahrheit. Editor-DOM, SVG, Vorschau, Inspektor,
+  Host-Snapshot und Server sind ausschließlich Projektionen oder Transport.
 - **PRN-004 Autorenfluss:** Jede fachliche Modelloperation MUSS das Modell
-  aendern, normalisieren, in der Historie erfassen und persistieren; relevante
-  Auswahl- und Ebenendaten gehoeren zum Sitzungssnapshot. Danach sendet der Host
-  das Modell per `STATE_BLUEPRINT_MODEL` an die Vorschau. Eine DOM-Aenderung
-  allein ist keine Modelloperation. Rein lokale UI- und Kameraaenderungen duerfen
-  ausserhalb der Modellhistorie persistieren.
+  ändern, normalisieren, in der Historie erfassen und persistieren; relevante
+  Auswahl- und Ebenendaten gehören zum Sitzungssnapshot. Danach sendet der Host
+  das Modell per `STATE_BLUEPRINT_MODEL` an die Vorschau. Eine DOM-Änderung
+  allein ist keine Modelloperation. Rein lokale UI- und Kameraänderungen dürfen
+  außerhalb der Modellhistorie persistieren.
 - **PRN-005 Laufzeitzyklus:** Ein reales Nutzerereignis oder ein deklarierter
   automatischer beziehungsweise externer Trigger erzeugt ein Runtime-Ereignis.
   Die Runtime schreibt dessen Metadaten in den Bus, stellt es in die
   Ereigniswarteschlange, sucht im aktiven State-/Elternpfad passende
   Transitionen, wertet die Condition aus, wendet bei Erfolg `set` an, wechselt
-  zum aufgeloesten Ziel, fuehrt Eintrittseffekte aus und rendert den neuen Stand.
+  zum aufgelösten Ziel, führt Eintrittseffekte aus und rendert den neuen Stand.
 - **PRN-006 Verschachtelte Prozesse:** Ein Parent ist ein echter State und seine
   Kinder sind eine echte innere Zustandsmaschine. Die Boundary ist die
-  ausdrueckliche oeffentliche Ein-/Ausgangsschnittstelle des Parents. Ohne
-  echten inneren oder aeusseren Ausgang stoppt die Maschine.
-- **PRN-007 Eine Runtime:** Editorvorschau, Standalone-HTML und die oeffentliche
-  Demo MUESSEN aus demselben Modell und derselben generierten Runtime entstehen.
+  ausdrückliche öffentliche Ein-/Ausgangsschnittstelle des Parents. Ohne
+  echten inneren oder äußeren Ausgang stoppt die Maschine.
+- **PRN-007 Eine Runtime:** Editorvorschau, Standalone-HTML und die öffentliche
+  Demo MÜSSEN aus demselben Modell und derselben generierten Runtime entstehen.
   `index.html` ist deshalb eine kompilierte Beispiel-App und keine getrennte
   Marketing- oder Ersatzimplementierung.
-- **PRN-008 MCP als zweite Autorenoberflaeche:** MCP ist eine headless
-  Autoren- und Steueroberflaeche fuer dasselbe Modell. Es darf Aktionen planen,
+- **PRN-008 MCP als zweite Autorenoberfläche:** MCP ist eine headless
+  Autoren- und Steueroberfläche für dasselbe Modell. Es darf Aktionen planen,
   ordnen, validieren, persistieren und exportieren, aber weder ein zweites
   Fachmodell noch eine abweichende Runtime-Semantik besitzen.
 - **PRN-009 Realtime als Ereignistransport:** Realtime transportiert
@@ -55,13 +55,13 @@ Absicherung dieses Vertrags.
   keine Canvas-Operationen, Modell-Patches oder dauerhaften fachlichen Daten und
   ist daher keine kollaborative Modellbearbeitung.
 - **PRN-010 Clientseitiger Kern:** Editor und Standalone-Runtime arbeiten
-  clientseitig. Ein Server wird nur fuer bereitgestellte Netzfunktionen wie
-  Realtime, Tokenausgabe, Katalog und externe Fetch-Ziele benoetigt; er darf die
-  lokale Modell- und Bushoheit nicht uebernehmen.
-- **PRN-011 Produktziel:** Ein digitalisierter Prozess ist erst dann vollstaendig
+  clientseitig. Ein Server wird nur für bereitgestellte Netzfunktionen wie
+  Realtime, Tokenausgabe, Katalog und externe Fetch-Ziele benötigt; er darf die
+  lokale Modell- und Bushoheit nicht übernehmen.
+- **PRN-011 Produktziel:** Ein digitalisierter Prozess ist erst dann vollständig
   beschrieben, wenn Ablauf, Daten, Darstellung, Seiteneffekte, Schnittstellen
   und Grenzen explizit im Modell liegen, im Browser beweisbar sind und ohne den
-  Editor als eigenstaendige App exportiert werden koennen.
+  Editor als eigenständige App exportiert werden können.
 
 Der Hauptpfad des Systems lautet:
 
@@ -81,26 +81,26 @@ Editoraktion
 - **SOLL** bezeichnet eine Regel, von der nur mit dokumentiertem Grund
   abgewichen werden darf.
 - **DARF** bezeichnet erlaubtes, aber nicht erforderliches Verhalten.
-- Jede Regel besitzt eine stabile Vertrags-ID. Tests und Aenderungen SOLLEN
-  diese ID nennen, wenn sie eine Regel konkret absichern oder veraendern.
+- Jede Regel besitzt eine stabile Vertrags-ID. Tests und Änderungen SOLLEN
+  diese ID nennen, wenn sie eine Regel konkret absichern oder verändern.
 - Ein Widerspruch zwischen Dokument, Test und Implementierung ist ein Fehler.
-  Eine beabsichtigte Vertragsaenderung MUSS Dokument, Tests und Implementierung
-  gemeinsam aendern.
-- Ein bestehender Test DARF NICHT abgeschwaecht, mit Wiederholungen verdeckt oder
-  auf ein Implementierungsdetail umgebogen werden, nur damit ein Fehler gruene
+  Eine beabsichtigte Vertragsänderung MUSS Dokument, Tests und Implementierung
+  gemeinsam ändern.
+- Ein bestehender Test DARF NICHT abgeschwächt, mit Wiederholungen verdeckt oder
+  auf ein Implementierungsdetail umgebogen werden, nur damit ein Fehler grüne
   Ergebnisse liefert.
-- Nicht normative Produktideen stehen am Ende dieses Dokuments und duerfen
-  bestehende Vertragsregeln nicht stillschweigend veraendern.
+- Nicht normative Produktideen stehen am Ende dieses Dokuments und dürfen
+  bestehende Vertragsregeln nicht stillschweigend verändern.
 
 ## 2. Begriffe und Wahrheiten
 
 - **SYS-001 Strukturelle Wahrheit:** Das kanonische JSON-Modell ist die einzige
-  persistierte Wahrheit ueber Zustaende, Uebergaenge, Ausloeser, Bedingungen,
+  persistierte Wahrheit über Zustände, Übergänge, Auslöser, Bedingungen,
   Daten-Deklarationen, Darstellung, Reihenfolge, Verschachtelung und Boundary.
 - **SYS-002 Laufzeit-Wahrheit:** Der globale JSON-Zustands-/Ereignisbus ist die
-  einzige veraenderliche Wahrheit ueber fachliche Laufzeitdaten und Ereignisse.
+  einzige veränderliche Wahrheit über fachliche Laufzeitdaten und Ereignisse.
 - **SYS-003 Projektionen:** DOM, SVG, Vorschau, Inspektor, Host-Snapshot,
-  Exportansicht und Realtime-Konsole sind Projektionen. Sie DUERFEN NICHT als
+  Exportansicht und Realtime-Konsole sind Projektionen. Sie DÜRFEN NICHT als
   zweite fachliche Wahrheit verwendet werden.
 - **SYS-004 Datenfluss:** Der verbindliche Datenfluss lautet:
 
@@ -111,228 +111,228 @@ Editoraktion
     -> DOM-/SVG-Projektion
   ```
 
-- **SYS-005 Kein Schattenzustand:** Ablauf oder fachliche Daten DUERFEN NICHT
-  ausschliesslich im DOM, in Komponenten, Vorlagen, HTML-Fragmenten, Closures,
+- **SYS-005 Kein Schattenzustand:** Ablauf oder fachliche Daten DÜRFEN NICHT
+  ausschließlich im DOM, in Komponenten, Vorlagen, HTML-Fragmenten, Closures,
   Cache-Objekten, Host-Snapshots oder parallelen Stores leben.
-- **SYS-006 Editor-Sitzung:** Auswahl, Hover, Fokus, geoeffnete Ebene,
-  Zwischenablage, Undo/Redo, Panelgroessen und mobile Ansicht sind
-  Editor-Sitzungszustand. Sie DUERFEN die fachliche Bedeutung des Modells nicht
-  veraendern.
+- **SYS-006 Editor-Sitzung:** Auswahl, Hover, Fokus, geöffnete Ebene,
+  Zwischenablage, Undo/Redo, Panelgrößen und mobile Ansicht sind
+  Editor-Sitzungszustand. Sie DÜRFEN die fachliche Bedeutung des Modells nicht
+  verändern.
 
 ## 3. Kanonisches Modell und Persistenzgrenze
 
 - **MOD-001 Version:** Ein kanonisches Modell MUSS `version: 2`, einen Namen,
   `initial`, `states` und `transitions` besitzen. Eine leere Definition mit
-  `initial: ""`, `states: []` und `transitions: []` ist gueltig.
+  `initial: ""`, `states: []` und `transitions: []` ist gültig.
 - **MOD-002 Normalisierung:** Jeder Schreibweg MUSS vor Persistenz normalisieren
-  und danach validieren. Editor, API und MCP MUESSEN dieselben Invarianten
+  und danach validieren. Editor, API und MCP MÜSSEN dieselben Invarianten
   anwenden.
 - **MOD-003 Keine undefinierten Werte:** `undefined` DARF weder im Modell noch im
-  Bus, Export oder Storage persistieren. Leere Werte MUESSEN als `""`, `false`,
+  Bus, Export oder Storage persistieren. Leere Werte MÜSSEN als `""`, `false`,
   `0`, `null`, `[]` oder `{}` bewusst dargestellt oder entfernt werden.
 - **MOD-004 Verbotene Modellfelder:** Das kanonische Modell DARF insbesondere
   keine `editorGroups`, Realtime-Katalogkopie, Provider-/Transportkonfiguration,
   Runtime-Historie, Runtime-Kontextkopie, `localState`, `stateStore`, `store`
   oder komponentenlokales `html` enthalten.
-- **MOD-005 Alte Aliase:** Entfernte Aliase und Fallback-Felder DUERFEN NICHT im
-  kanonischen Modell oder Export fortleben. Dazu gehoeren insbesondere
+- **MOD-005 Alte Aliase:** Entfernte Aliase und Fallback-Felder DÜRFEN NICHT im
+  kanonischen Modell oder Export fortleben. Dazu gehören insbesondere
   automatische `body`-Migrationen, alte Trigger-Aliase, `dataWireId`-Aliase,
   lokale Fetch-Aliase und versteckte Child-Outlet-/Passive-Render-Konstrukte.
-- **MOD-006 Legacy-Body:** Ein eingelesenes, nicht unterstuetztes `body`-Feld
+- **MOD-006 Legacy-Body:** Ein eingelesenes, nicht unterstütztes `body`-Feld
   DARF NICHT stillschweigend in eine Komponente oder sichtbaren Inhalt
   umgewandelt werden.
-- **MOD-007 Referenzintegritaet:** Jede persistierte Referenz MUSS auf ein
-  vorhandenes Objekt des richtigen Typs zeigen. Ungueltige Transition-Endpunkte,
-  Data-Wire-Platzhalter und Transition-Button-Platzhalter MUESSEN abgelehnt,
+- **MOD-007 Referenzintegrität:** Jede persistierte Referenz MUSS auf ein
+  vorhandenes Objekt des richtigen Typs zeigen. Ungültige Transition-Endpunkte,
+  Data-Wire-Platzhalter und Transition-Button-Platzhalter MÜSSEN abgelehnt,
   entfernt oder eindeutig repariert werden.
-- **MOD-008 Loeschkaskade:** Beim Loeschen eines Zustands MUESSEN ungueltig
-  gewordene Transitionen, deklarierte Zustandsdaten und zugehoerige Referenzen
+- **MOD-008 Löschkaskade:** Beim Löschen eines Zustands MÜSSEN ungültig
+  gewordene Transitionen, deklarierte Zustandsdaten und zugehörige Referenzen
   entfernt oder vertragskonform neu verdrahtet werden.
-- **MOD-009 UI-Persistenz:** Kamera und ausdruecklich exportierbare
-  Ansichtsmetadaten DUERFEN ausserhalb des fachlichen Modells gespeichert werden.
-  Panelgroessen, Auswahl und Vorschau-Zustand DUERFEN NICHT in das fachliche
+- **MOD-009 UI-Persistenz:** Kamera und ausdrücklich exportierbare
+  Ansichtsmetadaten DÜRFEN außerhalb des fachlichen Modells gespeichert werden.
+  Panelgrößen, Auswahl und Vorschau-Zustand DÜRFEN NICHT in das fachliche
   Modell gelangen.
 
-## 4. IDs und Namensraeume
+## 4. IDs und Namensräume
 
-- **ID-001 Globaler Entitaetsraum:** Zustands-IDs und Transition-IDs teilen
+- **ID-001 Globaler Entitätsraum:** Zustands-IDs und Transition-IDs teilen
   genau einen globalen Namensraum. Keine Zustands-ID darf einer Transition-ID
   entsprechen.
-- **ID-002 Eindeutigkeit:** Jede erzeugte oder importierte Entitaets-ID MUSS nach
+- **ID-002 Eindeutigkeit:** Jede erzeugte oder importierte Entitäts-ID MUSS nach
   Normalisierung global eindeutig sein.
-- **ID-003 Reservierte Runtime-IDs:** IDs mit dem Praefix `__runtime_` sind fuer
-  abgeleitete Runtime-Aktionen reserviert und DUERFEN NICHT als formale
+- **ID-003 Reservierte Runtime-IDs:** IDs mit dem Präfix `__runtime_` sind für
+  abgeleitete Runtime-Aktionen reserviert und DÜRFEN NICHT als formale
   Zustands- oder Transition-IDs gespeichert werden.
-- **ID-004 Boundary-IDs:** Explizite Boundary-Verbindungen duerfen stabile IDs
+- **ID-004 Boundary-IDs:** Explizite Boundary-Verbindungen dürfen stabile IDs
   wie `boundary-flow:<scope>:<side>` verwenden. Sie bleiben echte
-  Modellreferenzen und DUERFEN NICHT mit Nutzerentitaeten kollidieren.
+  Modellreferenzen und DÜRFEN NICHT mit Nutzerentitäten kollidieren.
 - **ID-005 Anzeige und Bindung:** Sichtbarer Text, Titel und Label sind Anzeige.
-  Ausschliesslich IDs sind Bindung.
+  Ausschließlich IDs sind Bindung.
 - **ID-006 Kopieren und Vorlagen:** Kopieren, Duplizieren, Preset-Drop,
-  Gruppieren und Import MUESSEN fuer jede neue Entitaet kollisionsfreie IDs und
+  Gruppieren und Import MÜSSEN für jede neue Entität kollisionsfreie IDs und
   intern konsistente Referenzen erzeugen.
 
-## 5. Zustaende und Zustandsdaten
+## 5. Zustände und Zustandsdaten
 
-- **STA-001 Zustand:** Ein Zustand ist eine explizite FSM-Entitaet und eine Sicht
-  auf den fuer ihn relevanten Ausschnitt des globalen Busses.
-- **STA-002 Datenscope:** Deklarierte fachliche Daten eines Zustands MUESSEN
+- **STA-001 Zustand:** Ein Zustand ist eine explizite FSM-Entität und eine Sicht
+  auf den für ihn relevanten Ausschnitt des globalen Busses.
+- **STA-002 Datenscope:** Deklarierte fachliche Daten eines Zustands MÜSSEN
   kanonisch unter `states.<stateId>.*` liegen.
 - **STA-003 Pfadnormalisierung:** Unqualifizierte Zustandsvariablen,
-  Transition-Bedingungen und Transition-`set`-Pfade MUESSEN auf den Scope des
+  Transition-Bedingungen und Transition-`set`-Pfade MÜSSEN auf den Scope des
   Quell- beziehungsweise Besitzerzustands normalisiert werden.
-- **STA-004 Typen:** Deklarierte Eintraege in `dataTypes` MUESSEN zu vorhandenen
-  Zustandsdaten passen. Unterstuetzte Typen muessen im Editor und in der Runtime
+- **STA-004 Typen:** Deklarierte Einträge in `dataTypes` MÜSSEN zu vorhandenen
+  Zustandsdaten passen. Unterstützte Typen müssen im Editor und in der Runtime
   konsistent interpretiert werden.
-- **STA-005 Eintrittswerte:** Zustands-Defaults duerfen erst beim aktiven Eintritt
+- **STA-005 Eintrittswerte:** Zustands-Defaults dürfen erst beim aktiven Eintritt
   dieses Zustands in den Bus gelangen. Preset-Daten und Daten in inaktiven
-  Zustaenden DUERFEN den Runtime-Bus nicht vorab befuellen.
-- **STA-006 Kein Ueberschreiben:** Eintrittswerte DUERFEN bereits vorhandene
-  Buswerte nicht ueberschreiben. Insbesondere MUSS ein zuvor ausgefuehrtes
-  Transition-`set` gegenueber einem Default erhalten bleiben.
-- **STA-007 Deklarierte externe Writes:** Externe Ereignisse und Widgets DUERFEN
-  nur in deklarierte, fuer sie gebundene Zustandsdaten schreiben. Sie DUERFEN
+  Zuständen DÜRFEN den Runtime-Bus nicht vorab befüllen.
+- **STA-006 Kein Überschreiben:** Eintrittswerte DÜRFEN bereits vorhandene
+  Buswerte nicht überschreiben. Insbesondere MUSS ein zuvor ausgeführtes
+  Transition-`set` gegenüber einem Default erhalten bleiben.
+- **STA-007 Deklarierte externe Writes:** Externe Ereignisse und Widgets DÜRFEN
+  nur in deklarierte, für sie gebundene Zustandsdaten schreiben. Sie DÜRFEN
   keine beliebigen neuen Buspfade erzeugen.
 - **STA-008 Laufende Eingaben:** Ein Re-Render oder eine Bearbeitung des aktuell
-  aktiven Zustands DARF bestehende Runtime-Eingaben nicht loeschen. Nur ein
-  ausdruecklicher Reset darf sie zuruecksetzen.
+  aktiven Zustands DARF bestehende Runtime-Eingaben nicht löschen. Nur ein
+  ausdrücklicher Reset darf sie zurücksetzen.
 - **STA-009 Abonnements:** `subscriptions` beschreiben gelesene Buspfade. Das
-  Hinzufuegen einer Darstellung oder eines Data Wires DARF Abonnements nicht
+  Hinzufügen einer Darstellung oder eines Data Wires DARF Abonnements nicht
   als versteckten Schreibkanal missbrauchen.
 - **STA-010 Runtime-Steuerung:** Globale Runtime-Steuerung lebt im Bus, zum
   Beispiel `runtime.paused`; es DARF keine zweite lokale Variable wie
   `runtimePaused` geben.
 - **STA-011 Host-Snapshot:** `latestRuntimeContext` und vergleichbare
-  Host-Snapshots sind nur lesende Momentaufnahmen. Sie DUERFEN weder das Modell
-  noch Zustandsdefaults veraendern oder persistieren.
+  Host-Snapshots sind nur lesende Momentaufnahmen. Sie DÜRFEN weder das Modell
+  noch Zustandsdefaults verändern oder persistieren.
 
-## 6. Uebergaenge und Ereigniskausalitaet
+## 6. Übergänge und Ereigniskausalität
 
-- **TRN-001 Echte Kante:** Ein Uebergang MUSS eine eindeutige ID sowie vorhandene
-  `from`- und `to`-Zustaende besitzen.
-- **TRN-002 Aktive Quelle:** Ein Uebergang darf nur feuern, wenn seine effektive
+- **TRN-001 Echte Kante:** Ein Übergang MUSS eine eindeutige ID sowie vorhandene
+  `from`- und `to`-Zustände besitzen.
+- **TRN-002 Aktive Quelle:** Ein Übergang darf nur feuern, wenn seine effektive
   Quelle im aktuellen Runtime-Kontext aktiv und erreichbar ist.
-- **TRN-003 Ausloeser:** Ein Uebergang startet nur durch seinen deklarierten
-  Ausloeser. Vertragsrelevante Typen sind `button`, `timer`, `change`, `event`,
+- **TRN-003 Auslöser:** Ein Übergang startet nur durch seinen deklarierten
+  Auslöser. Vertragsrelevante Typen sind `button`, `timer`, `change`, `event`,
   `realtime` und `immediate`.
-- **TRN-004 Button-Ereignis:** Ein Button-Uebergang bindet ueber seine
+- **TRN-004 Button-Ereignis:** Ein Button-Übergang bindet über seine
   `transitionId` und das Ereignis `button.<transitionId>.clicked`. Sein Label
-  ist ausschliesslich Anzeige.
+  ist ausschließlich Anzeige.
 - **TRN-005 Keine Inferenz:** Weder Label, sichtbarer Text, Reihenfolge,
-  `set`-Pfad noch Datenwert darf verwendet werden, um einen Uebergang zu erraten.
-- **TRN-006 Bedingung:** Eine Bedingung liest ausschliesslich aus dem globalen
-  Bus. Sie entscheidet nach Eingang des passenden Ausloesers, ob der Uebergang
+  `set`-Pfad noch Datenwert darf verwendet werden, um einen Übergang zu erraten.
+- **TRN-006 Bedingung:** Eine Bedingung liest ausschließlich aus dem globalen
+  Bus. Sie entscheidet nach Eingang des passenden Auslösers, ob der Übergang
   feuern darf.
-- **TRN-007 Wirkung:** `set` beschreibt ausschliesslich die Buswirkung eines
-  erfolgreich ausgeloesten Uebergangs. `set` DARF NICHT als UI-Bindung oder
+- **TRN-007 Wirkung:** `set` beschreibt ausschließlich die Buswirkung eines
+  erfolgreich ausgelösten Übergangs. `set` DARF NICHT als UI-Bindung oder
   Triggerquelle dienen.
-- **TRN-008 Reihenfolge:** Ein akzeptierter Ausloeser wird gegen die aktive
-  Quelle und Bedingung geprueft. Danach wird `set` ueber den autorisierten Bus
+- **TRN-008 Reihenfolge:** Ein akzeptierter Auslöser wird gegen die aktive
+  Quelle und Bedingung geprüft. Danach wird `set` über den autorisierten Bus
   geschrieben, der aktive Zustand gewechselt und der Zielzustand betreten.
-  Ziel-Defaults DUERFEN die so geschriebenen Werte nicht ueberschreiben.
+  Ziel-Defaults DÜRFEN die so geschriebenen Werte nicht überschreiben.
 - **TRN-009 Keine versteckten Kanten:** Die Runtime DARF keine synthetischen
   `next`, Parent-Return-, Geschwister-, Child-Outlet- oder sonstigen fachlichen
-  Uebergaenge erfinden.
-- **TRN-010 Sichtbarkeit:** Sichtbare normale Button-Uebergaenge MUESSEN als
+  Übergänge erfinden.
+- **TRN-010 Sichtbarkeit:** Sichtbare normale Button-Übergänge MÜSSEN als
   echte, aktivierbare Controls rendern. Timer-, Change-, Realtime- und andere
-  automatische Uebergaenge DUERFEN NICHT als irrefuehrende Buttons erscheinen.
-- **TRN-011 Mehrfachausgaenge:** Mehrere ausgehende Button-Uebergaenge MUESSEN
+  automatische Übergänge DÜRFEN NICHT als irreführende Buttons erscheinen.
+- **TRN-011 Mehrfachausgänge:** Mehrere ausgehende Button-Übergänge MÜSSEN
   ihre eigenen IDs, Ziele, Ereignisse und Farben behalten.
-- **TRN-012 Vertrauensgrenze:** Synthetisch erzeugte DOM-UI-Events DUERFEN keine
+- **TRN-012 Vertrauensgrenze:** Synthetisch erzeugte DOM-UI-Events DÜRFEN keine
   fachliche Buswirkung oder Transition committen. Echte Nutzer-Clicks und
-  Nutzereingaben MUESSEN ueber den Bus verarbeitet werden.
-- **TRN-013 Schreibautorisierung:** Runtime-Writes MUESSEN ueber den zentralen
-  Bus und dessen Quellen-/Tokenpruefung laufen. Direkte Kontextzuweisungen sind
-  ausserhalb der Bus-Interna verboten.
+  Nutzereingaben MÜSSEN über den Bus verarbeitet werden.
+- **TRN-013 Schreibautorisierung:** Runtime-Writes MÜSSEN über den zentralen
+  Bus und dessen Quellen-/Tokenprüfung laufen. Direkte Kontextzuweisungen sind
+  außerhalb der Bus-Interna verboten.
 - **TRN-014 Pause:** `runtime.paused` MUSS automatische Fortsetzungen, Timer und
   Change-Verarbeitung stoppen und anstehende automatische Arbeit verwerfen.
-  Beim Fortsetzen DUERFEN keine veralteten Ereignisse nachgeholt werden.
+  Beim Fortsetzen DÜRFEN keine veralteten Ereignisse nachgeholt werden.
 
 ## 7. Verschachtelung und Boundary
 
-- **NEST-001 Echte Eltern:** Gruppierte oder zusammengesetzte Ablaeufe MUESSEN
-  durch einen echten Parent-Zustand und echte Child-Zustaende mit `parentId`
+- **NEST-001 Echte Eltern:** Gruppierte oder zusammengesetzte Abläufe MÜSSEN
+  durch einen echten Parent-Zustand und echte Child-Zustände mit `parentId`
   dargestellt werden. `editorGroups` ist verboten.
-- **NEST-002 Exakte Ebene:** Ein Child gehoert genau zur Ebene seines Parents.
-  Editor und Runtime MUESSEN beim aktiven Child diese Ebene anzeigen und
-  Zustaende anderer Ebenen ausblenden.
+- **NEST-002 Exakte Ebene:** Ein Child gehört genau zur Ebene seines Parents.
+  Editor und Runtime MÜSSEN beim aktiven Child diese Ebene anzeigen und
+  Zustände anderer Ebenen ausblenden.
 - **NEST-003 Parent ist sichtbar:** Ein Parent ist selbst ein echter
-  Runtime-Zustand und MUSS seine eigene Darstellung zeigen koennen, bevor ein
+  Runtime-Zustand und MUSS seine eigene Darstellung zeigen können, bevor ein
   expliziter Boundary-Eintritt aktiviert wird.
 - **NEST-004 Eintritt:** `boundary.entryId` bezeichnet den echten Child-Eintritt.
   Ein manueller Eintritt wird als explizite Aktion angeboten. Nur eine
-  ausdrueckliche Konfiguration wie `entryTriggerType: "auto"` darf den Parent
-  automatisch in sein Entry-Child weiterfuehren.
+  ausdrückliche Konfiguration wie `entryTriggerType: "auto"` darf den Parent
+  automatisch in sein Entry-Child weiterführen.
 - **NEST-005 Wiedereintritt:** Wird ein Parent erneut betreten, MUSS sein
   Boundary-Eintritt wieder am konfigurierten Entry-Child beginnen; ein zuvor
   aktives tieferes Child darf nicht stillschweigend fortgesetzt werden.
 - **NEST-006 Interner Ablauf:** Child-zu-Child-Verbindungen sind echte
-  Transitionen innerhalb derselben Ebene. Wires DUERFEN nicht unbemerkt ueber
+  Transitionen innerhalb derselben Ebene. Wires DÜRFEN nicht unbemerkt über
   Ebenengrenzen springen.
 - **NEST-007 Ausgang:** `boundary.exitId` bezeichnet das Child, an dem echte
-  Parent-Ausgaenge projiziert werden duerfen.
-- **NEST-008 Ausgangsprojektion:** Am Exit-Child MUESSEN zuerst dessen eigene
-  ausgehende Aktionen und danach die echt verdrahteten Parent-Ausgaenge
+  Parent-Ausgänge projiziert werden dürfen.
+- **NEST-008 Ausgangsprojektion:** Am Exit-Child MÜSSEN zuerst dessen eigene
+  ausgehende Aktionen und danach die echt verdrahteten Parent-Ausgänge
   erscheinen.
 - **NEST-009 Kein impliziter Ausgang:** Ein Child ohne konfigurierten Ausgang
-  DARF keine Parent-Ausgaenge, Geschwisteraktionen oder Rueckkehr zum Parent
+  DARF keine Parent-Ausgänge, Geschwisteraktionen oder Rückkehr zum Parent
   erben.
 - **NEST-010 Stopregel:** Besitzt ein Boundary-Ausgang keinen echten
-  Parent-Uebergang, stoppt der Ablauf dort. Die Runtime DARF keinen Ersatzknopf
+  Parent-Übergang, stoppt der Ablauf dort. Die Runtime DARF keinen Ersatzknopf
   oder Kreis zum Eingang erfinden.
-- **NEST-011 Keine Boundary-Schaltflaeche:** Technische Boundary-Flow-Kanten
-  DUERFEN nicht zusaetzlich als normale fachliche Buttons gerendert werden.
+- **NEST-011 Keine Boundary-Schaltfläche:** Technische Boundary-Flow-Kanten
+  DÜRFEN nicht zusätzlich als normale fachliche Buttons gerendert werden.
 - **NEST-012 Umverdrahten:** Wird ein Parent-Ein- oder -Ausgang umverdrahtet,
-  MUESSEN Projektion und Runtime unmittelbar auf die echte neue Referenz folgen.
+  MÜSSEN Projektion und Runtime unmittelbar auf die echte neue Referenz folgen.
 - **NEST-013 Gruppieren:** Gruppieren beziehungsweise Collapse MUSS einen echten
-  Parent erzeugen, eingehende und ausgehende Kanten ueber Entry und Exit
+  Parent erzeugen, eingehende und ausgehende Kanten über Entry und Exit
   verdrahten und rekursiv vorhandene Child-Strukturen erhalten.
-- **NEST-014 Entgruppieren:** Degroup MUSS das Modell, die Entitaetsreihenfolge
+- **NEST-014 Entgruppieren:** Degroup MUSS das Modell, die Entitätsreihenfolge
   und die vorherige externe Verdrahtung exakt wiederherstellen; es darf keine
-  Editor-Metadaten als fachliche Abkuerzung verwenden.
-- **NEST-015 Boundary-Reparatur:** Nach Loeschen oder Verschieben eines
-  verankerten Childs MUESSEN Boundary-Anker wiederverwendbar bleiben und auf
-  einen gueltigen Endpunkt neu gesetzt oder explizit deaktiviert werden.
+  Editor-Metadaten als fachliche Abkürzung verwenden.
+- **NEST-015 Boundary-Reparatur:** Nach Löschen oder Verschieben eines
+  verankerten Childs MÜSSEN Boundary-Anker wiederverwendbar bleiben und auf
+  einen gültigen Endpunkt neu gesetzt oder explizit deaktiviert werden.
 
 ## 8. Darstellung und Render-Reihenfolge
 
 - **REN-001 Reine Projektion:** Darstellung liest Modell und Bus. Sie DARF keine
   Ablaufentscheidung, fachlichen Daten oder Datenladeeffekte erfinden.
-- **REN-002 Render-Eintraege:** Die sichtbare Reihenfolge besteht aus manuellen
+- **REN-002 Render-Einträge:** Die sichtbare Reihenfolge besteht aus manuellen
   Komponenten sowie referenziellen Platzhaltern vom Typ `dataWire` und
   `transitionButton`.
 - **REN-003 Referenzen statt Kopien:** Ein `dataWire`-Platzhalter speichert nur
   seine `wireId`; ein `transitionButton`-Platzhalter nur seine `transitionId`.
-  Daten oder Transitionen DUERFEN nicht in den Platzhalter kopiert werden.
+  Daten oder Transitionen DÜRFEN nicht in den Platzhalter kopiert werden.
 - **REN-004 Ordnung:** Unplatzierte Data Wires werden vor der expliziten
   Renderliste in ihrer Modellreihenfolge gerendert. Platzierte Komponenten,
   Data Wires und Transition-Buttons folgen danach exakt der Reihenfolge in
-  `components`. Ein Uebergang darf hoechstens einmal sichtbar gerendert werden.
-- **REN-005 Bearbeitbarkeit:** Render-Eintraege MUESSEN per Maus und Touch
-  umsortierbar sein; die gespeicherte Reihenfolge und Runtime-Ausgabe MUESSEN
-  unmittelbar uebereinstimmen.
+  `components`. Ein Übergang darf höchstens einmal sichtbar gerendert werden.
+- **REN-005 Bearbeitbarkeit:** Render-Einträge MÜSSEN per Maus und Touch
+  umsortierbar sein; die gespeicherte Reihenfolge und Runtime-Ausgabe MÜSSEN
+  unmittelbar übereinstimmen.
 - **REN-006 Data Wire:** Ein Data Wire ist eine lesende Zuordnung von
   `sourcePath` zu Darstellungsrolle und Komponententyp. Er DARF Quelldaten nicht
-  kopieren und Abonnements nicht als Nebenwirkung veraendern.
-- **REN-007 Kein Rehydrieren:** Wird eine Data-Wire-Darstellung geloescht, DARF
+  kopieren und Abonnements nicht als Nebenwirkung verändern.
+- **REN-007 Kein Rehydrieren:** Wird eine Data-Wire-Darstellung gelöscht, DARF
   sie nicht aus Repeat- oder Fetch-Heuristiken automatisch wieder erscheinen.
-- **REN-008 Repeat:** Repeat-Quellen MUESSEN aus lesbaren, abgeleiteten
-  Kandidaten explizit ausgewaehlt werden. Die Auswahl DARF NICHT als freier
+- **REN-008 Repeat:** Repeat-Quellen MÜSSEN aus lesbaren, abgeleiteten
+  Kandidaten explizit ausgewählt werden. Die Auswahl DARF NICHT als freier
   unvalidierter Pfad oder automatische Render-Zuordnung entstehen.
-- **REN-009 Arraypfade:** Repeat-Data-Wires MUESSEN verschachtelte und
-  arrayindizierte Item-Pfade, einschliesslich Bildpfaden, korrekt aufloesen.
+- **REN-009 Arraypfade:** Repeat-Data-Wires MÜSSEN verschachtelte und
+  arrayindizierte Item-Pfade, einschließlich Bildpfaden, korrekt auflösen.
 - **REN-010 Kein Template-Fallback:** Sichtbare Datenabbildung DARF nicht auf
   versteckten `{{...}}`-Tokens, einem Template-Binding-Picker oder automatischer
   Repeat-Erkennung beruhen.
-- **REN-011 Live-Synchronitaet:** Eine Komponentenbearbeitung MUSS sofort in
+- **REN-011 Live-Synchronität:** Eine Komponentenbearbeitung MUSS sofort in
   Modell und Vorschau sichtbar werden, ohne den aktiven Runtime-Zustand neu zu
   laden.
 - **REN-012 Externe Links:** Ein Link in der Editor-Vorschau DARF den
   eingebetteten Runtime-Flow nicht aus seinem Iframe herausnavigieren.
 - **REN-013 Farben:** Jeder sichtbare Transition-Button MUSS exakt die Farbe
-  seiner zugehoerigen Kante verwenden. Transition-Buttons DUERFEN keinen
+  seiner zugehörigen Kante verwenden. Transition-Buttons DÜRFEN keinen
   Farbverlauf verwenden.
-- **REN-014 Saubere Runtime:** Generierte Nutzeroberflaechen DUERFEN keine
+- **REN-014 Saubere Runtime:** Generierte Nutzeroberflächen DÜRFEN keine
   Editor-Hilfetexte wie `No outgoing transitions`, keine Template-Tokens und
   keine nicht angeforderte Sound-/Vorleselogik anzeigen.
 
@@ -347,156 +347,156 @@ Editoraktion
   seines Quellzustands gebunden sein.
 - **FX-004 Veraltete Antworten:** Antwortet ein Fetch nach Verlassen oder neuer
   Aktivierung des Quellzustands, DARF sein Ergebnis weder Bus noch FSM
-  veraendern.
-- **FX-005 Ergebnisereignisse:** Fetch-Erfolg und Fetch-Fehler MUESSEN als
+  verändern.
+- **FX-005 Ergebnisereignisse:** Fetch-Erfolg und Fetch-Fehler MÜSSEN als
   explizite FSM-Ereignisse in den Bus eintreten. Nur Transitionen, die den
-  aktiven Fetch-Kontext referenzieren, duerfen automatisch folgen.
-- **FX-006 Wiederholung:** Konfigurierte Retries duerfen nur laufen, solange die
-  zugehoerige Aktivierung aktiv ist. Erst nach dem letzten fehlgeschlagenen
-  Versuch darf das endgueltige Fehlerereignis entstehen.
+  aktiven Fetch-Kontext referenzieren, dürfen automatisch folgen.
+- **FX-006 Wiederholung:** Konfigurierte Retries dürfen nur laufen, solange die
+  zugehörige Aktivierung aktiv ist. Erst nach dem letzten fehlgeschlagenen
+  Versuch darf das endgültige Fehlerereignis entstehen.
 - **FX-007 Kein Fetch-Schattenzustand:** Es DARF keinen komponentenlokalen oder
   Host-seitigen `fetchRun`-/Cache-Zustand als zweite fachliche Wahrheit geben.
-- **FX-008 Pause:** Waerend `runtime.paused` duerfen Fetch-, Timer-, Change- oder
-  Immediate-Fortsetzungen nicht committen oder fuer spaeter aufgestaut werden.
+- **FX-008 Pause:** Während `runtime.paused` dürfen Fetch-, Timer-, Change- oder
+  Immediate-Fortsetzungen nicht committen oder für später aufgestaut werden.
 
 ## 10. DaisyUI-Bausteine und Presets
 
-- **PRE-001 Katalog:** Ein Preset ist ein Katalogeintrag und besitzt ausserhalb
+- **PRE-001 Katalog:** Ein Preset ist ein Katalogeintrag und besitzt außerhalb
   des Canvas keine Runtime-Wirkung.
-- **PRE-002 Materialisierung:** Erst beim Drop oder expliziten Hinzufuegen wird
+- **PRE-002 Materialisierung:** Erst beim Drop oder expliziten Hinzufügen wird
   ein Preset als echter Zustand mit eigenem Scope `states.<stateId>.*`
   materialisiert.
-- **PRE-003 Strukturierte Daten:** DaisyUI liefert Darstellung. Presets MUESSEN
-  strukturierte Busdaten verwenden und DUERFEN weder Komponenten-`html` noch
-  versteckte lokale Widget-Zustaende speichern.
+- **PRE-003 Strukturierte Daten:** DaisyUI liefert Darstellung. Presets MÜSSEN
+  strukturierte Busdaten verwenden und DÜRFEN weder Komponenten-`html` noch
+  versteckte lokale Widget-Zustände speichern.
 - **PRE-004 Explizite Aktionen:** Interaktive Buttons, Karten, Heroes, Modals,
-  Feature-Grids, Pricing-Karten, Breadcrumbs, Footer, Menues, Dropdowns,
+  Feature-Grids, Pricing-Karten, Breadcrumbs, Footer, Menüs, Dropdowns,
   Bottom-Navigation, Drawer, Steps, Tabs, Navbar-Varianten, Checkboxen und
-  Toggles duerfen Flow nur ueber explizite Transition-IDs ausloesen.
+  Toggles dürfen Flow nur über explizite Transition-IDs auslösen.
 - **PRE-005 Text ist Anzeige:** Gleicher Text oder gleiches Label DARF keine
-  Preset-Aktion an einen Uebergang binden. Ohne explizite ID bleibt das Element
+  Preset-Aktion an einen Übergang binden. Ohne explizite ID bleibt das Element
   ohne FSM-Wirkung.
-- **PRE-006 Autowiring:** Ein aktionsfaehiges Preset MUSS fuer jede fachliche
-  Aktion echte Zielzustaende und echte Transitionen erzeugen. Alle Referenzen
-  MUESSEN eindeutig und erreichbar sein.
-- **PRE-007 Widget-Writes:** Eingaben und Widgets duerfen nur ihre gebundenen,
+- **PRE-006 Autowiring:** Ein aktionsfähiges Preset MUSS für jede fachliche
+  Aktion echte Zielzustände und echte Transitionen erzeugen. Alle Referenzen
+  MÜSSEN eindeutig und erreichbar sein.
+- **PRE-007 Widget-Writes:** Eingaben und Widgets dürfen nur ihre gebundenen,
   deklarierten Felder wie `value`, `checked`, `selected`, `open`, `index` oder
   `finished` schreiben.
 - **PRE-008 Countdown:** Countdown-Ende MUSS als Change-Ereignis auf dem
   deklarierten `finished`-Pfad modelliert sein.
-- **PRE-009 Loading:** Das Loading-Preset MUSS als Timer-Uebergang mit 2000 ms
-  modelliert sein und DARF keinen sichtbaren Transition-Button vortaeuschen.
-- **PRE-010 Toast:** Toast MUSS als zeitgesteuerte Busnachricht ohne impliziten
+- **PRE-009 Loading:** Das Loading-Preset MUSS als Timer-Übergang mit 2000 ms
+  modelliert sein und DARF keinen sichtbaren Transition-Button vortäuschen.
+- **PRE-010 Toast:** Toast MUSS als zeitgesteürte Busnachricht ohne impliziten
   Button modelliert sein.
 - **PRE-011 Checkbox/Toggle:** Bedingungen und Wirkungen von Checkbox und Toggle
-  MUESSEN ausschliesslich deren scoped Zustandsfelder verwenden.
-- **PRE-012 Preset-Qualitaet:** Jeder eingebaute Preset-Typ MUSS eindeutig
-  benannt, mit nutzbaren Defaults gefuellt, ohne defekte Bilder renderbar und
-  ohne horizontalen Seitenueberlauf nutzbar sein.
-- **PRE-013 Offizielle Klassen:** Daisy-Presets MUESSEN die fuer ihre Variante
+  MÜSSEN ausschließlich deren scoped Zustandsfelder verwenden.
+- **PRE-012 Preset-Qualität:** Jeder eingebaute Preset-Typ MUSS eindeutig
+  benannt, mit nutzbaren Defaults gefüllt, ohne defekte Bilder renderbar und
+  ohne horizontalen Seitenüberlauf nutzbar sein.
+- **PRE-013 Offizielle Klassen:** Daisy-Presets MÜSSEN die für ihre Variante
   vorgesehenen daisyUI-Klassen und strukturierten Datenformen verwenden.
-  Entfernte Varianten und alte Navbar-Layouts DUERFEN NICHT wieder erscheinen.
-- **PRE-014 Snapshots:** Gespeicherte Nutzer-Presets sind unabhaengige Snapshots.
-  Sie DUERFEN weder ihre Quelle noch andere Instanzen nachtraeglich mutieren.
+  Entfernte Varianten und alte Navbar-Layouts DÜRFEN NICHT wieder erscheinen.
+- **PRE-014 Snapshots:** Gespeicherte Nutzer-Presets sind unabhängige Snapshots.
+  Sie DÜRFEN weder ihre Quelle noch andere Instanzen nachträglich mutieren.
 - **PRE-015 Transition-Drop:** Wird ein neuer Preset-Zustand auf eine vorhandene
   Transition gelegt, MUSS er in diese Transition eingesetzt werden. Die
-  eingehende Transition behaelt ihre Identitaet; eine neue ausgehende
+  eingehende Transition behält ihre Identität; eine neue ausgehende
   Transition verbindet zum bisherigen Ziel.
 
 ## 11. Editor-Vertrag
 
 - **ED-001 Gemeinsame Operationen:** Verschieben, Verbinden, Umverdrahten,
-  Gruppieren, Entgruppieren, Loeschen, Kopieren, Einfuegen, Undo und Redo MUESSEN
+  Gruppieren, Entgruppieren, Löschen, Kopieren, Einfügen, Undo und Redo MÜSSEN
   dieselben kanonischen Modelloperationen verwenden wie API und MCP.
 - **ED-002 Neue Szene:** Eine neue Szene startet leer beziehungsweise mit dem
-  vertraglich definierten frischen Starter und DARF keine Demo-Abkuerzungen
+  vertraglich definierten frischen Starter und DARF keine Demo-Abkürzungen
   enthalten.
-- **ED-003 Demo-Laden:** Die Demo darf nur explizit oder ueber
-  `?demo=zustand` geladen werden. Vorhandene Arbeit MUSS vor Ersetzen bestaetigt
+- **ED-003 Demo-Laden:** Die Demo darf nur explizit oder über
+  `?demo=zustand` geladen werden. Vorhandene Arbeit MUSS vor Ersetzen bestätigt
   werden.
-- **ED-004 Tastatur:** `Ctrl+N` oeffnet den App-Dialog und DARF keinen Browser-Tab
-  oeffnen. `Ctrl+S` speichert eine formale Definition.
-- **ED-005 Delete-Fokus:** `Delete` darf Graphentitaeten nur loeschen, wenn der
+- **ED-004 Tastatur:** `Ctrl+N` öffnet den App-Dialog und DARF keinen Browser-Tab
+  öffnen. `Ctrl+S` speichert eine formale Definition.
+- **ED-005 Delete-Fokus:** `Delete` darf Graphentitäten nur löschen, wenn der
   Canvas fokussiert ist. In einem Texteditor bleibt Delete nativ. `Backspace`
-  DARF niemals Graphentitaeten loeschen.
+  DARF niemals Graphentitäten löschen.
 - **ED-006 Auswahl:** Leerer Einzelclick leert den Inspektorkontext; Pan startet
   keine unbeabsichtigte Deselektion. Shift-Click, Mehrfachauswahl und `Ctrl+A`
-  MUESSEN deterministisch funktionieren.
+  MÜSSEN deterministisch funktionieren.
 - **ED-007 Transition-Auswahl:** Ein einzelner Click auf einen
-  Transition-Handle waehlt aus und DARF keinen neuen Zustand erzeugen.
-  Umverdrahten darf nur vom vorgesehenen Arrowhead/Pin und nicht vom Linienkoerper
+  Transition-Handle wählt aus und DARF keinen neuen Zustand erzeugen.
+  Umverdrahten darf nur vom vorgesehenen Arrowhead/Pin und nicht vom Linienkörper
   starten.
 - **ED-008 Duplikate:** Ein normaler Verbindungsdrag DARF keine identische
-  Duplikat-Transition erzeugen. Explizites Umverdrahten MUSS die Identitaet der
+  Duplikat-Transition erzeugen. Explizites Umverdrahten MUSS die Identität der
   bestehenden Transition erhalten.
-- **ED-009 Undo/Redo:** Historie MUSS deterministisch sein, unveraenderte Saves
-  duerfen keine zusaetzlichen Schritte erzeugen, und Wiederherstellung MUSS
+- **ED-009 Undo/Redo:** Historie MUSS deterministisch sein, unveränderte Saves
+  dürfen keine zusätzlichen Schritte erzeugen, und Wiederherstellung MUSS
   Modell sowie relevante Auswahl korrekt rekonstruieren.
 - **ED-010 Fokus und Tabfolge:** Zustands-, Transition- und Runtime-Editoren
-  MUESSEN eine vorhersehbare Tabfolge, Enter-Commit- und Escape-Semantik besitzen.
+  MÜSSEN eine vorhersehbare Tabfolge, Enter-Commit- und Escape-Semantik besitzen.
 - **ED-011 Lokale UI:** Panelbreiten, Explorerzustand, Preview-Collapse und mobile
-  Arbeitsansicht duerfen lokal persistieren, ohne das Modell zu veraendern.
-- **ED-012 Responsive Bedienung:** Desktop, Tablet und Mobile MUESSEN Canvas,
-  Presets, Editor und App erreichbar halten. Controls duerfen nicht ueberlappen,
+  Arbeitsansicht dürfen lokal persistieren, ohne das Modell zu verändern.
+- **ED-012 Responsive Bedienung:** Desktop, Tablet und Mobile MÜSSEN Canvas,
+  Presets, Editor und App erreichbar halten. Controls dürfen nicht überlappen,
   horizontal aus dem Viewport laufen oder durch Scrollbars verdeckt werden.
 - **ED-013 Touch:** Touch-Drag, Long-Press, Double-Tap, Pinch-Zoom,
-  Zwei-Finger-Pan und Touch-Reorder MUESSEN absichtlich unterscheidbar sein.
+  Zwei-Finger-Pan und Touch-Reorder MÜSSEN absichtlich unterscheidbar sein.
   Vertikales Preset-Scrollen DARF keinen Drag starten.
 - **ED-014 Gestenabbruch:** Verlorenes `mouseup`, Pointer-Verlassen oder
   Fenster-Blur MUSS Drag, Pan, Connect und Rechteckauswahl sauber abbrechen.
-- **ED-015 Keine Browser-Nebeneffekte:** Canvas und Vorschau MUESSEN
+- **ED-015 Keine Browser-Nebeneffekte:** Canvas und Vorschau MÜSSEN
   unbeabsichtigte Textauswahl, Callouts und Browsernavigation verhindern, ohne
   legitime Eingaben unbenutzbar zu machen.
-- **ED-016 Inspector:** State-, Render- und Datenbereiche MUESSEN unabhaengig
-  einklappbar sein. Aktionen MUESSEN im Drawer bleiben; kompakte Controls duerfen
-  nicht ueberlappen.
+- **ED-016 Inspector:** State-, Render- und Datenbereiche MÜSSEN unabhängig
+  einklappbar sein. Aktionen MÜSSEN im Drawer bleiben; kompakte Controls dürfen
+  nicht überlappen.
 - **ED-017 Keine Rohdatenpflicht:** Der Hauptworkflow MUSS typisierte Variablen,
   Bedingungen, `set`, Repeat und Data Wires ohne verpflichtende Bearbeitung
   roher Buspfade oder Template-Tokens anbieten.
-- **ED-018 JSON-Fehler:** Ungueltiges JSON in Daten- oder `set`-Editoren DARF das
-  letzte gueltige Modell nicht ueberschreiben.
+- **ED-018 JSON-Fehler:** Ungültiges JSON in Daten- oder `set`-Editoren DARF das
+  letzte gültige Modell nicht überschreiben.
 
 ## 12. Canvas, Routing und Treffererkennung
 
 - **CAN-001 Renderer:** State-Nodes werden als DOM-Elemente, Kabel, Ports,
-  Arrowheads und Edge-Pins als SVG gerendert. Ein zusaetzlicher Canvas-Renderer
-  DARF keine zweite interaktive Geometrie fuehren.
-- **CAN-002 Koordinatensystem:** Nodes, SVG-Ports, Edge-Pins und Kabel MUESSEN
+  Arrowheads und Edge-Pins als SVG gerendert. Ein zusätzlicher Canvas-Renderer
+  DARF keine zweite interaktive Geometrie führen.
+- **CAN-002 Koordinatensystem:** Nodes, SVG-Ports, Edge-Pins und Kabel MÜSSEN
   dasselbe Weltkoordinatensystem verwenden und bei Drag sowie Release dieselbe
   Position besitzen.
-- **CAN-003 Raster:** Nodes, Ports und Pfadpunkte MUESSEN exakt auf das
+- **CAN-003 Raster:** Nodes, Ports und Pfadpunkte MÜSSEN exakt auf das
   Canvas-Raster einrasten.
-- **CAN-004 Orthogonalitaet:** Transitionen MUESSEN orthogonale Pfade verwenden.
+- **CAN-004 Orthogonalität:** Transitionen MÜSSEN orthogonale Pfade verwenden.
   Ein freier, ausgerichteter Pfad bleibt gerade; kleine Offsets verwenden kurze
-  Vorwaertsbiegungen statt Schleifen.
-- **CAN-005 Hindernisse:** Kabel MUESSEN sichtbare State-Bounding-Boxes mit dem
-  vertraglichen Sicherheitsabstand, mindestens dem geprueften halben Raster,
+  Vorwärtsbiegungen statt Schleifen.
+- **CAN-005 Hindernisse:** Kabel MÜSSEN sichtbare State-Bounding-Boxes mit dem
+  vertraglichen Sicherheitsabstand, mindestens dem geprüften halben Raster,
   umgehen.
-- **CAN-006 Lanes:** Gemeinsame Ein- und Ausgaenge MUESSEN unterscheidbare
-  Pins/Lanes erhalten. Horizontale und vertikale Kabel duerfen nicht unlesbar
-  uebereinander liegen.
-- **CAN-007 Eingangsrichtung:** Arrowheads MUESSEN nach vertikalen Umwegen von
+- **CAN-006 Lanes:** Gemeinsame Ein- und Ausgänge MÜSSEN unterscheidbare
+  Pins/Lanes erhalten. Horizontale und vertikale Kabel dürfen nicht unlesbar
+  übereinander liegen.
+- **CAN-007 Eingangsrichtung:** Arrowheads MÜSSEN nach vertikalen Umwegen von
   links in den Eingangsport laufen.
-- **CAN-008 Live entspricht Final:** Die Route waehrend eines Node-Drags MUSS
+- **CAN-008 Live entspricht Final:** Die Route während eines Node-Drags MUSS
   geometrisch der Route unmittelbar nach Release entsprechen.
 - **CAN-009 Drag-Performance:** Live-Routing DARF bei dichten Graphen keine
-  vollstaendige dichte Grid-Suche pro Pointer-Frame ausfuehren.
+  vollständige dichte Grid-Suche pro Pointer-Frame ausführen.
 - **CAN-010 DOM-Wiederverwendung:** Ein voller Redraw MUSS bestehende SVG-Wire-
-  und Port-Elemente nach Moeglichkeit wiederverwenden. Eine reine
-  Runtime-Kontextaenderung DARF keinen vollen Canvas-Redraw ausloesen.
+  und Port-Elemente nach Möglichkeit wiederverwenden. Eine reine
+  Runtime-Kontextänderung DARF keinen vollen Canvas-Redraw auslösen.
 - **CAN-011 Runtime-Markierung:** Aktiver Zustand, Eintritt, Austritt und
-  Transition-Puls MUESSEN sichtbar unterscheidbar sein. Der Puls DARF keine
+  Transition-Puls MÜSSEN sichtbar unterscheidbar sein. Der Puls DARF keine
   frameweise DOM-Geometrieabfrage oder Style-Mutation verwenden.
-- **CAN-012 Hit-Prioritaet:** Innerhalb der sichtbaren Flaeche eines State-Nodes
-  MUSS der Node fuer Auswahl und Drag vor unsichtbaren Hitflaechen fremder
-  `.edge-pin`, `.edge-tip-hit` oder `.svg-port` liegen. Edge-Hitflaechen DUERFEN
+- **CAN-012 Hit-Priorität:** Innerhalb der sichtbaren Fläche eines State-Nodes
+  MUSS der Node für Auswahl und Drag vor unsichtbaren Hitflächen fremder
+  `.edge-pin`, `.edge-tip-hit` oder `.svg-port` liegen. Edge-Hitflächen DÜRFEN
   keinen darunterliegenden fremden Node blockieren.
 - **CAN-013 Port-Erreichbarkeit:** Die vorgesehene sichtbare Port-/Pin-Zone am
-  Rand des eigenen Nodes MUSS weiterhin fuer Connect und Reroute erreichbar
-  bleiben. Ein Drag deutlich innerhalb des Node-Koerpers MUSS den Node bewegen
+  Rand des eigenen Nodes MUSS weiterhin für Connect und Reroute erreichbar
+  bleiben. Ein Drag deutlich innerhalb des Node-Körpers MUSS den Node bewegen
   und DARF keine Verbindung starten.
-- **CAN-014 Layout-Stabilitaet:** Titel, Statusbadges, Open-Aktion, Ports und
-  Layer-Rahmen DUERFEN nicht inkonsistent ueberlappen. Lange Titel muessen wachsen
+- **CAN-014 Layout-Stabilität:** Titel, Statusbadges, Open-Aktion, Ports und
+  Layer-Rahmen DÜRFEN nicht inkonsistent überlappen. Lange Titel müssen wachsen
   oder kontrolliert auf zwei Zeilen begrenzt werden.
 
 ## 13. Speichern, Import und Export
@@ -504,44 +504,49 @@ Editoraktion
 - **EXP-001 Formale Definition:** Eine gespeicherte Definition MUSS
   `kind: "state-blueprint-definition"`, `schemaVersion: 2` und das normalisierte
   Modell enthalten.
-- **EXP-002 Zulaessige Metadaten:** Eine formale Definition DARF Kamera und
+- **EXP-002 Zulässige Metadaten:** Eine formale Definition DARF Kamera und
   State-Presets enthalten. Sie DARF keine Undo-Historie, Zwischenablage,
-  Runtime-Werte oder fluechtige Panelzustaende enthalten.
+  Runtime-Werte oder flüchtige Panelzustände enthalten.
 - **EXP-003 Roundtrip:** Speichern und erneutes Laden MUSS dasselbe normalisierte
   Modell, dieselben Render-Referenzen, Daten, Typen und Transitionen
   wiederherstellen.
 - **EXP-004 Teilimport/-export:** Einzelne Zustandskomponenten, Presets und volle
-  Definitionen MUESSEN ohne Verlust von Data Wires und Render-Reihenfolge
+  Definitionen MÜSSEN ohne Verlust von Data Wires und Render-Reihenfolge
   importier- und exportierbar sein.
 - **EXP-005 Standalone-HTML:** HTML-Export MUSS selbstenthalten, syntaktisch
-  gueltig und ohne Editor-Helfer lauffaehig sein. Er MUSS das exportierte Modell
+  gültig und ohne Editor-Helfer lauffähig sein. Er MUSS das exportierte Modell
   verwenden und DARF nicht aus Local Storage auf ein anderes Modell fallen.
-- **EXP-006 Script-Sicherheit:** Eingebettete Script-Endsequenzen MUESSEN so
+- **EXP-006 Script-Sicherheit:** Eingebettete Script-Endsequenzen MÜSSEN so
   escaped werden, dass verschachtelte Skripte den Export nicht vorzeitig
   beenden.
 - **EXP-007 Gleiche Runtime:** Vorschau, exportiertes HTML und MCP-HTML-Export
-  MUESSEN dieselbe FSM-, Bus-, Boundary-, Fetch- und Render-Semantik verwenden.
+  MÜSSEN dieselbe FSM-, Bus-, Boundary-, Fetch- und Render-Semantik verwenden.
 - **EXP-008 Exportgestaltung:** Der aktuelle Standalone-Export verwendet den
   Dark-Contract mit `--bg: #020617`, `--primary: #38bdf8` und
   `Atkinson Hyperlegible`. Er DARF keine helle White-Card-Fallbackgestaltung und
   keine Speech-Synthesis-/Vorlesefunktion enthalten.
-- **EXP-009 UTF-8:** Quellen und erzeugte Artefakte MUESSEN gueltiges, sauberes
+- **EXP-009 UTF-8:** Quellen und erzeugte Artefakte MÜSSEN gültiges, sauberes
   UTF-8 bleiben; fehlerhafte Doppeldecodierung ist verboten.
+- **EXP-010 Deutsche Orthografie:** Sichtbare deutsche Texte im Editor, in der
+  Runtime, in Demos, Dokumentation und Testzusicherungen MÜSSEN native Umlaute
+  und `ß` verwenden. ASCII-Umschriften sind nur als ausdrücklich dokumentierte
+  Kompatibilitätsaliase zulässig. Technische IDs, JSON-Schlüssel, Ereignisnamen,
+  Funktionsnamen und URLs DÜRFEN durch Textkorrekturen nicht verändert werden.
 
 ## 14. API- und MCP-Vertrag
 
 - **API-001 Ein Modell:** API und MCP lesen und bearbeiten dasselbe kanonische
   Modell wie der visuelle Editor.
-- **API-002 Keine DOM-Automation:** API- und MCP-Kommandos DUERFEN die
-  Oberflaeche nicht durch DOM-Clicks steuern.
+- **API-002 Keine DOM-Automation:** API- und MCP-Kommandos DÜRFEN die
+  Oberfläche nicht durch DOM-Clicks steuern.
 - **API-003 Kein zweiter Speicher:** Der MCP-Server darf einen konfigurierten
   Workspace persistieren, aber keinen abweichenden fachlichen Runtime-Speicher
-  fuehren.
-- **API-004 Schreibablauf:** Modellaktionen MUESSEN Abhaengigkeiten ordnen,
+  führen.
+- **API-004 Schreibablauf:** Modellaktionen MÜSSEN Abhängigkeiten ordnen,
   normalisieren und validieren, bevor sie atomar persistiert werden.
-- **API-005 Kommandos:** Editor-Kommandos fuer Szene, States, Transitionen,
+- **API-005 Kommandos:** Editor-Kommandos für Szene, States, Transitionen,
   Variablen, Fetch, Repeat, Data Wires, Komponenten, Boundary, Auswahl, Ebene,
-  Viewport, Copy/Paste, Gruppierung und Undo/Redo MUESSEN ueber Modell- und
+  Viewport, Copy/Paste, Gruppierung und Undo/Redo MÜSSEN über Modell- und
   Session-Operationen statt DOM-Automation laufen.
 - **API-006 Werkzeuge:** Der MCP-Vertrag umfasst mindestens
   `state_blueprint_get_model`, `state_blueprint_replace_model`,
@@ -550,22 +555,22 @@ Editoraktion
   `state_blueprint_validate`, `state_blueprint_export_definition`,
   `state_blueprint_import_definition`, `state_blueprint_export_html`,
   `state_blueprint_action_catalog` und `state_blueprint_command_catalog`.
-- **API-007 Prompt-Planung:** Prompt-Planung darf nur unterstuetzte Absichten in
-  explizite vertragskonforme Aktionen uebersetzen. Timer, innere Zustaende,
-  Workflows, Variablen und API-Listen MUESSEN dieselben Scopes, Boundary-Regeln
+- **API-007 Prompt-Planung:** Prompt-Planung darf nur unterstützte Absichten in
+  explizite vertragskonforme Aktionen übersetzen. Timer, innere Zustände,
+  Workflows, Variablen und API-Listen MÜSSEN dieselben Scopes, Boundary-Regeln
   und echten Transitionen erzeugen wie der Editor.
-- **API-008 Plan vor Apply:** `plan_prompt` DARF das Modell nicht veraendern.
-  `apply_prompt` MUSS den erzeugten Plan ueber die normale Aktionsvalidierung
+- **API-008 Plan vor Apply:** `plan_prompt` DARF das Modell nicht verändern.
+  `apply_prompt` MUSS den erzeugten Plan über die normale Aktionsvalidierung
   anwenden.
-- **API-009 Exportgleichheit:** API-/MCP-Definition und HTML-Export MUESSEN den
+- **API-009 Exportgleichheit:** API-/MCP-Definition und HTML-Export MÜSSEN den
   Editor-Exportvertrag einhalten.
 - **API-010 Keine Editor-Gruppenaktionen:** Die API DARF keine fachlichen
-  `editorGroup`-Abkuerzungen anbieten. Gruppierung erfolgt als echter Parent mit
+  `editorGroup`-Abkürzungen anbieten. Gruppierung erfolgt als echter Parent mit
   `parentId` und Boundary.
 
 ## 15. Realtime- und Server-Vertrag
 
-- **RT-001 Transportrolle:** Der Realtime-Server ist ausschliesslich Transport,
+- **RT-001 Transportrolle:** Der Realtime-Server ist ausschließlich Transport,
   Katalog, Token-Aussteller und Testkonsole. Er persistiert keinen fachlichen
   Zustand und besitzt kein zweites Modell.
 - **RT-002 Katalogquelle:** `/events` ist die Live-Quelle der erlaubten
@@ -575,41 +580,41 @@ Editoraktion
   `triggerType: "realtime"` und den konkreten `triggerEvent`-Namen.
 - **RT-004 Namensraum:** Persistierte Realtime-Ereignisse beginnen mit
   `realtime.`. Ein generischer `event`-Trigger DARF die reservierten
-  `button.*`- oder `realtime.*`-Namensraeume nicht beanspruchen.
-- **RT-005 Bus-Eintritt:** Ein empfangenes Realtime-Ereignis MUSS ueber den
-  globalen Bus in die Runtime eintreten. Nur deklarierte Bindings duerfen
+  `button.*`- oder `realtime.*`-Namensräume nicht beanspruchen.
+- **RT-005 Bus-Eintritt:** Ein empfangenes Realtime-Ereignis MUSS über den
+  globalen Bus in die Runtime eintreten. Nur deklarierte Bindings dürfen
   deklarierte `states.*`-Pfade schreiben.
 - **RT-006 Host-Relay:** Der Host liest den Runtime-Kontext nur als Snapshot,
   relayed `lastEvent`, ignoriert Remote-Loops und DARF weder Modell noch
   Zustandsdefaults mutieren.
-- **RT-007 Origins:** HTTP- und WebSocket-Browserzugriffe MUESSEN gegen die
-  konfigurierte Origin-Allowlist geprueft werden.
-- **RT-008 Raumtoken:** Wenn unsignierte Raeume deaktiviert sind, MUSS der
-  WebSocket-Join ein gueltiges signiertes Raumtoken besitzen. `/token` darf nur
-  fuer erlaubte Origins ausstellen und MUSS ohne Secret mit 503 fehlschlagen.
-- **RT-009 Ereignisannahme:** WebSocket-`runtime.event` und `/emit` duerfen nur
-  aktuell katalogisierte Ereignisse akzeptieren. Unbekannte Ereignisse MUESSEN
+- **RT-007 Origins:** HTTP- und WebSocket-Browserzugriffe MÜSSEN gegen die
+  konfigurierte Origin-Allowlist geprüft werden.
+- **RT-008 Raumtoken:** Wenn unsignierte Räume deaktiviert sind, MUSS der
+  WebSocket-Join ein gültiges signiertes Raumtoken besitzen. `/token` darf nur
+  für erlaubte Origins ausstellen und MUSS ohne Secret mit 503 fehlschlagen.
+- **RT-009 Ereignisannahme:** WebSocket-`runtime.event` und `/emit` dürfen nur
+  aktuell katalogisierte Ereignisse akzeptieren. Unbekannte Ereignisse MÜSSEN
   abgelehnt werden.
-- **RT-010 Emit-Schutz:** `/emit` MUSS das Emit-Secret pruefen. Die
+- **RT-010 Emit-Schutz:** `/emit` MUSS das Emit-Secret prüfen. Die
   Browser-Konsole DARF dieses Secret nicht eingebettet ausliefern und speichert
   keine Payload serverseitig.
 - **RT-011 Relay:** Ein akzeptiertes Runtime-Ereignis wird an andere Peers im
-  selben Raum verteilt und DARF nicht an den Sender zurueckgespiegelt werden.
-- **RT-012 Deduplizierung:** Gleiche oder alte Client-Sequenzen MUESSEN pro Raum
+  selben Raum verteilt und DARF nicht an den Sender zurückgespiegelt werden.
+- **RT-012 Deduplizierung:** Gleiche oder alte Client-Sequenzen MÜSSEN pro Raum
   und Client verworfen werden.
-- **RT-013 Rate Limit:** Laute Clients MUESSEN rate-limitiert werden.
+- **RT-013 Rate Limit:** Laute Clients MÜSSEN rate-limitiert werden.
 - **RT-014 Keine Modellwrites:** Nachrichten wie `graph.patch` und `snapshot`
-  MUESSEN abgelehnt werden. Kanonische Modellwrites gehoeren ausschliesslich zur
+  MÜSSEN abgelehnt werden. Kanonische Modellwrites gehören ausschließlich zur
   Modell-API.
-- **RT-015 Oeffentliche Routen:** Nginx darf nur `/console.html`, `/healthz`,
+- **RT-015 Öffentliche Routen:** Nginx darf nur `/console.html`, `/healthz`,
   `/token`, `/events`, `/emit` und `/ws` an den lokalen Prozess auf
   `127.0.0.1:8788` weiterleiten. Nicht definierte Kernrouten wie `/`,
   `/catalog`, `/schema` und `/api` liefern 404.
 
-## 16. Oeffentliche Demo und Produkt-Abnahme
+## 16. Öffentliche Demo und Produkt-Abnahme
 
-- **DEMO-001 Modell:** Die eingebaute Website-Demo heisst `Zustand Beispiel`,
-  startet in `site_home` und besitzt exakt diese neun Zustaende:
+- **DEMO-001 Modell:** Die eingebaute Website-Demo heißt `Zustand Beispiel`,
+  startet in `site_home` und besitzt exakt diese neun Zustände:
 
   ```text
   site_home
@@ -630,56 +635,58 @@ Editoraktion
   existiert, jeder Zustand ist erreichbar und jede Transition besitzt
   `triggerType: "button"` sowie
   `triggerEvent: "button.<transitionId>.clicked"`.
-- **DEMO-004 Sichtbare Ausloeser:** Jede der 47 Transitionen MUSS in ihrem
+- **DEMO-004 Sichtbare Auslöser:** Jede der 47 Transitionen MUSS in ihrem
   effektiven Quellzustand genau als sichtbarer, aktivierter Control mit ihrer
   Vertrags-ID erreichbar sein.
-- **DEMO-005 Traversierung:** Ein echter Nutzer-Click MUSS fuer jede
+- **DEMO-005 Traversierung:** Ein echter Nutzer-Click MUSS für jede
   Demo-Transition `current`, `previous` und `lastTransition` exakt auf die
-  erwarteten IDs setzen. Alle neun Zustaende und alle 47 Transitionen MUESSEN
-  vollstaendig click-traversierbar sein.
-- **DEMO-006 Shell:** Die acht sichtbaren Seitenzustaende verwenden eine
+  erwarteten IDs setzen. Alle neun Zustände und alle 47 Transitionen MÜSSEN
+  vollständig click-traversierbar sein.
+- **DEMO-006 Shell:** Die acht sichtbaren Seitenzustände verwenden eine
   gemeinsame Navbar mit `Zustand`, `Start`, `Nutzen`, `Angebot`, `Kontakt` und
-  `Konto` sowie einen Footer mit `Zustand GmbH` und fuenf gebundenen Aktionen.
-- **DEMO-007 Fachablaeufe:** Start, Nutzen, Angebot, Anfrage, Kontakt, Danke,
-  Konto und Profil MUESSEN ueber echte FSM-Transitionen funktionieren.
-  Checkout schreibt den gewaehlten Plan und Abschluss in
+  `Konto` sowie einen Footer mit `Zustand GmbH` und fünf gebundenen Aktionen.
+- **DEMO-007 Fachabläufe:** Start, Nutzen, Angebot, Anfrage, Kontakt, Danke,
+  Konto und Profil MÜSSEN über echte FSM-Transitionen funktionieren.
+  Checkout schreibt den gewählten Plan und Abschluss in
   `states.site_thanks.order`; Login und Logout verwenden echte gebundene
   Transitionen.
-- **DEMO-008 Kein Ueberlauf:** Demo-Seiten und Presets duerfen keinen relevanten
-  horizontalen Seitenueberlauf erzeugen. Ein Zustandswechsel nach Scrollen MUSS
+- **DEMO-008 Kein Überlauf:** Demo-Seiten und Presets dürfen keinen relevanten
+  horizontalen Seitenüberlauf erzeugen. Ein Zustandswechsel nach Scrollen MUSS
   die neue Seite oben beginnen.
-- **DEMO-009 Root-Seite:** `index.html` ist der eigenstaendige Export dieser
+- **DEMO-009 Root-Seite:** `index.html` ist der eigenständige Export dieser
   Demo, nicht der Editor. Sie MUSS ohne Editor-Controls laufen, auf
   `state.html?demo=zustand` als Werkzeug-Einstieg verweisen, Manifest und
   Share-Card laden und die getesteten Navigations-, Checkout- und Kontaktpfade
-  ausfuehren.
+  ausführen.
 - **DEMO-010 Manifest:** Das Webmanifest MUSS den Namen
   `Zustand Digitalisierungsplanung` ausliefern.
 
-## 17. Ausfuehrbare Absicherung
+## 17. Ausführbare Absicherung
 
-- **TST-001 Testbestand:** Am Stand dieses Dokuments umfasst die ausfuehrbare
-  Spezifikation 314 expandierte Playwright-Faelle in fuenf Spec-Dateien und 14
-  Node-Server-Tests, insgesamt 328 Faelle.
-- **TST-002 Smoke:** 214 Playwright-Faelle tragen `@smoke`. `npm test` prueft
-  zuerst die 14 Server-Tests und danach diese 214 Smoke-Faelle.
-- **TST-003 Vollstaendiger Lauf:** `npm run test:full` prueft alle 314
-  Playwright-Faelle, aber nicht die Server-Tests. Der vollstaendige lokale
-  Vertragslauf lautet daher:
+- **TST-001 Testbestand:** Am Stand dieses Dokuments umfasst die ausführbare
+  Spezifikation 315 expandierte Playwright-Fälle in fünf Spec-Dateien und 14
+  Node-Server-Tests, insgesamt 329 Fälle.
+- **TST-002 Smoke:** 215 Playwright-Fälle tragen `@smoke`. `npm test` prüft
+  zuerst die 14 Server-Tests und danach diese 215 Smoke-Fälle.
+- **TST-003 Vollständiger Lauf:** `npm run test:full` prüft zuerst alle 14
+  Server-Tests und danach alle 315 Playwright-Fälle. Der vollständige lokale
+  Vertragslauf ist damit genau ein Befehl:
 
   ```bash
-  npm run test:server
   npm run test:full
   ```
 
-- **TST-004 Keine Ausnahmen:** Vertrags-Specs DUERFEN nicht mit `skip` oder
-  `only` im regulaeren Bestand verbleiben.
-- **TST-005 Verhaltensbeweis:** Quelltext- und Stringpruefungen duerfen als
-  Driftalarm dienen, ersetzen aber keinen Browser-Verhaltenstest fuer
+- **TST-004 Keine Ausnahmen:** Vertrags-Specs DÜRFEN nicht mit `skip` oder
+  `only` im regulären Bestand verbleiben.
+- **TST-005 Verhaltensbeweis:** Quelltext- und Stringprüfungen dürfen als
+  Driftalarm dienen, ersetzen aber keinen Browser-Verhaltenstest für
   Nutzerinteraktionen.
 - **TST-006 Regression:** Jeder behobene Nutzerfehler MUSS einen Test erhalten,
   der vor dem Fix am beobachteten Verhalten scheitert und nach dem Fix ohne
   Retry, Force-Click oder Sonderpfad besteht.
+- **TST-007 CI-Freigabe:** GitHub Actions und Gitea MÜSSEN beide
+  `npm run test:full` ausführen. Kein Deploy darf nur durch den kleineren
+  Smoke-Lauf freigegeben werden.
 
 Abdeckungsbereiche:
 
@@ -689,63 +696,58 @@ Abdeckungsbereiche:
 | `tests/state-tool.spec.js` | Editor, Canvas, Presets, Daten, Fetch, Mobile, Demo, Import und Export |
 | `tests/nested-runtime-regressions.spec.js` | verschachtelte Runtime und Ebenenwechsel |
 | `tests/state-blueprint-mcp.spec.js` | API-, MCP-, Prompt- und Workspace-Vertrag |
-| `tests/root-page.spec.js` | oeffentlicher Standalone-Demoexport |
+| `tests/root-page.spec.js` | öffentlicher Standalone-Demoexport |
 | `server/server.test.js` | Realtime-Transport, Auth, Katalog und Nginx-Grenze |
 
-## 18. Bekannte Luecken, Abweichungen und Risiken
+## 18. Auditbefunde, geschlossene Abweichungen und Risiken
 
-- **GAP-001 SVG-Hit-Prioritaet:** `CAN-012` ist fachlich verbindlich, besitzt
-  aber noch keinen vollstaendigen Regressionstest fuer einen Edge-Pin oder Port,
-  dessen unsichtbare Hitflaeche ueber einem fremden State liegt.
-- Der vorhandene Geometrietest prueft die gemeinsame Weltposition von Node,
+- **GAP-001 SVG-Hit-Priorität:** `CAN-012` ist fachlich verbindlich, besitzt
+  aber noch keinen vollständigen Regressionstest für einen Edge-Pin oder Port,
+  dessen unsichtbare Hitfläche über einem fremden State liegt.
+- Der vorhandene Geometrietest prüft die gemeinsame Weltposition von Node,
   SVG-Port und Edge-Pin sowie Node-Dragging nahe dem eigenen Port.
-- Der vorhandene SVG-Test prueft Pfad-, Port- und Pin-Koordinaten.
+- Der vorhandene SVG-Test prüft Pfad-, Port- und Pin-Koordinaten.
 - Noch erforderlich ist ein Browser-Test, der einen fremden Edge-Pin gezielt
-  ueber einem State platziert und mit `elementFromPoint`, einfachem Click und
+  über einem State platziert und mit `elementFromPoint`, einfachem Click und
   Drag beweist, dass der State beim ersten Versuch gewinnt und der Port an
   seiner vorgesehenen Zone dennoch erreichbar bleibt.
 - Der aktuelle Demo-Traversal verwendet bis zu drei koordinatenbasierte
   Click-Versuche und danach einen Locator-Fallback. Das beweist letztendliche
   Erreichbarkeit, aber nicht deterministische Hit-Erkennung beim ersten Click.
-  Fuer `CAN-012`, `DEMO-004`, `DEMO-005` und `TST-006` ist deshalb ein
+  Für `CAN-012`, `DEMO-004`, `DEMO-005` und `TST-006` ist deshalb ein
   retryfreier Regressionstest erforderlich.
-- **GAP-002 Definitionsformat:** Der Editor verlangt und exportiert derzeit
-  `kind: "state-blueprint-definition"`. Der MCP-Core verlangt und exportiert
-  dagegen `kind: "state-blueprint.definition"`. Formale Definitionen sind damit
-  nicht ohne Anpassung zwischen beiden Oberflaechen austauschbar. Das ist eine
-  aktuelle Abweichung von `EXP-001` und `API-009` und MUSS auf genau einen Wert
-  vereinheitlicht und durch einen Editor-MCP-Roundtrip abgesichert werden.
+- **GAP-002 Definitionsformat, geschlossen am 2026-07-10:** Editor, MCP-Core
+  und MCP-Import verwenden jetzt einheitlich
+  `kind: "state-blueprint-definition"` mit `schemaVersion: 2`. Ein Smoke-Test
+  liest den Editor-Discriminator, vergleicht ihn mit dem MCP-Export und prüft
+  Export, Reimport, Validierung und persistierten Workspace als Roundtrip.
 - **GAP-003 Geteilte Kernlogik:** Modellnormalisierung und Teile der
   Ablauflogik existieren getrennt im Host, in der eingebetteten Runtime und im
-  MCP-Core. Die finale Runtime wird zusaetzlich durch exakte String-Ersetzungen
+  MCP-Core. Die finale Runtime wird zusätzlich durch exakte String-Ersetzungen
   von `enhanceGeneratedAppHtml(APP_HTML)` erzeugt. Source-Tests wirken als
   Driftalarm, aber es gibt noch kein gemeinsam importiertes Kernmodul. Kleine
-  Quellenabweichungen koennen deshalb Editor, Export und MCP auseinanderlaufen
+  Quellenabweichungen können deshalb Editor, Export und MCP auseinanderlaufen
   lassen.
-- **GAP-004 Testdrift der untersuchten Arbeitskopie:** Der Audit vom 2026-07-10
-  erfolgte auf dem getrackten Stand `fdfde42` zuzueglich bereits vorhandener,
-  nicht zu diesem Dokument-Push gehoerender lokaler UI- und Testaenderungen.
-  Server-Tests bestanden mit 14/14, der Kernlauf mit 75/75 und der Smoke-Lauf
-  mit 214/214. Der volle Playwright-Lauf bestand mit 293/314; alle 21 Fehler
-  liegen in `tests/state-tool.spec.js`.
-- Der ueberwiegende Teil dieser 21 Fehler ist nachweisbarer Erwartungsdrift:
-  englische Testtexte treffen auf die deutsch uebersetzte UI, ein Accordion-
-  Preset blieb umgekehrt englisch, die Mobile-Navigation besitzt nach Undo/Redo
-  sechs statt der erwarteten vier Spalten und mehrere Selektoren suchen noch
-  nach `Fit` statt `Einpassen`. Test und Produkttext MUESSEN gemeinsam auf den
-  beabsichtigten deutschen Vertrag gebracht werden.
-- **GAP-005 Ungeklaerte responsive Erwartungen:** Drei Fehlschlaege sind nicht
-  allein Textdrift: Bei 390 x 820 oeffnet ein Tap auf `.node-edit` den erwarteten
-  State-Inspektor nicht sichtbar; die persistierte Mobile-Ansicht `app` laesst
-  die Map sichtbar; und die Topbar berechnet `overflow-x: visible` statt `auto`.
-  CSS und Tests vertreten bei den letzten beiden Punkten unterschiedliche
-  Produktabsichten. Das beabsichtigte Verhalten MUSS festgelegt und danach ohne
-  bedingte Alttext-Selektoren getestet werden.
-- **GAP-006 Geteilte CI-Abnahme:** GitHub Actions fuehrt auf `main` mit
-  `npm test` Server- und Smoke-Tests aus. Die Gitea-Workflowdatei fuehrt den
-  vollen Playwright-Lauf aus. Kein einzelner CI-Job beweist derzeit alle 328
-  Faelle aus `TST-001`; die verbindliche Gesamtfreigabe ist dadurch auf zwei
-  getrennte Pfade verteilt.
+- **GAP-004 Übersetzungs- und Testdrift, geschlossen am 2026-07-10:** Die 21
+  zuvor roten `state-tool`-Fälle wurden gegen das beabsichtigte deutsche
+  Produktverhalten bereinigt. Sichtbare Systemtexte werden deutsch erwartet;
+  frei modellierte Busdaten wie `Shipping` und `Returns` bleiben wortgetreu und
+  werden nicht heimlich übersetzt. Interne IDs und Funktionsnamen bleiben von
+  der Oberflächenübersetzung unberührt. Die normative Orthografieregel und der
+  UTF-8-/Orthografie-Smoke-Test sichern native Umlaute und `ß` gegen erneute
+  ASCII-Umschrift ab.
+  Der Freigabestand besteht mit 315/315 Playwright- und 14/14 Server-Fällen.
+- **GAP-005 Responsive Erwartungen, geschlossen am 2026-07-10:** Auf schmalen
+  Portrait-Telefonen sind `edit` und `app` exklusive Vollflächenansichten. Die
+  Canvas-Ansicht zeigt die Map oben und die skalierbare Vorschau unten; die
+  Preset-Ansicht blendet die Canvas-Szene aus. Mittlere Touch-Geräte behalten
+  den getesteten Split. Die Mobile-Navigation besitzt sechs stabile Spalten
+  einschließlich Undo/Redo, und die geschlossene Topbar bleibt horizontal
+  scrollbar, während das feste Mehr-Menü sichtbar bleibt.
+- **GAP-006 Geteilte CI-Abnahme, geschlossen am 2026-07-10:**
+  `npm run test:full` umfasst Server und Browser. Sowohl GitHub Actions als auch
+  Gitea verwenden diesen Befehl und prüfen damit denselben Bestand von 329
+  Vertragsfällen vor der Freigabe.
 
 ## 19. Implementierungslandkarte des Ist-Stands
 
@@ -753,32 +755,32 @@ Diese Landkarte beschreibt den auditierten Aufbau. Widerspricht ein Ist-Punkt
 einer Vertragsregel, ist er in Abschnitt 18 als offene Abweichung zu behandeln.
 
 - **ARC-001 Editor-Monolith:** `state.html` ist eine selbstenthaltene
-  Vanilla-JavaScript-Anwendung. Sie enthaelt Host-Oberflaeche, Canvas, SVG-
+  Vanilla-JavaScript-Anwendung. Sie enthält Host-Oberfläche, Canvas, SVG-
   Routing, Inspektoren, Presets, Modelloperationen, Persistenz, Exportlogik und
   den escaped Quelltext der generierten Runtime.
 - **ARC-002 Editorzustand:** Der Host speichert Modell, Auswahl, aktive Ebene,
   State-Presets und bearbeitetes Preset unter
   `stateBlueprintHotLinked.model.v2.editor`. Kamera, UI-Zustand und
   State-Explorer liegen getrennt unter `.camera`, `.ui` und `.stateExplorer`.
-  Runtime-Kontext wird nicht in State-Defaults zurueckpersistiert.
+  Runtime-Kontext wird nicht in State-Defaults zurückpersistiert.
 - **ARC-003 Historie:** Undo/Redo erfasst normalisierte Modell- und relevante
-  Sitzungssnapshots, fasst zusammengehoerige Dauerinteraktionen ueber einen
-  History-Key zusammen und begrenzt die Historie auf 100 Eintraege.
-- **ARC-004 Runtime-Erzeugung:** `APP_HTML` enthaelt die eingebettete
+  Sitzungssnapshots, fasst zusammengehörige Dauerinteraktionen über einen
+  History-Key zusammen und begrenzt die Historie auf 100 Einträge.
+- **ARC-004 Runtime-Erzeugung:** `APP_HTML` enthält die eingebettete
   Standalone-Runtime. `enhanceGeneratedAppHtml` erweitert diesen Quelltext;
-  `GENERATED_APP_HTML` wird anschliessend als Blob-URL in das Vorschau-Iframe
+  `GENERATED_APP_HTML` wird anschließend als Blob-URL in das Vorschau-Iframe
   geladen. Der Standalone-Export injiziert das Modell in genau diesen Quelltext
   und deaktiviert dessen lokale Editor-Modellpfade.
-- **ARC-005 Host-Runtime-Bruecke:** Der Host sendet Modell, Reset- und
+- **ARC-005 Host-Runtime-Brücke:** Der Host sendet Modell, Reset- und
   Startinformationen per `STATE_BLUEPRINT_MODEL`. Die Runtime antwortet mit
-  `STATE_BLUEPRINT_RUNTIME_STATE`. Der Host verwendet diese Antwort nur fuer
+  `STATE_BLUEPRINT_RUNTIME_STATE`. Der Host verwendet diese Antwort nur für
   Anzeige, aktive Canvas-Markierung, Ebenenbezug und Realtime-Relay; sie ist kein
   zweiter persistierter Runtime-Speicher.
-- **ARC-006 Runtime-Bus:** Fachliche Schreibvorgaenge laufen zentral durch den
+- **ARC-006 Runtime-Bus:** Fachliche Schreibvorgänge laufen zentral durch den
   Runtime-Bus und eine erlaubte Quellenliste. Echte UI-Ereignisse werden von
   synthetischen Ereignissen unterschieden. Pause leert Warteschlange, Timer und
   Countdowns und sperrt weitere Ereignisverarbeitung bis zur Fortsetzung.
-- **ARC-007 Transitionen und Fetch:** Ereignisse werden gezaehlt und in einer
+- **ARC-007 Transitionen und Fetch:** Ereignisse werden gezählt und in einer
   Warteschlange verarbeitet. Die Condition-Auswertung nutzt ein begrenztes, eval-freies
   Ausdrucksmodell. Fetch ist ein State-Eintrittseffekt; Aktivierungs-ID und
   Quellsignatur verwerfen veraltete Antworten, Retries wachsen exponentiell und
@@ -789,25 +791,25 @@ einer Vertragsregel, ist er in Abschnitt 18 als offene Abweichung zu behandeln.
   Anzeige; nur explizite Transition-IDs binden eine Nutzeraktion an den Ablauf.
 - **ARC-009 MCP-Schicht:** `mcp/state-blueprint-core.js` implementiert
   normalisierte Modellaktionen und Editor-Kommandos ohne DOM. Der
-  `state-blueprint-server.js` stellt sie als zeilenbasiertes JSON-RPC ueber stdio
+  `state-blueprint-server.js` stellt sie als zeilenbasiertes JSON-RPC über stdio
   mit dateibasiertem Workspace bereit. `state-blueprint-intents.js` ist ein
   deterministischer Regex-Intent-Parser und kein Sprachmodell; sein Ergebnis
   sind normale, validierte Aktionen.
 - **ARC-010 Realtime-Schicht:** `server/server.js` liefert Katalog, HMAC-
   Raumtoken, WebSocket-Relay und HTTP-Emit. Der Server bleibt fachlich zustandslos.
-  Das vorhandene Presence-Protokoll ist fluechtig und derzeit nicht in die
-  Editoroberflaeche integriert.
-- **ARC-011 Build und Oeffentlichkeit:** `scripts/build-index.mjs` startet den
-  echten Editor mit `?demo=zustand`, betaetigt dessen Export und schreibt das
+  Das vorhandene Presence-Protokoll ist flüchtig und derzeit nicht in die
+  Editoroberfläche integriert.
+- **ARC-011 Build und Öffentlichkeit:** `scripts/build-index.mjs` startet den
+  echten Editor mit `?demo=zustand`, betätigt dessen Export und schreibt das
   Ergebnis als `index.html`. Die Root-Seite ist deshalb die laufende exportierte
-  Demo. `sw.js` liefert den PWA-Cache mit Network-first fuer Navigation und
-  Stale-while-revalidate fuer Assets.
-- **ARC-012 Deployment:** GitHub Actions installiert Abhaengigkeiten, prueft den
+  Demo. `sw.js` liefert den PWA-Cache mit Network-first für Navigation und
+  Stale-while-revalidate für Assets.
+- **ARC-012 Deployment:** GitHub Actions installiert Abhängigkeiten, prüft den
   konfigurierten Testpfad und aktualisiert bei erfolgreichem `main`-Lauf den
   Service-Worker-Deploy-Stamp. Realtime-Deployment und Nginx-Grenze bleiben von
   der statischen Editor-/Exportauslieferung getrennt.
 
-Der konkrete Autoren- und Ausfuehrungsweg ist damit:
+Der konkrete Autoren- und Ausführungsweg ist damit:
 
 ```text
 state.html / MCP-Aktion
@@ -820,12 +822,11 @@ state.html / MCP-Aktion
 
 ## 20. Nicht normative Richtung
 
-Diese Punkte beschreiben moegliche Weiterentwicklung und sind kein bestehender
+Diese Punkte beschreiben mögliche Weiterentwicklung und sind kein bestehender
 Abnahmevertrag:
 
 - visuelles Verbinden von Datenpfaden und Darstellungsbausteinen,
-- staerkere Typ-, Wertebereichs- und Schema-Pruefung des globalen Datenbaums,
-- einfachere Auswahl von Datenkonstellationen fuer Change-Uebergaenge,
-- ein Preset-Designer fuer vollstaendig vertragskonforme DaisyUI-Bausteine,
-- vollstaendige, nachvollziehbare und testbare API-Steuerung jeder Editoraktion.
-
+- stärkere Typ-, Wertebereichs- und Schema-Prüfung des globalen Datenbaums,
+- einfachere Auswahl von Datenkonstellationen für Change-Übergänge,
+- ein Preset-Designer für vollständig vertragskonforme DaisyUI-Bausteine,
+- vollständige, nachvollziehbare und testbare API-Steuerung jeder Editoraktion.
