@@ -11,6 +11,70 @@ Es beschreibt die Invarianten, die Editor, Runtime, Export, API, MCP und
 Realtime-Transport gemeinsam einhalten muessen. Die Tests sind die ausfuehrbare
 Absicherung dieses Vertrags.
 
+## 0. App-Prinzip und durchgaengiger Systemfluss
+
+- **PRN-001 Ausfuehrbares Prozessmodell:** Zustand ist kein reiner
+  Diagrammeditor. Die App modelliert einen fachlichen Prozess als ausfuehrbare
+  endliche Zustandsmaschine. Der Canvas ist die visuelle Autorenansicht dieses
+  Programms; die generierte App fuehrt dasselbe Programm aus.
+- **PRN-002 Fachliche Zuordnung:** Ein State ist ein Prozessschritt und seine
+  sichtbare Ansicht. Eine Transition ist der einzige erlaubte Wechsel. Ihr
+  Trigger bestimmt die Ursache, ihre Condition die Zulassung und ihr `set` die
+  Datenwirkung. Komponenten stellen Modell und Daten dar, duerfen aber keinen
+  zweiten Ablauf erfinden.
+- **PRN-003 Zwei Wahrheiten, klare Grenze:** Das normalisierte Modell ist die
+  persistierte strukturelle Wahrheit. Der globale JSON-Bus ist die einzige
+  veraenderliche Laufzeit-Wahrheit. Editor-DOM, SVG, Vorschau, Inspektor,
+  Host-Snapshot und Server sind ausschliesslich Projektionen oder Transport.
+- **PRN-004 Autorenfluss:** Jede fachliche Modelloperation MUSS das Modell
+  aendern, normalisieren, in der Historie erfassen und persistieren; relevante
+  Auswahl- und Ebenendaten gehoeren zum Sitzungssnapshot. Danach sendet der Host
+  das Modell per `STATE_BLUEPRINT_MODEL` an die Vorschau. Eine DOM-Aenderung
+  allein ist keine Modelloperation. Rein lokale UI- und Kameraaenderungen duerfen
+  ausserhalb der Modellhistorie persistieren.
+- **PRN-005 Laufzeitzyklus:** Ein reales Nutzerereignis oder ein deklarierter
+  automatischer beziehungsweise externer Trigger erzeugt ein Runtime-Ereignis.
+  Die Runtime schreibt dessen Metadaten in den Bus, stellt es in die
+  Ereigniswarteschlange, sucht im aktiven State-/Elternpfad passende
+  Transitionen, wertet die Condition aus, wendet bei Erfolg `set` an, wechselt
+  zum aufgeloesten Ziel, fuehrt Eintrittseffekte aus und rendert den neuen Stand.
+- **PRN-006 Verschachtelte Prozesse:** Ein Parent ist ein echter State und seine
+  Kinder sind eine echte innere Zustandsmaschine. Die Boundary ist die
+  ausdrueckliche oeffentliche Ein-/Ausgangsschnittstelle des Parents. Ohne
+  echten inneren oder aeusseren Ausgang stoppt die Maschine.
+- **PRN-007 Eine Runtime:** Editorvorschau, Standalone-HTML und die oeffentliche
+  Demo MUESSEN aus demselben Modell und derselben generierten Runtime entstehen.
+  `index.html` ist deshalb eine kompilierte Beispiel-App und keine getrennte
+  Marketing- oder Ersatzimplementierung.
+- **PRN-008 MCP als zweite Autorenoberflaeche:** MCP ist eine headless
+  Autoren- und Steueroberflaeche fuer dasselbe Modell. Es darf Aktionen planen,
+  ordnen, validieren, persistieren und exportieren, aber weder ein zweites
+  Fachmodell noch eine abweichende Runtime-Semantik besitzen.
+- **PRN-009 Realtime als Ereignistransport:** Realtime transportiert
+  katalogisierte Runtime-Ereignisse zwischen Teilnehmern. Es synchronisiert
+  keine Canvas-Operationen, Modell-Patches oder dauerhaften fachlichen Daten und
+  ist daher keine kollaborative Modellbearbeitung.
+- **PRN-010 Clientseitiger Kern:** Editor und Standalone-Runtime arbeiten
+  clientseitig. Ein Server wird nur fuer bereitgestellte Netzfunktionen wie
+  Realtime, Tokenausgabe, Katalog und externe Fetch-Ziele benoetigt; er darf die
+  lokale Modell- und Bushoheit nicht uebernehmen.
+- **PRN-011 Produktziel:** Ein digitalisierter Prozess ist erst dann vollstaendig
+  beschrieben, wenn Ablauf, Daten, Darstellung, Seiteneffekte, Schnittstellen
+  und Grenzen explizit im Modell liegen, im Browser beweisbar sind und ohne den
+  Editor als eigenstaendige App exportiert werden koennen.
+
+Der Hauptpfad des Systems lautet:
+
+```text
+Editoraktion
+  -> normalisiertes Modell + Editorsitzung + Historie
+  -> STATE_BLUEPRINT_MODEL
+  -> generierte Runtime im Vorschau-Iframe
+  -> Runtime-Ereignis -> Bus -> Transition -> Eintrittseffekt -> Render
+  -> STATE_BLUEPRINT_RUNTIME_STATE
+  -> nur lesender Host-Snapshot, Canvas-Markierung und optionales Realtime-Relay
+```
+
 ## 1. Normative Sprache und Geltung
 
 - **MUSS** und **DARF NICHT** bezeichnen ausnahmslose Vertragsregeln.
@@ -628,7 +692,7 @@ Abdeckungsbereiche:
 | `tests/root-page.spec.js` | oeffentlicher Standalone-Demoexport |
 | `server/server.test.js` | Realtime-Transport, Auth, Katalog und Nginx-Grenze |
 
-## 18. Bekannte noch nicht ausfuehrbar geschlossene Luecke
+## 18. Bekannte Luecken, Abweichungen und Risiken
 
 - **GAP-001 SVG-Hit-Prioritaet:** `CAN-012` ist fachlich verbindlich, besitzt
   aber noch keinen vollstaendigen Regressionstest fuer einen Edge-Pin oder Port,
@@ -645,8 +709,116 @@ Abdeckungsbereiche:
   Erreichbarkeit, aber nicht deterministische Hit-Erkennung beim ersten Click.
   Fuer `CAN-012`, `DEMO-004`, `DEMO-005` und `TST-006` ist deshalb ein
   retryfreier Regressionstest erforderlich.
+- **GAP-002 Definitionsformat:** Der Editor verlangt und exportiert derzeit
+  `kind: "state-blueprint-definition"`. Der MCP-Core verlangt und exportiert
+  dagegen `kind: "state-blueprint.definition"`. Formale Definitionen sind damit
+  nicht ohne Anpassung zwischen beiden Oberflaechen austauschbar. Das ist eine
+  aktuelle Abweichung von `EXP-001` und `API-009` und MUSS auf genau einen Wert
+  vereinheitlicht und durch einen Editor-MCP-Roundtrip abgesichert werden.
+- **GAP-003 Geteilte Kernlogik:** Modellnormalisierung und Teile der
+  Ablauflogik existieren getrennt im Host, in der eingebetteten Runtime und im
+  MCP-Core. Die finale Runtime wird zusaetzlich durch exakte String-Ersetzungen
+  von `enhanceGeneratedAppHtml(APP_HTML)` erzeugt. Source-Tests wirken als
+  Driftalarm, aber es gibt noch kein gemeinsam importiertes Kernmodul. Kleine
+  Quellenabweichungen koennen deshalb Editor, Export und MCP auseinanderlaufen
+  lassen.
+- **GAP-004 Testdrift der untersuchten Arbeitskopie:** Der Audit vom 2026-07-10
+  erfolgte auf dem getrackten Stand `fdfde42` zuzueglich bereits vorhandener,
+  nicht zu diesem Dokument-Push gehoerender lokaler UI- und Testaenderungen.
+  Server-Tests bestanden mit 14/14, der Kernlauf mit 75/75 und der Smoke-Lauf
+  mit 214/214. Der volle Playwright-Lauf bestand mit 293/314; alle 21 Fehler
+  liegen in `tests/state-tool.spec.js`.
+- Der ueberwiegende Teil dieser 21 Fehler ist nachweisbarer Erwartungsdrift:
+  englische Testtexte treffen auf die deutsch uebersetzte UI, ein Accordion-
+  Preset blieb umgekehrt englisch, die Mobile-Navigation besitzt nach Undo/Redo
+  sechs statt der erwarteten vier Spalten und mehrere Selektoren suchen noch
+  nach `Fit` statt `Einpassen`. Test und Produkttext MUESSEN gemeinsam auf den
+  beabsichtigten deutschen Vertrag gebracht werden.
+- **GAP-005 Ungeklaerte responsive Erwartungen:** Drei Fehlschlaege sind nicht
+  allein Textdrift: Bei 390 x 820 oeffnet ein Tap auf `.node-edit` den erwarteten
+  State-Inspektor nicht sichtbar; die persistierte Mobile-Ansicht `app` laesst
+  die Map sichtbar; und die Topbar berechnet `overflow-x: visible` statt `auto`.
+  CSS und Tests vertreten bei den letzten beiden Punkten unterschiedliche
+  Produktabsichten. Das beabsichtigte Verhalten MUSS festgelegt und danach ohne
+  bedingte Alttext-Selektoren getestet werden.
+- **GAP-006 Geteilte CI-Abnahme:** GitHub Actions fuehrt auf `main` mit
+  `npm test` Server- und Smoke-Tests aus. Die Gitea-Workflowdatei fuehrt den
+  vollen Playwright-Lauf aus. Kein einzelner CI-Job beweist derzeit alle 328
+  Faelle aus `TST-001`; die verbindliche Gesamtfreigabe ist dadurch auf zwei
+  getrennte Pfade verteilt.
 
-## 19. Nicht normative Richtung
+## 19. Implementierungslandkarte des Ist-Stands
+
+Diese Landkarte beschreibt den auditierten Aufbau. Widerspricht ein Ist-Punkt
+einer Vertragsregel, ist er in Abschnitt 18 als offene Abweichung zu behandeln.
+
+- **ARC-001 Editor-Monolith:** `state.html` ist eine selbstenthaltene
+  Vanilla-JavaScript-Anwendung. Sie enthaelt Host-Oberflaeche, Canvas, SVG-
+  Routing, Inspektoren, Presets, Modelloperationen, Persistenz, Exportlogik und
+  den escaped Quelltext der generierten Runtime.
+- **ARC-002 Editorzustand:** Der Host speichert Modell, Auswahl, aktive Ebene,
+  State-Presets und bearbeitetes Preset unter
+  `stateBlueprintHotLinked.model.v2.editor`. Kamera, UI-Zustand und
+  State-Explorer liegen getrennt unter `.camera`, `.ui` und `.stateExplorer`.
+  Runtime-Kontext wird nicht in State-Defaults zurueckpersistiert.
+- **ARC-003 Historie:** Undo/Redo erfasst normalisierte Modell- und relevante
+  Sitzungssnapshots, fasst zusammengehoerige Dauerinteraktionen ueber einen
+  History-Key zusammen und begrenzt die Historie auf 100 Eintraege.
+- **ARC-004 Runtime-Erzeugung:** `APP_HTML` enthaelt die eingebettete
+  Standalone-Runtime. `enhanceGeneratedAppHtml` erweitert diesen Quelltext;
+  `GENERATED_APP_HTML` wird anschliessend als Blob-URL in das Vorschau-Iframe
+  geladen. Der Standalone-Export injiziert das Modell in genau diesen Quelltext
+  und deaktiviert dessen lokale Editor-Modellpfade.
+- **ARC-005 Host-Runtime-Bruecke:** Der Host sendet Modell, Reset- und
+  Startinformationen per `STATE_BLUEPRINT_MODEL`. Die Runtime antwortet mit
+  `STATE_BLUEPRINT_RUNTIME_STATE`. Der Host verwendet diese Antwort nur fuer
+  Anzeige, aktive Canvas-Markierung, Ebenenbezug und Realtime-Relay; sie ist kein
+  zweiter persistierter Runtime-Speicher.
+- **ARC-006 Runtime-Bus:** Fachliche Schreibvorgaenge laufen zentral durch den
+  Runtime-Bus und eine erlaubte Quellenliste. Echte UI-Ereignisse werden von
+  synthetischen Ereignissen unterschieden. Pause leert Warteschlange, Timer und
+  Countdowns und sperrt weitere Ereignisverarbeitung bis zur Fortsetzung.
+- **ARC-007 Transitionen und Fetch:** Ereignisse werden gezaehlt und in einer
+  Warteschlange verarbeitet. Die Condition-Auswertung nutzt ein begrenztes, eval-freies
+  Ausdrucksmodell. Fetch ist ein State-Eintrittseffekt; Aktivierungs-ID und
+  Quellsignatur verwerfen veraltete Antworten, Retries wachsen exponentiell und
+  Erfolg beziehungsweise Fehler treten wieder als FSM-Ereignisse ein.
+- **ARC-008 Rendering:** Die Runtime rendert die aktive Eltern-/Kindkette aus
+  strukturierten State-Daten. Explizite Render-Reihenfolge verbindet manuelle
+  Komponenten, `dataWire`-Referenzen und `transitionButton`-Referenzen. Text ist
+  Anzeige; nur explizite Transition-IDs binden eine Nutzeraktion an den Ablauf.
+- **ARC-009 MCP-Schicht:** `mcp/state-blueprint-core.js` implementiert
+  normalisierte Modellaktionen und Editor-Kommandos ohne DOM. Der
+  `state-blueprint-server.js` stellt sie als zeilenbasiertes JSON-RPC ueber stdio
+  mit dateibasiertem Workspace bereit. `state-blueprint-intents.js` ist ein
+  deterministischer Regex-Intent-Parser und kein Sprachmodell; sein Ergebnis
+  sind normale, validierte Aktionen.
+- **ARC-010 Realtime-Schicht:** `server/server.js` liefert Katalog, HMAC-
+  Raumtoken, WebSocket-Relay und HTTP-Emit. Der Server bleibt fachlich zustandslos.
+  Das vorhandene Presence-Protokoll ist fluechtig und derzeit nicht in die
+  Editoroberflaeche integriert.
+- **ARC-011 Build und Oeffentlichkeit:** `scripts/build-index.mjs` startet den
+  echten Editor mit `?demo=zustand`, betaetigt dessen Export und schreibt das
+  Ergebnis als `index.html`. Die Root-Seite ist deshalb die laufende exportierte
+  Demo. `sw.js` liefert den PWA-Cache mit Network-first fuer Navigation und
+  Stale-while-revalidate fuer Assets.
+- **ARC-012 Deployment:** GitHub Actions installiert Abhaengigkeiten, prueft den
+  konfigurierten Testpfad und aktualisiert bei erfolgreichem `main`-Lauf den
+  Service-Worker-Deploy-Stamp. Realtime-Deployment und Nginx-Grenze bleiben von
+  der statischen Editor-/Exportauslieferung getrennt.
+
+Der konkrete Autoren- und Ausfuehrungsweg ist damit:
+
+```text
+state.html / MCP-Aktion
+  -> normalizeModel -> validiertes State-Blueprint-v2-Modell
+  -> Editor-Persistenz oder MCP-Workspace
+  -> Vorschau-Blob oder Standalone-HTML
+  -> globaler Runtime-Bus + FSM + Renderer
+  -> optional: /events + /token + /ws als reiner Ereignistransport
+```
+
+## 20. Nicht normative Richtung
 
 Diese Punkte beschreiben moegliche Weiterentwicklung und sind kein bestehender
 Abnahmevertrag:
@@ -656,3 +828,4 @@ Abnahmevertrag:
 - einfachere Auswahl von Datenkonstellationen fuer Change-Uebergaenge,
 - ein Preset-Designer fuer vollstaendig vertragskonforme DaisyUI-Bausteine,
 - vollstaendige, nachvollziehbare und testbare API-Steuerung jeder Editoraktion.
+
