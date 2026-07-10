@@ -1,34 +1,35 @@
-# Zustand API Reference
+# Zustand API-Referenz
 
-This document is the automation contract for Zustand / Digitalisierungsplanung.
-The API edits the same canonical JSON model that the visual editor edits. It does
-not click the UI, does not keep a second store, and does not create hidden runtime
-state.
+Dieses Dokument beschreibt den Automatisierungs-Vertrag fuer Zustand /
+Digitalisierungsplanung. Die API bearbeitet dasselbe kanonische JSON-Modell wie
+der visuelle Editor. Sie klickt keine DOM-Elemente, haelt keinen zweiten
+Runtime-Store und erzeugt keinen versteckten lokalen Zustand.
 
-## Core Rule
+## Kernregel
 
-There is one truth:
+Es gibt genau eine Wahrheit:
 
 ```text
-State Blueprint JSON model -> global JSON state/event bus -> FSM runtime
+State-Blueprint-JSON-Modell -> globaler JSON-State/Event-Bus -> FSM-Runtime
 ```
 
-API calls may change the model. Runtime values are produced by the generated app
-through the bus. Components are only views and event surfaces over that bus.
+API-Aufrufe duerfen das Modell veraendern. Runtime-Werte entstehen in der
+generierten App ueber den Bus. Komponenten sind nur Views und explizite
+Event-Oberflaechen ueber diesem Bus.
 
-## Run The MCP Server
+## MCP-Server Starten
 
 ```bash
 STATE_BLUEPRINT_MODEL_PATH=./state-blueprint.workspace.json npm run mcp:state
 ```
 
-If `STATE_BLUEPRINT_MODEL_PATH` is omitted, the server reads and writes
+Ohne `STATE_BLUEPRINT_MODEL_PATH` liest und schreibt der Server
 `./state-blueprint.workspace.json`.
 
-The server speaks MCP JSON-RPC over stdio. Every response returns JSON text in
-`content[0].text` and the same value in `structuredContent`.
+Der Server spricht MCP JSON-RPC ueber stdio. Jede Antwort liefert JSON-Text in
+`content[0].text` und denselben Wert in `structuredContent`.
 
-Minimal JSON-RPC call:
+Minimaler JSON-RPC-Aufruf:
 
 ```json
 {"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"state_blueprint_validate","arguments":{}}}
@@ -38,21 +39,23 @@ Minimal JSON-RPC call:
 
 | Tool | Purpose |
 | --- | --- |
-| `state_blueprint_get_model` | Read the current canonical workspace model. |
-| `state_blueprint_replace_model` | Replace the whole model after normalization and validation. |
-| `state_blueprint_apply_actions` | Apply ordered editor/model actions atomically. This is the main write API. |
-| `state_blueprint_plan_prompt` | Convert a supported natural-language edit into actions without writing. |
-| `state_blueprint_apply_prompt` | Convert a supported natural-language edit into actions and apply it. |
-| `state_blueprint_validate` | Validate the current model against the FSM/bus contract. |
-| `state_blueprint_export_definition` | Return the formal `.state.json` definition payload. |
-| `state_blueprint_import_definition` | Import a formal `.state.json` definition payload. |
-| `state_blueprint_export_html` | Build the standalone generated app HTML, optionally writing it to disk. |
-| `state_blueprint_action_catalog` | Return supported action names and prompt examples. |
+| `state_blueprint_get_model` | Liest das aktuelle kanonische Workspace-Modell. |
+| `state_blueprint_replace_model` | Ersetzt das ganze Modell nach Normalisierung und Validierung. |
+| `state_blueprint_apply_actions` | Fuehrt geordnete Modell-Actions atomar aus. |
+| `state_blueprint_apply_commands` | Fuehrt vollstaendige Editor-Commands aus: Modell, Auswahl, Layer, Viewport, Copy/Paste, Group/Degroup, Undo/Redo. |
+| `state_blueprint_plan_prompt` | Wandelt eine unterstuetzte Textanweisung in Actions um, ohne zu schreiben. |
+| `state_blueprint_apply_prompt` | Wandelt eine unterstuetzte Textanweisung in Actions um und wendet sie an. |
+| `state_blueprint_validate` | Validiert das Modell gegen den FSM-/Bus-Vertrag. |
+| `state_blueprint_export_definition` | Liefert die formale `.state.json`-Definition. |
+| `state_blueprint_import_definition` | Importiert eine formale `.state.json`-Definition. |
+| `state_blueprint_export_html` | Baut dieselbe standalone HTML-App wie der Editor-Export. |
+| `state_blueprint_action_catalog` | Liefert Modell-Action-Namen und Prompt-Beispiele. |
+| `state_blueprint_command_catalog` | Liefert alle programmatischen Editor-Commands. |
 
-## Main Write Interface
+## Haupt-Schreibschnittstellen
 
-Use `state_blueprint_apply_actions` for everything that should mirror an editor
-model edit.
+Nutze `state_blueprint_apply_actions`, wenn nur das kanonische Modell geaendert
+werden soll.
 
 ```json
 {
@@ -66,9 +69,46 @@ model edit.
 }
 ```
 
-Actions are sorted in dependency order before they are applied, so states are
-created before transitions that reference them. The result is normalized and
-validated before it is written.
+Actions werden vor der Ausfuehrung in Abhaengigkeitsreihenfolge gebracht, damit
+States vor Transitions existieren. Das Ergebnis wird normalisiert und validiert,
+bevor es geschrieben wird.
+
+Nutze `state_blueprint_apply_commands`, wenn ein externer Client die App wie ein
+User steuern soll, aber ohne DOM-Klicks. Commands laufen ueber dieselben
+Core-Funktionen wie die Modell-Actions und fuehren zusaetzlich Editor-Session-
+Aktionen aus.
+
+```json
+{
+  "commands": [
+    { "command": "scene.new", "title": "Auftragsprozess" },
+    { "command": "state.create", "id": "start", "title": "Start", "x": 96, "y": 120 },
+    { "command": "state.create", "id": "done", "title": "Fertig", "x": 456, "y": 120 },
+    { "command": "transition.create", "id": "start_done", "from": "start", "to": "done", "label": "Weiter" },
+    { "command": "graph.insert_state_on_transition", "transitionId": "start_done", "stateId": "pruefen", "title": "Pruefen" },
+    { "command": "viewport.fit", "viewportWidth": 1200, "viewportHeight": 800 }
+  ]
+}
+```
+
+Wichtige Commands:
+
+| Command | Zweck |
+| --- | --- |
+| `scene.new`, `scene.rename`, `model.replace` | Szene neu anlegen, benennen oder komplett ersetzen. |
+| `state.create`, `state.upsert`, `state.move`, `state.delete`, `state.set_initial` | States erzeugen, bearbeiten, verschieben, loeschen und initial setzen. |
+| `transition.create`, `transition.update`, `transition.rewire`, `transition.delete` | Transitions erzeugen, bearbeiten, umverdrahten und loeschen. |
+| `variable.upsert`, `variable.delete` | State-gescopte Bus-Variablen anlegen oder entfernen. |
+| `fetch.configure`, `repeat.configure`, `wire.upsert`, `wire.remove` | Datenquelle, Wiederholung und Data-Wires konfigurieren. |
+| `component.add`, `component.update`, `component.remove`, `component.reorder` | Render-Komponenten und Widgets bearbeiten. |
+| `boundary.set` | echte Boundary-/Proxy-Verbindungen setzen. |
+| `selection.set`, `selection.clear`, `selection.all` | Editor-Auswahl setzen. |
+| `layer.open`, `layer.back`, `layer.root` | Canvas-Layer navigieren. |
+| `viewport.set_camera`, `viewport.reset`, `viewport.fit` | Pan/Zoom programmatisch setzen. |
+| `preview.set_collapsed`, `preview.pause`, `ui.set_panel` | Editor-UI-Zustand steuern. |
+| `graph.copy_selection`, `graph.paste`, `graph.duplicate_selection`, `graph.delete_selection` | Graph-Auswahl kopieren, einfuegen, duplizieren oder loeschen. |
+| `graph.collapse_to_parent`, `graph.degroup_parent` | States zu einem echten Parent-State gruppieren oder wieder aufloesen. |
+| `history.undo`, `history.redo` | Command-basierte Editor-Aenderungen rueckgaengig machen oder wiederholen. |
 
 ## Action Reference
 

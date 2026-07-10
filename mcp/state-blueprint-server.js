@@ -7,8 +7,11 @@ const vm = require("node:vm");
 const {
   blankModel,
   normalizeModel,
+  normalizeWorkspace,
   validateModel,
   applyActions,
+  applyCommands,
+  commandCatalog,
   definitionPayload,
   modelSummary
 } = require("./state-blueprint-core");
@@ -98,29 +101,37 @@ function buildStandaloneAppHtml(appHtml, payload) {
 
 function loadWorkspace() {
   const stored = readJsonFile(modelPath, null);
-  if (!stored) return { model: blankModel("State App"), stateTemplates: [] };
+  if (!stored) return normalizeWorkspace({ model: blankModel("State App"), stateTemplates: [] });
   if (stored.kind === "state-blueprint.definition") {
-    return {
+    return normalizeWorkspace({
       model: normalizeModel(stored.model),
-      stateTemplates: Array.isArray(stored.stateTemplates) ? stored.stateTemplates : []
-    };
+      stateTemplates: Array.isArray(stored.stateTemplates) ? stored.stateTemplates : [],
+      editor: { camera: stored.camera, previewCollapsed: stored.previewCollapsed }
+    });
   }
   if (stored.model) {
-    return {
+    return normalizeWorkspace({
       model: normalizeModel(stored.model),
-      stateTemplates: Array.isArray(stored.stateTemplates) ? stored.stateTemplates : []
-    };
+      stateTemplates: Array.isArray(stored.stateTemplates) ? stored.stateTemplates : [],
+      editor: stored.editor,
+      clipboard: stored.clipboard,
+      history: stored.history
+    });
   }
-  return { model: normalizeModel(stored), stateTemplates: [] };
+  return normalizeWorkspace({ model: normalizeModel(stored), stateTemplates: [] });
 }
 
 function saveWorkspace(workspace) {
+  const normalized = normalizeWorkspace(workspace);
   const payload = {
     kind: "state-blueprint.workspace",
     schemaVersion: 1,
     savedAt: new Date().toISOString(),
-    model: normalizeModel(workspace.model),
-    stateTemplates: Array.isArray(workspace.stateTemplates) ? workspace.stateTemplates : []
+    model: normalized.model,
+    stateTemplates: normalized.stateTemplates,
+    editor: normalized.editor,
+    clipboard: normalized.clipboard,
+    history: normalized.history
   };
   writeJsonFile(modelPath, payload);
   return payload;
@@ -145,6 +156,17 @@ const actionSchema = {
     }
   },
   required: ["type"]
+};
+
+const commandSchema = {
+  type: "object",
+  additionalProperties: true,
+  properties: {
+    command: {
+      type: "string",
+      description: "Command name, e.g. state.create, transition.create, graph.insert_state_on_transition, viewport.fit, history.undo."
+    }
+  }
 };
 
 const tools = [
@@ -175,6 +197,19 @@ const tools = [
       dryRun: { type: "boolean", description: "Validate and return the result without writing to disk." },
       allowInvalid: { type: "boolean", description: "Return invalid results for diagnostics instead of rejecting." }
     }, ["actions"])
+  },
+  {
+    name: "state_blueprint_apply_commands",
+    description: "Apply exact editor/API commands over the canonical workspace. Covers model edits plus editor session actions such as selection, layer navigation, viewport, copy/paste, group/ungroup, undo, and redo without DOM automation.",
+    inputSchema: jsonSchema({
+      commands: {
+        type: "array",
+        items: commandSchema,
+        description: "Commands are applied in order. Model-changing commands are validated before writing. Use state_blueprint_command_catalog for names."
+      },
+      dryRun: { type: "boolean", description: "Validate and return the workspace result without writing to disk." },
+      allowInvalid: { type: "boolean", description: "Return invalid results for diagnostics instead of rejecting." }
+    }, ["commands"])
   },
   {
     name: "state_blueprint_plan_prompt",
@@ -224,6 +259,11 @@ const tools = [
   {
     name: "state_blueprint_action_catalog",
     description: "Return the supported action names and their contract-level intent.",
+    inputSchema: jsonSchema({})
+  },
+  {
+    name: "state_blueprint_command_catalog",
+    description: "Return the command API catalog for full programmatic editor execution.",
     inputSchema: jsonSchema({})
   }
 ];
@@ -299,6 +339,12 @@ function callTool(name, args = {}) {
     }
     return { modelPath, dryRun: Boolean(args.dryRun), ...result };
   }
+  if (name === "state_blueprint_apply_commands") {
+    const workspace = loadWorkspace();
+    const result = applyCommands(workspace, args.commands || [], { allowInvalid: Boolean(args.allowInvalid) });
+    if (!args.dryRun) saveWorkspace(result.workspace);
+    return { modelPath, dryRun: Boolean(args.dryRun), ...result };
+  }
   if (name === "state_blueprint_plan_prompt") {
     const workspace = loadWorkspace();
     const plan = planPrompt(workspace.model, args);
@@ -330,11 +376,11 @@ function callTool(name, args = {}) {
   }
   if (name === "state_blueprint_export_definition") {
     const workspace = loadWorkspace();
-    return definitionPayload(workspace.model, workspace.stateTemplates);
+    return definitionPayload(workspace.model, workspace.stateTemplates, workspace.editor);
   }
   if (name === "state_blueprint_export_html") {
     const workspace = loadWorkspace();
-    const payload = definitionPayload(workspace.model, workspace.stateTemplates);
+    const payload = definitionPayload(workspace.model, workspace.stateTemplates, workspace.editor);
     const html = buildStandaloneAppHtml(extractGeneratedAppHtml(), payload);
     const includeHtml = Object.prototype.hasOwnProperty.call(args, "includeHtml")
       ? Boolean(args.includeHtml)
@@ -366,13 +412,17 @@ function callTool(name, args = {}) {
     }
     const workspace = {
       model: validation.model,
-      stateTemplates: Array.isArray(definition.stateTemplates) ? definition.stateTemplates : []
+      stateTemplates: Array.isArray(definition.stateTemplates) ? definition.stateTemplates : [],
+      editor: { camera: definition.camera, previewCollapsed: definition.previewCollapsed }
     };
     saveWorkspace(workspace);
     return { modelPath, validation, summary: modelSummary(workspace.model) };
   }
   if (name === "state_blueprint_action_catalog") {
     return { modelPath, actions: actionCatalog, promptExamples };
+  }
+  if (name === "state_blueprint_command_catalog") {
+    return { modelPath, commands: commandCatalog };
   }
   throw new Error(`Unknown tool: ${name}`);
 }
@@ -395,6 +445,12 @@ function listResources() {
       uri: "state-blueprint://actions",
       name: "State Blueprint MCP action catalog",
       description: "Supported ordered action types for state_blueprint_apply_actions.",
+      mimeType: "application/json"
+    },
+    {
+      uri: "state-blueprint://commands",
+      name: "State Blueprint MCP command catalog",
+      description: "Full programmatic editor command names for state_blueprint_apply_commands.",
       mimeType: "application/json"
     },
     {
@@ -422,6 +478,15 @@ function readResource(uri) {
         uri,
         mimeType: "application/json",
         text: JSON.stringify({ actions: actionCatalog, promptExamples }, null, 2)
+      }]
+    };
+  }
+  if (uri === "state-blueprint://commands") {
+    return {
+      contents: [{
+        uri,
+        mimeType: "application/json",
+        text: JSON.stringify({ commands: commandCatalog }, null, 2)
       }]
     };
   }

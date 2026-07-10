@@ -2,7 +2,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { test, expect } = require("@playwright/test");
-const { normalizeModel, validateModel, applyActions } = require("../mcp/state-blueprint-core");
+const { normalizeModel, validateModel, applyActions, applyCommands, commandCatalog } = require("../mcp/state-blueprint-core");
 
 function createMcpClient(modelPath) {
   const child = spawn(process.execPath, ["mcp/state-blueprint-server.js"], {
@@ -110,7 +110,9 @@ test.describe("State Blueprint MCP", () => {
       "state_blueprint_export_definition",
       "state_blueprint_import_definition",
       "state_blueprint_export_html",
-      "state_blueprint_action_catalog"
+      "state_blueprint_action_catalog",
+      "state_blueprint_apply_commands",
+      "state_blueprint_command_catalog"
     ];
     const actions = [
       "create_flow",
@@ -141,10 +143,56 @@ test.describe("State Blueprint MCP", () => {
     for (const action of actions) expect(apiDoc).toContain(action);
     expect(apiDoc).toContain("`realtime`");
     expect(apiDoc).toContain("triggerType");
+    expect(apiDoc).toContain("state_blueprint_apply_commands");
+    expect(apiDoc).toContain("graph.insert_state_on_transition");
+    expect(apiDoc).toContain("history.undo");
     expect(apiDoc).toContain("model.realtime");
     expect(mcpDoc).toContain("state-blueprint-api.md");
     expect(mcpDoc).toContain('triggerType: "realtime"');
     expect(readme).toContain("docs/state-blueprint-api.md");
+  });
+
+  test("drives editor commands through the canonical model without DOM automation @smoke", () => {
+    expect(commandCatalog.map(command => command.name)).toEqual(expect.arrayContaining([
+      "state.create",
+      "transition.create",
+      "graph.insert_state_on_transition",
+      "history.undo",
+      "history.redo"
+    ]));
+
+    const created = applyCommands({}, [
+      { command: "scene.new", title: "Command Flow" },
+      { command: "state.create", id: "start", title: "Start", x: 96, y: 120 },
+      { command: "state.create", id: "done", title: "Done", x: 456, y: 120 },
+      { command: "transition.create", id: "start_done", from: "start", to: "done", label: "Continue" },
+      { command: "selection.set", stateIds: ["start"] },
+      { command: "viewport.fit", viewportWidth: 900, viewportHeight: 600 },
+      { command: "graph.insert_state_on_transition", transitionId: "start_done", stateId: "review", title: "Review", x: 264, y: 120 }
+    ]);
+
+    expect(created.validation.ok).toBe(true);
+    expect(created.workspace.model.states.map(state => state.id)).toEqual(["start", "done", "review"]);
+    expect(created.workspace.model.transitions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "start_done", from: "start", to: "review" }),
+      expect.objectContaining({ from: "review", to: "done" })
+    ]));
+    expect(created.workspace.editor.selected.nodes).toEqual(["review"]);
+    expect(created.workspace.editor.camera.scale).toBeGreaterThan(0.25);
+    expect(JSON.stringify(created.workspace.model)).not.toMatch(/localState|stateStore|html/);
+
+    const undone = applyCommands(created.workspace, [{ command: "history.undo" }]);
+    expect(undone.workspace.model.states.map(state => state.id)).toEqual(["start", "done"]);
+    expect(undone.workspace.model.transitions).toEqual([
+      expect.objectContaining({ id: "start_done", from: "start", to: "done" })
+    ]);
+
+    const redone = applyCommands(undone.workspace, [{ command: "history.redo" }]);
+    expect(redone.workspace.model.states.map(state => state.id)).toEqual(["start", "done", "review"]);
+    expect(redone.workspace.model.transitions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "start_done", from: "start", to: "review" }),
+      expect.objectContaining({ from: "review", to: "done" })
+    ]));
   });
 
   test("exposes standard MCP tools and applies dependency-ordered app actions without hidden state @smoke", async () => {
@@ -164,10 +212,12 @@ test.describe("State Blueprint MCP", () => {
       const listed = await client.request("tools/list");
       const toolNames = listed.tools.map(tool => tool.name);
       expect(toolNames).toContain("state_blueprint_apply_actions");
+      expect(toolNames).toContain("state_blueprint_apply_commands");
       expect(toolNames).toContain("state_blueprint_plan_prompt");
       expect(toolNames).toContain("state_blueprint_apply_prompt");
       expect(toolNames).toContain("state_blueprint_validate");
       expect(toolNames).toContain("state_blueprint_export_html");
+      expect(toolNames).toContain("state_blueprint_command_catalog");
 
       const applied = await client.request("tools/call", {
         name: "state_blueprint_apply_actions",
@@ -282,6 +332,91 @@ test.describe("State Blueprint MCP", () => {
 
       const promptIntents = await client.request("resources/read", { uri: "state-blueprint://prompt-intents" });
       expect(promptIntents.contents[0].text).toContain("füge timer hinzu");
+    } finally {
+      await client.close();
+      try { fs.unlinkSync(modelPath); } catch (_) {}
+    }
+  });
+
+  test("applies full editor commands through MCP and persists the workspace session @smoke", async () => {
+    const tempDir = path.join(process.cwd(), "tmp", "mcp-tests");
+    fs.mkdirSync(tempDir, { recursive: true });
+    const modelPath = path.join(tempDir, `command-workspace-${Date.now()}.json`);
+    const client = createMcpClient(modelPath);
+
+    try {
+      await client.request("initialize", {
+        protocolVersion: "2025-11-25",
+        capabilities: {},
+        clientInfo: { name: "state-blueprint-mcp-test", version: "1.0.0" }
+      });
+
+      const catalog = await client.request("tools/call", {
+        name: "state_blueprint_command_catalog",
+        arguments: {}
+      });
+      expect(catalog.structuredContent.commands.map(command => command.name)).toEqual(expect.arrayContaining([
+        "state.create",
+        "transition.create",
+        "graph.insert_state_on_transition",
+        "selection.set",
+        "viewport.fit",
+        "history.undo",
+        "history.redo"
+      ]));
+
+      const applied = await client.request("tools/call", {
+        name: "state_blueprint_apply_commands",
+        arguments: {
+          commands: [
+            { command: "scene.new", title: "Command MCP Flow" },
+            { command: "state.create", id: "start", title: "Start", x: 96, y: 120 },
+            { command: "state.create", id: "done", title: "Done", x: 456, y: 120 },
+            { command: "transition.create", id: "start_done", from: "start", to: "done", label: "Continue" },
+            { command: "selection.set", stateIds: ["start"] },
+            { command: "viewport.fit", viewportWidth: 900, viewportHeight: 600 },
+            { command: "graph.insert_state_on_transition", transitionId: "start_done", stateId: "review", title: "Review", x: 264, y: 120 },
+            { command: "preview.pause", value: true }
+          ]
+        }
+      });
+
+      expect(applied.structuredContent.validation.ok).toBe(true);
+      expect(applied.structuredContent.workspace.model.transitions).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: "start_done", from: "start", to: "review" }),
+        expect.objectContaining({ from: "review", to: "done" })
+      ]));
+      expect(applied.structuredContent.workspace.editor.selected.nodes).toEqual(["review"]);
+      expect(applied.structuredContent.workspace.editor.runtimePaused).toBe(true);
+
+      let stored = JSON.parse(fs.readFileSync(modelPath, "utf8"));
+      expect(stored.kind).toBe("state-blueprint.workspace");
+      expect(stored.model.states.map(state => state.id)).toEqual(["start", "done", "review"]);
+      expect(stored.editor.selected.nodes).toEqual(["review"]);
+      expect(stored.history.undo.length).toBeGreaterThan(0);
+      expect(JSON.stringify(stored.model)).not.toMatch(/localState|stateStore|html/);
+
+      await client.request("tools/call", {
+        name: "state_blueprint_apply_commands",
+        arguments: { commands: [{ command: "history.undo" }] }
+      });
+      stored = JSON.parse(fs.readFileSync(modelPath, "utf8"));
+      expect(stored.model.states.map(state => state.id)).toEqual(["start", "done"]);
+      expect(stored.model.transitions).toEqual([
+        expect.objectContaining({ id: "start_done", from: "start", to: "done" })
+      ]);
+
+      const exported = await client.request("tools/call", {
+        name: "state_blueprint_export_definition",
+        arguments: {}
+      });
+      expect(exported.structuredContent.model.states.map(state => state.id)).toEqual(["start", "done"]);
+      expect(exported.structuredContent.camera).toEqual(expect.objectContaining({
+        x: expect.any(Number),
+        y: expect.any(Number),
+        scale: expect.any(Number)
+      }));
+      expect(exported.structuredContent.history).toBeUndefined();
     } finally {
       await client.close();
       try { fs.unlinkSync(modelPath); } catch (_) {}

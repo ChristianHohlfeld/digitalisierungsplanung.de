@@ -422,7 +422,7 @@ function normalizeRepeatConfig(value) {
 
 function normalizeBoundaryConfig(value) {
   const source = isPlainObject(value) ? value : {};
-  return {
+  const boundary = {
     entryId: String(source.entryId || ""),
     exitId: String(source.exitId || ""),
     entryDisabled: Boolean(source.entryDisabled),
@@ -430,6 +430,18 @@ function normalizeBoundaryConfig(value) {
     title: String(source.title || source.layerTitle || ""),
     note: String(source.note || source.comment || "")
   };
+  if (source.entryTriggerType !== undefined) {
+    const entryTriggerType = normalizeTransitionTriggerType({ triggerType: source.entryTriggerType });
+    boundary.entryTriggerType = entryTriggerType;
+    boundary.entryTriggerEvent = normalizeTransitionEvent(
+      source.entryTriggerEvent || (entryTriggerType === "change" ? "" : defaultTransitionEvent({
+        id: "runtime.enter.child." + eventSegment(source.entryId || "entry"),
+        label: source.entryId || "entry",
+        triggerType: entryTriggerType
+      }))
+    );
+  }
+  return boundary;
 }
 
 function editorGroupBoundsForStates(states) {
@@ -959,6 +971,207 @@ function deleteEditorGroup(model, args) {
   return { deleted: before.filter(group => ids.has(group.id)).map(group => group.id) };
 }
 
+function statesInLayer(model, parentId = null) {
+  const layer = parentId || null;
+  return model.states.filter(state => stateParentId(state) === layer);
+}
+
+function layerExists(model, layerId) {
+  return !layerId || Boolean(byModelId(model, layerId));
+}
+
+function layerContainerBoundary(model, layerId) {
+  return layerId ? findStateOrThrow(model, layerId).boundary : model.boundary;
+}
+
+function ensureDefaultBoundaryTransitions(model, parentId = null) {
+  const boundary = normalizeBoundaryConfig(layerContainerBoundary(model, parentId));
+  const effectiveParentId = parentId || ROOT_LAYER_ID;
+  if (boundary.entryId) ensureBoundaryFlowTransition(model, effectiveParentId, "input", boundary.entryId);
+  if (boundary.exitId) ensureBoundaryFlowTransition(model, effectiveParentId, "output", boundary.exitId);
+}
+
+function selectedStateIdsFromCommand(workspace, command) {
+  const explicit = Array.isArray(command.stateIds) ? command.stateIds : Array.isArray(command.ids) ? command.ids : [];
+  if (explicit.length) return explicit.map(String).filter(Boolean);
+  return normalizeEditorSelection(workspace.editor?.selected, workspace.model).nodes;
+}
+
+function selectedEdgeIdsFromCommand(workspace, command) {
+  const explicit = Array.isArray(command.transitionIds) ? command.transitionIds : Array.isArray(command.edgeIds) ? command.edgeIds : [];
+  if (explicit.length) return explicit.map(String).filter(Boolean);
+  return normalizeEditorSelection(workspace.editor?.selected, workspace.model).edges;
+}
+
+function transitionById(model, id) {
+  return model.transitions.find(transition => transition.id === id) || null;
+}
+
+function collapseEntryStateForModel(model, stateIds) {
+  const selectedSet = new Set(stateIds);
+  const states = stateIds.map(id => byModelId(model, id)).filter(Boolean);
+  const selectedTransitions = model.transitions.filter(transition =>
+    selectedSet.has(transition.from) &&
+    selectedSet.has(transition.to) &&
+    !transition.boundaryFlow
+  );
+  const incoming = new Set(selectedTransitions.map(transition => transition.to));
+  return states.find(state => !incoming.has(state.id)) ||
+    states.slice().sort((a, b) => a.x - b.x || a.y - b.y || String(a.id).localeCompare(String(b.id)))[0] ||
+    null;
+}
+
+function collapseExitStateForModel(model, stateIds) {
+  const selectedSet = new Set(stateIds);
+  const states = stateIds.map(id => byModelId(model, id)).filter(Boolean);
+  const selectedTransitions = model.transitions.filter(transition =>
+    selectedSet.has(transition.from) &&
+    selectedSet.has(transition.to) &&
+    !transition.boundaryFlow
+  );
+  const outgoing = new Set(selectedTransitions.map(transition => transition.from));
+  return states.find(state => !outgoing.has(state.id)) ||
+    states.slice().sort((a, b) => b.x - a.x || b.y - a.y || String(a.id).localeCompare(String(b.id)))[0] ||
+    null;
+}
+
+function stateBounds(states) {
+  const minX = Math.min(...states.map(state => Number(state.x) || 0));
+  const minY = Math.min(...states.map(state => Number(state.y) || 0));
+  const maxX = Math.max(...states.map(state => (Number(state.x) || 0) + NODE_W));
+  const maxY = Math.max(...states.map(state => (Number(state.y) || 0) + NODE_H));
+  return { minX, minY, maxX, maxY };
+}
+
+function replaceNestedBoundaryReferences(model, oldChildIds, newDirectChildId, parentId) {
+  const ids = oldChildIds instanceof Set ? oldChildIds : new Set(oldChildIds || []);
+  if (!ids.size || !newDirectChildId) return;
+  for (const transition of model.transitions) {
+    if (transition.to === parentId && ids.has(transition.groupEntryId)) transition.groupEntryId = newDirectChildId;
+    if (transition.from === parentId && ids.has(transition.groupExitId)) transition.groupExitId = newDirectChildId;
+  }
+}
+
+function collapseStatesToParent(model, args = {}) {
+  const requestedIds = Array.isArray(args.stateIds) ? args.stateIds.map(String).filter(Boolean) : [];
+  const selected = [...new Set(requestedIds)];
+  if (!selected.length) throw new Error("graph.collapse_to_parent requires stateIds.");
+  const states = selected.map(id => byModelId(model, id)).filter(Boolean);
+  if (states.length !== selected.length) throw new Error("Cannot collapse missing states.");
+  const layerId = stateParentId(states[0]);
+  if (states.some(state => stateParentId(state) !== layerId)) throw new Error("Collapsed states must be in one layer.");
+  const selectedSet = new Set(selected);
+  const entry = args.entryId ? byModelId(model, args.entryId) : collapseEntryStateForModel(model, selected);
+  const exit = args.exitId ? byModelId(model, args.exitId) : collapseExitStateForModel(model, selected);
+  if (!entry || !exit || !selectedSet.has(entry.id) || !selectedSet.has(exit.id)) throw new Error("Collapsed group needs entry and exit states inside the selection.");
+  const bounds = stateBounds(states);
+  const usedIds = new Set([
+    ...model.states.map(state => state.id),
+    ...model.transitions.map(transition => transition.id)
+  ]);
+  const groupId = uniqueId(usedIds, args.id || args.title || "group", "group");
+  const group = createState(model, {
+    id: groupId,
+    title: String(args.title || "Group"),
+    parentId: layerId,
+    x: snapToGrid((bounds.minX + bounds.maxX) / 2 - NODE_W / 2),
+    y: snapToGrid((bounds.minY + bounds.maxY) / 2 - NODE_H / 2),
+    boundary: {
+      entryId: entry.id,
+      exitId: exit.id,
+      entryTriggerType: args.entryTriggerType || "auto",
+      entryTriggerEvent: args.entryTriggerEvent || ""
+    }
+  });
+
+  for (const transition of model.transitions) {
+    if (transition.boundaryFlow) continue;
+    const originalFrom = transition.from;
+    const originalTo = transition.to;
+    const fromSelected = selectedSet.has(originalFrom);
+    const toSelected = selectedSet.has(originalTo);
+    if (!fromSelected && toSelected) {
+      transition.to = group.id;
+      transition.groupEntryId = selectedSet.has(transition.groupEntryId) ? transition.groupEntryId : originalTo;
+    }
+    if (fromSelected && !toSelected) {
+      transition.from = group.id;
+      transition.groupExitId = selectedSet.has(transition.groupExitId) ? transition.groupExitId : originalFrom;
+    }
+  }
+  for (const transition of model.transitions) {
+    if (transition.boundaryFlow) continue;
+    if (transition.to === group.id && !selectedSet.has(transition.groupEntryId)) transition.groupEntryId = entry.id;
+    if (transition.from === group.id && !selectedSet.has(transition.groupExitId)) transition.groupExitId = exit.id;
+  }
+  for (const state of states) state.parentId = group.id;
+  replaceNestedBoundaryReferences(model, selectedSet, group.id, layerId);
+  const outerBoundary = normalizeBoundaryConfig(layerContainerBoundary(model, layerId));
+  if (outerBoundary.entryId && selectedSet.has(outerBoundary.entryId)) setBoundaryEndpoint(model, layerId || ROOT_LAYER_ID, "input", group.id);
+  if (outerBoundary.exitId && selectedSet.has(outerBoundary.exitId)) setBoundaryEndpoint(model, layerId || ROOT_LAYER_ID, "output", group.id);
+  if (selectedSet.has(model.initial)) model.initial = group.id;
+  ensureDefaultBoundaryTransitions(model, layerId);
+  ensureDefaultBoundaryTransitions(model, group.id);
+  normalizeModel(model);
+  return byModelId(model, group.id);
+}
+
+function childBoundaryState(model, parent, side) {
+  const children = statesInLayer(model, parent.id);
+  const boundary = normalizeBoundaryConfig(parent.boundary);
+  const configuredId = side === "input" ? boundary.entryId : boundary.exitId;
+  const configured = children.find(state => state.id === configuredId);
+  if (configured) return configured;
+  return side === "input" ? children.slice().sort((a, b) => a.x - b.x || a.y - b.y || String(a.id).localeCompare(String(b.id)))[0] || null
+    : children.slice().sort((a, b) => b.x - a.x || b.y - a.y || String(a.id).localeCompare(String(b.id)))[0] || null;
+}
+
+function removeBoundaryFlowsForParent(model, parentId) {
+  const proxyPrefix = `proxy:${parentId}:`;
+  model.transitions = model.transitions.filter(transition =>
+    transition.boundaryFlow?.parentId !== parentId &&
+    !String(transition.from || "").startsWith(proxyPrefix) &&
+    !String(transition.to || "").startsWith(proxyPrefix)
+  );
+}
+
+function degroupParentState(model, args = {}) {
+  const parent = findStateOrThrow(model, args.parentId || args.id || args.stateId);
+  const children = statesInLayer(model, parent.id);
+  if (!children.length) throw new Error("graph.degroup_parent requires a parent with children.");
+  const childIds = new Set(children.map(child => child.id));
+  const outerParentId = stateParentId(parent);
+  const outerBoundary = normalizeBoundaryConfig(layerContainerBoundary(model, outerParentId));
+  const entry = childBoundaryState(model, parent, "input") || children[0];
+  const exit = childBoundaryState(model, parent, "output") || children[children.length - 1] || entry;
+  if (!entry || !exit) throw new Error("Cannot degroup without entry and exit children.");
+
+  for (const transition of model.transitions) {
+    if (transition.boundaryFlow) continue;
+    if (transition.to === parent.id) {
+      transition.to = childIds.has(transition.groupEntryId) ? transition.groupEntryId : entry.id;
+      transition.groupEntryId = "";
+    }
+    if (transition.from === parent.id) {
+      transition.from = childIds.has(transition.groupExitId) ? transition.groupExitId : exit.id;
+      transition.groupExitId = "";
+    }
+    if (transition.to === outerParentId && transition.groupEntryId === parent.id) transition.groupEntryId = entry.id;
+    if (transition.from === outerParentId && transition.groupExitId === parent.id) transition.groupExitId = exit.id;
+  }
+
+  for (const child of children) child.parentId = outerParentId || null;
+  if (outerBoundary.entryId === parent.id) setBoundaryEndpoint(model, outerParentId || ROOT_LAYER_ID, "input", entry.id);
+  if (outerBoundary.exitId === parent.id) setBoundaryEndpoint(model, outerParentId || ROOT_LAYER_ID, "output", exit.id);
+  if (model.initial === parent.id) model.initial = entry.id;
+  removeBoundaryFlowsForParent(model, parent.id);
+  model.states = model.states.filter(state => state.id !== parent.id);
+  model.transitions = model.transitions.filter(transition => transition.from !== parent.id && transition.to !== parent.id);
+  ensureDefaultBoundaryTransitions(model, outerParentId);
+  normalizeModel(model);
+  return { parentId: parent.id, childIds: [...childIds] };
+}
+
 function upsertTransition(model, args) {
   const from = String(args.from || "");
   const to = String(args.to || "");
@@ -1183,16 +1396,495 @@ function applyActions(inputModel, actions, options = {}) {
   return { model: validation.model, results, validation };
 }
 
-function definitionPayload(model, stateTemplates = []) {
+function normalizeCamera(value) {
+  const source = isPlainObject(value) ? value : {};
+  return {
+    x: Number.isFinite(Number(source.x)) ? Math.round(Number(source.x)) : 32,
+    y: Number.isFinite(Number(source.y)) ? Math.round(Number(source.y)) : 32,
+    scale: clamp(Number.isFinite(Number(source.scale)) ? Number(source.scale) : 1, 0.25, 2.4)
+  };
+}
+
+function normalizeEditorSelection(value, model) {
+  const source = isPlainObject(value) ? value : {};
+  const stateIds = new Set((model?.states || []).map(state => state.id));
+  const transitionIds = new Set((model?.transitions || []).map(transition => transition.id));
+  const nodeInput = Array.isArray(source.nodes) ? source.nodes : source.type === "node" ? [source.id] : Array.isArray(source.ids) ? source.ids : [];
+  const edgeInput = Array.isArray(source.edges) ? source.edges : source.type === "edge" ? [source.id] : [];
+  const nodes = [...new Set(nodeInput.map(String).filter(id => stateIds.has(id)))];
+  const edges = [...new Set(edgeInput.map(String).filter(id => transitionIds.has(id)))];
+  return { nodes, edges, allCurrentLayer: source.allCurrentLayer === true };
+}
+
+function normalizeEditorSession(value, model) {
+  const source = isPlainObject(value) ? value : {};
+  const currentLayerId = typeof source.currentLayerId === "string" && layerExists(model, source.currentLayerId)
+    ? source.currentLayerId
+    : null;
+  const panels = isPlainObject(source.panels) ? clone(source.panels) : {};
+  return {
+    selected: normalizeEditorSelection(source.selected, model),
+    currentLayerId,
+    camera: normalizeCamera(source.camera),
+    previewCollapsed: Boolean(source.previewCollapsed),
+    runtimePaused: Boolean(source.runtimePaused),
+    panels
+  };
+}
+
+function normalizeCommandHistory(value) {
+  const source = isPlainObject(value) ? value : {};
+  return {
+    undo: Array.isArray(source.undo) ? source.undo.filter(isPlainObject).slice(-100) : [],
+    redo: Array.isArray(source.redo) ? source.redo.filter(isPlainObject).slice(-100) : [],
+    current: isPlainObject(source.current) ? clone(source.current) : null
+  };
+}
+
+function normalizeWorkspace(value = {}) {
+  const source = isPlainObject(value) ? value : {};
+  const model = normalizeModel(source.model || source);
+  const workspace = {
+    model,
+    stateTemplates: Array.isArray(source.stateTemplates) ? clone(source.stateTemplates) : [],
+    editor: normalizeEditorSession(source.editor, model),
+    clipboard: isPlainObject(source.clipboard) ? clone(source.clipboard) : null,
+    history: normalizeCommandHistory(source.history)
+  };
+  workspace.history.current = workspace.history.current || commandSnapshot(workspace);
+  return workspace;
+}
+
+function commandSnapshot(workspace) {
+  return {
+    model: normalizeModel(workspace.model),
+    stateTemplates: Array.isArray(workspace.stateTemplates) ? clone(workspace.stateTemplates) : [],
+    editor: normalizeEditorSession(workspace.editor, workspace.model),
+    clipboard: isPlainObject(workspace.clipboard) ? clone(workspace.clipboard) : null
+  };
+}
+
+function restoreCommandSnapshot(workspace, snapshot) {
+  const restored = normalizeWorkspace(snapshot);
+  workspace.model = restored.model;
+  workspace.stateTemplates = restored.stateTemplates;
+  workspace.editor = restored.editor;
+  workspace.clipboard = restored.clipboard;
+  workspace.history.current = commandSnapshot(workspace);
+}
+
+function pushCommandHistory(workspace) {
+  workspace.history = normalizeCommandHistory(workspace.history);
+  const current = commandSnapshot(workspace);
+  if (JSON.stringify(workspace.history.current) !== JSON.stringify(current)) {
+    workspace.history.current = current;
+  }
+  workspace.history.undo.push(clone(workspace.history.current));
+  if (workspace.history.undo.length > 100) workspace.history.undo.shift();
+  workspace.history.redo = [];
+}
+
+function commitCommandHistory(workspace) {
+  workspace.model = normalizeModel(workspace.model);
+  workspace.editor = normalizeEditorSession(workspace.editor, workspace.model);
+  workspace.history.current = commandSnapshot(workspace);
+}
+
+function commandIsHistoryNeutral(commandName) {
+  return [
+    "selection.set",
+    "selection.clear",
+    "selection.all",
+    "layer.open",
+    "layer.back",
+    "layer.root",
+    "viewport.set_camera",
+    "viewport.reset",
+    "viewport.fit",
+    "preview.set_collapsed",
+    "preview.pause",
+    "ui.set_panel",
+    "graph.copy_selection"
+  ].includes(commandName);
+}
+
+function selectionForCurrentLayer(model, layerId) {
+  const layer = layerId || null;
+  return {
+    nodes: statesInLayer(model, layer).map(state => state.id),
+    edges: model.transitions
+      .filter(transition => endpointParentId(model, transition.from) === layer && endpointParentId(model, transition.to) === layer)
+      .map(transition => transition.id),
+    allCurrentLayer: true
+  };
+}
+
+function fitCameraForModel(model, command = {}) {
+  const layerId = command.layerId !== undefined ? String(command.layerId || "") || null : null;
+  const states = statesInLayer(model, layerId);
+  if (!states.length) return normalizeCamera({ x: 32, y: 32, scale: 1 });
+  const bounds = stateBounds(states);
+  const width = Math.max(320, Number(command.viewportWidth) || 1200);
+  const height = Math.max(240, Number(command.viewportHeight) || 800);
+  const margin = Math.max(48, Number(command.margin) || 120);
+  const contentW = Math.max(1, bounds.maxX - bounds.minX);
+  const contentH = Math.max(1, bounds.maxY - bounds.minY);
+  const scale = clamp(Math.min((width - margin * 2) / contentW, (height - margin * 2) / contentH), 0.25, 2.4);
+  return normalizeCamera({
+    scale,
+    x: width / 2 - ((bounds.minX + bounds.maxX) / 2) * scale,
+    y: height / 2 - ((bounds.minY + bounds.maxY) / 2) * scale
+  });
+}
+
+function selectionPayload(model, selection) {
+  const normalized = normalizeEditorSelection(selection, model);
+  const stateIds = new Set(normalized.nodes);
+  const transitionIds = new Set(normalized.edges);
+  const states = model.states.filter(state => stateIds.has(state.id));
+  const transitions = model.transitions.filter(transition =>
+    transitionIds.has(transition.id) ||
+    stateIds.has(transition.from) && stateIds.has(transition.to)
+  );
+  return { states: clone(states), transitions: clone(transitions) };
+}
+
+function duplicateSelectionPayload(model, payload, args = {}) {
+  const sourceStates = Array.isArray(payload?.states) ? payload.states : [];
+  if (!sourceStates.length) return { states: [], transitions: [] };
+  const usedStateIds = new Set(model.states.map(state => state.id));
+  const usedTransitionIds = new Set([
+    ...model.states.map(state => state.id),
+    ...model.transitions.map(transition => transition.id)
+  ]);
+  const idMap = new Map();
+  const dx = Number.isFinite(Number(args.dx)) ? Number(args.dx) : GRID_SIZE * 2;
+  const dy = Number.isFinite(Number(args.dy)) ? Number(args.dy) : GRID_SIZE * 2;
+  const copiedStates = sourceStates.map(state => {
+    const id = uniqueId(usedStateIds, args.idPrefix ? `${args.idPrefix}_${state.id}` : state.id, "state");
+    idMap.set(state.id, id);
+    return {
+      ...clone(state),
+      id,
+      title: String(state.title || state.id),
+      parentId: state.parentId && idMap.has(state.parentId) ? idMap.get(state.parentId) : state.parentId || null,
+      x: snapClampToGrid((Number(state.x) || 0) + dx, WORLD_MIN_X, WORLD_MAX_X - NODE_W),
+      y: snapClampToGrid((Number(state.y) || 0) + dy, WORLD_MIN_Y, WORLD_MAX_Y - NODE_H)
+    };
+  });
+  const copiedTransitions = (Array.isArray(payload?.transitions) ? payload.transitions : [])
+    .filter(transition => idMap.has(transition.from) && idMap.has(transition.to))
+    .map(transition => ({
+      ...clone(transition),
+      id: uniqueRawId(usedTransitionIds, args.idPrefix ? `${args.idPrefix}_${transition.id}` : transition.id, "t"),
+      from: idMap.get(transition.from),
+      to: idMap.get(transition.to),
+      groupEntryId: idMap.get(transition.groupEntryId) || "",
+      groupExitId: idMap.get(transition.groupExitId) || "",
+      boundaryFlow: undefined
+    }))
+    .map(transition => {
+      delete transition.boundaryFlow;
+      return transition;
+    });
+  model.states.push(...copiedStates);
+  model.transitions.push(...copiedTransitions);
+  return { states: copiedStates, transitions: copiedTransitions };
+}
+
+function insertStateOnTransition(model, command) {
+  const transition = transitionById(model, command.transitionId || command.edgeId || command.id);
+  if (!transition || transition.boundaryFlow || isBoundaryProxyId(transition.from) || isBoundaryProxyId(transition.to)) {
+    throw new Error("graph.insert_state_on_transition requires a normal transition.");
+  }
+  const from = findStateOrThrow(model, transition.from);
+  const to = findStateOrThrow(model, transition.to);
+  const state = createState(model, {
+    id: command.stateId || command.newStateId || command.title,
+    title: command.title || "State",
+    parentId: stateParentId(from),
+    x: Number.isFinite(Number(command.x)) ? Number(command.x) : snapToGrid((from.x + to.x) / 2),
+    y: Number.isFinite(Number(command.y)) ? Number(command.y) : snapToGrid((from.y + to.y) / 2),
+    components: command.components,
+    data: command.data,
+    dataTypes: command.dataTypes,
+    boundary: command.boundary
+  });
+  const oldTo = transition.to;
+  const oldGroupEntryId = transition.groupEntryId || "";
+  const oldLabel = transition.label;
+  transition.to = state.id;
+  transition.groupEntryId = "";
+  const next = upsertTransition(model, {
+    id: command.nextTransitionId || command.transitionIdAfter,
+    from: state.id,
+    to: oldTo,
+    label: command.nextLabel || oldLabel || defaultTransitionLabel({ to: oldTo }, model),
+    triggerType: transition.triggerType,
+    triggerEvent: command.nextTriggerEvent || "",
+    timerMs: transition.timerMs,
+    groupEntryId: oldGroupEntryId
+  });
+  return { state, before: transition, after: next };
+}
+
+function applyCommand(workspace, command = {}) {
+  if (!isPlainObject(command)) throw new Error("Each command must be an object.");
+  const name = String(command.command || command.type || command.name || "");
+  if (!name) throw new Error("Command requires command/type/name.");
+  switch (name) {
+    case "actions.apply": {
+      const result = applyActions(workspace.model, command.actions || [], { allowInvalid: Boolean(command.allowInvalid) });
+      workspace.model = result.model;
+      return { command: name, ...result };
+    }
+    case "scene.new":
+      return { command: name, ...applyAction(workspace.model, { type: "create_flow", name: command.title || command.name || "State App" }) };
+    case "scene.rename":
+      return { command: name, ...applyAction(workspace.model, { type: "set_model_name", name: command.title || command.name || "State App" }) };
+    case "model.replace":
+      return { command: name, ...applyAction(workspace.model, { type: "replace_model", model: command.model }) };
+    case "state.upsert":
+    case "state.create":
+      return { command: name, ...applyAction(workspace.model, { ...command, type: "upsert_state" }) };
+    case "state.move":
+      return { command: name, ...applyAction(workspace.model, { ...command, type: "move_state" }) };
+    case "state.delete":
+      return { command: name, ...applyAction(workspace.model, { ...command, type: "delete_state" }) };
+    case "state.set_initial":
+      return { command: name, ...applyAction(workspace.model, { ...command, type: "set_initial" }) };
+    case "transition.upsert":
+    case "transition.create":
+    case "transition.update":
+    case "transition.rewire":
+      return { command: name, ...applyAction(workspace.model, { ...command, type: "upsert_transition" }) };
+    case "transition.delete":
+      return { command: name, ...applyAction(workspace.model, { ...command, type: "delete_transition" }) };
+    case "variable.upsert":
+      return { command: name, ...applyAction(workspace.model, { ...command, type: "upsert_state_variable" }) };
+    case "variable.delete":
+      return { command: name, ...applyAction(workspace.model, { ...command, type: "delete_state_variable" }) };
+    case "fetch.configure":
+      return { command: name, ...applyAction(workspace.model, { ...command, type: "configure_fetch" }) };
+    case "repeat.configure":
+      return { command: name, ...applyAction(workspace.model, { ...command, type: "configure_repeat" }) };
+    case "wire.upsert":
+      return { command: name, ...applyAction(workspace.model, { ...command, type: "upsert_data_wire" }) };
+    case "wire.remove":
+      return { command: name, ...applyAction(workspace.model, { ...command, type: "remove_data_wire" }) };
+    case "component.add":
+    case "widget.add":
+      return { command: name, ...applyAction(workspace.model, { ...command, type: "add_component" }) };
+    case "component.update":
+    case "widget.update":
+      return { command: name, ...applyAction(workspace.model, { ...command, type: "update_component" }) };
+    case "component.remove":
+    case "widget.remove":
+      return { command: name, ...applyAction(workspace.model, { ...command, type: "remove_component" }) };
+    case "component.reorder":
+    case "widget.reorder":
+      return { command: name, ...applyAction(workspace.model, { ...command, type: "reorder_components" }) };
+    case "boundary.set":
+      return { command: name, ...applyAction(workspace.model, { ...command, type: "set_boundary" }) };
+    case "selection.set":
+      workspace.editor.selected = normalizeEditorSelection({ nodes: command.nodes || command.stateIds || [], edges: command.edges || command.transitionIds || [] }, workspace.model);
+      return { command: name, selected: workspace.editor.selected };
+    case "selection.clear":
+      workspace.editor.selected = normalizeEditorSelection(null, workspace.model);
+      return { command: name, selected: workspace.editor.selected };
+    case "selection.all":
+      workspace.editor.selected = selectionForCurrentLayer(workspace.model, workspace.editor.currentLayerId);
+      return { command: name, selected: workspace.editor.selected };
+    case "layer.open": {
+      const layerId = command.layerId || command.stateId || command.id || "";
+      workspace.editor.currentLayerId = layerId && byModelId(workspace.model, layerId) ? String(layerId) : null;
+      workspace.editor.selected = normalizeEditorSelection(null, workspace.model);
+      return { command: name, currentLayerId: workspace.editor.currentLayerId };
+    }
+    case "layer.back": {
+      const current = byModelId(workspace.model, workspace.editor.currentLayerId);
+      workspace.editor.currentLayerId = current?.parentId || null;
+      workspace.editor.selected = normalizeEditorSelection(null, workspace.model);
+      return { command: name, currentLayerId: workspace.editor.currentLayerId };
+    }
+    case "layer.root":
+      workspace.editor.currentLayerId = null;
+      workspace.editor.selected = normalizeEditorSelection(null, workspace.model);
+      return { command: name, currentLayerId: null };
+    case "viewport.set_camera":
+      workspace.editor.camera = normalizeCamera(command.camera || command);
+      return { command: name, camera: workspace.editor.camera };
+    case "viewport.reset":
+      workspace.editor.camera = normalizeCamera({ x: 32, y: 32, scale: 1 });
+      return { command: name, camera: workspace.editor.camera };
+    case "viewport.fit":
+      workspace.editor.camera = fitCameraForModel(workspace.model, { ...command, layerId: command.layerId ?? workspace.editor.currentLayerId });
+      return { command: name, camera: workspace.editor.camera };
+    case "preview.set_collapsed":
+      workspace.editor.previewCollapsed = Boolean(command.collapsed ?? command.value);
+      return { command: name, previewCollapsed: workspace.editor.previewCollapsed };
+    case "preview.pause":
+      workspace.editor.runtimePaused = Boolean(command.paused ?? command.value);
+      return { command: name, runtimePaused: workspace.editor.runtimePaused };
+    case "ui.set_panel":
+      workspace.editor.panels[String(command.panel || command.id || "panel")] = {
+        collapsed: Boolean(command.collapsed)
+      };
+      if (Number.isFinite(Number(command.width))) {
+        workspace.editor.panels[String(command.panel || command.id || "panel")].width = Number(command.width);
+      }
+      return { command: name, panels: workspace.editor.panels };
+    case "graph.copy_selection":
+      workspace.clipboard = selectionPayload(workspace.model, {
+        nodes: command.stateIds || selectedStateIdsFromCommand(workspace, command),
+        edges: command.transitionIds || selectedEdgeIdsFromCommand(workspace, command)
+      });
+      return { command: name, clipboard: workspace.clipboard };
+    case "graph.paste":
+    case "graph.duplicate_selection": {
+      const payload = name === "graph.paste" && workspace.clipboard
+        ? workspace.clipboard
+        : selectionPayload(workspace.model, {
+            nodes: selectedStateIdsFromCommand(workspace, command),
+            edges: selectedEdgeIdsFromCommand(workspace, command)
+          });
+      const duplicated = duplicateSelectionPayload(workspace.model, payload, command);
+      workspace.editor.selected = normalizeEditorSelection({ nodes: duplicated.states.map(state => state.id), edges: duplicated.transitions.map(transition => transition.id) }, workspace.model);
+      return { command: name, duplicated };
+    }
+    case "graph.delete_selection": {
+      const stateIds = selectedStateIdsFromCommand(workspace, command);
+      const edgeIds = selectedEdgeIdsFromCommand(workspace, command);
+      edgeIds.forEach(id => applyAction(workspace.model, { type: "delete_transition", id }));
+      stateIds.forEach(id => applyAction(workspace.model, { type: "delete_state", id }));
+      workspace.editor.selected = normalizeEditorSelection(null, workspace.model);
+      return { command: name, deleted: { states: stateIds, transitions: edgeIds } };
+    }
+    case "graph.insert_state_on_transition": {
+      const inserted = insertStateOnTransition(workspace.model, command);
+      workspace.editor.selected = normalizeEditorSelection({ nodes: [inserted.state.id], edges: [] }, workspace.model);
+      return { command: name, inserted };
+    }
+    case "graph.collapse_to_parent": {
+      const group = collapseStatesToParent(workspace.model, { ...command, stateIds: selectedStateIdsFromCommand(workspace, command) });
+      workspace.editor.selected = normalizeEditorSelection({ nodes: [group.id], edges: [] }, workspace.model);
+      return { command: name, group };
+    }
+    case "graph.degroup_parent": {
+      const result = degroupParentState(workspace.model, command);
+      workspace.editor.selected = normalizeEditorSelection({ nodes: result.childIds, edges: [] }, workspace.model);
+      return { command: name, ...result };
+    }
+    case "history.undo": {
+      workspace.history = normalizeCommandHistory(workspace.history);
+      if (!workspace.history.undo.length) return { command: name, applied: false };
+      const current = commandSnapshot(workspace);
+      const previous = workspace.history.undo.pop();
+      workspace.history.redo.push(current);
+      restoreCommandSnapshot(workspace, previous);
+      return { command: name, applied: true };
+    }
+    case "history.redo": {
+      workspace.history = normalizeCommandHistory(workspace.history);
+      if (!workspace.history.redo.length) return { command: name, applied: false };
+      const current = commandSnapshot(workspace);
+      const next = workspace.history.redo.pop();
+      workspace.history.undo.push(current);
+      restoreCommandSnapshot(workspace, next);
+      return { command: name, applied: true };
+    }
+    default:
+      throw new Error(`Unknown state-blueprint command: ${name}`);
+  }
+}
+
+function applyCommands(inputWorkspace, commands, options = {}) {
+  if (!Array.isArray(commands)) throw new Error("commands must be an array.");
+  const workspace = normalizeWorkspace(inputWorkspace);
+  const results = [];
+  for (const command of commands) {
+    const name = String(command?.command || command?.type || command?.name || "");
+    const historyCommand = name === "history.undo" || name === "history.redo";
+    const historyNeutral = commandIsHistoryNeutral(name) || command.history === false;
+    if (!historyCommand && !historyNeutral) pushCommandHistory(workspace);
+    const result = applyCommand(workspace, command);
+    workspace.model = normalizeModel(workspace.model);
+    workspace.editor = normalizeEditorSession(workspace.editor, workspace.model);
+    if (!historyCommand) commitCommandHistory(workspace);
+    results.push(result);
+  }
+  const validation = validateModel(workspace.model);
+  if (!validation.ok && !options.allowInvalid) {
+    const message = validation.issues.map(issue => issue.message).join("; ") || "Workspace command validation failed.";
+    const error = new Error(message);
+    error.validation = validation;
+    throw error;
+  }
+  workspace.model = validation.model;
+  workspace.editor = normalizeEditorSession(workspace.editor, workspace.model);
+  return { workspace, results, validation };
+}
+
+const commandCatalog = [
+  ["actions.apply", "Run existing model actions through the same command pipeline."],
+  ["scene.new", "Create a fresh scene."],
+  ["scene.rename", "Rename the scene."],
+  ["model.replace", "Replace the canonical model."],
+  ["state.create", "Create a state."],
+  ["state.upsert", "Create or update a state."],
+  ["state.move", "Move a state."],
+  ["state.delete", "Delete a state."],
+  ["state.set_initial", "Set the initial state."],
+  ["transition.create", "Create a transition."],
+  ["transition.update", "Update a transition."],
+  ["transition.rewire", "Rewire a transition by id."],
+  ["transition.delete", "Delete a transition."],
+  ["variable.upsert", "Add or update a scoped state variable."],
+  ["variable.delete", "Remove a scoped state variable."],
+  ["fetch.configure", "Configure fetch-on-enter."],
+  ["repeat.configure", "Configure repeat/list rendering."],
+  ["wire.upsert", "Map a bus path into render."],
+  ["wire.remove", "Remove a data wire."],
+  ["component.add", "Add a render component or widget."],
+  ["component.update", "Update a render component or widget."],
+  ["component.remove", "Remove a render component or widget."],
+  ["component.reorder", "Reorder render components/widgets/buttons."],
+  ["boundary.set", "Set layer boundary entry/exit and proxy wires."],
+  ["selection.set", "Select states/transitions in the editor session."],
+  ["selection.clear", "Clear editor selection."],
+  ["selection.all", "Select all items in the current layer."],
+  ["layer.open", "Open a state layer in the editor session."],
+  ["layer.back", "Go to the parent layer."],
+  ["layer.root", "Open root layer."],
+  ["viewport.set_camera", "Set pan/zoom camera."],
+  ["viewport.reset", "Reset pan/zoom camera."],
+  ["viewport.fit", "Fit the current layer into a viewport."],
+  ["preview.set_collapsed", "Collapse or expand preview."],
+  ["preview.pause", "Pause or resume runtime preview."],
+  ["ui.set_panel", "Set editor panel UI state."],
+  ["graph.copy_selection", "Copy selected states and internal transitions."],
+  ["graph.paste", "Paste copied graph selection with new ids."],
+  ["graph.duplicate_selection", "Duplicate selected graph items."],
+  ["graph.delete_selection", "Delete selected states/transitions."],
+  ["graph.insert_state_on_transition", "Drop a new state onto an existing transition and splice it into the FSM."],
+  ["graph.collapse_to_parent", "Collapse states into a real parent state with child boundary."],
+  ["graph.degroup_parent", "Expand a real parent state back into its surrounding layer."],
+  ["history.undo", "Undo the last command-level mutation."],
+  ["history.redo", "Redo the last undone command-level mutation."]
+].map(([name, description]) => ({ name, description }));
+
+function definitionPayload(model, stateTemplates = [], editor = {}) {
+  const normalizedModel = normalizeModel(model);
+  const session = normalizeEditorSession(editor, normalizedModel);
   return {
     kind: "state-blueprint.definition",
     schemaVersion: 2,
     app: "State Blueprint",
     savedAt: new Date().toISOString(),
-    model: normalizeModel(model),
+    model: normalizedModel,
     stateTemplates: Array.isArray(stateTemplates) ? clone(stateTemplates) : [],
-    camera: { x: 32, y: 32, scale: 1 },
-    previewCollapsed: false
+    camera: session.camera,
+    previewCollapsed: session.previewCollapsed
   };
 }
 
@@ -1216,8 +1908,11 @@ module.exports = {
   normalizeTransitionEvent,
   blankModel,
   normalizeModel,
+  normalizeWorkspace,
   validateModel,
   applyActions,
+  applyCommands,
+  commandCatalog,
   definitionPayload,
   modelSummary,
   setDataObjectPath,

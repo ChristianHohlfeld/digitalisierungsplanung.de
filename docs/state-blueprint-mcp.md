@@ -1,24 +1,29 @@
 # State Blueprint MCP
 
-State Blueprint exposes a local MCP server so external tools can edit the same canonical model a human edits in the app.
+State Blueprint stellt einen lokalen MCP-Server bereit, damit externe Tools
+dasselbe kanonische Modell bearbeiten koennen wie der visuelle Editor.
 
-The server is standard JSON-RPC over stdio and uses newline-delimited MCP messages. It does not click the UI and it does not keep a second runtime store. Every tool reads or writes the State Blueprint JSON model, normalizes it, validates the contract, and only then persists it.
+Der Server spricht JSON-RPC ueber stdio. Er klickt keine UI, haelt keinen zweiten
+Runtime-Store und schreibt erst nach Normalisierung und Vertragsvalidierung.
 
-For the complete API reference, action schemas, UI-to-API mapping, and end-to-end examples, see [`state-blueprint-api.md`](./state-blueprint-api.md).
+Die vollstaendige API-Referenz mit Actions, Commands, Beispielen und
+UI-zu-API-Zuordnung steht in [`state-blueprint-api.md`](./state-blueprint-api.md).
 
-## Run
+## Start
 
 ```bash
 STATE_BLUEPRINT_MODEL_PATH=./state-blueprint.workspace.json npm run mcp:state
 ```
 
-If `STATE_BLUEPRINT_MODEL_PATH` is omitted, the server uses `./state-blueprint.workspace.json`.
+Ohne `STATE_BLUEPRINT_MODEL_PATH` nutzt der Server
+`./state-blueprint.workspace.json`.
 
 ## Tools
 
 - `state_blueprint_get_model`
 - `state_blueprint_replace_model`
 - `state_blueprint_apply_actions`
+- `state_blueprint_apply_commands`
 - `state_blueprint_plan_prompt`
 - `state_blueprint_apply_prompt`
 - `state_blueprint_validate`
@@ -26,88 +31,66 @@ If `STATE_BLUEPRINT_MODEL_PATH` is omitted, the server uses `./state-blueprint.w
 - `state_blueprint_export_html`
 - `state_blueprint_import_definition`
 - `state_blueprint_action_catalog`
+- `state_blueprint_command_catalog`
 
-`state_blueprint_apply_actions` is the main tool. It applies actions in contract dependency order, then normalizes and validates the model before writing. This lets generated plans provide mixed action lists while still creating states before transitions that reference them:
+`state_blueprint_apply_actions` ist die niedrige Modell-API. Sie fuehrt
+kanonische Modelloperationen aus, sortiert Abhaengigkeiten und validiert danach.
 
-- `create_flow`
-- `set_model_name`
-- `replace_model`
-- `upsert_state`
-- `delete_state`
-- `upsert_editor_group`
-- `delete_editor_group`
-- `move_state`
-- `set_initial`
-- `upsert_transition`
-- `delete_transition`
-- `upsert_state_variable`
-- `delete_state_variable`
-- `configure_fetch`
-- `configure_repeat`
-- `upsert_data_wire`
-- `remove_data_wire`
-- `add_component`
-- `update_component`
-- `remove_component`
-- `reorder_components`
-- `set_boundary`
+`state_blueprint_apply_commands` ist die vollstaendige Editor-API. Sie kann alles
+ausfuehren, was ein User als App-Befehl ausloest: States, Transitions, Variablen,
+Widgets, Data-Wires, Boundary, Auswahl, Layer-Navigation, Viewport, Copy/Paste,
+Collapse/Degroup und Undo/Redo. Auch diese Commands laufen ueber das Modell und
+nicht ueber DOM-Klicks.
 
-`state_blueprint_plan_prompt` turns common German/English edit requests into the same ordered actions without writing first. `state_blueprint_apply_prompt` applies that plan.
+## Vertragsregeln
 
-Examples it understands:
+- Single Source of Truth bleibt der globale JSON-State/Event-Bus.
+- Das persistierte Modell beschreibt States, Transitions, Render-Komponenten,
+  Data-Wires, Boundary und Editor-Session.
+- Runtime-Daten werden nicht in Komponenten, HTML oder lokalen Stores versteckt.
+- UI-Aktionen feuern nur explizit gebundene Transitionen oder Bus-Events.
+- `transition.set` ist Wirkung nach einem Event, nicht die Quelle einer
+  Button-Bindung.
+- Realtime-Transitions speichern `triggerType: "realtime"` plus konkrete
+  `realtime.*`-Events; Event-Kataloge werden nicht ins Modell kopiert.
+- Nested Flow laeuft ueber Boundary-Input/Output und Proxy-Transitions.
+- Exportierte Definitionen enthalten keine Undo-Historie und keinen
+  Editor-Clipboard-Zustand.
 
-- `fuege timer 10s hinzu und weiter zu Done`
-- `erstelle inner state Schritt 1`
-- `verbinde diesen State mit Checkout`
-- `fuege Card Preset hinzu`
-- `fuege Variable email vom Typ email hinzu`
-- `lade API https://example.test/items als Liste`
-
-For ambiguous text, inspect `plan.assumptions` and then call `state_blueprint_apply_actions` manually.
-
-## Contract
-
-- Single source of truth stays the global state/event bus.
-- State variables are `state.data` plus `state.dataTypes`; they are defaults and shape declarations, not local runtime state.
-- Visible data uses `dataWires` and structured components.
-- Transitions own triggers, conditions, timers, and `set` patches.
-- Realtime transitions use `triggerType: "realtime"` plus a concrete `realtime.*` `triggerEvent`; MCP does not copy event-catalog contracts into `model.realtime`.
-- Fetch is configured as a state-entry effect into an explicit bus path; generated plans default to `states.<stateId>.fetch`.
-- Repeat renders an explicit bus list path.
-- Nested flows use boundary input/output references and proxy transitions.
-- Components must not smuggle flow or data decisions through local stores or HTML blobs.
-
-## MCP Resources
+## MCP-Ressourcen
 
 - `state-blueprint://model`
 - `state-blueprint://contract`
 - `state-blueprint://actions`
+- `state-blueprint://commands`
 - `state-blueprint://prompt-intents`
 
-## Example
+## Beispiel: Modell-Actions
 
 ```json
 {
   "actions": [
-    { "type": "create_flow", "name": "Newsletter signup" },
-    { "type": "upsert_state", "id": "form", "title": "Signup form", "x": 96, "y": 120 },
-    { "type": "upsert_state_variable", "stateId": "form", "path": "email", "valueType": "email", "value": "" },
-    { "type": "upsert_data_wire", "stateId": "form", "id": "wire_email", "sourcePath": "email", "role": "field", "componentType": "text", "label": "Email" },
-    { "type": "add_component", "stateId": "form", "component": { "id": "email_row", "type": "dataWire", "wireId": "wire_email" } },
-    { "type": "upsert_state", "id": "done", "title": "Done", "x": 360, "y": 120 },
-    { "type": "upsert_transition", "id": "submit", "from": "form", "to": "done", "label": "Submit", "condition": "email", "set": { "submitted": true } },
-    { "type": "set_initial", "stateId": "form" }
+    { "type": "create_flow", "name": "Newsletter" },
+    { "type": "upsert_state", "id": "formular", "title": "Formular", "x": 96, "y": 120 },
+    { "type": "upsert_state_variable", "stateId": "formular", "path": "email", "valueType": "email", "value": "" },
+    { "type": "upsert_state", "id": "fertig", "title": "Fertig", "x": 360, "y": 120 },
+    { "type": "upsert_transition", "id": "formular_fertig", "from": "formular", "to": "fertig", "label": "Absenden", "condition": "email" },
+    { "type": "set_initial", "stateId": "formular" }
   ]
 }
 ```
 
-## Chat Example
+## Beispiel: Editor-Commands
 
 ```json
 {
-  "prompt": "fuege timer 10s hinzu und weiter zu Done",
-  "selectedStateId": "form"
+  "commands": [
+    { "command": "scene.new", "title": "Auftragsprozess" },
+    { "command": "state.create", "id": "start", "title": "Start", "x": 96, "y": 120 },
+    { "command": "state.create", "id": "fertig", "title": "Fertig", "x": 456, "y": 120 },
+    { "command": "transition.create", "id": "start_fertig", "from": "start", "to": "fertig", "label": "Weiter" },
+    { "command": "graph.insert_state_on_transition", "transitionId": "start_fertig", "stateId": "pruefen", "title": "Pruefen" },
+    { "command": "viewport.fit", "viewportWidth": 1200, "viewportHeight": 800 }
+  ]
 }
 ```
-
-The plan creates a countdown component bound to `states.form.timer`, declares the typed state variable, creates `Done` if needed, and adds a `change.states.form.timer.finished` transition.
