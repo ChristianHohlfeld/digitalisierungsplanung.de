@@ -1,110 +1,110 @@
-# Zustand-Kontrakt
+# Zustand-Vertrag
 
-Dieses Dokument ist der schriftliche Kontrakt für Zustand und Digitalisierungsplanung. Es beschreibt, was die Maschine ist, was sie niemals tun darf und welche Regeln Editor, Laufzeit, Presets, Render, API und Tests schützen müssen.
+Dieses Dokument ist der schriftliche Vertrag der Anwendung. Es beschreibt, wie Zustand gebaut ist, welche Regeln immer gelten und welche Dinge bewusst nicht erlaubt sind.
 
-## Grundprinzip
+## Grundsatz
 
-Es gibt genau einen lebenden Anwendungszustand:
+Es gibt genau eine fachliche Wahrheit:
 
 ```text
 globalState
 ```
 
-Das JSON-Modell beschreibt States, Transitionen, Render-Reihenfolge, Bus-Defaults, Subscriptions, Komponenten-Bindings und Presets. Die Laufzeit hält ein einziges veränderbares Objekt, `globalState`, und wendet die Modellregeln als Lese- und Schreiboperationen auf dieses Objekt an.
+Das JSON-Modell beschreibt Zustaende, Uebergaenge, Ausloeser, Bedingungen, Daten, Darstellung und Reihenfolge. Die Laufzeit liest dieses Modell und schreibt fachliche Aenderungen nur in den gemeinsamen Datenbus.
 
-Nichts, was Daten oder Ablauf beeinflusst, darf nur im DOM, in einem Komponenten-Cache, in Preset-HTML, in einem Widget-Store oder in einer zweiten Datenhaltung leben.
+Nichts, was Ablauf oder Daten beeinflusst, darf nur im DOM, in einer Komponente, in einer Vorlage, in einem Zwischenspeicher oder in einer zweiten Datenhaltung leben.
 
-## FSM-Kontrakt
+## Zustaende
 
-- Ein State ist eine Sicht auf eine relevante Konstellation des globalen JSON-Baums.
-- Ein State darf UI rendern, Bus-Pfade abonnieren und ausgehende Transitionen anbieten.
-- Eine Transition ist eine echte Kante im Modell und verbindet existierende States.
-- Transitionen werden durch explizite Events, Timer, Auto-Trigger oder Bus-Änderungen ausgelöst.
-- Transition-Conditions lesen ausschließlich aus `globalState`.
-- Transition-`set`-Patches schreiben ausschließlich in `globalState`.
-- Der aktive State ist selbst Bus-Daten: `state.current`, `state.previous` und `state.lastTransition`.
-- Wenn ein aktiver State keinen echten Out hat, stoppt die Maschine.
-- Wenn ein Child nur bis zum Parent-Out-Proxy kommt, der Parent aber keine echte folgende Transition hat, stoppt die Maschine ebenfalls.
-- Parent/Child-Flows verwenden Boundary-Proxies als Referenzen auf echte Parent-Kanten, nicht als kopierte States und nicht als magische Rückwege.
+- Ein Zustand ist eine Sicht auf den relevanten Ausschnitt des globalen JSON-Baums.
+- Ein Zustand darf Darstellung zeigen, Datenpfade beobachten und echte ausgehende Uebergaenge anbieten.
+- Neue Daten eines Zustands liegen eindeutig unter seinem Bereich, normalerweise `states.<stateId>.*`.
+- Wird ein Zustand entfernt, werden auch seine deklarierten Daten aus dem Modell entfernt.
+- `undefined` ist als gespeicherter Wert verboten.
+- Leere Werte muessen bewusst gesetzt sein, zum Beispiel `""`, `false`, `0`, `[]` oder `{}`.
 
-## Daten-Contract
+## Uebergaenge
 
-- `state.data` ist eine Modell-Deklaration für Form, Defaults und Scope im globalen Bus.
-- `state.data` ist kein zweiter Laufzeit-Store.
-- Neue State-Variablen müssen eindeutig unter dem Scope des owning States liegen, normalerweise `states.<stateId>.*`.
-- Unqualifizierte Pfade werden beim Schreiben durch API oder Preset-Instanziierung in den State-Scope normalisiert.
-- `undefined` ist als persistierter Kontrakt-Wert verboten.
-- Bedeutungsvolle leere Werte müssen explizit sein, zum Beispiel `""`, `false`, `0`, `[]` oder `{}`.
-- Entfernte Canvas-States entfernen auch ihre deklarierten state-scoped Bus-Beiträge.
-- Presets sind Katalogeinträge. Sie erzeugen erst Live-Daten, wenn sie als echter State auf den Canvas gelegt werden.
-- Interaktive Werte leben im Bus. Components dürfen keine private Kopie ihrer gebundenen Daten führen.
+- Ein Uebergang ist eine echte Kante im Modell.
+- Quelle und Ziel muessen vorhandene Zustaende sein.
+- Ein Uebergang startet nur durch seinen eingestellten Ausloeser: Schaltflaeche, Datenwechsel, Ereignis, Echtzeit-Ereignis, Zeit oder sofort.
+- Bedingungen lesen ausschliesslich aus `globalState`.
+- `set` beschreibt nur die Wirkung nach dem Ausloesen. `set` darf nie entscheiden, welche Schaltflaeche welchen Uebergang feuert.
+- Text ist Anzeige. IDs sind Bindung.
+- Wenn kein echter Ausgang erreichbar ist, stoppt die Maschine.
 
-## Render-Kontrakt
+## Verschachtelung
 
-- Render ist eine Sicht auf JSON-Modell und `globalState`.
-- Render darf keine Fetches starten.
-- Render darf keine Flow-Entscheidungen erzeugen.
-- Render darf keine Modelldaten erfinden.
-- Render-Reihenfolge ist Modelldaten und muss im State-Inspector bearbeitbar bleiben.
-- Transition-Buttons sind Render-Einträge, wenn sie in der Vorschau sichtbar sind.
-- Data-Wires sind Render-Einträge, wenn sie sichtbaren Output beeinflussen.
-- Komponenten dürfen nur explizite Bus-Pfade lesen oder schreiben.
-- Text ist Darstellung. IDs sind Bindung. Labels dürfen niemals entscheiden, welche Transition feuert.
+- Eltern- und Kindzustaende benutzen dieselben Regeln wie jeder andere Zustand.
+- Eingang und Ausgang eines Elternzustands sind echte Verweise auf seine Draehte, keine Kopien.
+- Eintritt in einen Elternzustand fuehrt in seinen eingestellten Kind-Eingang.
+- Kindzustaende laufen entlang ihrer echten Uebergaenge.
+- Ein Kind-Ausgang fuehrt nur weiter, wenn am Ausgang des Elternzustands ein echter folgender Uebergang haengt.
+- Gibt es keinen solchen Uebergang, stoppt die Maschine.
+- Es gibt keinen erfundenen Zurueck-zum-Elternzustand-Knopf.
+- Es gibt keinen Kreis vom Ausgang zurueck zum Eingang, ausser er ist als echter Uebergang modelliert.
 
-## DaisyUI-Kontrakt
+## Darstellung
 
-DaisyUI ist Skin und Widget-Renderer, nicht die Wahrheit.
+- Darstellung ist eine Sicht auf Modell und Datenbus.
+- Darstellung darf keine Ablaufentscheidung erfinden.
+- Darstellung darf keine Daten erfinden.
+- Darstellung darf keine Daten laden.
+- Sichtbare Schaltflaechen und Links muessen an echte Uebergaenge gebunden sein.
+- Reihenfolge in der Darstellung ist Modelldaten und im Inspektor bearbeitbar.
+- Wenn ein Uebergang als Schaltflaeche sichtbar ist, ist er ein echter Darstellungseintrag.
+- Datenabbildungen sind Darstellungseintraege, wenn sie sichtbaren Inhalt erzeugen.
 
-- Daisy-Presets speichern strukturierte JSON-Daten, keine HTML-Blobs als Logik.
-- Daisy-Components binden über explizite `dataPath`-Werte an den Bus.
-- Buttons, Links, Menüeinträge, Step-Items und Footer-Links feuern Flow nur über explizite `transitionId`.
-- `transition.set` beschreibt Wirkung nach einem Event. Es darf niemals bestimmen, welcher Button eine Transition bekommt.
-- Inputs schreiben explizit gebundene Bus-Felder wie `value`, `checked`, `selected` oder `open`.
-- Dropdowns, Modals, Drawer, Tabs und Toggles dürfen nur dann semantischen Zustand haben, wenn dieser im Bus liegt.
-- Rein kosmetische Hover- und Fokuszustände dürfen lokal bleiben.
+## Oberflaechenbausteine
 
-## Editor-Kontrakt
+DaisyUI liefert Form und Aussehen. Die Wahrheit bleibt das JSON-Modell.
 
-- Der Editor bearbeitet ausschließlich das JSON-Modell.
-- Die Vorschau läuft mit demselben Modell gegen dieselbe Laufzeit-Logik.
-- Fetch ist ein Entry-Effekt eines States und schreibt in konfigurierte Bus-Ziele.
-- Repeat-Pfade und Render-Mappings sind explizite User-Entscheidungen.
-- Automapping darf Kandidaten anzeigen, aber nichts erraten und persistieren.
-- Presets im Explorer sind wiederverwendbare Modellvorlagen, keine Laufzeit-Caches.
-- Gruppen, Collapse und Nested States dürfen den echten FSM-Flow nicht verändern. Sie ordnen oder strukturieren nur den bestehenden Drahtpfad.
+- Vorlagen speichern strukturierte Daten, keine versteckte Logik.
+- Bausteine lesen und schreiben nur explizite Datenpfade.
+- Schaltflaechen, Links, Menuepunkte, Schritte und Fusszeilen-Eintraege feuern Ablauf nur ueber explizite `transitionId`.
+- Eingaben schreiben nur ihre gebundenen Felder, zum Beispiel `value`, `checked`, `selected` oder `open`.
+- Aufklappen, Auswaehlen oder Umschalten ist nur dann fachlicher Zustand, wenn es im Datenbus liegt.
+- Rein optische Hover- und Fokuszustaende duerfen lokal bleiben.
 
-## Proxy- und Nested-Kontrakt
+## Vorlagen
 
-- Parent-IN führt in den Child-Entry des Parents.
-- Child-States laufen entlang ihrer echten Transitionen.
-- Child-OUT führt nur dann weiter, wenn der Parent an seinem Out eine echte folgende Transition hat.
-- Es gibt keinen automatischen Child-zurück-zum-Parent-Button.
-- Es gibt keinen Loop von Proxy-Out zurück zum Proxy-In, solange er nicht als echte Transition im Modell existiert.
-- Boundary-Anker müssen auch nach Löschen von States oder Transitions bestehen bleiben, damit der Flow reparierbar bleibt.
+- Vorlagen sind Katalogeintraege.
+- Eine Vorlage erzeugt erst dann Daten, wenn sie als echter Zustand in die Arbeitsflaeche gelegt wird.
+- Jede erzeugte ID muss global eindeutig sein.
+- Jede erzeugte Verbindung muss auf vorhandene Zustaende zeigen.
+- Vorlagen duerfen keine zweite Laufzeitlogik mitbringen.
+- Wenn eine Vorlage interaktive Elemente enthaelt, muessen diese als echte Daten und echte Uebergaenge im Modell erscheinen.
 
-## API- und MCP-Kontrakt
+## Arbeitsflaeche
 
-- Die MCP/API-Schicht bearbeitet dasselbe kanonische JSON-Modell wie der Editor.
-- API-Aufrufe klicken nicht die UI.
-- API-Aufrufe halten keinen zweiten Laufzeit-Store.
-- `state_blueprint_apply_actions` wendet Aktionen in Kontrakt-Reihenfolge an, normalisiert und validiert vor dem Schreiben.
-- `state_blueprint_export_html` muss dieselbe HTML-Laufzeit erzeugen wie der Export-Button im Editor.
-- Natural-Language-Planung ist nur eine Komfortschicht über denselben Aktionen.
-- Externe Agenten sollen immer lesen, planen, per Testlauf validieren und erst dann schreiben.
+- Die Arbeitsflaeche bearbeitet nur das JSON-Modell.
+- Verschieben, Verbinden, Gruppieren, Entgruppieren, Loeschen, Rueckgaengig und Wiederholen muessen dasselbe Modell veraendern wie die Programmierschnittstelle.
+- Gruppen und Einklappen duerfen den Ablauf nicht veraendern.
+- Die Vorschau verwendet dasselbe Modell und dieselbe Laufzeitlogik wie der Export.
+- Datenladen ist ein Effekt beim Betreten eines Zustands und schreibt in konfigurierte Datenbus-Ziele.
+- Automatische Vorschlaege duerfen Kandidaten zeigen, aber nichts erraten und speichern.
 
-## Test-Kontrakt
+## Programmierschnittstelle
 
-Tests schützen Verhalten, nicht zufällige alte DOM-Struktur.
+- API und MCP bearbeiten dasselbe Modell wie das Werkzeug.
+- API-Aufrufe klicken nicht die Oberflaeche.
+- API-Aufrufe halten keinen zweiten Speicher.
+- Jede Nutzeraktion soll als ausdrueckliche Aktion programmatisch ausfuehrbar sein.
+- `state_blueprint_apply_actions` normalisiert, prueft und schreibt in Vertragsreihenfolge.
+- `state_blueprint_export_html` muss dieselbe HTML-Ausgabe erzeugen wie der Exportknopf.
+- Externe Agenten lesen zuerst das Modell, planen dann Aktionen, validieren sie und schreiben erst danach.
 
-- Kontrakt-Tests haben Vorrang vor Momentaufnahmen.
-- Tests dürfen nicht abgeschwächt werden, um Regressionen passend zu machen.
-- Wenn ein Test auf altem Markup hängt, wird er auf den aktuellen öffentlichen Kontrakt umgestellt.
-- Canvas-Connectoren, Boundary-Proxies, Nested Flow, Render-Reihenfolge, Bus-Schreibpfade und API-Export müssen direkt geschützt bleiben.
+## Tests
 
-## Roadmap
+- Vertragstests haben Vorrang vor alten Momentaufnahmen.
+- Tests duerfen nicht abgeschwaecht werden, um Fehler passend zu machen.
+- Wenn ein Test alte Markup-Details prueft, wird er auf den oeffentlichen Vertrag umgestellt.
+- Geschuetzt bleiben besonders: Verbindungspunkte, Eltern-Kind-Ablauf, Ausgangsregeln, Darstellungsreihenfolge, Datenbus-Schreibpfade, eindeutige IDs, Export und API.
 
-- Visuelles DataWire-Tool: Bus-Pfade per Drag-and-drop auf Render-Komponenten verdrahten.
-- Data-Design-Tool: Typen, Bounds, Null-Regeln, Wertebereiche und harte Kontrakt-Validierung.
-- Subscription-Builder: Schlüssel-Schloss-UI für Datenkonstellationen, die States oder Transitionen wecken.
-- Preset-Designer: DaisyUI-only, vollständig in FSM und Bus integriert.
-- API-first-Automation: vollständige, dokumentierte Steuerbarkeit jeder Editor-Aktion über MCP/API.
+## Richtung
+
+- Visuelles Datenwerkzeug: Datenpfade auf Darstellungsbausteine ziehen und verbinden.
+- Datendesign: Typen, erlaubte Werte, Grenzen und harte Pruefung fuer den globalen Datenbaum.
+- Abonnement-Werkzeug: Datenkonstellationen einfach auswaehlen, die Zustaende oder Uebergaenge ausloesen.
+- Vorlagen-Designer: DaisyUI-Vorlagen bauen, die vollstaendig dem Modellvertrag folgen.
+- Vollstaendige API-Steuerung: jede Werkzeugaktion auch programmatisch, nachvollziehbar und testbar.

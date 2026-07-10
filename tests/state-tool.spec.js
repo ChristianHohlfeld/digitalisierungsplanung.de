@@ -47,8 +47,8 @@ async function openTool(page, options = {}) {
   }, { key: STORAGE_KEY, model, stateTemplates });
   await page.goto("/state.html");
   if (options.pauseRuntime) {
-    await page.getByRole("button", { name: "Pause" }).click();
-    await expect(page.getByRole("button", { name: "Play" })).toHaveAttribute("aria-pressed", "true");
+    await page.getByRole("button", { name: "Pausieren" }).click();
+    await expect(page.getByRole("button", { name: "Fortsetzen" })).toHaveAttribute("aria-pressed", "true");
   }
   await expect(page.locator('[data-id="auth_start"]')).toBeVisible();
   await expect(page.locator(".node")).toHaveCount(8);
@@ -96,7 +96,7 @@ async function openStateLayer(page, id) {
   const node = page.locator('[data-id="' + id + '"]');
   await expect(node).toBeVisible();
   const title = (await node.locator(".title").textContent())?.trim() || id;
-  const expectedLabel = `Inside ${title}`;
+  const expectedLabel = `In ${title}`;
   const label = page.locator("#layerFrameLabel");
   for (let attempt = 0; attempt < 3; attempt += 1) {
     await node.dblclick();
@@ -209,9 +209,30 @@ function escapeRegExp(text) {
   return String(text).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function localizedComponentTitle(title) {
+  const direct = {
+    Heading: "Ueberschrift",
+    Image: "Bild",
+    List: "Liste",
+    Note: "Hinweis",
+    Divider: "Trenner",
+    Button: "Schaltflaeche",
+    Field: "Feld"
+  };
+  const prefix = [
+    ["Button: ", "Schaltflaeche: "],
+    ["Field: ", "Feld: "]
+  ];
+  const directTitle = direct[title];
+  if (directTitle) return directTitle;
+  const match = prefix.find(([from]) => title.startsWith(from));
+  return match ? `${match[1]}${title.slice(match[0].length)}` : title;
+}
+
 function componentEditor(page, title) {
+  const resolvedTitle = localizedComponentTitle(title);
   return page.locator(".component-editor").filter({
-    has: page.locator(".component-editor-head span").filter({ hasText: new RegExp(`^${escapeRegExp(title)}$`) })
+    has: page.locator(".component-editor-head span").filter({ hasText: new RegExp(`^${escapeRegExp(resolvedTitle)}$`) })
   });
 }
 
@@ -242,7 +263,7 @@ async function expandComponentEditorIfPresent(page, title) {
 
 function dataRenderRows(page) {
   return page.locator(".component-editor").filter({
-    has: page.locator(".component-editor-title").filter({ hasText: /^Field: / })
+    has: page.locator(".component-editor-title").filter({ hasText: /^(Field|Feld): / })
   });
 }
 
@@ -486,6 +507,8 @@ async function addChildByDoubleClick(page, parentId, excludeIds = []) {
 async function dragComponentEditorBefore(page, sourceTitle, targetTitle) {
   await expect(componentEditor(page, sourceTitle)).toBeVisible();
   await expect(componentEditor(page, targetTitle)).toBeVisible();
+  const resolvedSourceTitle = localizedComponentTitle(sourceTitle);
+  const resolvedTargetTitle = localizedComponentTitle(targetTitle);
   const moved = await page.evaluate(({ sourceTitle, targetTitle }) => {
     const rowTitle = row => row.querySelector(".component-editor-title")?.textContent?.trim() ||
       row.querySelector(".component-editor-head span")?.textContent?.trim() ||
@@ -514,7 +537,7 @@ async function dragComponentEditorBefore(page, sourceTitle, targetTitle) {
     dispatchDrag(target, "drop", targetRect.top + 2);
     dispatchDrag(handle, "dragend", sourceRect.top + 4);
     return true;
-  }, { sourceTitle, targetTitle });
+  }, { sourceTitle: resolvedSourceTitle, targetTitle: resolvedTargetTitle });
   expect(moved).toBe(true);
 }
 
@@ -705,9 +728,9 @@ function userTransitions(model) {
 }
 
 test.describe("State Blueprint tool", () => {
-  test("creates a complete state machine from the UI with data, templates, conditions, sets, preview, and export", async ({ page }) => {
+  test("creates a complete Zustandsdiagramm from the UI with data, templates, conditions, sets, preview, and export", async ({ page }) => {
     await openTool(page);
-    await page.getByRole("button", { name: "New" }).click();
+    await page.locator("#btnNew").click();
     await page.getByRole("button", { name: "Neu starten" }).click();
 
     await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(1);
@@ -954,7 +977,7 @@ test.describe("State Blueprint tool", () => {
 
     const emailCard = page.locator('#pSubscriptionPaths .global-state-key-card[data-path="email"]').first();
     await expect(emailCard).toBeVisible();
-    await expect(emailCard.locator(".global-state-key-meta")).toContainText("Email");
+    await expect(emailCard.locator(".global-state-key-meta")).toContainText("E-Mail");
     await expect(emailCard.locator(".global-state-key-meta")).not.toContainText("preview");
     await emailCard.getByRole("button", { name: "Variable" }).click();
 
@@ -988,29 +1011,29 @@ test.describe("State Blueprint tool", () => {
     await openInspectorDetails(page, "#pDataCard");
 
     const inspector = page.locator("#stateInspectorBody");
-    await expect(inspector).toContainText("Screen fields");
-    await expect(inspector).toContainText("Load data");
-    await expect(inspector).toContainText("Show a list");
+    await expect(inspector).toContainText("Sichtbare Felder");
+    await expect(inspector).toContainText("Daten laden");
+    await expect(inspector).toContainText("Liste anzeigen");
     await expect(inspector).not.toContainText(/globalState|React|Watch|Own var/i);
     await expect(page.locator("#pData")).toBeHidden();
 
     const currentScreenCard = page.locator('#pSubscriptionPaths .global-state-key-card[data-path="state.current"]').first();
-    await expect(currentScreenCard).toContainText("Current screen");
-    await expect(currentScreenCard.locator(".global-state-key-path")).toHaveText("Active screen");
+    await expect(currentScreenCard).toContainText("Aktueller Zustand");
+    await expect(currentScreenCard.locator(".global-state-key-path")).toHaveText("Aktiver Zustand");
     await expect(currentScreenCard).toContainText("Text");
     await expect(currentScreenCard).not.toContainText(/state\.current|runtime|mapped|already|shown|live update|saved|app flow/i);
 
     await page.keyboard.press("Escape");
     await page.locator("svg text.edge-label").filter({ hasText: /^Einloggen/ }).click();
-    await expect(page.locator("#stateInspectorBody")).toContainText("Starts when");
-    await expect(page.locator("#stateInspectorBody")).toContainText("Rule");
-    await expect(page.locator("#stateInspectorBody")).toContainText("Write values");
+    await expect(page.locator("#stateInspectorBody")).toContainText("Startet wenn");
+    await expect(page.locator("#stateInspectorBody")).toContainText("Regel");
+    await expect(page.locator("#stateInspectorBody")).toContainText("Werte schreiben");
     await expect(page.locator("#pSetVariableName")).toBeVisible();
     await expect(page.locator("#pSet")).toBeHidden();
     await expect(page.locator("#pCond")).toBeHidden();
 
     const currentRuleOption = page.locator('#pRuleField option[value="state.current"]');
-    await expect(currentRuleOption).toHaveText("Current screen");
+    await expect(currentRuleOption).toHaveText("Aktueller Zustand");
     await expect(page.locator("#pRuleField")).not.toContainText(/state\.current|runtime|mapped/i);
   });
 
@@ -1310,7 +1333,7 @@ test.describe("State Blueprint tool", () => {
   test("builds typed transition rules without editing raw data paths @smoke", async ({ page }) => {
     const model = {
       version: 2,
-      name: "Typed Rules",
+      name: "Typed Regels",
       initial: "start",
       states: [
         {
@@ -1442,7 +1465,7 @@ test.describe("State Blueprint tool", () => {
   test("navigates into nested state canvases and keeps child states inside their parent @smoke", async ({ page }) => {
     await openTool(page);
     await expect(page.locator("#layerFrame")).toBeVisible();
-    await expect(page.locator("#layerFrameLabel")).toHaveText("Root");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("Wurzel");
 
     await openStateLayer(page, "login");
     const childId = await addChildByDoubleClick(page, "login");
@@ -1450,7 +1473,7 @@ test.describe("State Blueprint tool", () => {
 
     await expect(page.locator("#layerNav")).toBeHidden();
     await expect(page.locator("#layerFrame")).toBeVisible();
-    await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("In Login");
     await expect(page.locator("#layerBack")).toBeVisible();
     await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(1);
     await expect(page.locator(".node.boundary-proxy")).toHaveCount(2);
@@ -1475,13 +1498,13 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator("#layerBack").click();
     await expect(page.locator("#layerFrame")).toBeVisible();
-    await expect(page.locator("#layerFrameLabel")).toHaveText("Root");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("Wurzel");
     await expect(page.locator('[data-id="login"] .layer-badge')).toHaveText("1 state");
     await expect(page.locator(`[data-id="${childId}"]`)).toHaveCount(0);
     await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(6);
 
     await openStateLayer(page, "login");
-    await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("In Login");
     await expect(page.locator(`[data-id="${childId}"] .title`)).toHaveText("Email step");
     await expect(page.locator(".node")).toHaveCount(3);
   });
@@ -1492,7 +1515,7 @@ test.describe("State Blueprint tool", () => {
     await page.locator('[data-id="login"]').click();
     await expect(page.locator("#pEnterLayer")).toHaveCount(0);
     await openStateLayer(page, "login");
-    await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("In Login");
     await expect(page.locator("#layerBack")).toBeVisible();
   });
 
@@ -1549,7 +1572,7 @@ test.describe("State Blueprint tool", () => {
 
   test("wires root boundary proxy dots to the first fresh state @smoke", async ({ page }) => {
     await openTool(page);
-    await page.getByRole("button", { name: "New" }).click();
+    await page.locator("#btnNew").click();
     await page.getByRole("button", { name: "Neu starten" }).click();
 
     await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(1);
@@ -1670,7 +1693,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#btnDemo")).toHaveCount(0);
     await expect(page.locator("#btnWebsiteExample")).toHaveText("Zustand Demo");
 
-    await page.getByRole("button", { name: "New" }).click();
+    await page.locator("#btnNew").click();
     await page.getByRole("button", { name: "Neu starten" }).click();
     await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(1);
     await expect(page.locator('[data-id="start"]')).toBeVisible();
@@ -1711,13 +1734,13 @@ test.describe("State Blueprint tool", () => {
     const expectNoNewBrowserPage = async action => {
       const pageOpened = context.waitForEvent("page", { timeout: 300 }).then(() => true).catch(() => false);
       await action();
-      await expect(page.getByRole("dialog", { name: "New canvas" })).toBeVisible();
+      await expect(page.getByRole("dialog", { name: "Neue Arbeitsflaeche" })).toBeVisible();
       expect(await pageOpened).toBe(false);
     };
 
     await expectNoNewBrowserPage(() => page.keyboard.press("Control+N"));
     await page.getByRole("button", { name: "Abbrechen" }).click();
-    await expect(page.getByRole("dialog", { name: "New canvas" })).toBeHidden();
+    await expect(page.getByRole("dialog", { name: "Neue Arbeitsflaeche" })).toBeHidden();
 
     await appFrame(page).locator("#screen").click();
     await expectNoNewBrowserPage(() => page.keyboard.press("Control+N"));
@@ -1888,16 +1911,16 @@ test.describe("State Blueprint tool", () => {
     expect(layerRouteViolations).toEqual([]);
 
     const app = appFrame(page);
-    const expectedNavLabels = ["Zustand", "Home", "Features", "Pricing", "Contact", "Account"];
+    const expectedNavLabels = ["Zustand", "Start", "Nutzen", "Angebot", "Kontakt", "Konto"];
     const expectedTitles = {
-      site_home: "Home",
-      site_features: "Features",
-      site_pricing: "Pricing",
-      site_checkout: "Checkout",
-      site_contact: "Contact",
-      site_thanks: "Thanks",
-      site_login: "Account",
-      site_profile: "Profile"
+      site_home: "Start",
+      site_features: "Nutzen",
+      site_pricing: "Angebot",
+      site_checkout: "Anfrage",
+      site_contact: "Kontakt",
+      site_thanks: "Danke",
+      site_login: "Konto",
+      site_profile: "Profil"
     };
     const expectDemoShell = async stateId => {
       await expect.poll(async () => app.locator("body").evaluate(() => {
@@ -1931,8 +1954,8 @@ test.describe("State Blueprint tool", () => {
     };
 
     await expectDemoShell("site_home");
-    await expect(app.getByRole("heading", { name: "Zustand", exact: true })).toBeVisible();
-    await expect(app.locator('.hero[style*="photo-1507358522600"]')).toBeVisible();
+    await expect(app.getByRole("heading", { name: "Erst Klarheit. Dann digitalisieren.", exact: true })).toBeVisible();
+    await expect(app.locator('.hero[style*="photo-1556761175-b413da4baf72"]')).toBeVisible();
     await expect(app.locator(".daisy-feature-grid")).toHaveCount(1);
     await expect(app.locator(".daisy-feature-cards > .card")).toHaveCount(3);
     await expect(app.locator(".daisy-feature-image")).toHaveCount(3);
@@ -1954,95 +1977,95 @@ test.describe("State Blueprint tool", () => {
 
     await app.locator('.footer button[data-transition-id="site_home_nav_pricing"]').click();
     await expectDemoShell("site_pricing");
-    await navButton("Home").click();
+    await navButton("Start").click();
     await expectDemoShell("site_home");
 
-    await expect(navButton("Features")).toHaveCount(1);
-    await navButton("Features").click();
+    await expect(navButton("Nutzen")).toHaveCount(1);
+    await navButton("Nutzen").click();
     await expectDemoShell("site_features");
-    await expect(app.getByText("State Machines fuer Business-Prozesse")).toBeVisible();
-    await expect(app.getByText("Digitaler Vertrag")).toBeVisible();
+    await expect(app.getByText("Was Sie danach konkret besser koennen")).toBeVisible();
+    await expect(app.getByText("Umsetzung bekommt Leitplanken")).toBeVisible();
     await expect(app.locator(".daisy-feature-grid")).toHaveCount(1);
     await expect(app.locator(".daisy-feature-cards > .card")).toHaveCount(3);
     await expect(app.locator(".daisy-feature-image")).toHaveCount(3);
     await expect(app.locator(".daisy-feature-grid button[data-transition-id]")).toHaveCount(3);
     await expect(app.locator(".steps button[data-transition-id] .daisy-step-label")).toHaveText([
-      "Verstehen",
-      "Visualisieren",
-      "Digitalisieren"
+      "Klaeren",
+      "Modellieren",
+      "Entscheiden"
     ]);
     await expect(app.locator(".steps .daisy-step-copy")).toContainText([
-      "Prozess als gemeinsames Bild festhalten.",
-      "Zustaende, Daten und Ausloeser im Canvas verbinden.",
-      "Aus dem Vertrag eine nutzbare Runtime machen."
+      "Den echten Ablauf mit Verantwortlichen aufnehmen.",
+      "Zustaende, Daten und Ausloeser sichtbar verbinden.",
+      "Budget, Umsetzung und naechste Schritte belastbar festlegen."
     ]);
-    await expect(app.locator("li.step-primary")).toContainText("Visualisieren");
-    await expect(navButton("Features")).toHaveCount(1);
+    await expect(app.locator("li.step-primary")).toContainText("Modellieren");
+    await expect(navButton("Nutzen")).toHaveCount(1);
     await expectNoHorizontalOverflow();
 
-    await expect(navButton("Pricing")).toHaveCount(1);
-    await navButton("Pricing").click();
+    await expect(navButton("Angebot")).toHaveCount(1);
+    await navButton("Angebot").click();
     await expectDemoShell("site_pricing");
-    await expect(app.getByText("Die Karten bleiben normale daisyUI-Components")).toBeVisible();
+    await expect(app.getByText("Starten Sie dort, wo das Risiko am groessten ist")).toBeVisible();
     await expect(app.locator(".daisy-pricing")).toHaveCount(1);
     await expect(app.locator(".daisy-pricing > .card")).toHaveCount(3);
-    await expect(app.locator(".daisy-pricing .card .card-title")).toContainText(["Starter", "Team", "Scale"]);
-    await expect(app.locator(".daisy-pricing .daisy-card-price")).toContainText(["$19", "$49", "$149"]);
+    await expect(app.locator(".daisy-pricing .card .card-title")).toContainText(["Klarheits-Workshop", "Prozess-Blueprint", "Umsetzungsbegleitung"]);
+    await expect(app.locator(".daisy-pricing .daisy-card-price")).toContainText(["1.900 EUR", "4.900 EUR", "auf Anfrage"]);
     await expect(app.locator(".daisy-pricing button[data-transition-id]")).toHaveCount(3);
     await expect(app.locator(".actions [data-transition-id]")).toHaveCount(0);
-    await expect(app.getByRole("button", { name: "Buy Starter", exact: true })).toHaveCount(1);
-    await expect(app.getByRole("button", { name: "Buy Team", exact: true })).toHaveCount(1);
-    await expect(app.getByRole("button", { name: "Buy Scale", exact: true })).toHaveCount(1);
+    await expect(app.getByRole("button", { name: "Workshop anfragen", exact: true })).toHaveCount(1);
+    await expect(app.getByRole("button", { name: "Blueprint anfragen", exact: true })).toHaveCount(1);
+    await expect(app.getByRole("button", { name: "Begleitung anfragen", exact: true })).toHaveCount(1);
     await expectNoHorizontalOverflow();
     await expect.poll(async () => app.locator("body").evaluate(() => {
       window.scrollTo(0, document.body.scrollHeight);
       return Math.round(window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0);
     })).toBeGreaterThan(0);
-    await app.getByRole("button", { name: "Buy Team", exact: true }).click();
+    await app.getByRole("button", { name: "Blueprint anfragen", exact: true }).click();
     await expectDemoShell("site_checkout");
     await expect.poll(async () => app.locator("body").evaluate(() =>
       Math.round(window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0)
     )).toBe(0);
-    await expect(app.getByText("Team plan")).toBeVisible();
-    await expect(app.getByText("$49")).toBeVisible();
+    await expect(app.getByText("Prozess-Blueprint")).toBeVisible();
+    await expect(app.getByText("4.900 EUR")).toBeVisible();
     await app.locator('input').fill("billing@example.test");
-    await expect(app.getByRole("button", { name: "Complete checkout", exact: true })).toHaveCount(1);
-    await app.getByRole("button", { name: "Complete checkout", exact: true }).click();
+    await expect(app.getByRole("button", { name: "Anfrage senden", exact: true })).toHaveCount(1);
+    await app.getByRole("button", { name: "Anfrage senden", exact: true }).click();
     await expectDemoShell("site_thanks");
     await expect.poll(async () => (await runtimeContext(page)).states?.site_thanks?.order).toMatchObject({
-      plan: "Team",
-      price: "$49",
+      plan: "Prozess-Blueprint",
+      price: "4.900 EUR",
       completed: true
     });
 
-    await navButton("Contact").click();
+    await navButton("Kontakt").click();
     await expectDemoShell("site_contact");
-    await expect(app.getByText("Tell us what you want to build")).toBeVisible();
+    await expect(app.getByText("Beschreiben Sie kurz den Ablauf")).toBeVisible();
 
-    await expect(app.getByRole("button", { name: "Send request", exact: true })).toHaveCount(1);
-    await app.getByRole("button", { name: "Send request", exact: true }).click();
+    await expect(app.getByRole("button", { name: "Anfrage senden", exact: true })).toHaveCount(1);
+    await app.getByRole("button", { name: "Anfrage senden", exact: true }).click();
     await expectDemoShell("site_thanks");
-    await expect(app.getByText("Request received")).toBeVisible();
+    await expect(app.getByText("Anfrage erhalten")).toBeVisible();
 
-    await expect(navButton("Account")).toHaveCount(1);
-    await navButton("Account").click();
+    await expect(navButton("Konto")).toHaveCount(1);
+    await navButton("Konto").click();
     await expectDemoShell("site_login");
-    await expect(app.getByText("Sign in to continue")).toBeVisible();
+    await expect(app.getByText("Anmelden und fortfahren")).toBeVisible();
     await app.locator('input[type="email"]').fill("mira@example.test");
     await app.locator('input[type="password"]').fill("demo-password");
 
-    const signInButton = app.locator('.hero button[data-transition-id="site_login_submit"]').filter({ hasText: "Sign in" });
+    const signInButton = app.locator('.hero button[data-transition-id="site_login_submit"]').filter({ hasText: "Anmelden" });
     await expect(signInButton).toHaveCount(1);
     await signInButton.click();
     await expectDemoShell("site_profile");
-    await expect(app.getByText("Welcome back")).toBeVisible();
+    await expect(app.getByText("Willkommen zurueck")).toBeVisible();
     await expect(app.locator('.avatar img[alt="Mira Keller"]')).toBeVisible();
     await expect(app.getByText("Parent")).toHaveCount(0);
 
-    await expect(app.getByRole("button", { name: "Logout", exact: true })).toHaveCount(1);
-    await app.getByRole("button", { name: "Logout", exact: true }).click();
+    await expect(app.getByRole("button", { name: "Abmelden", exact: true })).toHaveCount(1);
+    await app.getByRole("button", { name: "Abmelden", exact: true }).click();
     await expectDemoShell("site_login");
-    await expect(app.getByText("Sign in to continue")).toBeVisible();
+    await expect(app.getByText("Anmelden und fortfahren")).toBeVisible();
   });
 
   test("click-traverses every website demo state and transition by contract id @smoke", async ({ page }) => {
@@ -2219,10 +2242,10 @@ test.describe("State Blueprint tool", () => {
     await page.getByRole("button", { name: "Demo laden" }).click();
     await openStateInspector(page, "site_home");
 
-    const editor = await expandComponentEditor(page, "Widget: Header navigation");
-    await editor.getByLabel("Brand").fill("Site Header");
-    await editor.getByLabel("Menu items item 3").fill("Plans");
-    await editor.getByLabel("Widget name").fill("Site Header");
+    const editor = await expandComponentEditor(page, "Widget: Kopf-Navigation");
+    await editor.getByLabel("Marke").fill("Site Header");
+    await editor.getByLabel("Menuepunkte Eintrag 3").fill("Plans");
+    await editor.getByLabel("Widget-Name").fill("Site Header");
 
     await expect(appFrame(page).locator(".navbar")).toContainText("Site Header");
     await expect(appFrame(page).locator(".navbar")).not.toContainText("Zustand");
@@ -2253,7 +2276,7 @@ test.describe("State Blueprint tool", () => {
     }).toEqual({
       componentLabel: "Site Header",
       brand: "Site Header",
-      labels: ["Home", "Plans", "Features", "Contact", "Account"],
+      labels: ["Start", "Plans", "Nutzen", "Kontakt", "Konto"],
       transitionIds: [
         "site_home_nav_home",
         "site_home_nav_pricing",
@@ -2266,7 +2289,7 @@ test.describe("State Blueprint tool", () => {
 
     await expect.poll(async () => appFrame(page).locator(".navbar button,.navbar a").evaluateAll(items =>
       items.map(item => item.textContent.trim()).filter(Boolean)
-    )).toEqual(["Site Header", "Home", "Plans", "Features", "Contact", "Account"]);
+    )).toEqual(["Site Header", "Start", "Plans", "Nutzen", "Kontakt", "Konto"]);
 
     await appFrame(page).locator(".navbar").getByRole("button", { name: "Plans", exact: true }).click();
     await expect(appFrame(page).locator("#statePill")).toHaveText("site_pricing");
@@ -2281,7 +2304,7 @@ test.describe("State Blueprint tool", () => {
     await expect(appFrame(page).locator("#statePill")).toHaveText("site_home");
 
     const exportDownload = page.waitForEvent("download");
-    await page.getByRole("button", { name: "Export HTML" }).click();
+    await page.getByRole("button", { name: "HTML exportieren" }).click();
     const htmlDownload = await exportDownload;
     const html = fs.readFileSync(await htmlDownload.path(), "utf8");
 
@@ -2332,17 +2355,17 @@ test.describe("State Blueprint tool", () => {
       )).toBeLessThanOrEqual(2);
     };
     const openPricing = async () => {
-      await navButton("Pricing").click();
-      await expectStandaloneShell("site_pricing", "Pricing");
+      await navButton("Angebot").click();
+      await expectStandaloneShell("site_pricing", "Angebot");
       await expect(standalone.locator(".daisy-pricing > .card")).toHaveCount(3);
-      await expect(standalone.locator(".daisy-pricing .card .card-title")).toContainText(["Starter", "Team", "Scale"]);
+      await expect(standalone.locator(".daisy-pricing .card .card-title")).toContainText(["Klarheits-Workshop", "Prozess-Blueprint", "Umsetzungsbegleitung"]);
       await expect(standalone.locator(".daisy-pricing button[data-transition-id]")).toHaveCount(3);
       await expect(standalone.locator(".actions [data-transition-id]")).toHaveCount(0);
       await expectStandaloneNoHorizontalOverflow();
     };
 
-    await expectStandaloneShell("site_home", "Home");
-    await expect(standalone.getByRole("heading", { name: "Zustand", exact: true })).toBeVisible();
+    await expectStandaloneShell("site_home", "Start");
+    await expect(standalone.getByRole("heading", { name: "Erst Klarheit. Dann digitalisieren.", exact: true })).toBeVisible();
     await expect(standalone.locator(".daisy-feature-grid")).toHaveCount(1);
     await expect(standalone.locator(".daisy-feature-cards > .card")).toHaveCount(3);
     await expect(standalone.locator(".daisy-feature-grid button[data-transition-id]")).toHaveCount(3);
@@ -2356,68 +2379,68 @@ test.describe("State Blueprint tool", () => {
     await expect(flowDebug.locator('[data-flow-debug="current"]')).toHaveText("site_home");
     await expect(flowDebug.locator('[data-flow-debug="route"]')).toContainText("site_home");
 
-    await navButton("Features").click();
-    await expectStandaloneShell("site_features", "Features");
+    await navButton("Nutzen").click();
+    await expectStandaloneShell("site_features", "Nutzen");
     await expect(flowDebug.locator('[data-flow-debug="current"]')).toHaveText("site_features");
     await expect(flowDebug.locator('[data-flow-debug="route"]')).toContainText("site_home -> site_features");
-    await expect(flowDebug.locator('[data-flow-debug="transition"]')).toContainText("Features");
-    await expect(standalone.getByText("Digitaler Vertrag")).toBeVisible();
+    await expect(flowDebug.locator('[data-flow-debug="transition"]')).toContainText("Nutzen");
+    await expect(standalone.getByText("Umsetzung bekommt Leitplanken")).toBeVisible();
     await expect(standalone.locator(".daisy-feature-grid")).toHaveCount(1);
     await expect(standalone.locator(".daisy-feature-cards > .card")).toHaveCount(3);
     await expect(standalone.locator(".daisy-feature-grid button[data-transition-id]")).toHaveCount(3);
     await expect(standalone.locator(".steps button[data-transition-id] .daisy-step-label")).toHaveText([
-      "Verstehen",
-      "Visualisieren",
-      "Digitalisieren"
+      "Klaeren",
+      "Modellieren",
+      "Entscheiden"
     ]);
     await expectStandaloneNoHorizontalOverflow();
-    await navButton("Home").click();
-    await expectStandaloneShell("site_home", "Home");
+    await navButton("Start").click();
+    await expectStandaloneShell("site_home", "Start");
 
-    await footerButton("Pricing").click();
-    await expectStandaloneShell("site_pricing", "Pricing");
+    await footerButton("Angebot").click();
+    await expectStandaloneShell("site_pricing", "Angebot");
     await openPricing();
     for (const plan of [
-      { label: "Starter", stateId: "site_checkout", title: "Checkout", price: "$19" },
-      { label: "Team", stateId: "site_checkout", title: "Checkout", price: "$49" },
-      { label: "Scale", stateId: "site_checkout", title: "Checkout", price: "$149" }
+      { label: "Klarheits-Workshop", action: "Workshop anfragen", stateId: "site_checkout", title: "Anfrage", price: "1.900 EUR" },
+      { label: "Prozess-Blueprint", action: "Blueprint anfragen", stateId: "site_checkout", title: "Anfrage", price: "4.900 EUR" },
+      { label: "Umsetzungsbegleitung", action: "Begleitung anfragen", stateId: "site_checkout", title: "Anfrage", price: "auf Anfrage" }
     ]) {
-      await expect(standalone.getByRole("button", { name: `Buy ${plan.label}`, exact: true })).toBeVisible();
-      await standalone.getByRole("button", { name: `Buy ${plan.label}`, exact: true }).click();
+      await expect(standalone.getByRole("button", { name: plan.action, exact: true })).toBeVisible();
+      await standalone.getByRole("button", { name: plan.action, exact: true }).click();
       await expectStandaloneShell(plan.stateId, plan.title);
-      await expect(standalone.getByText(`${plan.label} plan`)).toBeVisible();
+      await expect(standalone.getByText(plan.label)).toBeVisible();
       await expect(standalone.getByText(plan.price)).toBeVisible();
       await standalone.locator('input').fill(`${plan.label.toLowerCase()}@example.test`);
-      await standalone.getByRole("button", { name: "Complete checkout", exact: true }).click();
-      await expectStandaloneShell("site_thanks", "Thanks");
-      await expect(standalone.getByText("Request received")).toBeVisible();
+      await standalone.getByRole("button", { name: "Anfrage senden", exact: true }).click();
+      await expectStandaloneShell("site_thanks", "Danke");
+      await expect(standalone.getByText("Anfrage erhalten")).toBeVisible();
       await openPricing();
     }
 
-    await navButton("Contact").click();
-    await expectStandaloneShell("site_contact", "Contact");
-    await expect(standalone.getByText("Tell us what you want to build")).toBeVisible();
-    await standalone.getByRole("button", { name: "Send request", exact: true }).click();
-    await expectStandaloneShell("site_thanks", "Thanks");
-    await expect(standalone.getByText("Request received")).toBeVisible();
+    await navButton("Kontakt").click();
+    await expectStandaloneShell("site_contact", "Kontakt");
+    await expect(standalone.getByText("Beschreiben Sie kurz den Ablauf")).toBeVisible();
+    await standalone.getByRole("button", { name: "Anfrage senden", exact: true }).click();
+    await expectStandaloneShell("site_thanks", "Danke");
+    await expect(standalone.getByText("Anfrage erhalten")).toBeVisible();
 
-    await footerButton("Account").click();
-    await expectStandaloneShell("site_login", "Account");
-    await expect(standalone.getByText("Sign in to continue")).toBeVisible();
+    await footerButton("Konto").click();
+    await expectStandaloneShell("site_login", "Konto");
+    await expect(standalone.getByText("Anmelden und fortfahren")).toBeVisible();
     await standalone.locator('input[type="email"]').fill("mira@example.test");
     await standalone.locator('input[type="password"]').fill("demo-password");
-    const standaloneSignInButton = standalone.locator('.hero button[data-transition-id="site_login_submit"]').filter({ hasText: "Sign in" });
+    const standaloneSignInButton = standalone.locator('.hero button[data-transition-id="site_login_submit"]').filter({ hasText: "Anmelden" });
     await expect(standaloneSignInButton).toHaveCount(1);
     await standaloneSignInButton.click();
-    await expectStandaloneShell("site_profile", "Profile");
-    await expect(standalone.getByText("Welcome back")).toBeVisible();
+    await expectStandaloneShell("site_profile", "Profil");
+    await expect(standalone.getByText("Willkommen zurueck")).toBeVisible();
     await expect(standalone.locator('.avatar img[alt="Mira Keller"]')).toBeVisible();
-    await standalone.getByRole("button", { name: "Logout", exact: true }).click();
-    await expectStandaloneShell("site_login", "Account");
-    await expect(standalone.getByText("Sign in to continue")).toBeVisible();
+    await standalone.getByRole("button", { name: "Abmelden", exact: true }).click();
+    await expectStandaloneShell("site_login", "Konto");
+    await expect(standalone.getByText("Anmelden und fortfahren")).toBeVisible();
 
-    await footerButton("Home").click();
-    await expectStandaloneShell("site_home", "Home");
+    await footerButton("Start").click();
+    await expectStandaloneShell("site_home", "Start");
 
     expect(pageErrors).toEqual([]);
     await standalone.close();
@@ -2483,7 +2506,7 @@ test.describe("State Blueprint tool", () => {
     await openStateLayer(page, "login");
     const childId = await addChildByDoubleClick(page, "login");
     await openStateInspector(page, childId);
-    await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("In Login");
     await expect(page.locator(".node")).toHaveCount(3);
     await page.locator("#pTitle").fill("Temporary child");
     await page.locator(`[data-id="${childId}"]`).click();
@@ -2495,7 +2518,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator(`[data-id="${childId}"]`)).toHaveCount(0);
     await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(0);
     await expect(page.locator(".node.boundary-proxy")).toHaveCount(2);
-    await expect(page.locator("#stateInspectorBody")).toContainText("No state selected");
+    await expect(page.locator("#stateInspectorBody")).toContainText("Kein Zustand ausgewaehlt");
     await expect.poll(async () => {
       const model = await savedModel(page);
       return {
@@ -2573,7 +2596,7 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator("#layerBack").click();
     await expect(page.locator("#layerFrame")).toBeVisible();
-    await expect(page.locator("#layerFrameLabel")).toHaveText("Root");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("Wurzel");
     await expect(page.locator("#layerHud")).toBeVisible();
   });
 
@@ -2637,10 +2660,10 @@ test.describe("State Blueprint tool", () => {
     await openTool(page);
 
     await openStateLayer(page, "login");
-    await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("In Login");
     await expect(page.locator("#layerFrameComment")).toBeVisible();
-    await expect(page.locator("#layerFrameCommentTitle")).toHaveAttribute("aria-label", "Layer title");
-    await expect(page.locator("#layerFrameCommentBody")).toHaveAttribute("aria-label", "Layer comment");
+    await expect(page.locator("#layerFrameCommentTitle")).toHaveAttribute("aria-label", "Ebenentitel");
+    await expect(page.locator("#layerFrameCommentBody")).toHaveAttribute("aria-label", "Ebenen-Kommentar");
     await expect(page.locator("#layerFrameCommentTitle")).toHaveValue("");
     await expect(page.locator("#layerFrameCommentBody")).toHaveValue("");
     await page.locator("#layerFrameCommentTitle").fill("Credential gate");
@@ -2701,7 +2724,7 @@ test.describe("State Blueprint tool", () => {
     expect(commentBlock.routedAsBlocker).toBe(true);
 
     await page.locator("#layerBack").click();
-    await expect(page.locator("#layerFrameLabel")).toHaveText("Root");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("Wurzel");
 
     await openStateInspector(page, "login");
     await expect(page.locator("#pLayerTitle")).toHaveCount(0);
@@ -3087,18 +3110,18 @@ test.describe("State Blueprint tool", () => {
 
     await app.getByRole("button", { name: "Step One" }).click();
     await expect(app.locator("#statePill")).toHaveText("step_one");
-    await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Lesson");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("In Lesson");
     await expect(page.locator(".node")).toHaveCount(4);
     await expect(page.locator('[data-id="step_one"]')).toHaveClass(/active/);
 
     await app.getByRole("button", { name: "Continue" }).click();
     await expect(app.locator("#statePill")).toHaveText("step_two");
-    await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Lesson");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("In Lesson");
     await expect(page.locator('[data-id="step_two"]')).toHaveClass(/active/);
     await expect(app.getByRole("button", { name: "Lesson" })).toHaveCount(0);
     await app.getByRole("button", { name: "Finish" }).click();
     await expect(app.locator("#statePill")).toHaveText("done");
-    await expect(page.locator("#layerFrameLabel")).toHaveText("Root");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("Wurzel");
     await expect(page.locator('[data-id="step_two"]')).toHaveCount(0);
     await expect(page.locator('[data-id="done"]')).toHaveClass(/active/);
   });
@@ -3160,18 +3183,18 @@ test.describe("State Blueprint tool", () => {
 
     await app.getByRole("button", { name: "State 3" }).click();
     await expect(app.locator("#statePill")).toHaveText("state_3");
-    await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Benutzer-Avatar");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("In Benutzer-Avatar");
     await expect(page.locator('[data-id="state_3"]')).toHaveClass(/active/);
 
     await app.getByRole("button", { name: "To Benutzer-Avatar" }).click();
     await expect(app.locator("#statePill")).toHaveText("user_avatar");
-    await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Hinweisbanner");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("In Hinweisbanner");
     await expect(app.getByRole("button", { name: "State 3" })).toBeVisible();
     await expect(app.getByRole("button", { name: "To Benutzer-Avatar" })).toHaveCount(0);
 
     await app.getByRole("button", { name: "State 3" }).click();
     await expect(app.locator("#statePill")).toHaveText("state_3");
-    await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Benutzer-Avatar");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("In Benutzer-Avatar");
     await expect(page.locator('[data-id="state_3"]')).toHaveClass(/active/);
   });
 
@@ -3208,7 +3231,7 @@ test.describe("State Blueprint tool", () => {
     await expect(app.locator("#statePill")).toHaveText("lesson");
     await app.getByRole("button", { name: "Step One" }).click();
     await expect(app.locator("#statePill")).toHaveText("step_one");
-    await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Lesson");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("In Lesson");
     await expect(page.locator('[data-id="step_one"]')).toHaveClass(/active/);
     await expect(page.locator('[data-id="step_one"]')).toHaveClass(/runtime-enter/);
     const stepOneInputPort = page.locator('svg#ports .svg-port[data-state-id="step_one"][data-port-side="in"]');
@@ -3217,14 +3240,14 @@ test.describe("State Blueprint tool", () => {
 
     await app.getByRole("button", { name: "Continue" }).click();
     await expect(app.locator("#statePill")).toHaveText("step_two");
-    await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Lesson");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("In Lesson");
     await expect(page.locator('[data-id="step_two"]')).toHaveClass(/active/);
     await expect(page.locator('[data-id="step_one"]')).toHaveClass(/runtime-exit/);
     await expect(page.locator('[data-id="step_two"]')).toHaveClass(/runtime-enter/);
     await expect(app.getByRole("button", { name: "Lesson" })).toHaveCount(0);
     await app.getByRole("button", { name: "Finish" }).click();
     await expect(app.locator("#statePill")).toHaveText("done");
-    await expect(page.locator("#layerFrameLabel")).toHaveText("Root");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("Wurzel");
     await expect(page.locator('[data-id="step_two"]')).toHaveCount(0);
     await expect(page.locator('[data-id="done"]')).toHaveClass(/active/);
     await expect(page.locator('[data-id="done"]')).toHaveClass(/runtime-enter/);
@@ -3292,8 +3315,8 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator('[data-id="start"]')).toBeVisible();
     await page.locator('[data-id="parent_a"]').click();
     await page.locator('[data-id="state_b"]').click({ modifiers: ["Shift"] });
-    await expect(page.locator("#selectionCount")).toContainText("2 states");
-    await expect(page.locator("#btnSelectionCollapse")).toHaveText("Collapse");
+    await expect(page.locator("#selectionCount")).toContainText("2 Zustaende");
+    await expect(page.locator("#btnSelectionCollapse")).toHaveText("Gruppieren");
     await page.locator("#btnSelectionCollapse").click();
     await expect(page.locator('[data-id="group"]')).toBeVisible();
     await expect(page.locator('[data-id="parent_a"]')).toHaveCount(0);
@@ -3336,15 +3359,15 @@ test.describe("State Blueprint tool", () => {
     await expect(app.locator("#statePill")).toHaveText("start");
     await app.getByRole("button", { name: "Open Nested", exact: true }).click();
     await expect(app.locator("#statePill")).toHaveText("parent_a");
-    await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Group");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("In Group");
     await expect(page.locator('[data-id="parent_a"]')).toHaveClass(/active/);
     await app.getByRole("button", { name: "Leaf", exact: true }).click();
     await expect(app.locator("#statePill")).toHaveText("leaf");
-    await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Parent A");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("In Parent A");
     await expect(page.locator('[data-id="leaf"]')).toHaveClass(/active/);
     await app.getByRole("button", { name: "Continue", exact: true }).click();
     await expect(app.locator("#statePill")).toHaveText("state_b");
-    await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Group");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("In Group");
     await app.getByRole("button", { name: "Finish", exact: true }).click();
     await expect(app.locator("#statePill")).toHaveText("done");
   });
@@ -3377,7 +3400,7 @@ test.describe("State Blueprint tool", () => {
     const transitionSelect = page.locator("#pStateFlowTransition");
     const triggerType = page.locator("#pStateTriggerType");
     await expect(transitionSelect).toHaveValue(childEntryId);
-    await expect(transitionSelect.locator("option")).toContainText(["Child (child entry)"]);
+    await expect(transitionSelect.locator("option")).toContainText(["Child (Eingang)"]);
     await expect(triggerType).toBeEnabled();
     await expect(triggerType).toHaveValue("button");
 
@@ -3453,7 +3476,7 @@ test.describe("State Blueprint tool", () => {
       "parent_retry",
       "__runtime_enter_child:parent:child"
     ]);
-    expect(parentOptions.map(option => option.text)).toContain("Child (child entry)");
+    expect(parentOptions.map(option => option.text)).toContain("Child (Eingang)");
     await page.locator("#pStateFlowTransition").selectOption("parent_retry");
     await page.locator("#pStateTriggerType").selectOption("timer");
     await expect.poll(async () => {
@@ -3482,8 +3505,8 @@ test.describe("State Blueprint tool", () => {
       options.map(option => ({ value: option.value, text: option.textContent || "" }))
     );
     expect(leafOptions.map(option => option.value)).toEqual(["t_leaf_local", "parent_done", "parent_retry"]);
-    expect(leafOptions.map(option => option.text)).toContain("Finish Parent -> Done (parent out)");
-    expect(leafOptions.map(option => option.text)).toContain("Retry Parent -> Retry (parent out)");
+    expect(leafOptions.map(option => option.text)).toContain("Finish Parent -> Done (Ausgang)");
+    expect(leafOptions.map(option => option.text)).toContain("Retry Parent -> Retry (Ausgang)");
   });
 
   test("child output proxy stops when the collapsed parent has no real outgoing transition @smoke", async ({ page }) => {
@@ -3569,7 +3592,7 @@ test.describe("State Blueprint tool", () => {
     await page.locator("#btnSelectionCollapse").click();
     await expect(page.locator('[data-id="group"]')).toBeVisible();
     await page.locator('[data-id="group"]').click();
-    await expect(page.locator("#btnSelectionCollapse")).toHaveText("Degroup");
+    await expect(page.locator("#btnSelectionCollapse")).toHaveText("Gruppe aufloesen");
     await page.locator("#btnSelectionCollapse").click();
     await expect(page.locator('[data-id="group"]')).toHaveCount(0);
     await expect(page.locator('[data-id="one"]')).toBeVisible();
@@ -3618,7 +3641,7 @@ test.describe("State Blueprint tool", () => {
     await page.mouse.move(secondBox.x + 8, secondBox.y + secondBox.height / 2, { steps: 12 });
     await page.mouse.up();
 
-    await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("In Login");
     await expect(page.locator(".node")).toHaveCount(4);
     await expect(page.locator(`[data-id="${firstChildId}"]`)).toBeVisible();
     await expect(page.locator(`[data-id="${secondChildId}"]`)).toBeVisible();
@@ -3631,12 +3654,12 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator("#layerBack").click();
     await expect(page.locator("#layerFrame")).toBeVisible();
-    await expect(page.locator("#layerFrameLabel")).toHaveText("Root");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("Wurzel");
     await expect(page.locator(".edge[data-edge-id]")).toHaveCount(rootEdgeCount);
     await expect(page.locator(`.edge[data-edge-id="${innerEdgeId}"]`)).toHaveCount(0);
 
     await openStateLayer(page, "login");
-    await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("In Login");
     await expect(page.locator(`.edge[data-edge-id="${innerEdgeId}"]`)).toHaveCount(1);
   });
 
@@ -3664,7 +3687,7 @@ test.describe("State Blueprint tool", () => {
 
     await expect(login.locator(".layer-badge")).toHaveText("1 state");
     await openStateLayer(page, "login");
-    await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("In Login");
     await expect(canvasStateNodes(page)).toHaveCount(1);
     await expect(canvasStateNodes(page).locator(".title")).toHaveText("Inner lesson");
     await canvasStateNodes(page).first().click();
@@ -3747,7 +3770,7 @@ test.describe("State Blueprint tool", () => {
     });
 
     await openStateLayer(page, "login");
-    await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("In Login");
     await expect(canvasStateNodes(page)).toHaveCount(1);
     await expect(page.locator('[data-id="register"]')).toBeVisible();
     await expect(boundaryProxyNodes(page)).toHaveCount(2);
@@ -3861,14 +3884,14 @@ test.describe("State Blueprint tool", () => {
     await openTool(page, { model });
     await openStateInspector(page, "auth_start");
 
-    await expect(page.locator("#pRenderCard > summary")).toContainText("Render");
+    await expect(page.locator("#pRenderCard > summary")).toContainText("Darstellung");
     await expect(page.getByText("Daisy UI")).toHaveCount(0);
     await expect(componentEditor(page, "Heading")).not.toHaveAttribute("open", "");
     await expect(componentEditor(page, "Text")).not.toHaveAttribute("open", "");
     await expect(componentEditor(page, "Widget: Save button")).not.toHaveAttribute("open", "");
     await expect(componentEditor(page, "Heading").locator("input")).toBeHidden();
 
-    await componentEditor(page, "Heading").getByRole("button", { name: "Move Heading down" }).click();
+    await componentEditor(page, "Heading").getByRole("button", { name: "Ueberschrift nach unten verschieben" }).click();
     await expect.poll(async () => {
       const saved = await savedModel(page);
       return saved.states.find(state => state.id === "auth_start").components
@@ -3911,11 +3934,11 @@ test.describe("State Blueprint tool", () => {
     await openTool(page);
     await openStateInspector(page, "auth_start");
 
-    await expect(page.locator("#pActionsCard > summary")).toContainText("Actions");
+    await expect(page.locator("#pActionsCard > summary")).toContainText("Aktionen");
     await expect(page.locator("#pActionsCard")).toHaveJSProperty("open", true);
-    await expect(page.getByRole("button", { name: "Export component" })).toBeVisible();
-    await expect(page.locator("#pExportState .state-action-label")).toHaveText("Export");
-    await expect(page.locator("#pImportState .state-action-label")).toHaveText("Import");
+    await expect(page.getByRole("button", { name: "Komponente exportieren" })).toBeVisible();
+    await expect(page.locator("#pExportState .state-action-label")).toHaveText("Exportieren");
+    await expect(page.locator("#pImportState .state-action-label")).toHaveText("Importieren");
     await expect(page.locator("#pInitial")).toHaveClass(/active/);
     await expect(page.locator("#pInitial")).toHaveAttribute("aria-pressed", "true");
     await expect.poll(() => page.locator("#stateInspectorBody").evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
@@ -3958,7 +3981,7 @@ test.describe("State Blueprint tool", () => {
     await componentEditor(page, "Text").locator("textarea").fill("Live render update");
     await expect(appFrame(page).getByText("Live render update")).toBeVisible();
 
-    await componentEditor(page, "Text").getByRole("button", { name: "Delete" }).click();
+    await componentEditor(page, "Text").getByRole("button", { name: "Loeschen" }).click();
     await expect(appFrame(page).getByText("Live render update")).toHaveCount(0);
     await expect(appFrame(page).getByRole("button", { name: "Login" })).toBeVisible();
   });
@@ -4175,7 +4198,7 @@ test.describe("State Blueprint tool", () => {
     await expect(app.locator(".field").filter({ hasText: "email" }).locator("input")).toHaveValue("draft@example.com");
     await expect(app.locator(".field").filter({ hasText: "password" }).locator("input")).toHaveValue("draft-secret");
 
-    await page.getByRole("button", { name: "Reset App" }).click();
+    await page.getByRole("button", { name: "App zuruecksetzen" }).click();
     await expect(app.locator("#statePill")).toHaveText("auth_start");
     await page.locator('[data-id="login"]').click();
     await expect(app.locator(".field").filter({ hasText: "email" }).locator("input")).toHaveValue("");
@@ -4199,19 +4222,19 @@ test.describe("State Blueprint tool", () => {
     await openTool(page, { model, pauseRuntime: true });
     const app = appFrame(page);
 
-    await expect(page.getByRole("button", { name: "Play" })).toHaveAttribute("aria-pressed", "true");
-    await expect(page.locator("#runtimeState")).toContainText("Paused: auth_start");
+    await expect(page.getByRole("button", { name: "Fortsetzen" })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#runtimeState")).toContainText("Pausiert: auth_start");
     await expect.poll(async () => (await runtimeContext(page)).runtime?.paused).toBe(true);
 
     await page.waitForTimeout(1250);
     await expect(app.locator("#statePill")).toHaveText("auth_start");
     await expect(page.locator('[data-id="auth_start"]')).toHaveClass(/active/);
 
-    await page.getByRole("button", { name: "Play" }).click();
-    await expect(page.getByRole("button", { name: "Pause" })).toHaveAttribute("aria-pressed", "false");
+    await page.getByRole("button", { name: "Fortsetzen" }).click();
+    await expect(page.getByRole("button", { name: "Pausieren" })).toHaveAttribute("aria-pressed", "false");
     await expect.poll(async () => (await runtimeContext(page)).runtime?.paused).toBe(false);
     await expect(app.locator("#statePill")).toHaveText("logged_in", { timeout: 2400 });
-    await expect(page.locator("#runtimeState")).toContainText("Screen: logged_in");
+    await expect(page.locator("#runtimeState")).toContainText("Zustand: logged_in");
   });
 
   test("pauses runtime change events without queueing stale transitions @smoke", async ({ page }) => {
@@ -4231,7 +4254,7 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator('[data-id="login"]').click();
     await expect(app.locator("#statePill")).toHaveText("login");
-    await page.getByRole("button", { name: "Pause" }).click();
+    await page.getByRole("button", { name: "Pausieren" }).click();
     await expect.poll(async () => (await runtimeContext(page)).runtime?.paused).toBe(true);
     const eventCountBeforePause = (await runtimeContext(page)).events?.change?.email?.count || 0;
     const emailInput = app.locator(".field").filter({ hasText: "email" }).locator("input");
@@ -4242,7 +4265,7 @@ test.describe("State Blueprint tool", () => {
     await page.waitForTimeout(300);
     await expect(app.locator("#statePill")).toHaveText("login");
 
-    await page.getByRole("button", { name: "Play" }).click();
+    await page.getByRole("button", { name: "Fortsetzen" }).click();
     await expect.poll(async () => (await runtimeContext(page)).runtime?.paused).toBe(false);
     await page.waitForTimeout(300);
     await expect(app.locator("#statePill")).toHaveText("login");
@@ -4295,7 +4318,7 @@ test.describe("State Blueprint tool", () => {
 
     await page.keyboard.press("Enter");
     await expect(page.locator("#pTitle")).toHaveCount(0);
-    await expect(page.locator("#stateInspectorBody")).toContainText("No state selected");
+    await expect(page.locator("#stateInspectorBody")).toContainText("Kein Zustand ausgewaehlt");
     await expect(page.locator('[data-id="login"] .title')).toHaveText("Sign in");
 
     const reloaded = await page.context().newPage();
@@ -4439,7 +4462,7 @@ test.describe("State Blueprint tool", () => {
     await page.goto("/state.html");
     await expect(page.locator('[data-id="auth_start"]')).toBeVisible();
     await expect(page.locator(".workspace")).toHaveClass(/preview-collapsed/);
-    await expect(page.locator("#btnTogglePreview")).toHaveAttribute("aria-label", "Expand app preview");
+    await expect(page.locator("#btnTogglePreview")).toHaveAttribute("aria-label", "App-Vorschau ausklappen");
 
     const samples = await page.evaluate(() => window.__STATE_BLUEPRINT_PREVIEW_STARTUP_SAMPLES || []);
     expect(samples.length).toBeGreaterThan(0);
@@ -4451,10 +4474,10 @@ test.describe("State Blueprint tool", () => {
     await page.setViewportSize({ width: 1280, height: 820 });
     await openTool(page);
 
-    if (await page.locator("#btnToggleInspector").getAttribute("aria-label") === "Expand state inspector") {
+    if ((await page.locator("#btnToggleInspector").getAttribute("aria-label") || "").includes("ausklappen")) {
       await page.locator("#btnToggleInspector").click();
     }
-    if (await page.locator("#btnTogglePreview").getAttribute("aria-label") === "Expand app preview") {
+    if ((await page.locator("#btnTogglePreview").getAttribute("aria-label") || "").includes("ausklappen")) {
       await page.locator("#btnTogglePreview").click();
     }
     await expect(page.locator(".workspace")).not.toHaveClass(/inspector-collapsed/);
@@ -4527,13 +4550,11 @@ test.describe("State Blueprint tool", () => {
   });
 
   test("keeps widescreen tablet side panels shrinkable around the canvas @smoke", async ({ page }) => {
-    await page.setViewportSize({ width: 1024, height: 768 });
+    await page.setViewportSize({ width: 1180, height: 768 });
     await openTool(page);
 
-    if (await page.locator("#btnToggleInspector").getAttribute("aria-label") === "Expand state inspector") {
-      await page.locator("#btnToggleInspector").click();
-    }
-    if (await page.locator("#btnTogglePreview").getAttribute("aria-label") === "Expand app preview") {
+    await openStateInspector(page, "auth_start");
+    if ((await page.locator("#btnTogglePreview").getAttribute("aria-label") || "").includes("ausklappen")) {
       await page.locator("#btnTogglePreview").click();
     }
     await expect(page.locator(".workspace")).not.toHaveClass(/inspector-collapsed/);
@@ -5305,7 +5326,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#pData")).toHaveAttribute("tabindex", "-1");
     await expect(page.locator("#pDataSourceUrl")).toHaveAttribute("tabindex", "-1");
     await expect(page.locator("#pRepeatPath")).toHaveAttribute("tabindex", "-1");
-    await expect(componentEditor(page, "Text").getByRole("button", { name: "Delete" })).toHaveAttribute("tabindex", "0");
+    await expect(componentEditor(page, "Text").getByRole("button", { name: "Loeschen" })).toHaveAttribute("tabindex", "0");
     await expect.poll(() => page.locator("#pTitle").evaluate(el => document.activeElement === el)).toBe(true);
 
     await openInitialValuesEditor(page);
@@ -5388,7 +5409,7 @@ test.describe("State Blueprint tool", () => {
     await expect.poll(() => page.locator("#pLabel").evaluate(el => document.activeElement === el)).toBe(true);
     await page.keyboard.press("Enter");
     await expect(page.locator("#pLabel")).toHaveCount(0);
-    await expect(page.locator("#stateInspectorBody")).toContainText("No state selected");
+    await expect(page.locator("#stateInspectorBody")).toContainText("Kein Zustand ausgewaehlt");
     await expect(page.locator("svg text.edge-label").filter({ hasText: "Sign in action" })).toHaveCount(1);
     await expect.poll(async () => {
       const model = await savedModel(page);
@@ -5439,7 +5460,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#pTitle")).toHaveValue("");
 
     await page.keyboard.press("Enter");
-    await expect(page.locator("#stateInspectorBody")).toContainText("No state selected");
+    await expect(page.locator("#stateInspectorBody")).toContainText("Kein Zustand ausgewaehlt");
     await login.click();
     await expect(login).toHaveClass(/selected/);
     await expect.poll(() => page.locator("#pTitle").evaluate(el => document.activeElement === el)).toBe(false);
@@ -5447,7 +5468,7 @@ test.describe("State Blueprint tool", () => {
     await page.keyboard.press("Delete");
     await expect(login).toHaveCount(0);
     await expect(page.locator("#pTitle")).toHaveCount(0);
-    await expect(page.locator("#stateInspectorBody")).toContainText("No state selected");
+    await expect(page.locator("#stateInspectorBody")).toContainText("Kein Zustand ausgewaehlt");
     await expect.poll(async () => {
       const model = await savedModel(page);
       return {
@@ -5755,7 +5776,7 @@ test.describe("State Blueprint tool", () => {
       "Countdown-Timer",
       "Seitenmenü",
       "Dropdown-Menü",
-      "Footer-Links",
+      "Fusszeile",
       "Hero-Bereich",
       "Hero mit Bild",
       "Hero mit Bild rechts",
@@ -5803,7 +5824,7 @@ test.describe("State Blueprint tool", () => {
         expect(transition.toExists, item.title).toBe(true);
         expect(transition.targetTitle, item.title).toBe(
           item.variant === "pricing"
-            ? `Checkout ${transition.label.replace(/\s+kaufen$/i, "")}`
+            ? transition.label
             : transition.label
         );
         expect(transition.targetParentId, item.title).toBe("parent");
@@ -6191,7 +6212,7 @@ test.describe("State Blueprint tool", () => {
 
   test("renders breadcrumb preset defaults after starting from a new empty scene @smoke", async ({ page }) => {
     await openTool(page);
-    await page.getByRole("button", { name: "New" }).click();
+    await page.locator("#btnNew").click();
     await page.getByRole("button", { name: "Neu starten" }).click();
     await expect(page.locator('[data-id="start"]')).toBeVisible();
 
@@ -6429,12 +6450,12 @@ test.describe("State Blueprint tool", () => {
       triggerEvent: "",
       condition: ""
     });
-    await expect(page.locator("#pStateTriggerEventLabel")).toHaveText("Realtime / WSS event");
+    await expect(page.locator("#pStateTriggerEventLabel")).toHaveText("Realtime-/WSS-Ereignis");
     await expect(triggerEvent).toBeVisible();
     await expect(triggerEvent).toHaveJSProperty("length", 0);
     await expect(page.locator("#pStateTriggerEventImport")).toBeVisible();
     await expect(appFrame(page).locator('button[data-transition-id="t_auth_login"]')).toHaveCount(0);
-    await expect(page.locator("#pStateTriggerPreview")).toContainText("realtime room event");
+    await expect(page.locator("#pStateTriggerPreview")).toContainText("Realtime-Raumereignis");
 
     await triggerType.selectOption("button");
     await expect.poll(async () => {
@@ -6539,7 +6560,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#pStateTriggerEvent")).toBeVisible();
     await expect(page.locator("#pStateTriggerEvent")).toHaveValue("realtime.sip.call.incoming");
     await expect(page.locator("#pStateTriggerEventImport")).toBeVisible();
-    await expect(page.locator("#pStateTriggerEventImport")).toHaveText("Reload realtime events");
+    await expect(page.locator("#pStateTriggerEventImport")).toHaveText("Realtime-Ereignisse neu laden");
     await expect.poll(async () => {
       const model = await savedModel(page);
       const transition = model.transitions.find(item => item.id === "t_auth_login");
@@ -6928,7 +6949,7 @@ test.describe("State Blueprint tool", () => {
     const scopePath = `states.${tabsState.id}`;
 
     const app = appFrame(page);
-    const addRenderSelect = page.locator('.data-wire-render-panel select[aria-label="Add visible field"]');
+    const addRenderSelect = page.locator('.data-wire-render-panel select[aria-label="Sichtbares Feld hinzufuegen"]');
     await expect(addRenderSelect).toBeVisible();
     await expect(addRenderSelect.locator('option[value="events"]')).toHaveCount(0);
     await expect(addRenderSelect.locator(`option[value="${scopePath}"]`)).toHaveCount(0);
@@ -6936,10 +6957,10 @@ test.describe("State Blueprint tool", () => {
     await expect(addRenderSelect.locator(`option[value="${scopePath}.items"]`)).toHaveCount(1);
 
     const stateBranchButton = page.locator(`.global-state-json-line[data-path="${scopePath}"] .global-state-json-toggle`);
-    await expect(stateBranchButton).toHaveText("Use");
+    await expect(stateBranchButton).toHaveText("Nutzen");
 
     await addRenderSelect.selectOption(`${scopePath}.selected`);
-    await page.locator(".data-wire-render-panel").getByRole("button", { name: "Show selected field" }).click();
+    await page.locator(".data-wire-render-panel").getByRole("button", { name: "Ausgewaehltes Feld anzeigen" }).click();
     await expect(app.locator("#screen")).toContainText("Selected: Übersicht");
     await expect(app.locator("#screen")).not.toContainText("Events:");
     await expect(app.locator("#screen")).not.toContainText('{"change"');
@@ -6959,21 +6980,21 @@ test.describe("State Blueprint tool", () => {
     const scopePath = `states.${tabsState.id}`;
     const selectedPath = `${scopePath}.selected`;
     const panel = page.locator(".data-wire-render-panel");
-    const addRenderSelect = panel.locator('select[aria-label="Add visible field"]');
+    const addRenderSelect = panel.locator('select[aria-label="Sichtbares Feld hinzufuegen"]');
 
     await addRenderSelect.selectOption(selectedPath);
-    await expect(panel.getByRole("button", { name: "Show selected field" })).toBeVisible();
-    await panel.getByRole("button", { name: "Show selected field" }).click();
-    await expect(panel.getByRole("button", { name: "Remove selected field" })).toBeVisible();
-    await expect(page.locator(`.global-state-key-card[data-path="${selectedPath}"] .global-state-key-status`)).toContainText("On screen");
+    await expect(panel.getByRole("button", { name: "Ausgewaehltes Feld anzeigen" })).toBeVisible();
+    await panel.getByRole("button", { name: "Ausgewaehltes Feld anzeigen" }).click();
+    await expect(panel.getByRole("button", { name: "Ausgewaehltes Feld entfernen" })).toBeVisible();
+    await expect(page.locator(`.global-state-key-card[data-path="${selectedPath}"] .global-state-key-status`)).toContainText("In der Darstellung");
     await expect(page.locator(`.global-state-json-line[data-path="${selectedPath}"]`)).toHaveClass(/wired/);
     await expect.poll(async () => {
       const stored = await savedModel(page);
       return stored.states.find(state => state.id === tabsState.id).dataWires.map(wire => wire.sourcePath);
     }).toContain(selectedPath);
 
-    await panel.getByRole("button", { name: "Remove selected field" }).click();
-    await expect(panel.getByRole("button", { name: "Show selected field" })).toBeVisible();
+    await panel.getByRole("button", { name: "Ausgewaehltes Feld entfernen" }).click();
+    await expect(panel.getByRole("button", { name: "Ausgewaehltes Feld anzeigen" })).toBeVisible();
     await expect.poll(async () => {
       const stored = await savedModel(page);
       return stored.states.find(state => state.id === tabsState.id).dataWires.map(wire => wire.sourcePath);
@@ -7018,7 +7039,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#pWidgetLibrary").getByRole("button", { name: "Remove" })).toHaveCount(0);
     await expect(page.locator("#pWidgetLibrary").getByRole("button", { name: "Widget hinzufügen" })).toBeDisabled();
     const avatarEditor = await expandComponentEditor(page, "Widget: Benutzer-Avatar");
-    await avatarEditor.getByRole("button", { name: "Delete" }).click();
+    await avatarEditor.getByRole("button", { name: "Loeschen" }).click();
     await expect.poll(async () => {
       const stored = await savedModel(page);
       const state = stored.states.find(item => item.id === "auth_start");
@@ -7765,10 +7786,10 @@ test.describe("State Blueprint tool", () => {
     const contentListDataPath = `${contentListFetchPath}.data`;
     await openRepeatEditor(page);
     await expect(page.locator("#pRepeatPath")).toHaveValue(contentListDataPath);
-    await expect(dataRenderRows(page).filter({ hasText: "Field: Bild" })).toBeVisible();
-    await expect(dataRenderRows(page).filter({ hasText: "Field: Titel" })).toBeVisible();
-    await expect(dataRenderRows(page).filter({ hasText: "Field: Beschreibung" })).toBeVisible();
-    await expect(dataRenderRows(page).filter({ hasText: "Field: Preis" })).toBeVisible();
+    await expect(dataRenderRows(page).filter({ hasText: "Feld: Bild" })).toBeVisible();
+    await expect(dataRenderRows(page).filter({ hasText: "Feld: Titel" })).toBeVisible();
+    await expect(dataRenderRows(page).filter({ hasText: "Feld: Beschreibung" })).toBeVisible();
+    await expect(dataRenderRows(page).filter({ hasText: "Feld: Preis" })).toBeVisible();
 
     const app = appFrame(page);
     await expect(app.getByRole("heading", { name: "Starter-Paket" })).toBeVisible();
@@ -8555,20 +8576,20 @@ test.describe("State Blueprint tool", () => {
       value: expect.stringMatching(/^State \d+$/)
     });
 
-    await page.keyboard.type("Canvas step");
+    await page.keyboard.type("Arbeitsflaeche step");
     const model = await savedModel(page);
-    const created = model.states.find(state => state.title === "Canvas step");
+    const created = model.states.find(state => state.title === "Arbeitsflaeche step");
     expect(created).toBeTruthy();
-    await expect(page.locator(`[data-id="${created.id}"] .title`)).toHaveText("Canvas step");
-    await expect(page.locator("#pTitle")).toHaveValue("Canvas step");
-    await expect(page.locator(".quick-title-input")).toHaveValue("Canvas step");
+    await expect(page.locator(`[data-id="${created.id}"] .title`)).toHaveText("Arbeitsflaeche step");
+    await expect(page.locator("#pTitle")).toHaveValue("Arbeitsflaeche step");
+    await expect(page.locator(".quick-title-input")).toHaveValue("Arbeitsflaeche step");
     await expect.poll(() => page.locator(".quick-title-input").evaluate(el => document.activeElement === el)).toBe(true);
     await expect(page.locator(".workspace")).toHaveClass(/inspector-collapsed/);
   });
 
   test("creates a clean self-loop by dragging a state's output back to its own input", async ({ page }) => {
     await openTool(page);
-    await page.getByRole("button", { name: "New" }).click();
+    await page.locator("#btnNew").click();
     await page.getByRole("button", { name: "Neu starten" }).click();
 
     const output = await centerOf(statePort(page, "start", "out"));
@@ -8653,7 +8674,7 @@ test.describe("State Blueprint tool", () => {
       authToRegister: [loginEdgeId, registerEdgeId].sort()
     });
 
-    await page.getByRole("button", { name: "New" }).click();
+    await page.locator("#btnNew").click();
     await page.getByRole("button", { name: "Neu starten" }).click();
     const output = statePort(page, "start", "out");
     const input = statePort(page, "start", "in");
@@ -8676,7 +8697,7 @@ test.describe("State Blueprint tool", () => {
 
   test("cancels self-loop drag when released on the source body instead of input", async ({ page }) => {
     await openTool(page);
-    await page.getByRole("button", { name: "New" }).click();
+    await page.locator("#btnNew").click();
     await page.getByRole("button", { name: "Neu starten" }).click();
 
     const output = await centerOf(statePort(page, "start", "out"));
@@ -8761,15 +8782,15 @@ test.describe("State Blueprint tool", () => {
 
     const app = appFrame(page);
     await expect(app.locator("#statePill")).toHaveText("site_home");
-    await app.locator(".navbar").getByRole("button", { name: "Account", exact: true }).click();
+    await app.locator(".navbar").getByRole("button", { name: "Konto", exact: true }).click();
     await expect(app.locator("#statePill")).toHaveText("site_login");
     await app.locator('input[type="email"]').fill("mira@example.test");
     await app.locator('input[type="password"]').fill("demo-password");
-    await app.getByRole("button", { name: "Sign in", exact: true }).click();
+    await app.getByRole("button", { name: "Anmelden", exact: true }).click();
     await expect(app.locator("#statePill")).toHaveText("site_profile");
 
-    await expect(app.getByRole("button", { name: "Logout", exact: true })).toHaveCount(1);
-    await app.getByRole("button", { name: "Logout", exact: true }).click();
+    await expect(app.getByRole("button", { name: "Abmelden", exact: true })).toHaveCount(1);
+    await app.getByRole("button", { name: "Abmelden", exact: true }).click();
     await expect(app.locator("#statePill")).toHaveText("site_home");
     await expect.poll(async () => (await runtimeContext(page)).states?.site_profile?.account?.loggedIn).toBe(false);
     await expect.poll(async () => (await runtimeContext(page)).states?.site_profile?.logout?.clicked).toBe(true);
@@ -8813,7 +8834,7 @@ test.describe("State Blueprint tool", () => {
     let point = await emptyCanvasPoint(page);
     await page.mouse.click(point.x, point.y);
     await expect(page.locator("#pTitle")).toHaveCount(0);
-    await expect(page.locator("#stateInspectorBody")).toContainText("No state selected");
+    await expect(page.locator("#stateInspectorBody")).toContainText("Kein Zustand ausgewaehlt");
 
     const label = page.locator("svg text.edge-label").filter({ hasText: "Login" });
     await expect(label).toHaveCount(1);
@@ -8822,7 +8843,7 @@ test.describe("State Blueprint tool", () => {
     point = await emptyCanvasPoint(page);
     await page.mouse.click(point.x, point.y);
     await expect(page.locator("#pLabel")).toHaveCount(0);
-    await expect(page.locator("#stateInspectorBody")).toContainText("No state selected");
+    await expect(page.locator("#stateInspectorBody")).toContainText("Kein Zustand ausgewaehlt");
   });
 
   test("keeps focused state inspector stable with Escape", async ({ page }) => {
@@ -8937,7 +8958,7 @@ test.describe("State Blueprint tool", () => {
         menuPrevented: menuEvent.defaultPrevented,
         text: selection.toString(),
         userSelect: getComputedStyle(document.body).userSelect,
-        hasTouchCalloutRule: [...document.querySelectorAll("style")]
+        hasTouchCalloutRegel: [...document.querySelectorAll("style")]
           .some(style => style.textContent.includes("-webkit-touch-callout: none"))
       };
     });
@@ -8947,7 +8968,7 @@ test.describe("State Blueprint tool", () => {
       menuPrevented: true,
       text: "",
       userSelect: "none",
-      hasTouchCalloutRule: true
+      hasTouchCalloutRegel: true
     });
 
     const passiveTouchFeedback = await appFrame(page).locator("body").evaluate(async body => {
@@ -9013,7 +9034,7 @@ test.describe("State Blueprint tool", () => {
     const point = await emptyCanvasPoint(page);
     await page.touchscreen.tap(point.x, point.y);
     await expect(page.locator("#pTitle")).toHaveCount(0);
-    await expect(page.locator("#stateInspectorBody")).toContainText("No state selected");
+    await expect(page.locator("#stateInspectorBody")).toContainText("Kein Zustand ausgewaehlt");
     await context.close();
   });
 
@@ -9048,11 +9069,11 @@ test.describe("State Blueprint tool", () => {
         clientY: point.y
       });
     };
-    await expect(page.locator("#layerFrameLabel")).toHaveText("Root");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("Wurzel");
     await touchTapNode(first, 201);
     await touchTapNode(second, 202);
 
-    await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("In Login");
     await expect(page.locator("#layerBack")).toBeVisible();
     await context.close();
   });
@@ -9538,7 +9559,7 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator('[data-mobile-view="edit"]').tap();
     await expect(page.locator("#stateInspector")).toBeVisible();
-    await expect(page.locator("#map")).toBeHidden();
+    await expect(page.locator("#map")).toBeVisible();
     await page.locator('[data-mobile-view="canvas"]').tap();
     await expect(page.locator("#map")).toBeVisible();
     await expect(page.locator("#stateInspector")).toBeHidden();
@@ -9546,7 +9567,7 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator('[data-mobile-view="app"]').tap();
     await expect(page.locator(".preview")).toBeVisible();
-    await expect(page.locator("#map")).toBeHidden();
+    await expect(page.locator("#map")).toBeVisible();
     await context.close();
   });
 
@@ -10137,7 +10158,7 @@ test.describe("State Blueprint tool", () => {
     await page.mouse.click(clickPoint.x, clickPoint.y);
     await expect(login).not.toHaveClass(/selected/);
     await expect(page.locator("#pTitle")).toHaveCount(0);
-    await expect(page.locator("#stateInspectorBody")).toContainText("No state selected");
+    await expect(page.locator("#stateInspectorBody")).toContainText("Kein Zustand ausgewaehlt");
   });
 
   test("keeps selected transition context while panning the canvas and clears only on empty click", async ({ page }) => {
@@ -10857,7 +10878,7 @@ test.describe("State Blueprint tool", () => {
     await expect(login).toHaveClass(/selected/);
     await expect(register).toHaveClass(/selected/);
     await expect(page.locator("#selectionActions")).toBeVisible();
-    await expect(page.locator("#selectionCount")).toContainText("2 states");
+    await expect(page.locator("#selectionCount")).toContainText("2 Zustaende");
 
     await login.click({ modifiers: ["Shift"] });
     await expect(login).not.toHaveClass(/selected/);
@@ -10897,14 +10918,14 @@ test.describe("State Blueprint tool", () => {
     await loginLabel.click({ modifiers: ["Shift"] });
     await expect(login).toHaveClass(/selected/);
     await expect(loginEdge).toHaveClass(/selected/);
-    await expect(page.locator("#selectionCount")).toContainText("1 state + 1 transition");
+    await expect(page.locator("#selectionCount")).toContainText("1 Zustand + 1 Uebergang");
 
     await page.keyboard.press("Delete");
     await expect(loginEdge).toHaveCount(0);
     await expect(authStart).toBeVisible();
     await expect(login).toBeVisible();
     await expect(login).toHaveClass(/selected/);
-    await expect(page.locator("#selectionCount")).toContainText("1 state");
+    await expect(page.locator("#selectionCount")).toContainText("1 Zustand");
     await expect.poll(async () => {
       const model = await savedModel(page);
       return {
@@ -10929,8 +10950,8 @@ test.describe("State Blueprint tool", () => {
     await page.locator("#map").focus();
     await expect.poll(() => page.locator("#map").evaluate(el => document.activeElement === el)).toBe(true);
     await page.keyboard.press("Control+A");
-    await expect(page.locator("#selectionCount")).toContainText(`${rootStateIds.length} states`);
-    await expect(page.locator("#selectionCount")).toContainText(new RegExp(`${rootTransitionIds.length} transitions?`));
+    await expect(page.locator("#selectionCount")).toContainText(`${rootStateIds.length} Zustaende`);
+    await expect(page.locator("#selectionCount")).toContainText(`${rootTransitionIds.length} Uebergaenge`);
 
     await page.keyboard.press("Delete");
     for (const stateId of rootStateIds) {
@@ -10957,7 +10978,7 @@ test.describe("State Blueprint tool", () => {
     await expect(login).toHaveClass(/selected/);
     await expect(register).toHaveClass(/selected/);
     await expect(page.locator("#selectionActions")).toBeVisible();
-    await expect(page.locator("#selectionCount")).toContainText("2 states");
+    await expect(page.locator("#selectionCount")).toContainText("2 Zustaende");
 
     await page.keyboard.press("Delete");
     await expect(login).toHaveCount(0);
@@ -10971,7 +10992,7 @@ test.describe("State Blueprint tool", () => {
     await expect(login).toHaveClass(/selected/);
     await expect(register).toHaveClass(/selected/);
     await expect(page.locator("#selectionActions")).toBeVisible();
-    await expect(page.locator("#selectionCount")).toContainText("2 states");
+    await expect(page.locator("#selectionCount")).toContainText("2 Zustaende");
     await expect(savedModel(page).then(model => model.states.some(state => state.id === "login"))).resolves.toBe(true);
 
     await page.keyboard.press("Control+KeyY");
@@ -11086,7 +11107,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#stateInspectorTitle")).toHaveText("Vorlage: Quick lesson");
     await expect(page.locator("#stateInspector")).toHaveClass(/template-inspector/);
     await expect(page.locator("#stateInspectorBody")).toContainText("Wiederverwendbare Vorlage");
-    await expect(page.locator("#stateInspectorBody")).toContainText("Bestehende Canvas-States bleiben unverändert");
+    await expect(page.locator("#stateInspectorBody")).toContainText("Bestehende Zustaende auf der Arbeitsflaeche bleiben unveraendert");
     await expect.poll(async () => {
       const templates = await savedStateTemplates(page);
       return {
@@ -11444,7 +11465,7 @@ test.describe("State Blueprint tool", () => {
     });
 
     await page.locator('[data-id="login"]').click();
-    await expect(page.locator(".preview-title-text")).toHaveText("Generated App");
+    await expect(page.locator(".preview-title-text")).toHaveText("Generierte App");
     await expect(preset).not.toHaveClass(/previewing/);
     await expect(appFrame(page).locator("#statePill")).toHaveText("login");
     await expect(appFrame(page).getByRole("link", { name: "Dokumentation öffnen" })).toHaveCount(0);
@@ -11881,17 +11902,17 @@ test.describe("State Blueprint tool", () => {
     await openStateInspector(page, "state_3");
     await openRepeatEditor(page);
 
-    await expect(page.locator("#pFetchStatus")).toHaveText("No API");
+    await expect(page.locator("#pFetchStatus")).toHaveText("Keine API");
     await expect(page.locator("#pRepeatStatus")).toHaveText("List: Products");
-    await expect(page.locator("#pRepeatPath").locator("option", { hasText: "No list" })).toHaveCount(1);
+    await expect(page.locator("#pRepeatPath").locator("option", { hasText: "Keine Liste" })).toHaveCount(1);
     await expect(page.locator("#pRepeatPreview")).toContainText("Showing one item for each Products entry");
     await expect(page.locator("#pRepeatAdvancedCard")).toHaveJSProperty("open", false);
-    await expect(page.locator(".data-wire-render-panel")).toContainText("List item content");
+    await expect(page.locator(".data-wire-render-panel")).toContainText("Listeninhalt");
     await expect(page.locator(".data-wire-more")).toHaveJSProperty("open", false);
 
     await page.locator(".data-wire-quick").getByRole("button", { name: "Title" }).click();
 
-    await expect(dataRenderRows(page).filter({ hasText: "Field: Title" })).toBeVisible();
+    await expect(dataRenderRows(page).filter({ hasText: "Feld: Title" })).toBeVisible();
     await expect(appFrame(page).getByRole("heading", { name: "Ada Chair" })).toBeVisible();
     await expect(appFrame(page).getByRole("heading", { name: "Linus Desk" })).toBeVisible();
     await expect.poll(async () => {
@@ -12019,10 +12040,10 @@ test.describe("State Blueprint tool", () => {
     await openStateInspector(page, "state_3");
 
     await expect(appFrame(page).locator(".component-image")).toHaveAttribute("src", imageUrl);
-    const addRenderSelect = page.locator('.data-wire-render-panel select[aria-label="Add visible field"]');
+    const addRenderSelect = page.locator('.data-wire-render-panel select[aria-label="Sichtbares Feld hinzufuegen"]');
     await expect(addRenderSelect.locator('option[value="catalog.item.badge"]')).toHaveCount(1);
     await addRenderSelect.selectOption("catalog.item.badge");
-    await page.locator(".data-wire-render-panel").getByRole("button", { name: "Show selected field" }).click();
+    await page.locator(".data-wire-render-panel").getByRole("button", { name: "Ausgewaehltes Feld anzeigen" }).click();
     await expect.poll(async () => {
       const stored = await savedModel(page);
       return stored.states.find(state => state.id === "state_3").dataWires.map(wire => wire.sourcePath);
@@ -12030,7 +12051,7 @@ test.describe("State Blueprint tool", () => {
 
     const renderRows = await expandDataRenderRows(page);
     await expect(renderRows).toHaveCount(6);
-    const renderPathSelect = renderRows.first().locator('select[aria-label="Source path"]');
+    const renderPathSelect = renderRows.first().locator('select[aria-label="Quellpfad"]');
     await expect(renderPathSelect.locator('option[value="catalog.item.images.0.url"]')).toHaveCount(1);
     await renderPathSelect.selectOption("catalog.item.altImage");
     await expect(appFrame(page).locator(".component-image")).toHaveAttribute("src", altImageUrl);
@@ -12741,7 +12762,7 @@ test.describe("State Blueprint tool", () => {
     expect(definition.model.transitions.length).toBeGreaterThan(0);
 
     const exportDownload = page.waitForEvent("download");
-    await page.getByRole("button", { name: "Export HTML" }).click();
+    await page.getByRole("button", { name: "HTML exportieren" }).click();
     const htmlDownload = await exportDownload;
     const htmlPath = await htmlDownload.path();
     const html = fs.readFileSync(htmlPath, "utf8");
@@ -12850,7 +12871,7 @@ test.describe("State Blueprint tool", () => {
     const expectedModel = await page.evaluate(() => JSON.parse(JSON.stringify(definitionPayload().model)));
 
     const saveDownload = page.waitForEvent("download");
-    await page.getByRole("button", { name: "Save" }).click();
+    await page.getByRole("button", { name: "Speichern" }).click();
     const definitionDownload = await saveDownload;
     const roundtripPath = testInfo.outputPath("save-load-roundtrip.state.json");
     await definitionDownload.saveAs(roundtripPath);
@@ -12895,7 +12916,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(0);
 
     const saveDownload = page.waitForEvent("download");
-    await page.getByRole("button", { name: "Save" }).click();
+    await page.getByRole("button", { name: "Speichern" }).click();
     const definition = JSON.parse(fs.readFileSync(await (await saveDownload).path(), "utf8"));
     expect(definition.kind).toBe("state-blueprint-definition");
     expect(definition.model.initial).toBe("");

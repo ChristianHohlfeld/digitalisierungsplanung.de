@@ -950,10 +950,10 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("toggleSubscriptionPath");
     expect(html).toContain("toggleRenderPath");
     expect(html).toContain("pTransitionKeyGrid");
-    expect(html).toContain("Data value changes");
+    expect(html).toContain("Daten aendern sich");
     expect(html).toContain(".data-wire-row");
-    expect(html).toContain("Visible fields");
-    expect(html).toContain("All paths");
+    expect(html).toContain("Sichtbare Felder");
+    expect(html).toContain("Alle Pfade");
     expect(html).toContain(".component-editor input");
     expect(html).toContain("function normalizeBindingPath");
     expect(html).toContain("function dataWireDisplayValue");
@@ -994,11 +994,11 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("function dataWiresFromRepeatSample");
     expect(html).toContain("generatedFromDataWire");
     expect(html).not.toContain("Auto data part");
-    expect(html).toContain("Visible fields");
+    expect(html).toContain("Sichtbare Felder");
     expect(html).toContain("applyDerivedDataWires");
     expect(html).toContain("upsertDataWire");
     expect(html).toContain("runtimeDataWireComponentsForState");
-    expect(html).toContain("Pick a list only when this state should show repeated items.");
+    expect(html).toContain("Liste nur waehlen, wenn dieser Zustand wiederholte Eintraege anzeigen soll.");
     expect(html).not.toContain("autoCreateRepeatComponents");
     expect(html).not.toContain("autoDeriveRepeatForOwner(s, null, false)");
     expect(html).not.toContain("autoDeriveRepeatForOwner");
@@ -1097,8 +1097,8 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("function dataWireComponentsForState");
     expect(html).toContain("function applyDerivedDataWires");
     expect(html).toContain("dataWires: normalizeDataWires");
-    expect(html).toContain("Visible fields");
-    expect(html).toContain("Screen fields");
+    expect(html).toContain("Sichtbare Felder");
+    expect(html).toContain("Sichtbare Felder");
     expect(html).toContain("components: [],");
     expect(html).toContain("function dataWireDisplayValue");
     expect(html).toContain("function dataWireUrlValue");
@@ -2271,8 +2271,8 @@ test.describe("Core browser contracts", () => {
     await openStateInspector(page, "login");
     await openInspectorDetails(page, "#pDataCard");
 
-    await expect(page.locator(".global-state-subscribe-head").filter({ hasText: "Screen fields" }).first()).toBeVisible();
-    await expect(page.getByText("All paths")).toBeVisible();
+    await expect(page.locator(".global-state-subscribe-head").filter({ hasText: "Sichtbare Felder" }).first()).toBeVisible();
+    await expect(page.getByText("Alle Pfade")).toBeVisible();
     await expect.poll(() => page.locator("#pSubscriptionPaths .global-state-key-card").count()).toBeGreaterThan(0);
     await openInspectorDetails(page, "#pStateTreeCard");
     await expect(page.locator("#pSubscriptionTree")).toBeVisible();
@@ -2315,8 +2315,8 @@ test.describe("Core browser contracts", () => {
     await expect(stateCurrent).toBeVisible();
     await stateCurrent.locator(".global-state-json-toggle").click();
 
-    const sourceSelect = page.locator('#pComponents .component-editor select[aria-label="Source path"]').first();
-    await expect(page.locator("#pComponents .component-editor").filter({ hasText: "Field: Current screen" })).toBeVisible();
+    const sourceSelect = page.locator('#pComponents .component-editor select[aria-label="Quellpfad"]').first();
+    await expect(page.locator("#pComponents .component-editor").filter({ hasText: "Feld: Aktueller Zustand" })).toBeVisible();
     await expect(sourceSelect).toHaveValue("state.current");
     await expect(page.locator("#pComponents .template-binding-picker")).toHaveCount(0);
     await expect.poll(async () => page.evaluate(key => {
@@ -2355,7 +2355,7 @@ test.describe("Core browser contracts", () => {
 
     const repeat = page.locator("#pRepeatPath");
     await expect(repeat).toHaveJSProperty("tagName", "SELECT");
-    await expect(repeat.locator("option", { hasText: "No list" })).toHaveCount(1);
+    await expect(repeat.locator("option", { hasText: "Keine Liste" })).toHaveCount(1);
     await expect(page.locator("#pRepeatPathList")).toHaveCount(0);
   });
 

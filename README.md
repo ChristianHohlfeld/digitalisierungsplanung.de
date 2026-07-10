@@ -1,95 +1,103 @@
 # Digitalisierungsplanung
 
-Zustand ist ein visueller State-Machine-Editor für digitalisierbare Geschäftsprozesse. Der Kern ist ein gemeinsames JSON-Modell: States, Transitionen, Trigger, Conditions, UI-Komponenten und Daten liegen in einer Struktur und laufen über denselben globalen JSON-State/Event-Bus.
+Zustand macht Geschäftsprozesse sichtbar, prüfbar und ausführbar. Ein Ablauf wird als Zustandsdiagramm gebaut: Zustände, Übergänge, Auslöser, Bedingungen, Daten und Darstellung liegen in einem gemeinsamen JSON-Modell.
 
-Die öffentliche Root-Seite `index.html` ist die exportierte Zustand Demo. Der Editor liegt in `state.html` und kann genau diese Demo als bearbeitbaren Flow laden.
+Der wichtigste Gedanke: Nur verstandene Prozesse lassen sich sauber digitalisieren.
+
+![Vorschau](assets/share-card.png)
 
 ## Einstieg
 
-| Ziel | URL / Datei |
+| Ziel | Adresse |
 | --- | --- |
-| Öffentliche Demo | `https://digitalisierungsplanung.de/` |
-| Editor | `https://digitalisierungsplanung.de/state.html` |
-| Editor mit Demo | `https://digitalisierungsplanung.de/state.html?demo=zustand` |
-| Editor mit Realtime-Room | `https://digitalisierungsplanung.de/state.html?room=<room-id>` |
-| Realtime-Konsole | `https://realtime.digitalisierungsplanung.de/console.html?room=<room-id>` |
-| Realtime-Events | `https://realtime.digitalisierungsplanung.de/events` |
-| Realtime-WSS | `wss://realtime.digitalisierungsplanung.de/ws` |
+| Öffentliche Startseite | `https://digitalisierungsplanung.de/` |
+| Werkzeug öffnen | `https://digitalisierungsplanung.de/state.html` |
+| Beispiel im Werkzeug laden | `https://digitalisierungsplanung.de/state.html?demo=zustand` |
+| Werkzeug mit Echtzeit-Raum | `https://digitalisierungsplanung.de/state.html?room=<raum-id>` |
+| Echtzeit-Konsole | `https://realtime.digitalisierungsplanung.de/console.html?room=<raum-id>` |
+| Ereigniskatalog | `https://realtime.digitalisierungsplanung.de/events` |
+| WebSocket | `wss://realtime.digitalisierungsplanung.de/ws` |
 
-## Contract
+## Grundvertrag
 
 Es gibt genau eine fachliche Wahrheit:
 
 ```text
-globaler JSON-State/Event-Bus
+globaler JSON-Datenbus
 ```
 
 Regeln:
 
-- States sind Sichten auf relevante Daten im globalen JSON-Baum.
-- Transitionen sind echte Kanten zwischen existierenden States.
-- Trigger, Conditions, Timer und `set`-Patches sind Modelldaten.
-- Render liest aus Modell und Bus. Render ist nicht die Wahrheit.
-- Labels sind Anzeige. IDs sind Bindung.
-- Widgets und Presets erzeugen Daten erst, wenn sie als echte Canvas-States genutzt werden.
-- Nested States laufen über Boundary-Proxies und echte Drähte.
-- Wenn kein echter Out existiert, stoppt die Maschine.
-- Realtime-Events schreiben erst in den globalen Bus und können erst danach Transitionen bewegen.
+- Ein Zustand ist eine Sicht auf die Daten, die ihn betreffen.
+- Ein Übergang verbindet zwei vorhandene Zustände.
+- Ein Auslöser bewegt den Ablauf: Schaltfläche, Zeit, Datenänderung, API-Antwort oder Echtzeit-Ereignis.
+- Bedingungen entscheiden, ob ein Übergang feuern darf.
+- Darstellung liest Modell und Datenbus. Darstellung ist nie eigene Wahrheit.
+- Text ist Anzeige. IDs sind Bindung.
+- Vorlagen erzeugen erst Daten, wenn sie als echte Zustände genutzt werden.
+- Verschachtelte Zustände laufen über echte Eingänge, Ausgänge und Verbindungen.
+- Wenn kein echter Ausgang erreichbar ist, stoppt der Ablauf.
+- Externe Ereignisse schreiben zuerst in den Datenbus. Erst danach kann ein Übergang reagieren.
 
-Der ausführliche Produkt- und Architekturvertrag steht in [`statereadme.md`](statereadme.md).
+Der ausführliche Vertrag steht in [`statereadme.md`](statereadme.md).
 
-## App
+## Hauptdateien
 
-`state.html` enthält die komplette Hauptanwendung:
+- [`index.html`](index.html): veröffentlichte Startseite, aus dem Werkzeug exportiert
+- [`state.html`](state.html): das komplette Werkzeug
+- [`statereadme.md`](statereadme.md): Prinzipien, Architektur und Richtung
+- [`docs/state-blueprint-api.md`](docs/state-blueprint-api.md): Programmierschnittstelle
+- [`docs/state-blueprint-mcp.md`](docs/state-blueprint-mcp.md): MCP-Schnittstelle
+- [`docs/realtime-api.md`](docs/realtime-api.md): Echtzeit-Schnittstelle
 
-- visueller FSM-Canvas,
-- State-Inspector für Flow, Trigger, Render, Daten und Widgets,
-- generierte App-Vorschau,
-- DaisyUI-Widget- und State-Presets,
-- Nested-State-Layers mit Boundary-Proxies,
-- Fetch-on-enter als State-Effekt,
-- Save/Load/Import/Export,
-- Realtime-Event-Auswahl aus `/events`,
-- PWA-Registrierung und statischer Export.
+## Werkzeug
 
-`index.html` ist ein exportierter Stand derselben Demo, die im Editor über `state.html?demo=zustand` geladen werden kann.
+`state.html` enthält:
 
-Root-Demo neu exportieren:
+- Arbeitsfläche für Zustände und Übergänge
+- Zustand-Inspektor für Daten, Auslöser, Darstellung und Verbindungen
+- App-Vorschau
+- Vorlagen für häufige Oberflächenbausteine
+- verschachtelte Zustände mit Eingang und Ausgang
+- Datenladen beim Betreten eines Zustands
+- Speichern, Laden, Einlesen und Ausgeben
+- Echtzeit-Ereignisse aus `/events`
+- PWA-Dateien und statische HTML-Ausgabe
+
+Die öffentliche Startseite ist ein exportierter Ablauf. Im Werkzeug kann dieselbe Beispielseite über `state.html?demo=zustand` geöffnet werden.
+
+Startseite neu erzeugen:
 
 ```bash
 npm run build:index
 ```
 
-PWA-Assets neu bauen:
+PWA-Bilder neu erzeugen:
 
 ```bash
 npm run build:pwa-assets
 ```
 
-Service-Worker-Version lokal schreiben:
+Service-Worker-Version neu schreiben:
 
 ```bash
 npm run build:sw-version
 ```
 
-## Realtime
+## Echtzeit
 
-Der Realtime-Server in `server/` ist schlank gehalten. Er ist Transport und Event-Katalog, nicht Modell-API und nicht fachlicher Speicher.
-
-Core-Routen:
+Der Server in [`server/`](server/) ist nur Transport. Er speichert keine fachlichen Daten und besitzt kein zweites Modell.
 
 | Route | Zweck |
 | --- | --- |
-| `GET /healthz` | Healthcheck |
-| `GET /events` | angebotene `realtime.*` Events |
-| `GET /token` | signiertes Room-Token für Browser |
-| `GET /console.html` | manuelles Test-Emit im Browser |
-| `POST /emit` | authentifiziertes Server-to-server Event |
-| `WSS /ws` | WebSocket Relay |
+| `GET /healthz` | Gesundheitsprüfung |
+| `GET /events` | erlaubte Echtzeit-Ereignisse |
+| `GET /token` | signiertes Raum-Token für den Browser |
+| `GET /console.html` | Testoberfläche für Ereignisse |
+| `POST /emit` | authentifiziertes Ereignis von außen |
+| `WSS /ws` | WebSocket-Verbindung |
 
-Der Server persistiert keine fachlichen Objekte. `/emit` akzeptiert nur Events aus `/events`, broadcastet sie in den angegebenen Room und bleibt stateless.
-
-Externes Event feuern:
+Ein Ereignis von außen senden:
 
 ```bash
 curl -X POST https://realtime.digitalisierungsplanung.de/emit \
@@ -98,28 +106,28 @@ curl -X POST https://realtime.digitalisierungsplanung.de/emit \
   -d '{"roomId":"demo","name":"realtime.sip.call.incoming","detail":{"caller":"+491234","callee":"100","callId":"abc-123"}}'
 ```
 
-Passende Transition im Editor:
+Dazu passender Übergang im Werkzeug:
 
 ```text
 triggerType: realtime
 triggerEvent: realtime.sip.call.incoming
 ```
 
-Browser-Origin ist in Production auf `https://digitalisierungsplanung.de` begrenzt. Details stehen in [`docs/realtime-api.md`](docs/realtime-api.md).
+Der Browser-Ursprung ist produktiv auf `https://digitalisierungsplanung.de` begrenzt.
 
-## Realtime Deploy
+## Server-Veröffentlichung
 
-Der Droplet-Prozess läuft lokal auf `127.0.0.1:8788` und wird durch Nginx auf `realtime.digitalisierungsplanung.de` veröffentlicht.
+Der Echtzeit-Server läuft auf dem Droplet lokal unter `127.0.0.1:8788`. Nginx veröffentlicht ihn unter `realtime.digitalisierungsplanung.de`.
 
 Wichtige Dateien:
 
-- [`server/server.js`](server/server.js): Realtime-Server
+- [`server/server.js`](server/server.js): Server
 - [`server/ecosystem.config.cjs`](server/ecosystem.config.cjs): PM2-Prozess
-- [`server/deploy.sh`](server/deploy.sh): Droplet-Deploy
-- [`server/nginx/realtime.digitalisierungsplanung.de.conf`](server/nginx/realtime.digitalisierungsplanung.de.conf): produktive Nginx-Konfiguration
-- [`server/nginx/realtime.digitalisierungsplanung.de.bootstrap.conf`](server/nginx/realtime.digitalisierungsplanung.de.bootstrap.conf): HTTP-Bootstrap für erstes Zertifikat
+- [`server/deploy.sh`](server/deploy.sh): Veröffentlichung auf dem Droplet
+- [`server/nginx/realtime.digitalisierungsplanung.de.conf`](server/nginx/realtime.digitalisierungsplanung.de.conf): produktive Nginx-Datei
+- [`server/nginx/realtime.digitalisierungsplanung.de.bootstrap.conf`](server/nginx/realtime.digitalisierungsplanung.de.bootstrap.conf): erste HTTP-Konfiguration für Zertifikate
 
-Update auf dem Droplet:
+Aktualisierung auf dem Droplet:
 
 ```bash
 cd /var/www/digitalisierungsplanung.de
@@ -127,34 +135,18 @@ git pull --ff-only origin main
 bash server/deploy.sh
 ```
 
-`server/deploy.sh`:
+Wenn nur statische Dateien geändert wurden, reicht der Push nach `main`. Der Droplet-Schritt ist nur für Server-, Nginx-, Paket- oder Umgebungsänderungen nötig.
 
-- installiert Runtime-Pakete inklusive `certbot`, `nginx`, `git`, `openssl`,
-- zieht `main`,
-- führt `npm ci --omit=dev` aus,
-- legt `/etc/digitalisierungsplanung-realtime.env` an, falls es fehlt,
-- ergänzt `REALTIME_EMIT_SECRET`, falls es fehlt,
-- startet oder reloadet PM2 per `startOrReload`,
-- speichert PM2 für Reboots,
-- aktiviert `certbot.timer`, wenn vorhanden,
-- installiert die passende Nginx-Konfiguration,
-- lädt Nginx neu,
-- prüft lokal `/healthz`.
-
-Wenn nur statische Frontend-Dateien geändert wurden, reicht der Push nach `main`; der Droplet-Deploy ist nur für Server-, Nginx-, Dependency- oder Env-Änderungen nötig.
-
-Produktions-Smokes:
+Produktive Prüfungen:
 
 ```bash
 npm run server:smoke:wss:prod
 npm run server:smoke:emit:prod
 ```
 
-Die Smoke-Skripte lesen `/etc/digitalisierungsplanung-realtime.env`, wenn die Datei existiert.
+## API und MCP
 
-## MCP/API
-
-Die MCP-Schicht bearbeitet dasselbe kanonische Modell wie der Editor. Sie hält keinen parallelen Laufzeit-Store und klickt nicht die UI.
+Die Schnittstellen bearbeiten dasselbe Modell wie das Werkzeug. Sie klicken nicht die Oberfläche und halten keinen zweiten Speicher.
 
 Start:
 
@@ -162,7 +154,7 @@ Start:
 STATE_BLUEPRINT_MODEL_PATH=./state-blueprint.workspace.json npm run mcp:state
 ```
 
-Wichtige Tools:
+Wichtige Werkzeuge:
 
 - `state_blueprint_get_model`
 - `state_blueprint_replace_model`
@@ -203,16 +195,16 @@ npm run test:contracts
 npm run test:full
 ```
 
-Nützliche fokussierte Testgruppen:
+Gezielte Prüfgruppen:
 
 ```bash
 npm run test:state-explorer
 npm run test:state-render
 ```
 
-`npm test` führt die Server-Tests und alle `@smoke` Playwright-Flows aus. In CI läuft der Deploy-Workflow mit `npm test` und schreibt nach grünem Lauf automatisch einen neuen `sw-version.js`-Stamp.
+`npm test` führt die Server-Tests und die wichtigsten Playwright-Abläufe aus. In GitHub Actions wird nach grünem Lauf automatisch ein neuer `sw-version.js`-Stempel geschrieben.
 
-## Repository
+## Ordner
 
 ```text
 .
@@ -228,37 +220,20 @@ npm run test:state-render
 |-- CNAME
 |-- assets/
 |-- docs/
-|   |-- realtime-api.md
-|   |-- state-blueprint-api.md
-|   `-- state-blueprint-mcp.md
 |-- mcp/
-|   |-- state-blueprint-core.js
-|   |-- state-blueprint-intents.js
-|   `-- state-blueprint-server.js
 |-- scripts/
-|   |-- build-index.mjs
-|   |-- build-pwa-assets.mjs
-|   `-- write-sw-version.mjs
 |-- server/
-|   |-- server.js
-|   |-- deploy.sh
-|   |-- run.sh
-|   |-- ecosystem.config.cjs
-|   |-- emit-smoke.js
-|   |-- wss-smoke.js
-|   |-- server.test.js
-|   `-- nginx/
 |-- tests/
 |-- .github/workflows/deploy.yml
 `-- .gitea/workflows/test.yml
 ```
 
-## Release Flow
+## Veröffentlichung
 
 1. Änderungen auf `main` pushen.
-2. GitHub Action `Deploy` läuft `npm test`.
-3. Nach grünem Lauf schreibt die Action einen neuen `sw-version.js`-Deploy-Stamp.
-4. GitHub Pages veröffentlicht die statische App.
-5. Für Realtime-Server-Änderungen zusätzlich auf dem Droplet `git pull --ff-only origin main && bash server/deploy.sh` ausführen.
+2. GitHub Actions führt die Tests aus.
+3. Nach grünem Lauf wird `sw-version.js` aktualisiert.
+4. GitHub Pages veröffentlicht die statische Seite.
+5. Bei Server-Änderungen zusätzlich auf dem Droplet `git pull --ff-only origin main && bash server/deploy.sh` ausführen.
 
-Aktueller Anspruch: Lean Core, eine Root-Demo, ein Editor, ein Realtime-Transport, ein globaler JSON-State/Event-Bus.
+Anspruch: ein schlanker Kern, ein Modell, ein Datenbus, eine ausführbare Oberfläche.

@@ -18,29 +18,29 @@ test.describe("Root demo export", () => {
 
     await page.goto("/");
     await expect(page).toHaveTitle("Zustand Demo");
-    await expect(page.getByRole("button", { name: "New" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Neu" })).toHaveCount(0);
     await expect(page.locator("#statePill")).toHaveText("site_home");
-    await expect(page.getByRole("heading", { name: "Zustand" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Editor öffnen" })).toHaveAttribute("href", /state\.html\?demo=zustand$/);
+    await expect(page.getByRole("heading", { name: "Erst Klarheit. Dann digitalisieren.", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Erstgespraech anfragen" })).toBeVisible();
     await expect(page.locator(".hero .card-actions.justify-center")).toHaveCSS("justify-content", "center");
 
     const manifest = await page.request.get("/manifest.webmanifest");
     expect(manifest.ok()).toBe(true);
     expect((await manifest.json()).name).toBe("Zustand Digitalisierungsplanung");
 
-    await page.locator(".navbar").getByRole("button", { name: "Features", exact: true }).click();
+    await page.locator(".navbar").getByRole("button", { name: "Nutzen", exact: true }).click();
     await expect(page.locator("#statePill")).toHaveText("site_features");
-    await expect(page.getByRole("heading", { name: "State Machines fuer Business-Prozesse" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Was Sie danach konkret besser koennen" })).toBeVisible();
 
-    await page.locator(".navbar").getByRole("button", { name: "Pricing", exact: true }).click();
+    await page.locator(".navbar").getByRole("button", { name: "Angebot", exact: true }).click();
     await expect(page.locator("#statePill")).toHaveText("site_pricing");
-    await page.getByRole("button", { name: "Buy Team" }).click();
+    await page.getByRole("button", { name: "Blueprint anfragen" }).click();
     await expect(page.locator("#statePill")).toHaveText("site_checkout");
-    await expect(page.getByRole("heading", { name: "Checkout" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Anfrage" })).toBeVisible();
 
-    await page.locator(".navbar").getByRole("button", { name: "Contact", exact: true }).click();
+    await page.locator(".navbar").getByRole("button", { name: "Kontakt", exact: true }).click();
     await expect(page.locator("#statePill")).toHaveText("site_contact");
-    await page.getByRole("button", { name: "Send request" }).click();
+    await page.getByRole("button", { name: "Anfrage senden" }).click();
     await expect(page.locator("#statePill")).toHaveText("site_thanks");
   });
 });
