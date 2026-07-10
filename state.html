@@ -7927,10 +7927,6 @@
     const GRID_SIZE = 24;
     const NODE_H = 96;
     const NODE_TITLE_EXTRA_W = 104;
-    const EDITOR_GROUP_DISPLAY_W = GRID_SIZE * 10;
-    const EDITOR_GROUP_DISPLAY_H = GRID_SIZE * 5;
-    const EDITOR_GROUP_MAX_W = GRID_SIZE * 16;
-    const EDITOR_GROUP_MAX_H = GRID_SIZE * 8;
     const ROUTE_NODE_CLEARANCE = GRID_SIZE / 2;
     const WHEEL_ZOOM_PIXEL_DENOMINATOR = 240;
     const TOUCH_PINCH_ZOOM_RESPONSE = 1.45;
@@ -9541,48 +9537,6 @@
       };
     }
 
-    function validateEditorGroups(value, path, states, transitionIds) {
-      if (value === undefined) return [];
-      if (!Array.isArray(value)) throw new Error(`${path} must be an array.`);
-      const stateById = new Map(states.map(state => [state.id, state]));
-      const reservedIds = new Set([...stateById.keys(), ...transitionIds]);
-      const groupIds = new Set();
-      const groupedStateIds = new Set();
-      return value.slice(0, 160).map((group, index) => {
-        const itemPath = `${path}[${index}]`;
-        assertPlainObject(group, itemPath);
-        const id = assertString(group.id, `${itemPath}.id`);
-        if (groupIds.has(id)) throw new Error(`${itemPath}.id must be unique.`);
-        if (reservedIds.has(id)) throw new Error(`${itemPath}.id must not collide with a state or transition id.`);
-        groupIds.add(id);
-        const layerId = "layerId" in group ? assertString(group.layerId, `${itemPath}.layerId`, { allowEmpty: true }) : "";
-        if (layerId && !stateById.has(layerId)) throw new Error(`${itemPath}.layerId must reference an existing parent state.`);
-        if (!Array.isArray(group.stateIds)) throw new Error(`${itemPath}.stateIds must be an array.`);
-        const stateIds = group.stateIds.map((stateId, stateIndex) => {
-          const memberPath = `${itemPath}.stateIds[${stateIndex}]`;
-          const id = assertString(stateId, memberPath);
-          const state = stateById.get(id);
-          if (!state) throw new Error(`${memberPath} must reference an existing state.`);
-          if ((state.parentId || "") !== layerId) throw new Error(`${memberPath} must stay inside the group's layer.`);
-          if (groupedStateIds.has(id)) throw new Error(`${memberPath} must not appear in more than one group.`);
-          groupedStateIds.add(id);
-          return id;
-        });
-        if (!stateIds.length) throw new Error(`${itemPath}.stateIds must contain at least one state.`);
-        return {
-          id,
-          title: assertString(group.title, `${itemPath}.title`, { allowEmpty: true }) || "Group",
-          layerId,
-          stateIds,
-          collapsed: group.collapsed === false ? false : true,
-          x: assertFiniteNumber(group.x, `${itemPath}.x`),
-          y: assertFiniteNumber(group.y, `${itemPath}.y`),
-          width: assertFiniteNumber(group.width, `${itemPath}.width`),
-          height: assertFiniteNumber(group.height, `${itemPath}.height`)
-        };
-      });
-    }
-
     function validateModelDefinition(source) {
       assertPlainObject(source, "definition.model");
       if (source.version !== DEFINITION_SCHEMA_VERSION) throw new Error("definition.model.version must be 2.");
@@ -9590,6 +9544,7 @@
       const initial = assertString(source.initial, "definition.model.initial", { allowEmpty: true });
       if (!Array.isArray(source.states)) throw new Error("definition.model.states must be an array.");
       if (!Array.isArray(source.transitions)) throw new Error("definition.model.transitions must be an array.");
+      if ("editorGroups" in source) throw new Error("definition.model.editorGroups is not part of the contract; use real parent states.");
 
       const ids = new Set();
       const states = source.states.map((state, index) => {
@@ -11114,170 +11069,8 @@
       return raw.replace(/[^a-zA-Z0-9_.:-]+/g, ".").replace(/^\.+|\.+$/g, "");
     }
 
-    const EDITOR_GROUP_VIRTUAL_PREFIX = "editor-group:";
-
-    function editorGroupVirtualId(groupId) {
-      return EDITOR_GROUP_VIRTUAL_PREFIX + String(groupId || "");
-    }
-
-    function editorGroupIdFromVirtualId(id) {
-      const raw = String(id || "");
-      return raw.startsWith(EDITOR_GROUP_VIRTUAL_PREFIX) ? raw.slice(EDITOR_GROUP_VIRTUAL_PREFIX.length) : "";
-    }
-
-    function isEditorGroupVirtualId(id) {
-      return Boolean(editorGroupIdFromVirtualId(id));
-    }
-
-    function isEditorGroupNode(node) {
-      return Boolean(node?.virtualEditorGroup);
-    }
-
     function isRealStateNode(node) {
-      return Boolean(node && !node.virtualProxy && !node.virtualEditorGroup && byModelId(model, node.id));
-    }
-
-    function editorGroupLayerId(group) {
-      return group?.layerId ? String(group.layerId) : null;
-    }
-
-    function editorGroupById(groupId) {
-      const id = String(groupId || "");
-      return (model.editorGroups || []).find(group => group.id === id) || null;
-    }
-
-    function editorGroupByVirtualId(virtualId) {
-      return editorGroupById(editorGroupIdFromVirtualId(virtualId));
-    }
-
-    function editorGroupMemberStates(group, sourceModel = model) {
-      const states = Array.isArray(sourceModel?.states) ? sourceModel.states : [];
-      const stateById = sourceModel?.__stateById || new Map(states.map(state => [state.id, state]));
-      return [...new Set(Array.isArray(group?.stateIds) ? group.stateIds : [])]
-        .map(id => stateById.get(String(id || "")))
-        .filter(Boolean);
-    }
-
-    function editorGroupBoundsForStates(states) {
-      if (!states.length) {
-        const center = viewportCenterWorld();
-        return {
-          x: snapToGrid(center.x - EDITOR_GROUP_DISPLAY_W / 2),
-          y: snapToGrid(center.y - EDITOR_GROUP_DISPLAY_H / 2),
-          width: EDITOR_GROUP_DISPLAY_W,
-          height: EDITOR_GROUP_DISPLAY_H
-        };
-      }
-      const minX = Math.min(...states.map(state => state.x));
-      const minY = Math.min(...states.map(state => state.y));
-      const maxX = Math.max(...states.map(state => state.x + nodeWidth(state)));
-      const maxY = Math.max(...states.map(state => state.y + nodeHeight(state)));
-      const centerX = (minX + maxX) / 2;
-      const centerY = (minY + maxY) / 2;
-      return {
-        x: snapToGrid(centerX - EDITOR_GROUP_DISPLAY_W / 2),
-        y: snapToGrid(centerY - EDITOR_GROUP_DISPLAY_H / 2),
-        width: EDITOR_GROUP_DISPLAY_W,
-        height: EDITOR_GROUP_DISPLAY_H
-      };
-    }
-
-    function normalizeEditorGroups(groups, sourceModel) {
-      const states = Array.isArray(sourceModel?.states) ? sourceModel.states : [];
-      if (!states.length) return [];
-      const stateById = sourceModel?.__stateById || new Map(states.map(state => [state.id, state]));
-      const stateIds = new Set(states.map(state => state.id));
-      const reservedIds = new Set([
-        ...stateIds,
-        ...(Array.isArray(sourceModel?.transitions) ? sourceModel.transitions.map(transition => String(transition?.id || "")).filter(Boolean) : [])
-      ]);
-      const usedGroupIds = new Set();
-      const assignedStateIds = new Set();
-      const normalized = [];
-      for (const rawGroup of Array.isArray(groups) ? groups : []) {
-        const rawIds = Array.isArray(rawGroup?.stateIds) ? rawGroup.stateIds.map(id => String(id || "")) : [];
-        const firstState = rawIds.map(id => stateById.get(id)).find(Boolean);
-        const rawLayerId = typeof rawGroup?.layerId === "string" && stateIds.has(rawGroup.layerId)
-          ? rawGroup.layerId
-          : "";
-        const layerId = rawLayerId || (firstState ? stateParentId(firstState) || "" : "");
-        const memberIds = [...new Set(rawIds)]
-          .filter(id => stateIds.has(id) && !assignedStateIds.has(id))
-          .filter(id => (stateParentId(stateById.get(id)) || "") === layerId);
-        if (!memberIds.length) continue;
-        let id = normalizeId(rawGroup?.id || rawGroup?.title || "group");
-        if (!id) id = "group";
-        const base = id;
-        let suffix = 2;
-        while (usedGroupIds.has(id) || reservedIds.has(id)) id = `${base}_${suffix++}`;
-        usedGroupIds.add(id);
-        memberIds.forEach(memberId => assignedStateIds.add(memberId));
-        const title = String(rawGroup?.title || "Group").trim() || "Group";
-        const bounds = editorGroupBoundsForStates(memberIds.map(memberId => stateById.get(memberId)).filter(Boolean));
-        normalized.push({
-          id,
-          title,
-          layerId,
-          stateIds: memberIds,
-          collapsed: rawGroup?.collapsed === false ? false : true,
-          x: bounds.x,
-          y: bounds.y,
-          width: bounds.width,
-          height: bounds.height
-        });
-      }
-      return normalized;
-    }
-
-    function editorGroupsInLayer(layerId = currentLayerId) {
-      const id = layerId || "";
-      return (model.editorGroups || []).filter(group => (group.layerId || "") === id);
-    }
-
-    function collapsedEditorGroupsInLayer(layerId = currentLayerId) {
-      return editorGroupsInLayer(layerId).filter(group => group.collapsed !== false);
-    }
-
-    function editorGroupVirtualState(group) {
-      if (!group) return null;
-      return {
-        id: editorGroupVirtualId(group.id),
-        title: group.title || "Group",
-        parentId: editorGroupLayerId(group),
-        x: group.x,
-        y: group.y,
-        width: group.width,
-        height: group.height,
-        components: [],
-        virtualEditorGroup: {
-          groupId: group.id,
-          layerId: editorGroupLayerId(group),
-          stateIds: [...group.stateIds]
-        }
-      };
-    }
-
-    function editorGroupVirtualStateById(id) {
-      return editorGroupVirtualState(editorGroupByVirtualId(id));
-    }
-
-    function editorGroupMemberCount(state) {
-      return state?.virtualEditorGroup?.stateIds?.length || 0;
-    }
-
-    function editorGroupContainingStateId(stateId, layerId = currentLayerId, groups = editorGroupsInLayer(layerId)) {
-      const id = String(stateId || "");
-      if (!id) return null;
-      return groups.find(group => group.stateIds.includes(id)) || null;
-    }
-
-    function removeEditorGroupsById(groupIds) {
-      const ids = new Set((groupIds || []).map(id => String(id || "")).filter(Boolean));
-      if (!ids.size) return [];
-      const removed = (model.editorGroups || []).filter(group => ids.has(group.id));
-      if (!removed.length) return [];
-      model.editorGroups = (model.editorGroups || []).filter(group => !ids.has(group.id));
-      return removed;
+      return Boolean(node && !node.virtualProxy && byModelId(model, node.id));
     }
 
     function defaultTransitionEvent(transition) {
@@ -11505,9 +11298,6 @@
       const parent = layerId ? byId(layerId) : rootLayerContainer();
       const children = statesInLayer(layerId);
       const normalizedLayerId = layerId || null;
-      for (const [id, state] of [..._virtualNodes]) {
-        if (state.virtualEditorGroup) _virtualNodes.delete(id);
-      }
       const visibleChildren = children;
       syncBoundaryProxies(parent, visibleChildren);
       const proxies = [..._virtualNodes.values()].filter(state => state.virtualProxy?.layerId === normalizedLayerId);
@@ -11559,28 +11349,6 @@
 
     function clearVisibleFrameSnapshot(snapshot) {
       if (_visibleFrameSnapshot === snapshot) _visibleFrameSnapshot = null;
-    }
-
-    function projectTransitionsThroughEditorGroups(transitions, layerId = currentLayerId) {
-      const groups = collapsedEditorGroupsInLayer(layerId);
-      if (!groups.length) return transitions;
-      return transitions.map(transition => {
-        const fromGroup = editorGroupContainingStateId(transition.from, layerId, groups);
-        const toGroup = editorGroupContainingStateId(transition.to, layerId, groups);
-        if (!fromGroup && !toGroup) return transition;
-        if (fromGroup && toGroup && fromGroup.id === toGroup.id) return null;
-        const sourceId = transition.projection?.transitionId || transition.editorGroupProjection?.transitionId || transition.id;
-        return {
-          ...transition,
-          from: fromGroup ? editorGroupVirtualId(fromGroup.id) : transition.from,
-          to: toGroup ? editorGroupVirtualId(toGroup.id) : transition.to,
-          editorGroupProjection: {
-            transitionId: sourceId,
-            fromGroupId: fromGroup?.id || "",
-            toGroupId: toGroup?.id || ""
-          }
-        };
-      }).filter(Boolean);
     }
 
     function projectedParentTransitions(layerId = currentLayerId) {
@@ -12342,37 +12110,6 @@
       draw();
     }
 
-    function expandEditorGroup(groupId, opts = {}) {
-      const group = editorGroupById(groupId);
-      if (!group || (group.layerId || "") !== (currentLayerId || "")) return false;
-      group.collapsed = false;
-      selected = selectionFromParts(group.stateIds || [], []);
-      connecting = null;
-      connectingTargetId = null;
-      dragging = null;
-      pendingEdgeMouse = null;
-      stateDragOverStateId = "";
-      boxSelecting = null;
-      updateSelectRect();
-      if (opts.persist !== false) saveModel("group:expand:" + group.id);
-      if (opts.fit === true) fitView();
-      if (opts.draw !== false) draw();
-      return true;
-    }
-
-    function collapseEditorGroup(groupId, opts = {}) {
-      const group = editorGroupById(groupId);
-      if (!group || (group.layerId || "") !== (currentLayerId || "")) return false;
-      group.collapsed = true;
-      selected = selectionFromParts([editorGroupVirtualId(groupId)], []);
-      showEmptyInspector();
-      updateSelectRect();
-      if (opts.persist !== false) saveModel("group:collapse:" + groupId);
-      if (opts.fit === true) fitView();
-      if (opts.draw !== false) draw();
-      return true;
-    }
-
     function stopRuntimeLayerFollow(duration = 1600) {
       runtimeLayerFollowEnabled = false;
       suppressRuntimeLayerFollowUntil = Date.now() + duration;
@@ -12383,7 +12120,7 @@
       if (!opts.force && !opts.explicit && Date.now() < suppressExplicitLayerEnterUntil) return;
       if (!opts.force && !opts.explicit && Date.now() < suppressLayerEnterUntil) return;
       const state = byId(stateId);
-      if (!state || state.virtualProxy || state.virtualEditorGroup) return;
+      if (!state || state.virtualProxy) return;
       if (!opts.force && stateParentId(state) !== (currentLayerId || null)) return;
       if (!opts.force && (dragging || connecting || panning || boxSelecting)) return;
       suppressLayerExitUntil = Date.now() + 800;
@@ -12454,7 +12191,7 @@
     }
 
     function projectedTransitionSource(transition) {
-      const projectionId = transition?.projection?.transitionId || transition?.editorGroupProjection?.transitionId || "";
+      const projectionId = transition?.projection?.transitionId || "";
       return projectionId ? concreteTransitionById(projectionId) || transition : transition;
     }
 
@@ -12663,14 +12400,6 @@
       setSingleSelection("node", state.id);
       lastNodeClick = null;
       lastEmptyCanvasTap = null;
-      if (state.virtualEditorGroup) {
-        const now = Date.now();
-        const x = tap?.clientX ?? evt.clientX;
-        const y = tap?.clientY ?? evt.clientY;
-        lastTouchNodeTap = { id: state.id, time: now, x, y };
-        showEmptyInspector();
-        return true;
-      }
       const now = Date.now();
       const previousClick = lastTouchNodeTap;
       if (state.id === lastCreatedStateId && now - lastCreatedStateTime < 500) {
@@ -13149,16 +12878,8 @@
       }));
     }
 
-    function selectedEditorGroupIdList() {
-      return [];
-    }
-
     function selectedRealStateIdList() {
       return selectedNodeIdList().filter(id => isRealStateNode(byId(id)));
-    }
-
-    function expandedEditorGroupForSelectedStates() {
-      return null;
     }
 
     function selectedCompositeStateForDegroup() {
@@ -13476,10 +13197,6 @@
 
     function nodeWidth(s) {
       if (s?.virtualProxy) return GRID_SIZE * 3;
-      if (s?.virtualEditorGroup) {
-        const titleWidth = Math.ceil(measuredTextWidth(s.title || "Group")) + NODE_TITLE_EXTRA_W;
-        return snapClampToGrid(Math.max(Number(s.width) || 0, titleWidth), GRID_SIZE * 8, EDITOR_GROUP_MAX_W);
-      }
       const title = String(s?.title || s?.id || "State");
       return snapClampToGrid(Math.ceil(measuredTextWidth(title)) + NODE_TITLE_EXTRA_W, NODE_MIN_W, NODE_MAX_W);
     }
@@ -13490,7 +13207,6 @@
 
     function nodeHeight(s) {
       if (s?.virtualProxy) return GRID_SIZE * 2;
-      if (s?.virtualEditorGroup) return snapClampToGrid(Number(s.height) || EDITOR_GROUP_DISPLAY_H, GRID_SIZE * 5, EDITOR_GROUP_MAX_H);
       try {
         const portCount = Math.max(
           orderedPortTransitions(s.id, "in").length,
@@ -13513,13 +13229,13 @@
     }
 
     function stateDragDropTargetAtWorldPoint(p, draggedState) {
-      if (!draggedState || draggedState.virtualProxy || draggedState.virtualEditorGroup) return null;
+      if (!draggedState || draggedState.virtualProxy) return null;
       const draggedIds = descendantStateIds([draggedState.id]);
       const layerId = currentLayerId || null;
       const states = visibleStates();
       for (let i = states.length - 1; i >= 0; i--) {
         const candidate = states[i];
-        if (!candidate || candidate.virtualProxy || candidate.virtualEditorGroup) continue;
+        if (!candidate || candidate.virtualProxy) continue;
         if (draggedIds.has(candidate.id)) continue;
         if (stateParentId(candidate) !== layerId) continue;
         if (editorStateDescendantOf(candidate.id, draggedState.id)) continue;
@@ -13573,7 +13289,6 @@
           }
           continue;
         }
-        if (s.virtualEditorGroup) continue;
         const input = nodeCenter(s, "in");
         const dist = Math.hypot(p.x - input.x, p.y - input.y);
         const nearInput =
@@ -13665,19 +13380,6 @@
         el.style.transform = "";
       }
       return true;
-    }
-
-    function updateEditorGroupBoundsFromMembers(group) {
-      if (!group) return null;
-      const states = editorGroupMemberStates(group);
-      const bounds = editorGroupBoundsForStates(states);
-      group.x = bounds.x;
-      group.y = bounds.y;
-      group.width = bounds.width;
-      group.height = bounds.height;
-      const virtualState = editorGroupVirtualState(group);
-      if (virtualState) _virtualNodes.set(virtualState.id, virtualState);
-      return virtualState;
     }
 
     function updateLiveDraggedLayerGeometry(state) {
@@ -14129,16 +13831,8 @@
         startAppAtState(singleNode, { preserveFocus: true, suppressLayerFollow: true });
       }
       const p = screenToWorld(evt);
-      const group = s.virtualEditorGroup ? editorGroupByVirtualId(s.id) : null;
-      const groupMembers = group ? editorGroupMemberStates(group).map(state => ({
-        id: state.id,
-        originalX: state.x,
-        originalY: state.y
-      })) : [];
       dragging = {
         id: s.id,
-        editorGroupId: group?.id || "",
-        groupMembers,
         shiftKey: Boolean(evt.shiftKey),
         originalX: s.x,
         originalY: s.y,
@@ -16146,7 +15840,6 @@
 
     function addSvgStatePorts(state, sync = null) {
       if (!state) return;
-      if (state.virtualEditorGroup) return;
       if (state.virtualProxy) {
         const side = state.virtualProxy.side === "input" ? "out" : "in";
         addSvgStatePort(state, side, sync);
@@ -16488,7 +16181,6 @@
 
         const classes = ["node"];
         if (s.virtualProxy) classes.push("boundary-proxy");
-        if (s.virtualEditorGroup) classes.push("editor-group");
         if (s.virtualProxy?.side) classes.push(`boundary-${s.virtualProxy.side}`);
         if (s.id === model.initial) classes.push("initial");
         if (connecting?.from === s.id) classes.push("connect-source");
@@ -16504,7 +16196,7 @@
         const outputAddOffset = outputTransitions.length ? -GRID_SIZE : 0;
         if (renderInputSlots) classes.push("has-input-slots");
         if (renderOutputSlots) classes.push("has-output-slots");
-        const innerCount = s.virtualEditorGroup ? editorGroupMemberCount(s) : s.virtualProxy ? 0 : childStateCount(s.id);
+        const innerCount = s.virtualProxy ? 0 : childStateCount(s.id);
         if (innerCount) classes.push("has-children");
         if (!s.virtualProxy && draggingTemplateId && templateById(draggingTemplateId) && templateDragOverStateId === s.id) {
           classes.push("inner-drop-target");
@@ -16528,7 +16220,7 @@
         el.draggable = false;
         if (s.virtualProxy?.side) el.dataset.boundarySide = s.virtualProxy.side;
         el.tabIndex = s.virtualProxy ? -1 : 0;
-        if (s.virtualProxy || s.virtualEditorGroup) {
+        if (s.virtualProxy) {
           el.ondragover = null;
           el.ondragleave = null;
           el.ondrop = null;
@@ -16589,9 +16281,7 @@
           const bodyEl = el.querySelector(".body");
           titleEl.textContent = s.title || s.id;
           titleEl.title = s.title || s.id;
-          const previewText = s.virtualEditorGroup
-            ? (innerCount === 1 ? "1 state" : `${innerCount} states`)
-            : statePreviewText(s);
+          const previewText = statePreviewText(s);
           bodyEl.textContent = previewText;
           bodyEl.title = previewText;
           el.querySelector(".layer-badge").textContent = innerCount === 1 ? "1 state" : `${innerCount} states`;
@@ -16656,7 +16346,6 @@
             evt.stopPropagation();
             evt.stopImmediatePropagation();
             if (s.virtualProxy) return;
-            if (s.virtualEditorGroup) return;
             if (s.id === lastCreatedStateId && Date.now() - lastCreatedStateTime < 500) return;
             enterStateLayer(s.id, { source: "node-dblclick", explicit: true });
           });
@@ -25059,29 +24748,6 @@
         const p = screenToWorld(evt);
         const nextX = snapClampToGrid(p.x - dragging.dx, WORLD_MIN_X, WORLD_MAX_X - nodeWidth(s));
         const nextY = snapClampToGrid(p.y - dragging.dy, WORLD_MIN_Y, WORLD_MAX_Y - nodeHeight(s));
-        if (dragging.editorGroupId) {
-          const group = editorGroupById(dragging.editorGroupId);
-          if (!group) return;
-          const deltaX = nextX - dragging.originalX;
-          const deltaY = nextY - dragging.originalY;
-          let changed = false;
-          for (const member of dragging.groupMembers || []) {
-            const state = byModelId(model, member.id);
-            if (!state) continue;
-            const memberX = snapClampToGrid(member.originalX + deltaX, WORLD_MIN_X, WORLD_MAX_X - nodeWidth(state));
-            const memberY = snapClampToGrid(member.originalY + deltaY, WORLD_MIN_Y, WORLD_MAX_Y - nodeHeight(state));
-            if (state.x !== memberX || state.y !== memberY) changed = true;
-            state.x = memberX;
-            state.y = memberY;
-          }
-          const groupState = updateEditorGroupBoundsFromMembers(group) || s;
-          if (changed || (!wasMoved && dragging.moved)) {
-            updateNodeElementPosition(groupState);
-            updateLiveDraggedLayerGeometry(groupState);
-            updateDraggedStateEdges(groupState.id);
-          }
-          return;
-        }
         const positionChanged = nextX !== s.x || nextY !== s.y;
         s.x = nextX;
         s.y = nextY;
@@ -25134,12 +24800,11 @@
         const wasClick = !dragging.moved && Math.hypot(evt.clientX - dragging.startClientX, evt.clientY - dragging.startClientY) <= 4;
         const didMove = dragging.moved;
         const dragId = dragging.id;
-        const draggedEditorGroupId = dragging.editorGroupId || "";
         const shiftClick = dragging.shiftKey;
         const originalX = dragging.originalX;
         const originalY = dragging.originalY;
         const touchClick = dragging.touch;
-        const dropTarget = s && didMove && !draggedEditorGroupId ? stateDragDropTargetAtClientPoint(evt.clientX, evt.clientY, s) || byId(stateDragOverStateId) : null;
+        const dropTarget = s && didMove ? stateDragDropTargetAtClientPoint(evt.clientX, evt.clientY, s) || byId(stateDragOverStateId) : null;
         dragging = null;
         mapEl.classList.remove("dragging-state");
         stateExplorerEl.classList.remove("drag-over");
@@ -25147,22 +24812,6 @@
         syncStateDragDropTarget("");
         lastHistoryKey = null;
         if (wasClick && s) {
-          if (s.virtualEditorGroup) {
-            if (shiftClick) {
-              lastNodeClick = null;
-              lastTouchNodeTap = null;
-              focusCanvasForSelection();
-              toggleSelection("node", s.id);
-              draw();
-              return;
-            }
-            focusCanvasForSelection();
-            setSingleSelection("node", s.id);
-            lastTouchNodeTap = null;
-            showEmptyInspector();
-            draw();
-            return;
-          }
           if (touchClick) {
             finishTouchNodeTap(evt, s);
             return;
@@ -25197,11 +24846,6 @@
         if (didMove) {
           blockLayerEntryAfterPointerAction(1000);
           suppressRuntimeLayerFollowUntil = Date.now() + 1200;
-          if (draggedEditorGroupId) {
-            saveModel("group:drag:" + draggedEditorGroupId);
-            draw();
-            return;
-          }
           if (s && pointInElement(evt.clientX, evt.clientY, stateExplorerEl)) {
             s.x = originalX;
             s.y = originalY;
@@ -25988,7 +25632,6 @@
       }
       let canvasNeedsDraw = stateChanged;
       if (allowRuntimeLayerFollow && runtimeState) {
-        const runtimeGroup = editorGroupContainingStateId(runtimeState.id, runtimeLayerId);
         const selectionAlreadyRuntime =
           selected?.nodes?.length === 1 &&
           selected.nodes[0] === runtimeState.id &&
@@ -25996,11 +25639,6 @@
         if (currentLayerId !== runtimeLayerId) {
           navigateToLayer(runtimeLayerId, "layer:runtime", { fit: true, persist: false, draw: false });
           canvasNeedsDraw = true;
-        }
-        if (runtimeGroup && runtimeGroup.collapsed !== false) {
-          runtimeGroup.collapsed = false;
-          canvasNeedsDraw = true;
-          if (currentLayerId === runtimeLayerId) fitView();
         }
         selected = selectionFromParts([runtimeState.id], []);
         updateSelectRect();

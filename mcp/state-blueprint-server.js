@@ -192,7 +192,7 @@ const tools = [
       actions: {
         type: "array",
         items: actionSchema,
-        description: "Actions are applied in dependency order so declared states exist before transitions. Supported types include create_flow, set_model_name, upsert_state, delete_state, move_state, set_initial, upsert_transition, delete_transition, upsert_state_variable, delete_state_variable, configure_fetch, configure_repeat, upsert_data_wire, remove_data_wire, add_component, update_component, remove_component, reorder_components, set_boundary, upsert_editor_group, delete_editor_group. upsert_transition accepts triggerType values button, change, event, realtime, timer, and auto."
+        description: "Actions are applied in dependency order so declared states exist before transitions. Supported types include create_flow, set_model_name, upsert_state, delete_state, move_state, set_initial, upsert_transition, delete_transition, upsert_state_variable, delete_state_variable, configure_fetch, configure_repeat, upsert_data_wire, remove_data_wire, add_component, update_component, remove_component, reorder_components, set_boundary. Use state_blueprint_apply_commands for editor session commands such as selection, viewport, undo/redo, and grouping through real parent states. upsert_transition accepts triggerType values button, change, event, realtime, timer, and auto."
       },
       dryRun: { type: "boolean", description: "Validate and return the result without writing to disk." },
       allowInvalid: { type: "boolean", description: "Return invalid results for diagnostics instead of rejecting." }
@@ -274,8 +274,6 @@ const actionCatalog = [
   ["replace_model", "Replace the model wholesale, then normalize/validate."],
   ["upsert_state", "Create or update a state, including parent layer, render mode, components, data defaults, fetch, repeat, wires, subscriptions, and boundary."],
   ["delete_state", "Delete a state and, by default, descendants plus connected transitions."],
-  ["upsert_editor_group", "Group states as editor-only view metadata. It changes canvas organization, not runtime FSM flow."],
-  ["delete_editor_group", "Remove an editor group without deleting member states or transitions."],
   ["move_state", "Move a state on the canvas using snapped world coordinates."],
   ["set_initial", "Set the initial state."],
   ["upsert_transition", "Create or update an explicit transition in one layer with trigger, condition, timer, and set patch. Realtime transitions store only triggerType=realtime and a concrete realtime.* triggerEvent ref."],

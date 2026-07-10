@@ -575,35 +575,31 @@ Contract rule: child states do not jump back to the parent by magic. A child can
 only leave through an explicit boundary output and whatever real parent-layer
 transition is connected after that.
 
-### `upsert_editor_group` / `group_states`
+### Group / Degroup
 
-Group states in the editor canvas without changing runtime flow.
+Grouping is not a second editor-only model. Use the command API so the same
+canonical JSON structure is used as in the visual editor:
 
 ```json
 {
-  "type": "upsert_editor_group",
-  "id": "checkout_group",
-  "title": "Checkout",
-  "stateIds": ["cart", "shipping", "payment"],
-  "layerId": ""
+  "commands": [
+    {
+      "command": "graph.collapse_to_parent",
+      "id": "checkout",
+      "title": "Checkout",
+      "stateIds": ["cart", "shipping", "payment"]
+    }
+  ]
 }
 ```
 
 Rules:
 
-- Groups live in `model.editorGroups`.
-- They do not create states.
-- They do not create transitions.
-- They do not render in the generated app.
-- Grouped and ungrouped models must run identically.
-
-### `delete_editor_group` / `degroup_states`
-
-Remove editor grouping only.
-
-```json
-{ "type": "delete_editor_group", "id": "checkout_group" }
-```
+- A group is a real parent state with child states.
+- Entry and exit are represented by the parent boundary contract.
+- `model.editorGroups` is invalid and stripped during normalization.
+- Degrouping uses `graph.degroup_parent` and returns the children to the outer
+  layer without changing the FSM meaning of the flow.
 
 ## Complete Workflows
 
@@ -874,8 +870,8 @@ Inspect `plan.assumptions` before applying ambiguous prompts.
 | Reorder render rows/buttons/widgets | `reorder_components` |
 | Place transition button in render | `add_component` with `type: transitionButton` |
 | Set layer input/output proxies | `set_boundary` |
-| Group states | `upsert_editor_group` |
-| Degroup states | `delete_editor_group` |
+| Group states | `state_blueprint_apply_commands` with `graph.collapse_to_parent` |
+| Degroup states | `state_blueprint_apply_commands` with `graph.degroup_parent` |
 | Validate contract | `state_blueprint_validate` |
 
 Session-only editor affordances such as hover, selection, box-select, pan, zoom,

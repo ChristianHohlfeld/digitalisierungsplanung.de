@@ -134,9 +134,7 @@ test.describe("State Blueprint MCP", () => {
       "update_component",
       "remove_component",
       "reorder_components",
-      "set_boundary",
-      "upsert_editor_group",
-      "delete_editor_group"
+      "set_boundary"
     ];
 
     for (const tool of tools) expect(apiDoc).toContain(tool);
@@ -145,8 +143,12 @@ test.describe("State Blueprint MCP", () => {
     expect(apiDoc).toContain("triggerType");
     expect(apiDoc).toContain("state_blueprint_apply_commands");
     expect(apiDoc).toContain("graph.insert_state_on_transition");
+    expect(apiDoc).toContain("graph.collapse_to_parent");
+    expect(apiDoc).toContain("graph.degroup_parent");
     expect(apiDoc).toContain("history.undo");
     expect(apiDoc).toContain("model.realtime");
+    expect(apiDoc).not.toContain("upsert_editor_group");
+    expect(apiDoc).not.toContain("delete_editor_group");
     expect(mcpDoc).toContain("state-blueprint-api.md");
     expect(mcpDoc).toContain('triggerType: "realtime"');
     expect(readme).toContain("docs/state-blueprint-api.md");
@@ -157,6 +159,8 @@ test.describe("State Blueprint MCP", () => {
       "state.create",
       "transition.create",
       "graph.insert_state_on_transition",
+      "graph.collapse_to_parent",
+      "graph.degroup_parent",
       "history.undo",
       "history.redo"
     ]));
@@ -193,6 +197,46 @@ test.describe("State Blueprint MCP", () => {
       expect.objectContaining({ id: "start_done", from: "start", to: "review" }),
       expect.objectContaining({ from: "review", to: "done" })
     ]));
+  });
+
+  test("groups through real parent states instead of editorGroups metadata @smoke", () => {
+    const grouped = applyCommands({}, [
+      { command: "scene.new", title: "Group Contract" },
+      { command: "state.create", id: "start", title: "Start", x: 96, y: 120 },
+      { command: "state.create", id: "review", title: "Review", x: 360, y: 120 },
+      { command: "state.create", id: "done", title: "Done", x: 624, y: 120 },
+      { command: "transition.create", id: "start_review", from: "start", to: "review", label: "Review" },
+      { command: "transition.create", id: "review_done", from: "review", to: "done", label: "Done" },
+      { command: "graph.collapse_to_parent", id: "checkout", title: "Checkout", stateIds: ["start", "review"] }
+    ]);
+
+    expect(grouped.validation.ok).toBe(true);
+    expect(grouped.workspace.model).not.toHaveProperty("editorGroups");
+    expect(grouped.workspace.model.states.map(state => state.id)).toEqual(["start", "review", "done", "checkout"]);
+    expect(grouped.workspace.model.states.find(state => state.id === "checkout")).toEqual(expect.objectContaining({
+      id: "checkout",
+      title: "Checkout",
+      boundary: expect.objectContaining({ entryId: "start", exitId: "review" })
+    }));
+    expect(grouped.workspace.model.states.find(state => state.id === "start").parentId).toBe("checkout");
+    expect(grouped.workspace.model.states.find(state => state.id === "review").parentId).toBe("checkout");
+    expect(grouped.workspace.model.transitions.find(transition => transition.id === "review_done")).toEqual(expect.objectContaining({
+      from: "checkout",
+      to: "done",
+      groupExitId: "review"
+    }));
+
+    const degrouped = applyCommands(grouped.workspace, [
+      { command: "graph.degroup_parent", stateId: "checkout" }
+    ]);
+    expect(degrouped.validation.ok).toBe(true);
+    expect(degrouped.workspace.model).not.toHaveProperty("editorGroups");
+    expect(degrouped.workspace.model.states.map(state => state.id)).toEqual(["start", "review", "done"]);
+    expect(degrouped.workspace.model.states.map(state => state.parentId || null)).toEqual([null, null, null]);
+    expect(degrouped.workspace.model.transitions).toEqual([
+      expect.objectContaining({ id: "start_review", from: "start", to: "review" }),
+      expect.objectContaining({ id: "review_done", from: "review", to: "done" })
+    ]);
   });
 
   test("exposes standard MCP tools and applies dependency-ordered app actions without hidden state @smoke", async () => {
@@ -233,8 +277,7 @@ test.describe("State Blueprint MCP", () => {
             { type: "set_initial", stateId: "start" },
             { type: "upsert_state", id: "parent", title: "Parent", x: 96, y: 360 },
             { type: "upsert_state", id: "child", title: "Child", parentId: "parent", x: 120, y: 120 },
-            { type: "set_boundary", parentId: "parent", entryId: "child", exitId: "child" },
-            { type: "upsert_editor_group", id: "checkout_group", title: "Checkout group", stateIds: ["start", "done"] }
+            { type: "set_boundary", parentId: "parent", entryId: "child", exitId: "child" }
           ]
         }
       });
@@ -269,15 +312,7 @@ test.describe("State Blueprint MCP", () => {
         from: "child",
         boundaryFlow: { parentId: "parent", side: "output", stateId: "child" }
       }));
-      expect(model.editorGroups).toEqual([
-        expect.objectContaining({
-          id: "checkout_group",
-          title: "Checkout group",
-          layerId: "",
-          stateIds: ["start", "done"],
-          collapsed: true
-        })
-      ]);
+      expect(model).not.toHaveProperty("editorGroups");
       expect(JSON.stringify(model)).not.toMatch(/localState|stateStore|html/);
 
       const validation = await client.request("tools/call", { name: "state_blueprint_validate", arguments: {} });
