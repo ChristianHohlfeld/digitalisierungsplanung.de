@@ -2,6 +2,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { test, expect } = require("@playwright/test");
+const { normalizeModel, validateModel, applyActions } = require("../mcp/state-blueprint-core");
 
 function createMcpClient(modelPath) {
   const child = spawn(process.execPath, ["mcp/state-blueprint-server.js"], {
@@ -65,6 +66,36 @@ function createMcpClient(modelPath) {
 }
 
 test.describe("State Blueprint MCP", () => {
+  test("keeps state and transition ids in one global API namespace @smoke", () => {
+    const model = {
+      version: 2,
+      name: "ID Contract",
+      initial: "start",
+      states: [
+        { id: "start", title: "Start", components: [], data: {}, x: 96, y: 120 }
+      ],
+      transitions: [
+        { id: "start", from: "start", to: "start", label: "Loop", set: {} }
+      ]
+    };
+
+    const validation = validateModel(model);
+    expect(validation.ok).toBe(false);
+    expect(validation.issues.some(issue => issue.code === "state_transition_id_collision")).toBe(true);
+
+    const normalized = normalizeModel(model);
+    expect(normalized.transitions[0].id).not.toBe("start");
+
+    const applied = applyActions(model, [{
+      type: "upsert_transition",
+      id: "start",
+      from: "start",
+      to: "start",
+      label: "Loop"
+    }], { allowInvalid: true });
+    expect(applied.model.transitions[0].id).not.toBe("start");
+  });
+
   test("documents the public MCP tools and model actions @smoke", () => {
     const apiDoc = fs.readFileSync(path.join(process.cwd(), "docs", "state-blueprint-api.md"), "utf8");
     const mcpDoc = fs.readFileSync(path.join(process.cwd(), "docs", "state-blueprint-mcp.md"), "utf8");

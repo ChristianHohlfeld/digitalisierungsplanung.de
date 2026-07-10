@@ -2046,6 +2046,7 @@ test.describe("State Blueprint tool", () => {
   });
 
   test("click-traverses every website demo state and transition by contract id @smoke", async ({ page }) => {
+    test.setTimeout(90000);
     await openTool(page);
 
     await page.locator("#topbarMore summary").click();
@@ -2106,138 +2107,108 @@ test.describe("State Blueprint tool", () => {
 
     const testedTransitions = new Set();
     const visitedStates = new Set([model.initial]);
+    const failures = [];
+    const app = appFrame(page);
     const frameHandle = await page.locator("#appFrame").elementHandle();
     const frame = frameHandle ? await frameHandle.contentFrame() : null;
     expect(frame).toBeTruthy();
 
-    const result = await frame.evaluate(({ transitions, initialStateId }) => {
-      const failures = [];
-      const testedTransitions = new Set();
-      const visitedStates = new Set([initialStateId]);
-      const isVisible = element => {
-        if (!element) return false;
-        const style = getComputedStyle(element);
-        return style.visibility !== "hidden" &&
-          style.display !== "none" &&
-          !element.hidden &&
-          Boolean(element.offsetWidth || element.offsetHeight || element.getClientRects().length);
-      };
-      const fill = (selector, value, index = 0) => {
-        const input = [...document.querySelectorAll(selector)][index];
-        if (!input) {
-          failures.push(`missing input ${selector} for ${current}`);
-          return;
-        }
-        input.focus();
-        input.value = value;
-        input.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: value }));
-        input.dispatchEvent(new Event("change", { bubbles: true }));
-      };
-      const prepare = transition => {
-        const shortId = String(transition.from || "").replace(/^site_/, "");
-        if (transition.id === "site_login_submit") {
-          fill('input[type="email"]', "mira@example.test");
-          fill('input[type="password"]', "demo-password");
-        } else if (transition.id === "site_checkout_complete") {
-          fill("input", `${shortId}@example.test`);
-        } else if (transition.id === "site_contact_send") {
-          fill("input", "Mira Keller", 0);
-          fill("input", "mira@example.test", 1);
-          fill("textarea", "Bitte den Prozess pruefen.");
-        }
-      };
-      const visibleTransitionButton = transitionId =>
-        [...document.querySelectorAll("[data-transition-id]")]
-          .find(element => element.dataset.transitionId === transitionId && isVisible(element));
-      const transitionsBySource = transitions.reduce((groups, transition) => {
-        if (!groups.has(transition.renderSourceId)) groups.set(transition.renderSourceId, []);
-        groups.get(transition.renderSourceId).push(transition);
-        return groups;
-      }, new Map());
-
-      for (const [sourceId, sourceTransitions] of transitionsBySource) {
-        current = sourceId;
+    const clickTargetFor = transitionId =>
+      app.locator(`[data-transition-id="${cssAttributeValue(transitionId)}"]`).filter({ visible: true }).first();
+    const resetRuntimeTo = async sourceId => {
+      await frame.evaluate(id => {
+        setRuntimeCurrent(id, "runtime", true);
         render();
-        visitedStates.add(sourceId);
-        const pillBefore = document.querySelector("#statePill")?.textContent || "";
-        if (pillBefore !== sourceId) {
-          failures.push(`${sourceId}: expected rendered source, saw ${pillBefore}`);
-          continue;
-        }
-
-        for (const transition of sourceTransitions) {
-          const trigger = visibleTransitionButton(transition.id);
-          if (!trigger) {
-            failures.push(`${transition.id}: no visible trigger in ${transition.renderSourceId}`);
-            continue;
-          }
-          if (trigger.disabled) {
-            failures.push(`${transition.id}: trigger is disabled`);
-            continue;
-          }
-        }
-        if (failures.length) break;
-
-        for (const transition of sourceTransitions) {
-          current = sourceId;
-          syncRuntimeCurrent("test", true);
-          prepare(transition);
-          if (failures.length) break;
-          const trigger = visibleTransitionButton(transition.id);
-          const realRender = render;
-          try {
-            render = () => {};
-            trigger.click();
-          } finally {
-            render = realRender;
-          }
-          const state = context?.state || {};
-          const actual = {
-            current: state.current || "",
-            previous: state.previous || "",
-            lastTransition: state.lastTransition || ""
-          };
-          const expected = {
-            current: transition.expectedCurrent,
-            previous: transition.renderSourceId,
-            lastTransition: transition.id
-          };
-          if (actual.current !== expected.current ||
-            actual.previous !== expected.previous ||
-            actual.lastTransition !== expected.lastTransition) {
-            failures.push(`${transition.id}: ${JSON.stringify(actual)} !== ${JSON.stringify(expected)}`);
-            continue;
-          }
-          testedTransitions.add(transition.id);
-          visitedStates.add(transition.to);
-        }
-        if (failures.length) break;
+      }, sourceId);
+      visitedStates.add(sourceId);
+      await expect(app.locator("#statePill")).toHaveText(sourceId);
+    };
+    const typeInto = async (selector, value, index = 0) => {
+      const input = app.locator(selector).nth(index);
+      await expect(input, `missing input ${selector} for ${await app.locator("#statePill").textContent()}`).toBeVisible();
+      await input.click();
+      await page.keyboard.press(process.platform === "darwin" ? "Meta+A" : "Control+A");
+      await page.keyboard.press("Backspace");
+      if (value) await input.pressSequentially(value);
+    };
+    const prepare = async transition => {
+      const shortId = String(transition.from || "").replace(/^site_/, "");
+      if (transition.id === "site_login_submit") {
+        await typeInto('input[type="email"]', "mira@example.test");
+        await typeInto('input[type="password"]', "demo-password");
+      } else if (transition.id === "site_checkout_complete") {
+        await typeInto("input", `${shortId}@example.test`);
+      } else if (transition.id === "site_contact_send") {
+        await typeInto("input", "Mira Keller", 0);
+        await typeInto("input", "mira@example.test", 1);
+        await typeInto("textarea", "Bitte den Prozess pruefen.");
       }
-
-      return {
-        failures,
-        screenVisible: isVisible(document.querySelector("#screen")),
-        testedTransitions: [...testedTransitions],
-        visitedStates: [...visitedStates]
-      };
-    }, {
-      initialStateId: model.initial,
-      transitions: transitions.map(transition => ({
+    };
+    const transitionsBySource = transitions
+      .map(transition => ({
         id: transition.id,
         from: transition.from,
         to: transition.to,
         renderSourceId: renderSourceFor(transition),
         expectedCurrent: runtimeTargetFor(transition)
       }))
-    });
+      .reduce((groups, transition) => {
+        if (!groups.has(transition.renderSourceId)) groups.set(transition.renderSourceId, []);
+        groups.get(transition.renderSourceId).push(transition);
+        return groups;
+      }, new Map());
 
-    expect(result.failures).toEqual([]);
-    for (const id of result.testedTransitions) testedTransitions.add(id);
-    for (const id of result.visitedStates) visitedStates.add(id);
+    for (const [sourceId, sourceTransitions] of transitionsBySource) {
+      await resetRuntimeTo(sourceId);
+
+      for (const transition of sourceTransitions) {
+        const trigger = clickTargetFor(transition.id);
+        if (!await trigger.count()) {
+          failures.push(`${transition.id}: no visible trigger in ${transition.renderSourceId}`);
+          continue;
+        }
+        if (!await trigger.isEnabled()) {
+          failures.push(`${transition.id}: trigger is disabled`);
+          continue;
+        }
+      }
+      if (failures.length) break;
+
+      for (const transition of sourceTransitions) {
+        await resetRuntimeTo(sourceId);
+        await prepare(transition);
+        const trigger = clickTargetFor(transition.id);
+        await trigger.click();
+        const actual = await frame.evaluate(() => {
+          const state = context?.state || {};
+          return {
+            current: state.current || "",
+            previous: state.previous || "",
+            lastTransition: state.lastTransition || ""
+          };
+        });
+        const expected = {
+          current: transition.expectedCurrent,
+          previous: transition.renderSourceId,
+          lastTransition: transition.id
+        };
+        if (actual.current !== expected.current ||
+          actual.previous !== expected.previous ||
+          actual.lastTransition !== expected.lastTransition) {
+          failures.push(`${transition.id}: ${JSON.stringify(actual)} !== ${JSON.stringify(expected)}`);
+          continue;
+        }
+        testedTransitions.add(transition.id);
+        visitedStates.add(transition.to);
+      }
+      if (failures.length) break;
+    }
+
+    expect(failures).toEqual([]);
 
     expect([...visitedStates].sort()).toEqual([...stateIds].sort());
     expect([...testedTransitions].sort()).toEqual([...transitionIds].sort());
-    expect(result.screenVisible).toBe(true);
+    await expect(app.locator("#screen")).toBeVisible();
   });
 
   test("edits and reorders navbar widget data through the render editor @smoke", async ({ page }) => {

@@ -677,7 +677,7 @@ function normalizeModel(input) {
 
   const isKnownEndpoint = id => ids.has(id) || isBoundaryProxyId(id);
   const pairs = new Set();
-  const usedTransitionIds = new Set();
+  const usedTransitionIds = new Set(ids);
   m.transitions = m.transitions
     .filter(transition => isPlainObject(transition))
     .filter(transition => {
@@ -732,11 +732,26 @@ function modelSummary(model) {
 }
 
 function validateModel(model) {
-  const rawHiddenComponentIssues = [];
+  const rawContractIssues = [];
+  const rawStateIds = new Set();
+  for (const state of Array.isArray(model?.states) ? model.states : []) {
+    const id = String(state?.id || "").trim();
+    if (id) rawStateIds.add(id);
+  }
+  for (const transition of Array.isArray(model?.transitions) ? model.transitions : []) {
+    const id = String(transition?.id || "").trim();
+    if (id && rawStateIds.has(id)) {
+      rawContractIssues.push({
+        code: "state_transition_id_collision",
+        transitionId: id,
+        message: "State and transition IDs must share one global namespace."
+      });
+    }
+  }
   for (const state of Array.isArray(model?.states) ? model.states : []) {
     for (const component of Array.isArray(state?.components) ? state.components : []) {
       for (const forbidden of hiddenComponentStateKeys(component)) {
-        rawHiddenComponentIssues.push({
+        rawContractIssues.push({
           code: "hidden_component_state",
           stateId: String(state?.id || ""),
           componentId: String(component?.id || ""),
@@ -746,7 +761,7 @@ function validateModel(model) {
     }
   }
   const normalized = normalizeModel(model);
-  const issues = [...rawHiddenComponentIssues];
+  const issues = [...rawContractIssues];
   const warnings = [];
   const ids = new Set(normalized.states.map(state => state.id));
   if (normalized.states.length && !ids.has(normalized.initial)) issues.push({ code: "missing_initial", message: "Initial state must reference an existing state." });
@@ -951,7 +966,11 @@ function upsertTransition(model, args) {
   if (!byModelId(model, from) || !byModelId(model, to)) throw new Error("Transition endpoints must be existing states.");
   if (endpointParentId(model, from) !== endpointParentId(model, to)) throw new Error("Transition endpoints must be in the same layer.");
   const existing = args.id ? model.transitions.find(transition => transition.id === args.id) : model.transitions.find(transition => transition.from === from && transition.to === to && !transition.boundaryFlow);
-  const target = existing || { id: uniqueRawId(new Set(model.transitions.map(transition => transition.id)), args.id || uniqueId([], args.label, "t"), "t") };
+  const usedIds = new Set([
+    ...model.states.map(state => state.id),
+    ...model.transitions.map(transition => transition.id)
+  ]);
+  const target = existing || { id: uniqueRawId(usedIds, args.id || uniqueId([], args.label, "t"), "t") };
   const sourceState = byModelId(model, from);
   target.from = from;
   target.to = to;

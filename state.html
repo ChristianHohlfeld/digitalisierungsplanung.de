@@ -5054,6 +5054,205 @@
     }`;
       const runtimeNormalizeDataSourceJs = `        s.dataSource = normalizeDataSource(s.dataSource);`;
       const runtimeNormalizeDataSourceJsEnhanced = `        s.dataSource = normalizeDataSource(s.dataSource, "states." + s.id + ".fetch");`;
+      const runtimeWriteStateJs = `    function writeRuntimeState(path, value, opts = {}) {
+      const targetPath = normalizeContextPath(path, "");
+      if (!targetPath) return { path: "", changed: false, previous: undefined, value };
+      const previous = readValueAtPath(context, targetPath);
+      const changed = JSON.stringify(previous) !== JSON.stringify(value);
+      if (!changed) return { path: targetPath, changed: false, previous, value };
+      setValueAtPath(context, targetPath, value);
+      if (opts.metadata !== false) {
+        setValueAtPath(context, "lastChangedPath", targetPath);
+        setValueAtPath(context, "lastChangedAt", Date.now());
+      }
+      return { path: targetPath, changed: true, previous, value };
+    }
+`;
+      const runtimeWriteStateJsEnhanced = `    const RUNTIME_WRITE_TOKEN = Symbol("runtime-write");
+    const RUNTIME_AUTHORIZED_WRITE_SOURCES = new Set([
+      "button", "daisy", "daisy-countdown", "event", "fetch", "flow", "input",
+      "input-default", "model-sync", "state-default", "transition", "runtime",
+      "runtime-empty", "runtime-control", "reset", "host", "storage", "initial",
+      "realtime", "realtime-local"
+    ]);
+
+    function runtimeWriteSource(opts = {}) {
+      return String(opts.source || "runtime");
+    }
+
+    function runtimeWriteSourceIsAuthorized(opts = {}) {
+      return RUNTIME_AUTHORIZED_WRITE_SOURCES.has(runtimeWriteSource(opts));
+    }
+
+    function runtimeStateDataPathIsDeclared(path) {
+      const targetPath = normalizeContextPath(path, "");
+      if (!targetPath) return false;
+      for (const state of Array.isArray(model?.states) ? model.states : []) {
+        for (const key of Object.keys(normalizeDataObject(state.data))) {
+          const contractPath = normalizeContextPath(key, "");
+          if (contractPath && (targetPath === contractPath || targetPath.startsWith(contractPath + "."))) return true;
+        }
+      }
+      return false;
+    }
+
+    function runtimeBookkeepingPathIsAuthorized(path) {
+      const targetPath = normalizeContextPath(path, "");
+      return targetPath === "lastEvent"
+        || targetPath === "lastEventAt"
+        || targetPath === "lastChangedPath"
+        || targetPath === "lastChangedAt"
+        || targetPath === "state.current"
+        || targetPath === "state.previous"
+        || targetPath === "state.lastTransition"
+        || targetPath === "runtime.paused"
+        || targetPath === "realtime"
+        || targetPath.startsWith("events.");
+    }
+
+    function runtimeExternalWritePathIsAuthorized(path) {
+      const targetPath = normalizeContextPath(path, "");
+      return runtimeStateDataPathIsDeclared(targetPath) || runtimeBookkeepingPathIsAuthorized(targetPath);
+    }
+
+    let runtimeTrustedUiEventActive = false;
+    let runtimeTrustedUiEventClearId = 0;
+
+    function runtimeUiEventIsTrusted(evt) {
+      return Boolean(evt && evt.isTrusted === true);
+    }
+
+    function runtimeActivateTrustedUiEvent(evt) {
+      if (!runtimeUiEventIsTrusted(evt)) return false;
+      runtimeTrustedUiEventActive = true;
+      runtimeTrustedUiEventClearId += 1;
+      const clearId = runtimeTrustedUiEventClearId;
+      const clear = () => {
+        if (runtimeTrustedUiEventClearId === clearId) runtimeTrustedUiEventActive = false;
+      };
+      setTimeout(clear, 0);
+      return true;
+    }
+
+    function runtimeUiCommitIsTrusted() {
+      return runtimeTrustedUiEventActive;
+    }
+
+    function runtimeWriteSourceRequiresTrustedUiEvent(source) {
+      return source === "button" || source === "daisy" || source === "input";
+    }
+
+    function runtimeEventDetailRequiresTrustedUiEvent(detail = {}) {
+      if (detail?.__realtimeRemote === true || detail?.source === "realtime") return false;
+      const source = String(detail?.source || "");
+      if (runtimeWriteSourceRequiresTrustedUiEvent(source)) return true;
+      return String(detail?.type || "") === "button";
+    }
+
+    ["click", "input", "change", "toggle", "submit", "keydown"].forEach(type => {
+      document.addEventListener(type, runtimeActivateTrustedUiEvent, { capture: true, passive: true });
+    });
+
+    function writeRuntimeState(path, value, opts = {}) {
+      const targetPath = normalizeContextPath(path, "");
+      if (!targetPath) return { path: "", changed: false, previous: undefined, value };
+      if (opts.token !== RUNTIME_WRITE_TOKEN) {
+        throw new Error("Unauthorized runtime bus write: " + targetPath);
+      }
+      if (!runtimeWriteSourceIsAuthorized(opts)) {
+        throw new Error("Unauthorized runtime bus write source: " + runtimeWriteSource(opts));
+      }
+      const previous = readValueAtPath(context, targetPath);
+      const changed = JSON.stringify(previous) !== JSON.stringify(value);
+      if (!changed) return { path: targetPath, changed: false, previous, value };
+      setValueAtPath(context, targetPath, value);
+      if (opts.metadata !== false) {
+        setValueAtPath(context, "lastChangedPath", targetPath);
+        setValueAtPath(context, "lastChangedAt", Date.now());
+      }
+      return { path: targetPath, changed: true, previous, value };
+    }
+`;
+      const runtimeRecordEventJs = `    function recordRuntimeEvent(eventName, detail = {}) {
+      const name = normalizeTransitionEvent(eventName);
+      if (!name) return "";
+      const now = Date.now();
+      const countPath = "events." + name + ".count";
+      const count = Number(readValueAtPath(context, countPath) || 0) + 1;
+      writeRuntimeState(countPath, count, { source: "event", metadata: false });
+      writeRuntimeState("events." + name + ".lastAt", now, { source: "event", metadata: false });
+      writeRuntimeState("events." + name + ".detail", detail, { source: "event", metadata: false });
+      writeRuntimeState("lastEvent", name, { source: "event", metadata: false });
+      writeRuntimeState("lastEventAt", now, { source: "event", metadata: false });
+      return name;
+    }
+`;
+      const runtimeRecordEventJsEnhanced = `    function recordRuntimeEvent(eventName, detail = {}) {
+      const name = normalizeTransitionEvent(eventName);
+      if (!name) return "";
+      const now = Date.now();
+      const countPath = "events." + name + ".count";
+      const count = Number(readValueAtPath(context, countPath) || 0) + 1;
+      const writeOpts = { source: "event", metadata: false, token: RUNTIME_WRITE_TOKEN };
+      writeRuntimeState(countPath, count, writeOpts);
+      writeRuntimeState("events." + name + ".lastAt", now, writeOpts);
+      writeRuntimeState("events." + name + ".detail", detail, writeOpts);
+      writeRuntimeState("lastEvent", name, writeOpts);
+      writeRuntimeState("lastEventAt", now, writeOpts);
+      return name;
+    }
+`;
+      const runtimeSetJs = `    function runtimeSet(path, value, opts = {}) {
+      const write = writeRuntimeState(path, value, opts);
+      const targetPath = write.path;
+      if (!targetPath) return false;
+      if (!write.changed || opts.silent) {
+        if (opts.notify !== false) notifyRuntime();
+        return false;
+      }
+      const eventName = normalizeTransitionEvent(opts.eventName || "change." + targetPath);
+      return emitRuntimeEvent(eventName, { type: "change", path: targetPath, value: write.value, previous: write.previous, source: opts.source || "runtime" });
+    }
+`;
+      const runtimeSetJsEnhanced = `    function runtimeSet(path, value, opts = {}) {
+      const source = runtimeWriteSource(opts);
+      if (!runtimeWriteSourceIsAuthorized(opts)) {
+        throw new Error("Unauthorized runtime bus write source: " + source);
+      }
+      if (runtimeWriteSourceRequiresTrustedUiEvent(source) && !runtimeUiCommitIsTrusted()) {
+        if (typeof render === "function") render();
+        return false;
+      }
+      const write = writeRuntimeState(path, value, { ...opts, token: RUNTIME_WRITE_TOKEN });
+      const targetPath = write.path;
+      if (!targetPath) return false;
+      if (!write.changed || opts.silent) {
+        if (opts.notify !== false) notifyRuntime();
+        return false;
+      }
+      const eventName = normalizeTransitionEvent(opts.eventName || "change." + targetPath);
+      return emitRuntimeEvent(eventName, { type: "change", path: targetPath, value: write.value, previous: write.previous, source: opts.source || "runtime" });
+    }
+`;
+      const runtimeSyncCurrentJs = `    function syncRuntimeCurrent(source = "runtime", silent = true) {
+      const next = current || "";
+      if (readValueAtPath(context, "state.current") === next) return false;
+      return runtimeSet("state.current", next, { source, silent, notify: false, eventName: "change.state.current" });
+    }
+`;
+      const runtimeSyncCurrentJsEnhanced = `    function setRuntimeCurrent(nextId, source = "runtime", silent = true) {
+      const next = String(nextId || "");
+      const previous = current || "";
+      const busPrevious = readValueAtPath(context, "state.current") || "";
+      current = next;
+      if (previous === next && busPrevious === next) return false;
+      return runtimeSet("state.current", next, { source, silent, notify: false, eventName: "change.state.current" });
+    }
+
+    function syncRuntimeCurrent(source = "runtime", silent = true) {
+      return setRuntimeCurrent(current || "", source, silent);
+    }
+`;
       const stateDataContractSyncJs = `    function pruneRemovedStateDataDefaults(previousModel, nextModel, target) {
       const previous = modelStateDataDefaultPaths(previousModel);
       if (!previous.size) return;
@@ -5889,6 +6088,7 @@
       if (!name) return false;
       runtimeEventQueue.push({ name, detail: { ...detail, eventName: name } });`;
       const emitRuntimeEventJsEnhanced = `    function emitRuntimeEvent(eventName, detail = {}, realtimeEventConfig = null) {
+      if (runtimeEventDetailRequiresTrustedUiEvent(detail) && !runtimeUiCommitIsTrusted()) return false;
       if (runtimeIsPaused()) {
         notifyRuntime();
         return false;
@@ -5955,7 +6155,8 @@
       for (const binding of normalizeRealtimeEventBindings(event.bindings)) {
         const value = realtimeDetailValue(sourceDetail, binding.from);
         if (value === undefined) continue;
-        writeRuntimeState(binding.to, value, { source: "realtime", metadata: false });
+        if (!runtimeExternalWritePathIsAuthorized(binding.to)) continue;
+        runtimeSet(binding.to, value, { source: "realtime", eventName: "change." + binding.to });
       }
     }
 
@@ -6023,15 +6224,15 @@
         if (data.finished === true || data.running === false) continue;
         const value = Math.max(0, Number.isFinite(Number(data.value)) ? Math.ceil(Number(data.value)) : 0);
         if (value <= 0) continue;
-        writeRuntimeState(scope + ".startedAt", now, { source: "runtime-control", metadata: false });
-        writeRuntimeState(scope + ".endsAt", now + value * 1000, { source: "runtime-control", metadata: false });
+        writeRuntimeState(scope + ".startedAt", now, { source: "runtime-control", metadata: false, token: RUNTIME_WRITE_TOKEN });
+        writeRuntimeState(scope + ".endsAt", now + value * 1000, { source: "runtime-control", metadata: false, token: RUNTIME_WRITE_TOKEN });
       }
     }
 
     function setRuntimePaused(paused, opts = {}) {
       const next = Boolean(paused);
       const previous = runtimeIsPaused();
-      writeRuntimeState("runtime.paused", next, { source: "runtime-control", metadata: false });
+      writeRuntimeState("runtime.paused", next, { source: "runtime-control", metadata: false, token: RUNTIME_WRITE_TOKEN });
       if (next) {
         if (continuationScheduleTimer) clearTimeout(continuationScheduleTimer);
         continuationScheduleTimer = null;
@@ -7312,6 +7513,10 @@
         .replace(safeComponentUrlJs, safeComponentUrlJsEnhanced)
         .replace(runtimeDataSourceJs, runtimeDataSourceJsEnhanced)
         .replace(runtimeNormalizeDataSourceJs, runtimeNormalizeDataSourceJsEnhanced)
+        .replace(runtimeWriteStateJs, runtimeWriteStateJsEnhanced)
+        .replace(runtimeRecordEventJs, runtimeRecordEventJsEnhanced)
+        .replace(runtimeSetJs, runtimeSetJsEnhanced)
+        .replace(runtimeSyncCurrentJs, runtimeSyncCurrentJsEnhanced)
         .replace(stateDataContractSyncJs, stateDataContractSyncJsEnhanced)
         .replace(navbarCss, navbarCssEnhanced)
         .replace(heroCss, heroCssEnhanced)
@@ -7333,6 +7538,21 @@
         .replace(runtimeBoundaryConfigForJs, runtimeBoundaryConfigForJsEnhanced)
         .replace(runtimeChildEntryTransitionJs, runtimeChildEntryTransitionJsEnhanced)
         .replace(runtimeResolveRuntimeTargetJs, runtimeResolveRuntimeTargetJsEnhanced)
+        .replace(`      current = runtimeTarget;`, `      setRuntimeCurrent(runtimeTarget, "flow", true);`)
+        .replace(`        current = "";
+        syncRuntimeCurrent("runtime-empty", true);`, `        setRuntimeCurrent("", "runtime-empty", true);`)
+        .replace(`      if (!findState(current)) current = model.initial;
+      const runtimeCurrent = resolveRuntimeTarget(current, null);
+      if (runtimeCurrent !== current && findState(runtimeCurrent)) current = runtimeCurrent;
+      syncRuntimeCurrent("runtime", true);`, `      if (!findState(current)) setRuntimeCurrent(model.initial, "runtime", true);
+      const runtimeCurrent = resolveRuntimeTarget(current, null);
+      if (runtimeCurrent !== current && findState(runtimeCurrent)) setRuntimeCurrent(runtimeCurrent, "runtime", true);
+      syncRuntimeCurrent("runtime", true);`)
+        .replace(`        current = requestedStart || model.initial;
+        syncRuntimeCurrent(data.reset ? "reset" : "host", true);`, `        setRuntimeCurrent(requestedStart || model.initial, data.reset ? "reset" : "host", true);`)
+        .replace(`          current = model.initial;
+          syncRuntimeCurrent("storage", true);`, `          setRuntimeCurrent(model.initial, "storage", true);`)
+        .replace(`    if (!findState(current)) current = model.initial;`, `    if (!findState(current)) setRuntimeCurrent(model.initial, "initial", true);`)
         .replace(notifyRuntimeJs, runtimeFlowDebugJs + "\n" + notifyRuntimeJsEnhanced)
         .replace(`      postHostMessage(payload);
       transitionToNotify = null;`, `      updateRuntimeFlowDebug(payload);
@@ -7429,6 +7649,11 @@
     function daisyWrite(component, key, value, opts = {}) {
       if (!daisyOwnerCanWrite(component)) return false;
       const path = daisyBoundPath(component, key);`)
+        .replace(`      if (!path) return false;
+      const previous = readValueAtPath(context, path);
+      const handled = runtimeSet(path, value, { source: "daisy", eventName: "change." + path });`, `      if (!path || !runtimeStateDataPathIsDeclared(path)) return false;
+      const previous = readValueAtPath(context, path);
+      const handled = runtimeSet(path, value, { source: "daisy", eventName: "change." + path });`)
         .replace(`    function candidateStatesForRuntimeEvent(eventName, detail = {}) {
       const state = stateById(current);
       if (!state) return [];

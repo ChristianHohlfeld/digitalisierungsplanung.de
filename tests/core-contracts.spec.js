@@ -1200,6 +1200,166 @@ test.describe("Core source contracts", () => {
     expect(appHtml).not.toContain('setValueAtPath(context, "state.current"');
   });
 
+  test("generated runtime guards bus writes against unauthorized sources @smoke", async ({ page }) => {
+    await page.goto("/state.html");
+    const appHtml = await generatedPreviewHtml(page);
+
+    expect(appHtml).toContain('const RUNTIME_WRITE_TOKEN = Symbol("runtime-write")');
+    expect(appHtml).toContain("function runtimeWriteSourceIsAuthorized");
+    expect(appHtml).toContain("function runtimeExternalWritePathIsAuthorized");
+    expect(appHtml).toContain('throw new Error("Unauthorized runtime bus write: " + targetPath)');
+    expect(appHtml).toContain('throw new Error("Unauthorized runtime bus write source: " + runtimeWriteSource(opts))');
+    expect(appHtml).toContain("const write = writeRuntimeState(path, value, { ...opts, token: RUNTIME_WRITE_TOKEN });");
+    expect(appHtml).toContain("const writeOpts = { source: \"event\", metadata: false, token: RUNTIME_WRITE_TOKEN };");
+    expect(appHtml).toContain("if (!runtimeExternalWritePathIsAuthorized(binding.to)) continue;");
+    expect(appHtml).toContain("runtimeSet(binding.to, value, { source: \"realtime\", eventName: \"change.\" + binding.to });");
+    expect(appHtml).toContain("if (!path || !runtimeStateDataPathIsDeclared(path)) return false;");
+    expect(appHtml).toContain("function runtimeUiEventIsTrusted");
+    expect(appHtml).toContain("function runtimeEventDetailRequiresTrustedUiEvent");
+    expect(appHtml).toContain("document.addEventListener(type, runtimeActivateTrustedUiEvent");
+    expect(appHtml).toContain("if (runtimeWriteSourceRequiresTrustedUiEvent(source) && !runtimeUiCommitIsTrusted()) {");
+    expect(appHtml).toContain('if (typeof render === "function") render();');
+    expect(appHtml).toContain("if (runtimeEventDetailRequiresTrustedUiEvent(detail) && !runtimeUiCommitIsTrusted()) return false;");
+    expect(appHtml).not.toContain('writeRuntimeState(binding.to, value');
+
+    const currentAssignments = appHtml
+      .split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(line => line.startsWith("let current =") || /^current\s*=/.test(line));
+    expect(currentAssignments).toEqual([
+      "let current = model.initial;",
+      "current = next;"
+    ]);
+  });
+
+  test("generated runtime ignores synthetic UI events and commits real UI events through the bus @smoke", async ({ page }) => {
+    await openWithModel(page, {
+      version: 2,
+      name: "Trusted UI Commit",
+      initial: "start",
+      states: [
+        {
+          id: "start",
+          title: "Start",
+          body: "",
+          x: 120,
+          y: 160,
+          data: {
+            "states.start.form": { value: "" }
+          },
+          dataTypes: {
+            "states.start.form": "object"
+          },
+          components: [{
+            id: "form_input",
+            type: "daisy",
+            variant: "input",
+            dataPath: "states.start.form",
+            dataRole: "widget",
+            dataLabel: "Form input"
+          }]
+        },
+        { id: "done", title: "Done", body: "", x: 420, y: 160, components: [] }
+      ],
+      transitions: [
+        { id: "to_done", from: "start", to: "done", label: "Next", condition: "", triggerType: "button", set: {} }
+      ]
+    });
+
+    const app = appFrame(page);
+    await app.getByRole("button", { name: "Next" }).evaluate(button => button.click());
+    await expect(app.locator("#statePill")).toHaveText("start");
+
+    await app.locator("input").evaluate(input => {
+      input.value = "synthetic";
+      input.dispatchEvent(new InputEvent("input", { bubbles: true, data: "synthetic", inputType: "insertText" }));
+    });
+    await expect.poll(async () => (await runtimeContext(page)).states?.start?.form?.value || "").toBe("");
+
+    const input = app.locator("input");
+    await input.click();
+    await input.pressSequentially("real");
+    await expect.poll(async () => (await runtimeContext(page)).states?.start?.form?.value || "").toBe("real");
+
+    await app.getByRole("button", { name: "Next" }).click();
+    await expect(app.locator("#statePill")).toHaveText("done");
+  });
+
+  test("external realtime bindings only write declared state data @smoke", async ({ page }) => {
+    await openWithModel(page, {
+      version: 2,
+      name: "Realtime write guard",
+      initial: "start",
+      states: [{
+        id: "start",
+        title: "Start",
+        x: 120,
+        y: 140,
+        components: [{ id: "c_start", type: "text", text: "Start", url: "" }],
+        data: {
+          "states.start.remote": { caller: "" }
+        },
+        dataTypes: {
+          "states.start.remote": "object"
+        }
+      }],
+      transitions: []
+    });
+
+    await page.locator("#appFrame").evaluate((iframe, payload) => {
+      iframe.contentWindow.postMessage(payload, "*");
+    }, {
+      type: "STATE_BLUEPRINT_REALTIME_EVENT",
+      name: "realtime.sip.call.incoming",
+      detail: { caller: "+491234", callId: "call-123" },
+      event: {
+        name: "realtime.sip.call.incoming",
+        bindings: [
+          { from: "detail.caller", to: "states.start.remote.caller", type: "text" },
+          { from: "detail.callId", to: "realtime.sip.call.incoming.callId", type: "text" }
+        ]
+      }
+    });
+
+    await expect.poll(async () => runtimeContext(page).then(context => context.states?.start?.remote?.caller))
+      .toBe("+491234");
+    await expect.poll(async () => runtimeContext(page).then(context => context.realtime?.sip?.call?.incoming?.callId))
+      .toBeUndefined();
+    await expect.poll(async () => runtimeContext(page).then(context => context.lastEvent))
+      .toBe("change.states.start.remote.caller");
+  });
+
+  test("daisy widgets cannot create undeclared bus data @smoke", async ({ page }) => {
+    await openWithModel(page, {
+      version: 2,
+      name: "Daisy write guard",
+      initial: "start",
+      states: [{
+        id: "start",
+        title: "Start",
+        x: 120,
+        y: 140,
+        components: [{
+          id: "unbound_button",
+          type: "daisy",
+          variant: "button",
+          dataPath: "states.start.unbound",
+          dataRole: "widget",
+          dataLabel: "Click me"
+        }],
+        data: {}
+      }],
+      transitions: []
+    });
+
+    const app = appFrame(page);
+    await expect(app.getByRole("button", { name: "Click me" })).toBeVisible();
+    await app.getByRole("button", { name: "Click me" }).click();
+
+    await expect.poll(async () => runtimeContext(page).then(context => context.states?.start?.unbound))
+      .toBeUndefined();
+  });
+
   test("host runtime context snapshot remains a read-side view @smoke", () => {
     const html = stateHtml();
     const hostHtml = html.replace(/const APP_HTML = "((?:\\.|[^"\\])*)";/, 'const APP_HTML = "";');
