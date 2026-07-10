@@ -3611,7 +3611,7 @@
       .mobile-tabs {
         display: grid;
         flex: 0 0 auto;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr)) auto auto;
         gap: 8px;
         width: 100%;
         min-height: calc(61px + env(safe-area-inset-bottom));
@@ -3693,6 +3693,11 @@
         color: #04111d;
         background: linear-gradient(135deg, #7dd3fc, var(--accent));
         box-shadow: 0 0 0 3px rgba(56,189,248,.16);
+      }
+
+      .mobile-history-action {
+        width: 52px;
+        padding-inline: 4px;
       }
 
       .node {
@@ -3890,11 +3895,11 @@
       }
 
       .workspace.mobile-canvas-active .canvas-history-actions {
-        bottom: max(12px, env(safe-area-inset-bottom)) !important;
+        display: none;
       }
 
       .workspace.mobile-canvas-active .selection-actions {
-        bottom: calc(max(12px, env(safe-area-inset-bottom)) + 64px) !important;
+        bottom: max(10px, env(safe-area-inset-bottom)) !important;
       }
 
       .workspace.mobile-presets-active .selection-actions.visible,
@@ -4899,6 +4904,8 @@
     <button type="button" data-mobile-view="presets" aria-pressed="false"><span class="mobile-tab-icon" aria-hidden="true"></span><span>Vorlagen</span></button>
     <button type="button" data-mobile-view="edit" aria-pressed="false"><span class="mobile-tab-icon" aria-hidden="true"></span><span>Editieren</span></button>
     <button type="button" data-mobile-view="app" aria-pressed="false"><span class="mobile-tab-icon" aria-hidden="true"></span><span>App</span></button>
+    <button id="btnMobileUndo" class="mobile-history-action" type="button" title="Undo" aria-label="Undo" disabled="">Undo</button>
+    <button id="btnMobileRedo" class="mobile-history-action" type="button" title="Redo" aria-label="Redo" disabled="">Redo</button>
   </nav>
 
   <script>
@@ -7735,6 +7742,8 @@
     const canvasHistoryActionsEl = document.getElementById("canvasHistoryActions");
     const btnCanvasUndo = document.getElementById("btnCanvasUndo");
     const btnCanvasRedo = document.getElementById("btnCanvasRedo");
+    const btnMobileUndo = document.getElementById("btnMobileUndo");
+    const btnMobileRedo = document.getElementById("btnMobileRedo");
     const selectionActionsEl = document.getElementById("selectionActions");
     const selectionCountEl = document.getElementById("selectionCount");
     const btnSelectionCopy = document.getElementById("btnSelectionCopy");
@@ -9037,6 +9046,8 @@
       if (redo) redo.disabled = !canRedo;
       if (btnCanvasUndo) btnCanvasUndo.disabled = !canUndo;
       if (btnCanvasRedo) btnCanvasRedo.disabled = !canRedo;
+      if (btnMobileUndo) btnMobileUndo.disabled = !canUndo;
+      if (btnMobileRedo) btnMobileRedo.disabled = !canRedo;
     }
 
     function initHistory() {
@@ -25964,6 +25975,8 @@
     document.getElementById("btnRedo").onclick = redoModel;
     btnCanvasUndo.onclick = undoModel;
     btnCanvasRedo.onclick = redoModel;
+    btnMobileUndo.onclick = undoModel;
+    btnMobileRedo.onclick = redoModel;
     canvasHistoryActionsEl.addEventListener("pointerdown", evt => evt.stopPropagation());
     btnSelectionCopy.onclick = copySelectedNodes;
     btnSelectionCollapse.onclick = groupOrDegroupSelected;

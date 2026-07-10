@@ -5279,7 +5279,7 @@ test.describe("State Blueprint tool", () => {
     await expect(redo).toBeDisabled();
   });
 
-  test("keeps canvas history actions reachable on touch view @smoke", async ({ browser }) => {
+  test("keeps mobile history actions in the bottom tab bar without covering canvas selection @smoke", async ({ browser }) => {
     const context = await browser.newContext({
       baseURL: "http://localhost:8124",
       viewport: { width: 390, height: 820 },
@@ -5289,26 +5289,25 @@ test.describe("State Blueprint tool", () => {
     const page = await context.newPage();
     try {
       await openTool(page);
-      await expect(page.locator("#canvasHistoryActions")).toBeVisible();
-      await assertVisibleInViewport(page, "#canvasHistoryActions");
+      await expect(page.locator("#canvasHistoryActions")).toBeHidden();
+      await expect(page.locator("#btnMobileUndo")).toBeVisible();
+      await assertVisibleInViewport(page, "#btnMobileUndo");
+      await expect(page.locator("#btnMobileRedo")).toBeVisible();
+      await assertVisibleInViewport(page, "#btnMobileRedo");
       await page.locator('[data-id="login"]').tap();
       await expect(page.locator("#selectionActions")).toBeVisible();
       await assertVisibleInViewport(page, "#selectionActions");
       await expect.poll(async () => page.evaluate(() => {
-        const history = document.querySelector("#canvasHistoryActions")?.getBoundingClientRect();
+        const map = document.querySelector("#map")?.getBoundingClientRect();
         const selection = document.querySelector("#selectionActions")?.getBoundingClientRect();
-        if (!history || !selection) return { overlap: true, stacked: false };
-        const overlap = !(
-          selection.right <= history.left ||
-          selection.left >= history.right ||
-          selection.bottom <= history.top ||
-          selection.top >= history.bottom
-        );
+        const mobileTabs = document.querySelector("#mobileTabs")?.getBoundingClientRect();
+        if (!map || !selection || !mobileTabs) return { inCanvas: false, nearCanvasBottom: false, aboveTabs: false };
         return {
-          overlap,
-          stacked: selection.bottom <= history.top - 4
+          inCanvas: selection.top >= map.top && selection.bottom <= map.bottom + 1,
+          nearCanvasBottom: map.bottom - selection.bottom <= 28,
+          aboveTabs: selection.bottom <= mobileTabs.top
         };
-      })).toEqual({ overlap: false, stacked: true });
+      })).toEqual({ inCanvas: true, nearCanvasBottom: true, aboveTabs: true });
 
       await page.evaluate(() => {
         const state = model.states.find(item => item.id === "login");
@@ -5317,11 +5316,11 @@ test.describe("State Blueprint tool", () => {
         draw();
       });
       await expect(page.locator('[data-id="login"] .title')).toHaveText("Sign in");
-      await expect(page.locator("#btnCanvasUndo")).toBeEnabled();
+      await expect(page.locator("#btnMobileUndo")).toBeEnabled();
 
-      await page.locator("#btnCanvasUndo").tap();
+      await page.locator("#btnMobileUndo").tap();
       await expect(page.locator('[data-id="login"] .title')).toHaveText("Login");
-      await expect(page.locator("#btnCanvasRedo")).toBeEnabled();
+      await expect(page.locator("#btnMobileRedo")).toBeEnabled();
     } finally {
       await context.close();
     }
