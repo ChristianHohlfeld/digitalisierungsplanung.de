@@ -202,7 +202,7 @@ npm run test:state-explorer
 npm run test:state-render
 ```
 
-`npm test` führt die Server-Tests und die wichtigsten Playwright-Abläufe aus. In GitHub Actions wird nach grünem Lauf automatisch ein neuer `sw-version.js`-Stempel geschrieben.
+`npm test` führt die Server-Tests und die wichtigsten Playwright-Abläufe aus. `npm run test:full` führt den vollständigen Bestand lokal in einem Lauf aus. GitHub Actions verteilt dieselben 315 Browserfälle vollständig auf vier parallele Shards, führt die 14 Serverfälle einmal aus und schreibt erst nach dem Gesamterfolg einen neuen `sw-version.js`-Stempel.
 
 ## Ordner
 
@@ -231,7 +231,7 @@ npm run test:state-render
 ## Veröffentlichung
 
 1. Änderungen auf `main` pushen.
-2. GitHub Actions führt die Tests aus.
+2. GitHub Actions führt alle Server- und Browserfälle in vier vollständigen Browser-Shards aus.
 3. Nach grünem Lauf wird `sw-version.js` aktualisiert.
 4. GitHub Pages veröffentlicht die statische Seite.
 5. Bei Server-Änderungen zusätzlich auf dem Droplet `git pull --ff-only origin main && bash server/deploy.sh` ausführen.

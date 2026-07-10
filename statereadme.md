@@ -684,9 +684,13 @@ Editoraktion
 - **TST-006 Regression:** Jeder behobene Nutzerfehler MUSS einen Test erhalten,
   der vor dem Fix am beobachteten Verhalten scheitert und nach dem Fix ohne
   Retry, Force-Click oder Sonderpfad besteht.
-- **TST-007 CI-Freigabe:** GitHub Actions und Gitea MÜSSEN beide
-  `npm run test:full` ausführen. Kein Deploy darf nur durch den kleineren
-  Smoke-Lauf freigegeben werden.
+- **TST-007 CI-Freigabe:** GitHub Actions und Gitea MÜSSEN beide den
+  vollständigen Bestand von 14 Server- und 315 Playwright-Fällen ausführen.
+  Gitea verwendet `npm run test:full`. GitHub Actions DARF die Playwright-Fälle
+  in disjunkte Shards aufteilen, wenn deren Vereinigung exakt alle 315 Fälle
+  enthält, die Serverfälle genau einmal laufen und der Deploy von allen Shards
+  abhängt. Kein Deploy darf nur durch den kleineren Smoke-Lauf freigegeben
+  werden.
 
 Abdeckungsbereiche:
 
@@ -745,9 +749,11 @@ Abdeckungsbereiche:
   einschließlich Undo/Redo, und die geschlossene Topbar bleibt horizontal
   scrollbar, während das feste Mehr-Menü sichtbar bleibt.
 - **GAP-006 Geteilte CI-Abnahme, geschlossen am 2026-07-10:**
-  `npm run test:full` umfasst Server und Browser. Sowohl GitHub Actions als auch
-  Gitea verwenden diesen Befehl und prüfen damit denselben Bestand von 329
-  Vertragsfällen vor der Freigabe.
+  `npm run test:full` umfasst Server und Browser und bleibt die lokale sowie die
+  Gitea-Abnahme. GitHub Actions prüft denselben Bestand schneller in vier
+  disjunkten Playwright-Shards und einem einmaligen Serverlauf. Der Deploy-Job
+  hängt vom Erfolg der gesamten Matrix ab; die Freigabe umfasst deshalb weiter
+  alle 329 Vertragsfälle.
 
 ## 19. Implementierungslandkarte des Ist-Stands
 
@@ -804,10 +810,11 @@ einer Vertragsregel, ist er in Abschnitt 18 als offene Abweichung zu behandeln.
   Ergebnis als `index.html`. Die Root-Seite ist deshalb die laufende exportierte
   Demo. `sw.js` liefert den PWA-Cache mit Network-first für Navigation und
   Stale-while-revalidate für Assets.
-- **ARC-012 Deployment:** GitHub Actions installiert Abhängigkeiten, prüft den
-  konfigurierten Testpfad und aktualisiert bei erfolgreichem `main`-Lauf den
-  Service-Worker-Deploy-Stamp. Realtime-Deployment und Nginx-Grenze bleiben von
-  der statischen Editor-/Exportauslieferung getrennt.
+- **ARC-012 Deployment:** GitHub Actions installiert Abhängigkeiten in vier
+  parallelen Browser-Shards, führt die Serverfälle einmal aus und aktualisiert
+  den Service-Worker-Deploy-Stamp erst nach Erfolg der vollständigen Matrix.
+  Realtime-Deployment und Nginx-Grenze bleiben von der statischen
+  Editor-/Exportauslieferung getrennt.
 
 Der konkrete Autoren- und Ausführungsweg ist damit:
 

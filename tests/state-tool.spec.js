@@ -8586,14 +8586,23 @@ test.describe("State Blueprint tool", () => {
       value: expect.stringMatching(/^Zustand \d+$/)
     });
 
-    await page.keyboard.type("Arbeitsfläche step");
+    await expect.poll(() => page.locator("#map").evaluate(map => document.activeElement === map)).toBe(true);
+    await page.keyboard.press("A");
+    const quickTitleInput = page.locator(".quick-title-input");
+    await expect(quickTitleInput).toBeVisible();
+    await expect(quickTitleInput).toHaveValue("A");
+    await expect(quickTitleInput).toBeFocused();
+    await quickTitleInput.pressSequentially("rbeitsfläche step", { delay: 5 });
+    await expect(quickTitleInput).toHaveValue("Arbeitsfläche step");
+    await expect(quickTitleInput).toBeFocused();
+    await expect.poll(async () => (await savedModel(page)).states.some(state => state.title === "Arbeitsfläche step")).toBe(true);
     const model = await savedModel(page);
     const created = model.states.find(state => state.title === "Arbeitsfläche step");
     expect(created).toBeTruthy();
     await expect(page.locator(`[data-id="${created.id}"] .title`)).toHaveText("Arbeitsfläche step");
     await expect(page.locator("#pTitle")).toHaveValue("Arbeitsfläche step");
-    await expect(page.locator(".quick-title-input")).toHaveValue("Arbeitsfläche step");
-    await expect.poll(() => page.locator(".quick-title-input").evaluate(el => document.activeElement === el)).toBe(true);
+    await expect(quickTitleInput).toHaveValue("Arbeitsfläche step");
+    await expect.poll(() => quickTitleInput.evaluate(el => document.activeElement === el)).toBe(true);
     await expect(page.locator(".workspace")).toHaveClass(/inspector-collapsed/);
   });
 
