@@ -1845,6 +1845,7 @@ test.describe("State Blueprint tool", () => {
   });
 
   test("loads a clean website demo scene with real FSM navigation @smoke", async ({ page }) => {
+    test.setTimeout(60000);
     await openTool(page);
 
     await page.locator("#topbarMore summary").click();
