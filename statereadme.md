@@ -351,7 +351,9 @@ Editoraktion
   `<`, `>`, `^` oder `v` sind als sichtbare Controls unzulässig. Die
   eingeklappte Desktop-Vorschau DARF höchstens 46 px Layoutbreite belegen. Ihre
   Aufklappaktion liegt oben und „App separat öffnen“ unten in derselben
-  vertikalen Schiene, ohne eine zusätzliche Grid-Spalte zu beanspruchen.
+  vertikalen Schiene, ohne eine zusätzliche Grid-Spalte zu beanspruchen. Der
+  Breitengewinn MUSS mit dem eingeklappten Zustand ohne nachlaufende
+  Spaltenanimation gelten.
 
 ## 9. Fetch und automatische Effekte
 
