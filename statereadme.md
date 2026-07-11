@@ -345,6 +345,13 @@ Editoraktion
 - **REN-014 Saubere Runtime:** Generierte Nutzeroberflächen DÜRFEN keine
   Editor-Hilfetexte wie `No outgoing transitions`, keine Template-Tokens und
   keine nicht angeforderte Sound-/Vorleselogik anzeigen.
+- **REN-015 Panel-Aktionen:** Ein- und Ausklappen von Eigenschaften, Vorschau
+  und Vorlagen MUSS über konsistente Icon-Aktionen mit eindeutigem
+  `aria-label`, `aria-controls` und `aria-expanded` erfolgen; rohe Zeichen wie
+  `<`, `>`, `^` oder `v` sind als sichtbare Controls unzulässig. Die
+  eingeklappte Desktop-Vorschau DARF höchstens 46 px Layoutbreite belegen. Ihre
+  Aufklappaktion liegt oben und „App separat öffnen“ unten in derselben
+  vertikalen Schiene, ohne eine zusätzliche Grid-Spalte zu beanspruchen.
 
 ## 9. Fetch und automatische Effekte
 

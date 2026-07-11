@@ -253,7 +253,7 @@
 
     html[data-preview-collapsed="true"] .workspace,
     .workspace.preview-collapsed {
-      grid-template-columns: var(--inspector-panel-width) minmax(240px, 1fr) 86px;
+      grid-template-columns: var(--inspector-panel-width) minmax(240px, 1fr) 46px;
     }
 
     html[data-inspector-collapsed="true"] .workspace,
@@ -265,7 +265,7 @@
     html[data-inspector-collapsed="true"] .workspace.preview-collapsed,
     html[data-preview-collapsed="true"] .workspace.inspector-collapsed,
     .workspace.inspector-collapsed.preview-collapsed {
-      grid-template-columns: 46px minmax(240px, 1fr) 86px;
+      grid-template-columns: 46px minmax(240px, 1fr) 46px;
     }
 
     .panel-resizer {
@@ -1512,6 +1512,7 @@
 
 
     .preview {
+      position: relative;
       min-width: 0;
       max-width: 100%;
       border-left: 1px solid #18314d;
@@ -1565,6 +1566,55 @@
       line-height: 1;
     }
 
+    .preview-toggle,
+    .state-explorer-toggle {
+      border-color: transparent;
+      border-radius: 7px;
+      background: transparent;
+      color: #8fb6dc;
+      box-shadow: none;
+      transition: color .14s ease, background-color .14s ease, border-color .14s ease, transform .14s ease;
+    }
+
+    .preview-toggle:hover,
+    .state-explorer-toggle:hover {
+      border-color: #315f8c;
+      background: #0b1a2c;
+      color: #e0f2fe;
+    }
+
+    .preview-toggle:focus-visible,
+    .state-explorer-toggle:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+
+    #btnOpen {
+      color: #7dd3fc;
+    }
+
+    .panel-icon {
+      display: block;
+      width: 17px;
+      height: 17px;
+      flex: 0 0 auto;
+      pointer-events: none;
+    }
+
+    .panel-chevron {
+      transform-origin: 50% 50%;
+      transition: transform .18s ease;
+    }
+
+    #btnTogglePreview .panel-chevron { transform: rotate(0deg); }
+    html[data-preview-collapsed="true"] #btnTogglePreview .panel-chevron,
+    .workspace.preview-collapsed #btnTogglePreview .panel-chevron { transform: rotate(180deg); }
+    #btnToggleInspector .panel-chevron { transform: rotate(180deg); }
+    html[data-inspector-collapsed="true"] #btnToggleInspector .panel-chevron,
+    .workspace.inspector-collapsed #btnToggleInspector .panel-chevron { transform: rotate(0deg); }
+    #btnToggleStateExplorer .panel-chevron { transform: rotate(90deg); }
+    .state-explorer.collapsed #btnToggleStateExplorer .panel-chevron { transform: rotate(-90deg); }
+
     html[data-preview-collapsed="true"] .workspace .preview,
     .workspace.preview-collapsed .preview {
       grid-template-rows: 42px;
@@ -1590,6 +1640,24 @@
     .workspace.preview-collapsed .preview-title-actions {
       margin-left: 0;
       gap: 4px;
+    }
+
+    @media (min-width: 901px) {
+      html[data-preview-collapsed="true"] .workspace #btnTogglePreview,
+      .workspace.preview-collapsed #btnTogglePreview {
+        position: absolute;
+        z-index: 2;
+        top: 4px;
+        left: 6px;
+      }
+
+      html[data-preview-collapsed="true"] .workspace #btnOpen,
+      .workspace.preview-collapsed #btnOpen {
+        position: absolute;
+        z-index: 2;
+        bottom: 8px;
+        left: 6px;
+      }
     }
 
     iframe {
@@ -4876,7 +4944,9 @@
     <aside class="inspector" id="stateInspector">
       <div class="inspector-title">
         <span class="inspector-title-text" id="stateInspectorTitle">Eigenschaften</span>
-        <button id="btnToggleInspector" class="preview-toggle" type="button" title="Eigenschaften einklappen" aria-label="Eigenschaften einklappen">&lt;</button>
+        <button id="btnToggleInspector" class="preview-toggle" type="button" title="Eigenschaften einklappen" aria-label="Eigenschaften einklappen" aria-controls="stateInspectorBody" aria-expanded="false">
+          <svg class="panel-icon panel-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
+        </button>
       </div>
       <div id="stateInspectorBody" class="inspector-body state-editor-root">
         <div class="inspector-empty">
@@ -4928,7 +4998,9 @@
           <div id="stateExplorerGroups" class="state-explorer-tabs" aria-label="Vorlagengruppen"></div>
           <span class="state-explorer-hint">ziehen / halten</span>
           <button id="btnAddStateTemplate" class="state-explorer-add" type="button" title="Eigene Vorlage erstellen">+ Vorlage</button>
-          <button id="btnToggleStateExplorer" class="state-explorer-toggle" type="button" title="Vorlagen einklappen" aria-label="Vorlagen einklappen">v</button>
+          <button id="btnToggleStateExplorer" class="state-explorer-toggle" type="button" title="Vorlagen einklappen" aria-label="Vorlagen einklappen" aria-controls="stateExplorerList" aria-expanded="true">
+            <svg class="panel-icon panel-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
+          </button>
         </div>
         <div id="presetComposer" class="preset-composer" hidden></div>
         <div id="stateExplorerList" class="state-explorer-list"></div>
@@ -4941,8 +5013,12 @@
         <span class="preview-title-text">Generierte App</span>
         <span class="preview-title-actions">
           <span id="syncState">aktiv</span>
-          <button id="btnOpen" class="preview-toggle" type="button" title="App in neuem Fenster öffnen" aria-label="App in neuem Fenster öffnen">↗</button>
-          <button id="btnTogglePreview" class="preview-toggle" type="button" title="App-Vorschau einklappen" aria-label="App-Vorschau einklappen">&gt;</button>
+          <button id="btnOpen" class="preview-toggle" type="button" title="App in neuem Fenster öffnen" aria-label="App in neuem Fenster öffnen">
+            <svg class="panel-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"></path><path d="M10 14 21 3"></path><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg>
+          </button>
+          <button id="btnTogglePreview" class="preview-toggle" type="button" title="App-Vorschau einklappen" aria-label="App-Vorschau einklappen" aria-controls="appFrame" aria-expanded="true">
+            <svg class="panel-icon panel-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
+          </button>
         </span>
       </div>
       <iframe id="appFrame" title="Generierte App"></iframe>
@@ -9158,9 +9234,9 @@
     function applyPreviewCollapsed() {
       document.documentElement.dataset.previewCollapsed = previewCollapsed ? "true" : "false";
       workspaceEl.classList.toggle("preview-collapsed", previewCollapsed);
-      btnTogglePreview.textContent = previewCollapsed ? "<" : ">";
       btnTogglePreview.title = previewCollapsed ? "App-Vorschau ausklappen" : "App-Vorschau einklappen";
       btnTogglePreview.setAttribute("aria-label", btnTogglePreview.title);
+      btnTogglePreview.setAttribute("aria-expanded", previewCollapsed ? "false" : "true");
       saveUiState();
       requestAnimationFrame(() => {
         applyCamera();
@@ -9171,9 +9247,9 @@
     function applyInspectorCollapsed(opts = {}) {
       document.documentElement.dataset.inspectorCollapsed = inspectorCollapsed ? "true" : "false";
       workspaceEl.classList.toggle("inspector-collapsed", inspectorCollapsed);
-      btnToggleInspector.textContent = inspectorCollapsed ? ">" : "<";
       btnToggleInspector.title = inspectorCollapsed ? "Eigenschaften ausklappen" : "Eigenschaften einklappen";
       btnToggleInspector.setAttribute("aria-label", btnToggleInspector.title);
+      btnToggleInspector.setAttribute("aria-expanded", inspectorCollapsed ? "false" : "true");
       if (opts.persist !== false) saveUiState();
       requestAnimationFrame(() => {
         applyCamera();
@@ -9205,9 +9281,9 @@
 
     function applyStateExplorerCollapsed() {
       stateExplorerEl.classList.toggle("collapsed", stateExplorerCollapsed);
-      btnToggleStateExplorer.textContent = stateExplorerCollapsed ? "^" : "v";
       btnToggleStateExplorer.title = stateExplorerCollapsed ? "Vorlagen ausklappen" : "Vorlagen einklappen";
       btnToggleStateExplorer.setAttribute("aria-label", btnToggleStateExplorer.title);
+      btnToggleStateExplorer.setAttribute("aria-expanded", stateExplorerCollapsed ? "false" : "true");
       saveUiState();
     }
 

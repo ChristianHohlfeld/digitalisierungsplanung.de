@@ -4340,6 +4340,11 @@ test.describe("State Blueprint tool", () => {
   test("keeps inspector collapsible and switches between state and transition properties", async ({ page }) => {
     await openTool(page);
 
+    for (const selector of ["#btnToggleInspector", "#btnTogglePreview", "#btnToggleStateExplorer", "#btnOpen"]) {
+      await expect(page.locator(selector).locator("svg.panel-icon")).toHaveCount(1);
+      await expect(page.locator(selector)).toHaveText("");
+    }
+
     await page.locator('[data-id="login"] .node-edit').click();
     await expect(page.locator("#pTitle")).toBeVisible();
     await expect(page.locator("#pTitle")).toHaveValue("Login");
@@ -4348,6 +4353,7 @@ test.describe("State Blueprint tool", () => {
     await page.locator("#btnToggleInspector").click();
     await expect(page.locator(".workspace")).toHaveClass(/inspector-collapsed/);
     await expect(page.locator("#btnToggleInspector")).toHaveAttribute("aria-label", "Eigenschaften ausklappen");
+    await expect(page.locator("#btnToggleInspector")).toHaveAttribute("aria-expanded", "false");
     await expect(page.locator("#pTitle")).toBeHidden();
     const mapCollapsed = await visibleBox(page.locator("#map"));
     expect(mapCollapsed.width).toBeGreaterThan(mapBefore.width);
@@ -4360,6 +4366,7 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator("#btnToggleInspector").click();
     await expect(page.locator(".workspace")).not.toHaveClass(/inspector-collapsed/);
+    await expect(page.locator("#btnToggleInspector")).toHaveAttribute("aria-expanded", "true");
     await expect(page.locator("#pTitle")).toHaveValue("Register");
 
     const label = page.locator("svg text.edge-label").filter({ hasText: "Login" });
@@ -12830,6 +12837,24 @@ test.describe("State Blueprint tool", () => {
     await page.locator("#btnTogglePreview").click();
     await assertVisibleInViewport(page, "#btnOpen");
     await assertVisibleInViewport(page, "#btnTogglePreview");
+    await expect(page.locator("#btnTogglePreview")).toHaveAttribute("aria-expanded", "false");
+    const collapsedPreview = await page.locator(".preview").evaluate(preview => {
+      const rail = preview.getBoundingClientRect();
+      const open = preview.querySelector("#btnOpen").getBoundingClientRect();
+      const toggle = preview.querySelector("#btnTogglePreview").getBoundingClientRect();
+      return {
+        width: Math.round(rail.width),
+        controlsAligned: Math.abs(open.left - toggle.left) <= 1,
+        toggleAtTop: toggle.top - rail.top <= 8,
+        openAtBottom: rail.bottom - open.bottom <= 10
+      };
+    });
+    expect(collapsedPreview).toEqual({
+      width: 46,
+      controlsAligned: true,
+      toggleAtTop: true,
+      openAtBottom: true
+    });
 
     await page.setViewportSize({ width: 900, height: 760 });
     await page.locator("#btnTogglePreview").click();
