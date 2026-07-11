@@ -8547,6 +8547,15 @@ test.describe("State Blueprint tool", () => {
     await page.keyboard.type("Open login");
     await expect(page.locator(".quick-title-input.edge-title-input")).toHaveValue("Open login");
     await expect.poll(() => page.locator(".quick-title-input").evaluate(el => document.activeElement === el)).toBe(true);
+    const delayedCanvasFocus = await page.evaluate(async edgeId => {
+      const input = document.querySelector(".quick-title-input");
+      let blurCount = 0;
+      input.addEventListener("blur", () => { blurCount += 1; });
+      keepCanvasFocusAfterTransitionSelect(edgeId);
+      await new Promise(resolve => setTimeout(resolve, 150));
+      return { blurCount, inputStillFocused: document.activeElement === input };
+    }, loginEdgeId);
+    expect(delayedCanvasFocus).toEqual({ blurCount: 0, inputStillFocused: true });
     await expect(page.locator("#pLabel")).toHaveValue("Open login");
     await expect(page.locator(`svg text.edge-label[data-edge-id="${loginEdgeId}"]`)).toHaveText("Open login");
     await expect.poll(async () => {

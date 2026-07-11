@@ -22397,7 +22397,7 @@
 
     function keepCanvasFocusAfterTransitionSelect(edgeId) {
       const focusCanvas = () => {
-        if (inspectorEdgeId !== edgeId) return;
+        if (inspectorEdgeId !== edgeId || quickRenameSession?.input) return;
         const active = document.activeElement;
         if (active && stateInspectorBodyEl.contains(active) && isEditableTarget(active)) active.blur();
         focusCanvasForSelection();
