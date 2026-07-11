@@ -22289,7 +22289,7 @@
         saveModel("edge:label:" + target.id);
       }
       syncQuickRenameInspector(target);
-      draw();
+      scheduleDraw();
       if (opts.keepInputFocus === true) {
         const input = quickRenameSession?.input;
         refocusQuickRenameInput(input);
