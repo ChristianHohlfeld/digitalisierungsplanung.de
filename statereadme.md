@@ -4,7 +4,7 @@ Status: normativ
 
 Schema: State Blueprint Version 2
 
-Stand: 2026-07-10
+Stand: 2026-07-12
 
 Dieses Dokument ist der schriftliche Vertrag von Zustand / Digitalisierungsplanung.
 Es beschreibt die Invarianten, die Editor, Runtime, Export, API, MCP und
@@ -681,7 +681,7 @@ Editoraktion
   MÜSSEN abgelehnt werden. Kanonische Modellwrites gehören ausschließlich zur
   Modell-API.
 - **RT-015 Öffentliche Routen:** Nginx darf nur `/console.html`, `/healthz`,
-  `/token`, `/events`, `/emit` und `/ws` an den lokalen Prozess auf
+  `/version`, `/token`, `/events`, `/emit` und `/ws` an den lokalen Prozess auf
   `127.0.0.1:8788` weiterleiten. Nicht definierte Kernrouten wie `/`,
   `/catalog`, `/schema` und `/api` liefern 404.
 - **RT-016 Transportierte Definition:** Der Server MUSS einem akzeptierten
@@ -697,6 +697,28 @@ Editoraktion
   MÜSSEN bei noch nicht verbundenem WebSocket vollständig in Reihenfolge
   warten und nach erfolgreichem Join gesendet werden. Eine feste
   Abschneidegrenze für fachliche Ereignisse ist verboten.
+- **RT-019 Gemeinsame Release-Wahrheit:** `sw-version.js` ist die einzige
+  Release-Wahrheit für statisches Frontend, Service Worker und Backend. Eine
+  Release besitzt eine streng steigende numerische Sequenz und die daraus
+  abgeleitete ID `release-<sequence>`. Frontend und Backend DÜRFEN keine
+  getrennten Zähler führen.
+- **RT-020 Release-Gate:** CI DARF die Release-Sequenz erst nach dem Erfolg aller
+  Server- und Browserverträge erhöhen. Der Produktivserver DARF einen neuen
+  Quellcommit erst deployen, wenn dessen neue Release-ID auf `main` vorliegt.
+- **RT-021 Atomarer Serverabgleich:** Automatische Deployments MÜSSEN mit einem
+  exklusiven Lock laufen, den freigegebenen Remote-Commit erzwingen und lokale
+  Änderungen im Server-Checkout verwerfen. Secrets und produktive
+  Umgebungswerte MÜSSEN außerhalb dieses Checkouts liegen.
+- **RT-022 Verifikation und Rollback:** Eine Release gilt erst nach erfolgreichem
+  PM2-Start mit aktualisierter Umgebung, `nginx -t` und einem Healthcheck mit
+  exakt passender Release-ID als deployt. Vorher DARF der Erfolgsmarker nicht
+  fortgeschrieben werden. Schlägt das Update nach Retries fehl, MUSS der letzte
+  verifizierte Commit wiederhergestellt werden; ein späterer Timerlauf versucht
+  die neue Release erneut.
+- **RT-023 Versions-API:** Für jede neue `release-N`-Freigabe MÜSSEN `/version`
+  und `/healthz` mit `no-store` exakt die vom Backend verwendete
+  `serviceWorkerId`, Release-Sequenz,
+  Erstellungszeit sowie Quell- und Deploy-Commit ausgeben.
 
 ## 16. Öffentliche Demo und Produkt-Abnahme
 
@@ -768,11 +790,11 @@ Editoraktion
 ## 17. Ausführbare Absicherung
 
 - **TST-001 Testbestand:** Am Stand dieses Dokuments umfasst die ausführbare
-  Spezifikation 324 expandierte Playwright-Fälle in fünf Spec-Dateien und 14
-  Node-Server-Tests, insgesamt 338 Fälle.
+  Spezifikation 324 expandierte Playwright-Fälle in fünf Spec-Dateien und 18
+  Node-Server-Tests, insgesamt 342 Fälle.
 - **TST-002 Smoke:** 224 Playwright-Fälle tragen `@smoke`. `npm test` prüft
-  zuerst die 14 Server-Tests und danach diese 224 Smoke-Fälle.
-- **TST-003 Vollständiger Lauf:** `npm run test:full` prüft zuerst alle 14
+  zuerst die 18 Server-Tests und danach diese 224 Smoke-Fälle.
+- **TST-003 Vollständiger Lauf:** `npm run test:full` prüft zuerst alle 18
   Server-Tests und danach alle 324 Playwright-Fälle. Der vollständige lokale
   Vertragslauf ist damit genau ein Befehl:
 
@@ -789,7 +811,7 @@ Editoraktion
   der vor dem Fix am beobachteten Verhalten scheitert und nach dem Fix ohne
   Retry, Force-Click oder Sonderpfad besteht.
 - **TST-007 CI-Freigabe:** GitHub Actions und Gitea MÜSSEN beide den
-  vollständigen Bestand von 14 Server- und 324 Playwright-Fällen ausführen.
+  vollständigen Bestand von 18 Server- und 324 Playwright-Fällen ausführen.
   Gitea verwendet `npm run test:full`. GitHub Actions DARF die Playwright-Fälle
   in disjunkte Shards aufteilen, wenn deren Vereinigung exakt alle 324 Fälle
   enthält, die Serverfälle genau einmal laufen und der Deploy von allen Shards
@@ -879,7 +901,7 @@ Abdeckungsbereiche:
   Gitea-Abnahme. GitHub Actions prüft denselben Bestand schneller in vier
   disjunkten Playwright-Shards und einem einmaligen Serverlauf. Der Deploy-Job
   hängt vom Erfolg der gesamten Matrix ab; die Freigabe umfasst deshalb weiter
-  alle 338 Vertragsfälle.
+  alle 342 Vertragsfälle.
 - **GAP-007 Realtime-Ausgang am Parent, geschlossen am 2026-07-11:** Das im
   Nutzerbrowser persistierte Fehlermodell enthielt einen aktiven Parent
   `start`, dessen manuellen Boundary-Eintritt und den echten Realtime-Ausgang

@@ -11,6 +11,9 @@ Der globale JSON-Zustands-/Ereignisbus bleibt die einzige fachliche Wahrheit. De
 - zustandsloser Sende-Endpunkt für externe Systeme,
 - Browser-Testkonsole für manuelles Emitten.
 
+Zusätzlich veröffentlicht der Server lesend die gemeinsame
+Frontend-/Backend-Release-ID. Er besitzt dafür keinen zweiten Versionszähler.
+
 Der Realtime-Server liefert nur diesen Kern. Die Arbeitsfläche speichert nur konkrete Referenzen, die sie wirklich verwendet, zum Beispiel `triggerEvent: "realtime.sip.call.incoming"`.
 
 ## Basis-URLs
@@ -81,10 +84,36 @@ Antwort:
 ```json
 {
   "ok": true,
+  "serviceWorkerId": "release-59",
+  "releaseSequence": 59,
+  "builtAt": "2026-07-12T00:00:00Z",
+  "sourceCommit": "1234567890abcdef",
+  "deployedCommit": "abcdef1234567890",
   "rooms": 0,
   "clients": 0
 }
 ```
+
+### `GET /version`
+
+Liefert mit `Cache-Control: no-store` dieselbe kanonische Release-ID, die der
+statische Service Worker aus `sw-version.js` verwendet und mit der der
+Backend-Prozess gestartet wurde.
+
+```json
+{
+  "ok": true,
+  "serviceWorkerId": "release-59",
+  "releaseSequence": 59,
+  "builtAt": "2026-07-12T00:00:00Z",
+  "sourceCommit": "1234567890abcdef",
+  "deployedCommit": "abcdef1234567890"
+}
+```
+
+`sourceCommit` ist der durch die vollständigen CI-Verträge freigegebene
+Quellcommit. `deployedCommit` ist der auf dem Server ausgecheckte
+Release-Commit.
 
 ### `GET /console.html`
 

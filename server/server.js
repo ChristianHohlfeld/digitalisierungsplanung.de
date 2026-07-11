@@ -5,6 +5,7 @@ const fs = require("node:fs");
 const http = require("node:http");
 const { URL } = require("node:url");
 const { WebSocketServer, WebSocket } = require("ws");
+const { loadReleaseInfo } = require("./release");
 
 const DEFAULT_ALLOWED_ORIGINS = ["https://digitalisierungsplanung.de"];
 const DEFAULT_PATH = "/ws";
@@ -12,6 +13,7 @@ const DEFAULT_TOKEN_PATH = "/token";
 const DEFAULT_EVENTS_PATH = "/events";
 const DEFAULT_EMIT_PATH = "/emit";
 const DEFAULT_CONSOLE_PATH = "/console.html";
+const DEFAULT_VERSION_PATH = "/version";
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 8788;
 const MAX_ID_LENGTH = 128;
@@ -300,6 +302,7 @@ function loadConfig(options = {}) {
     eventsPath: options.eventsPath || env.REALTIME_EVENTS_PATH || DEFAULT_EVENTS_PATH,
     emitPath: options.emitPath || env.REALTIME_EMIT_PATH || DEFAULT_EMIT_PATH,
     consolePath: options.consolePath || env.REALTIME_CONSOLE_PATH || DEFAULT_CONSOLE_PATH,
+    versionPath: options.versionPath || env.REALTIME_VERSION_PATH || DEFAULT_VERSION_PATH,
     allowedOrigins: parseList(
       options.allowedOrigins ?? env.REALTIME_ALLOWED_ORIGINS,
       DEFAULT_ALLOWED_ORIGINS
@@ -316,6 +319,7 @@ function loadConfig(options = {}) {
     ),
     roomSecret,
     emitSecret,
+    release: options.release || loadReleaseInfo({ env, path: options.releaseFile }),
     eventCatalog: loadEventCatalog(options, env),
     allowUnsignedRooms: Boolean(allowUnsignedRooms),
     requireRoomSecret: options.requireRoomSecret ?? (nodeEnv === "production" && !allowUnsignedRooms)
@@ -539,6 +543,17 @@ function eventCatalogResponse(config) {
   };
 }
 
+function releaseResponse(config) {
+  return {
+    ok: true,
+    serviceWorkerId: config.release.id,
+    releaseSequence: config.release.sequence,
+    builtAt: config.release.builtAt,
+    sourceCommit: config.release.sourceCommit,
+    deployedCommit: config.release.deployedCommit
+  };
+}
+
 function createRoom(roomId) {
   return {
     id: roomId,
@@ -670,7 +685,13 @@ function createRealtimeServer(options = {}) {
     const url = new URL(request.url || "/", "http://localhost");
     if (request.method === "GET" && url.pathname === "/healthz") {
       const clients = [...rooms.values()].reduce((sum, room) => sum + room.clients.size, 0);
-      writeJson(response, 200, { ok: true, rooms: rooms.size, clients });
+      writeJson(response, 200, { ...releaseResponse(config), rooms: rooms.size, clients });
+      return;
+    }
+    if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.versionPath) {
+      const prepared = prepareCatalogResponse(request, response);
+      if (prepared.done) return;
+      writeJson(response, 200, releaseResponse(config), prepared.headers);
       return;
     }
     if (request.method === "GET" && url.pathname === config.consolePath) {

@@ -195,6 +195,45 @@ test("serves event definitions only to allowed origins", async () => {
   });
 });
 
+test("exposes one shared frontend and backend release without caching it", async () => {
+  const release = {
+    id: "release-59",
+    sequence: 59,
+    builtAt: "2026-07-12T00:00:00Z",
+    sourceCommit: "1234567890abcdef",
+    deployedCommit: "abcdef1234567890"
+  };
+  await withRealtimeServer({ roomSecret: SECRET, release }, async realtime => {
+    const versionResponse = await fetch(httpUrl(realtime, "/version"), {
+      headers: { Origin: ORIGIN }
+    });
+    assert.equal(versionResponse.status, 200);
+    assert.equal(versionResponse.headers.get("cache-control"), "no-store");
+    assert.equal(versionResponse.headers.get("access-control-allow-origin"), ORIGIN);
+    assert.deepEqual(await versionResponse.json(), {
+      ok: true,
+      serviceWorkerId: "release-59",
+      releaseSequence: 59,
+      builtAt: release.builtAt,
+      sourceCommit: release.sourceCommit,
+      deployedCommit: release.deployedCommit
+    });
+
+    const healthResponse = await fetch(httpUrl(realtime, "/healthz"));
+    assert.equal(healthResponse.status, 200);
+    assert.deepEqual(await healthResponse.json(), {
+      ok: true,
+      serviceWorkerId: "release-59",
+      releaseSequence: 59,
+      builtAt: release.builtAt,
+      sourceCommit: release.sourceCommit,
+      deployedCommit: release.deployedCommit,
+      rooms: 0,
+      clients: 0
+    });
+  });
+});
+
 test("returns not_found for non-core realtime routes", async () => {
   await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
     for (const path of ["/", "/catalog", "/schema", "/api"]) {
@@ -211,6 +250,7 @@ test("nginx proxies only lean public realtime routes", () => {
   for (const route of [
     "console.html",
     "/healthz",
+    "/version",
     "/token",
     "/events",
     "/emit",

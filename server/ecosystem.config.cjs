@@ -1,12 +1,16 @@
 "use strict";
 
+const appDir = process.env.APP_DIR || "/var/www/digitalisierungsplanung.de";
+const envFile = process.env.ENV_FILE || "/etc/digitalisierungsplanung-realtime.env";
+const appName = process.env.PM2_APP || "digitalisierungsplanung-realtime";
+
 module.exports = {
   apps: [
     {
-      name: "digitalisierungsplanung-realtime",
+      name: appName,
       script: "server/run.sh",
       interpreter: "bash",
-      cwd: "/var/www/digitalisierungsplanung.de",
+      cwd: appDir,
       instances: 1,
       exec_mode: "fork",
       watch: false,
@@ -16,11 +20,18 @@ module.exports = {
         REALTIME_HOST: "127.0.0.1",
         REALTIME_PORT: "8788",
         REALTIME_PATH: "/ws",
+        REALTIME_ENV_FILE: envFile,
         REALTIME_ALLOWED_ORIGINS: "https://digitalisierungsplanung.de",
         REALTIME_MAX_PAYLOAD_BYTES: "65536",
         REALTIME_RATE_LIMIT: "360",
         REALTIME_RATE_WINDOW_MS: "10000",
-        REALTIME_HEARTBEAT_MS: "30000"
+        REALTIME_HEARTBEAT_MS: "30000",
+        ZUSTAND_RELEASE_FILE: process.env.ZUSTAND_RELEASE_FILE || `${appDir}/sw-version.js`,
+        ZUSTAND_RELEASE_ID: process.env.ZUSTAND_RELEASE_ID || "",
+        ZUSTAND_RELEASE_SEQUENCE: process.env.ZUSTAND_RELEASE_SEQUENCE || "0",
+        ZUSTAND_RELEASE_BUILT_AT: process.env.ZUSTAND_RELEASE_BUILT_AT || "",
+        ZUSTAND_RELEASE_SOURCE: process.env.ZUSTAND_RELEASE_SOURCE || "",
+        ZUSTAND_DEPLOY_COMMIT: process.env.ZUSTAND_DEPLOY_COMMIT || ""
       }
     }
   ]

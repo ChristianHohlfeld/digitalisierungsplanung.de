@@ -51,10 +51,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Bump service worker deploy stamp
+      - name: Advance shared frontend/backend release
         if: github.ref == 'refs/heads/main'
         env:
-          SW_VERSION: deploy-${{ github.run_number }}-${{ github.run_attempt }}
+          SW_INCREMENT: "1"
+          SW_SOURCE_COMMIT: ${{ github.sha }}
         run: |
           SW_BUILT_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")" node scripts/write-sw-version.mjs
           if git diff --quiet -- sw-version.js; then
@@ -64,5 +65,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add sw-version.js
-          git commit -m "Bump service worker deploy stamp [skip ci]"
+          RELEASE_ID="$(sed -n 's/^self\.ZUSTAND_SW_VERSION = "\([^"]*\)";$/\1/p' sw-version.js)"
+          git commit -m "Advance shared release to ${RELEASE_ID} [skip ci]"
           git push origin HEAD:main

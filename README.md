@@ -16,6 +16,7 @@ Der wichtigste Gedanke: Nur verstandene Prozesse lassen sich sauber digitalisier
 | Werkzeug mit Echtzeit-Raum | `https://digitalisierungsplanung.de/state.html?room=<raum-id>` |
 | Echtzeit-Konsole | `https://realtime.digitalisierungsplanung.de/console.html?room=<raum-id>` |
 | Ereigniskatalog | `https://realtime.digitalisierungsplanung.de/events` |
+| Release-ID | `https://realtime.digitalisierungsplanung.de/version` |
 | WebSocket | `wss://realtime.digitalisierungsplanung.de/ws` |
 
 ## Grundvertrag
@@ -78,11 +79,15 @@ PWA-Bilder neu erzeugen:
 npm run build:pwa-assets
 ```
 
-Service-Worker-Version neu schreiben:
+Gemeinsame Frontend-/Backend-Release-ID lokal um eins erhöhen:
 
 ```bash
 npm run build:sw-version
 ```
+
+CI führt denselben Schritt erst nach allen Verträgen aus. Die Datei enthält
+danach beispielsweise `release-59`; `/version` und `/healthz` melden exakt
+dieselbe ID für den Backend-Prozess.
 
 Der Service Worker hält bewusst keinen App- oder Asset-Cache. Er entfernt
 vorhandene Cache-Storage-Bestände und lädt gleich-originige Ressourcen mit
@@ -95,6 +100,7 @@ Der Server in [`server/`](server/) ist nur Transport. Er speichert keine fachlic
 | Route | Zweck |
 | --- | --- |
 | `GET /healthz` | Gesundheitsprüfung |
+| `GET /version` | gemeinsame Frontend-/Backend-Release-ID |
 | `GET /events` | erlaubte Echtzeit-Ereignisse |
 | `GET /token` | signiertes Raum-Token für den Browser |
 | `GET /console.html` | Testoberfläche für Ereignisse |
@@ -128,18 +134,36 @@ Wichtige Dateien:
 - [`server/server.js`](server/server.js): Server
 - [`server/ecosystem.config.cjs`](server/ecosystem.config.cjs): PM2-Prozess
 - [`server/deploy.sh`](server/deploy.sh): Veröffentlichung auf dem Droplet
+- [`server/auto-deploy.sh`](server/auto-deploy.sh): atomare automatische Aktualisierung
 - [`server/nginx/realtime.digitalisierungsplanung.de.conf`](server/nginx/realtime.digitalisierungsplanung.de.conf): produktive Nginx-Datei
 - [`server/nginx/realtime.digitalisierungsplanung.de.bootstrap.conf`](server/nginx/realtime.digitalisierungsplanung.de.bootstrap.conf): erste HTTP-Konfiguration für Zertifikate
 
-Aktualisierung auf dem Droplet:
+Automatische Aktualisierung einmalig installieren:
 
 ```bash
 cd /var/www/digitalisierungsplanung.de
-git pull --ff-only origin main
-bash server/deploy.sh
+git fetch --prune --force origin +refs/heads/main:refs/remotes/origin/main
+git reset --hard origin/main
+git clean -ffd
+sudo bash server/deploy.sh
+sudo bash server/auto-deploy.sh --install
 ```
 
-Wenn nur statische Dateien geändert wurden, reicht der Push nach `main`. Der Droplet-Schritt ist nur für Server-, Nginx-, Paket- oder Umgebungsänderungen nötig.
+Danach prüft ein Systemd-Timer jede Minute `origin/main`. Er reagiert erst auf
+eine nach vollständigem CI-Lauf hochgezählte `release-N`-ID, verwirft lokale
+Änderungen im Server-Checkout, deployt exakt den freigegebenen Commit und prüft
+PM2, Nginx sowie die gleiche ID in `/healthz`. Bei einem Fehlschlag bleibt
+beziehungsweise wird der letzte verifizierte Stand wieder aktiv.
+
+```bash
+sudo bash server/auto-deploy.sh --once
+sudo bash server/auto-deploy.sh --status
+journalctl -u digitalisierungsplanung-auto-deploy.service -n 100 --no-pager
+```
+
+Secrets bleiben außerhalb des Repositories in
+`/etc/digitalisierungsplanung-realtime.env`. `origin/main` gewinnt im
+Anwendungsverzeichnis ausdrücklich gegen lokale Dateien und Änderungen.
 
 Produktive Prüfungen:
 
@@ -206,7 +230,7 @@ npm run test:state-explorer
 npm run test:state-render
 ```
 
-`npm test` führt die Server-Tests und die wichtigsten Playwright-Abläufe aus. `npm run test:full` führt den vollständigen Bestand lokal in einem Lauf aus. GitHub Actions verteilt dieselben 320 Browserfälle vollständig auf vier parallele Shards, führt die 14 Serverfälle einmal aus und schreibt erst nach dem Gesamterfolg einen neuen `sw-version.js`-Stempel.
+`npm test` führt die Server-Tests und die wichtigsten Playwright-Abläufe aus. `npm run test:full` führt den vollständigen Bestand lokal in einem Lauf aus. GitHub Actions verteilt dieselben 324 Browserfälle vollständig auf vier parallele Shards, führt die Serverfälle einmal aus und erhöht erst nach dem Gesamterfolg die gemeinsame Release-Sequenz in `sw-version.js`.
 
 ## Ordner
 
@@ -236,8 +260,8 @@ npm run test:state-render
 
 1. Änderungen auf `main` pushen.
 2. GitHub Actions führt alle Server- und Browserfälle in vier vollständigen Browser-Shards aus.
-3. Nach grünem Lauf wird `sw-version.js` aktualisiert.
+3. Nach grünem Lauf wird die gemeinsame `release-N`-ID in `sw-version.js` inkrementiert.
 4. GitHub Pages veröffentlicht die statische Seite.
-5. Bei Server-Änderungen zusätzlich auf dem Droplet `git pull --ff-only origin main && bash server/deploy.sh` ausführen.
+5. Der Droplet-Timer erkennt die neue ID, synchronisiert den Remote-Stand mit Force, deployt und verifiziert dieselbe ID über die API.
 
 Anspruch: ein schlanker Kern, ein Modell, ein Datenbus, eine ausführbare Oberfläche.

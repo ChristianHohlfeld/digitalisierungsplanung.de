@@ -8,6 +8,7 @@ WebSocket relay for `state.html` realtime canvas/runtime events.
 - Token endpoint: `https://realtime.digitalisierungsplanung.de/token`
 - Test console: `https://realtime.digitalisierungsplanung.de/console.html`
 - Event definitions: `https://realtime.digitalisierungsplanung.de/events`
+- Shared release: `https://realtime.digitalisierungsplanung.de/version`
 - Local process: `127.0.0.1:8788`
 - Allowed browser origin: `https://digitalisierungsplanung.de`
 - Room auth: signed HMAC room token via `REALTIME_ROOM_SECRET`
@@ -98,15 +99,45 @@ cd /var/www/digitalisierungsplanung.de
 bash server/deploy.sh
 ```
 
-For an already installed server, the shortest safe update is:
+For an already installed server, install the automatic release watcher once:
 
 ```sh
 cd /var/www/digitalisierungsplanung.de
-git pull --ff-only origin main
-bash server/deploy.sh
+git fetch --prune --force origin +refs/heads/main:refs/remotes/origin/main
+git reset --hard origin/main
+git clean -ffd
+sudo bash server/deploy.sh
+sudo bash server/auto-deploy.sh --install
 ```
 
-`deploy.sh` installs the runtime packages, ensures Certbot renewal is enabled, runs `npm ci --omit=dev`, starts or reloads PM2 with `--update-env`, saves PM2 for reboot, and reloads Nginx. Use it after Nginx config changes such as `/token`.
+The systemd timer checks `origin/main` every minute. It deploys only when CI has
+advanced the shared `release-N` ID in `sw-version.js`. It then locks against a
+second run, discards all local repository changes, checks out the exact remote
+commit, runs `deploy.sh`, updates the PM2 environment, validates Nginx and
+requires `/healthz` to report the same release ID. The success marker advances
+only after all checks pass. A failed update is retried and then rolled back to
+the last verified commit; the timer tries the new release again later.
+Only the one-time rollback to a pre-`release-N` deployment may accept its old
+health payload without an ID. Every new release requires an exact API match.
+
+Useful commands:
+
+```sh
+sudo bash server/auto-deploy.sh --once
+sudo bash server/auto-deploy.sh --status
+systemctl status digitalisierungsplanung-auto-deploy.timer
+journalctl -u digitalisierungsplanung-auto-deploy.service -n 100 --no-pager
+curl -fsS https://realtime.digitalisierungsplanung.de/version
+```
+
+`/etc/digitalisierungsplanung-realtime.env` remains outside the repository and
+is never removed by the force sync. Do not keep manual production changes
+inside `/var/www/digitalisierungsplanung.de`; `origin/main` intentionally wins.
+
+`deploy.sh` remains the bootstrap and manual recovery command. It installs only
+missing runtime packages, runs `npm ci --omit=dev`, starts or reloads PM2 with
+`--update-env`, saves PM2 for reboot, validates the shared release, and reloads
+Nginx.
 
 If you update manually instead:
 
@@ -132,6 +163,7 @@ Smoke checks:
 
 ```sh
 curl -fsS https://realtime.digitalisierungsplanung.de/healthz
+curl -fsS https://realtime.digitalisierungsplanung.de/version
 npm run server:smoke:wss
 npm run server:smoke:wss:prod
 npm run server:smoke:emit
