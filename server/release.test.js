@@ -84,7 +84,9 @@ test("keeps automatic deployment locked, release-gated, force-synced, verified, 
   assert.match(ecosystem, /REALTIME_ENV_FILE: envFile/);
   assert.match(runScript, /REALTIME_ENV_FILE/);
   assert.match(workflow, /needs: contract-tests/);
+  assert.match(workflow, /paths-ignore:\s*\n\s*- sw-version\.js/);
   assert.match(workflow, /SW_INCREMENT: "1"/);
+  assert.doesNotMatch(workflow, /\[skip ci\]/);
   assert.match(writer, /previousSequence \+ 1/);
   assert.match(writer, /ZUSTAND_RELEASE_SEQUENCE/);
 });

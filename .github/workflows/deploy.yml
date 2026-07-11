@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - sw-version.js
   workflow_dispatch:
 
 concurrency:
@@ -66,5 +68,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add sw-version.js
           RELEASE_ID="$(sed -n 's/^self\.ZUSTAND_SW_VERSION = "\([^"]*\)";$/\1/p' sw-version.js)"
-          git commit -m "Advance shared release to ${RELEASE_ID} [skip ci]"
+          git commit -m "Advance shared release to ${RELEASE_ID}"
           git push origin HEAD:main
