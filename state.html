@@ -12663,25 +12663,19 @@
         if (dx < 0 || dx > outsideReach || Math.abs(dy) > verticalReach) continue;
         const score = Math.hypot(dx, dy);
         if (score < bestScore) {
-          best = { state, side: startSide };
+          best = {
+            state,
+            side: startSide,
+            clientOffsetX: dx * scale,
+            clientOffsetY: dy * scale
+          };
           bestScore = score;
         }
       }
       return best;
     }
 
-    function startMouseConnectionNearPort(evt) {
-      const candidate = mouseConnectionStartCandidate(evt);
-      if (!candidate) return false;
-      evt.preventDefault();
-      evt.stopPropagation();
-      clearLongPress();
-      pendingCanvasMouse = null;
-      startConnection(evt, candidate.state, candidate.side);
-      return true;
-    }
-
-    function startPendingCanvasMouse(evt) {
+    function startPendingCanvasMouse(evt, options = {}) {
       stopRuntimeLayerFollow();
       clearLongPress();
       evt.preventDefault();
@@ -12703,10 +12697,12 @@
       pendingCanvasMouse = {
         clientX: evt.clientX,
         clientY: evt.clientY,
-        moved: false
+        moved: false,
+        portCandidate: options.portCandidate || null
       };
       longPressTimer = setTimeout(() => {
         if (!pendingCanvasMouse || pendingCanvasMouse.moved) return;
+        if (pendingCanvasMouse.portCandidate) return;
         pendingCanvasMouse = null;
         panning = null;
         mapEl.classList.remove("panning");
@@ -12722,6 +12718,18 @@
       pendingCanvasMouse = null;
       start.moved = true;
       clearLongPress();
+      const dragX = evt.clientX - start.clientX;
+      const dragY = evt.clientY - start.clientY;
+      const portOffsetX = start.portCandidate?.clientOffsetX || 0;
+      const portOffsetY = start.portCandidate?.clientOffsetY || 0;
+      const dragMovesOutward = dragX > 0 && dragX * portOffsetX + dragY * portOffsetY > 0;
+      if (start.portCandidate && dragMovesOutward) {
+        const startEvent = eventFromPoint(start, evt);
+        startEvent.pointerType = "mouse";
+        startConnection(startEvent, start.portCandidate.state, start.portCandidate.side);
+        handleCanvasMove(evt);
+        return true;
+      }
       startPanning(eventFromPoint(start, evt));
       handleCanvasMove(evt);
       return true;
@@ -16107,14 +16115,14 @@
         return;
       }
       const inside = 8;
-      const outside = 32;
-      const height = 44;
+      const outside = 18;
+      const height = 32;
       port.appendChild(svgEl("rect", {
         x: side === "out" ? -inside : -outside,
         y: -height / 2,
         width: inside + outside,
         height,
-        rx: 12,
+        rx: 10,
         class: "svg-port-hit"
       }));
     }
@@ -25449,7 +25457,6 @@
 
     mapEl.addEventListener("mousedown", evt => {
       if (Date.now() - lastTouchAt < 700) return;
-      if (startMouseConnectionNearPort(evt)) return;
       if (evt.button === 1 || evt.button === 2 || isSpaceDown) return startPanning(evt);
       if (isEmptyCanvasTarget(evt.target)) {
         if (evt.button !== 0) return;
@@ -25457,7 +25464,7 @@
           startBoxSelect(evt);
           return;
         }
-        startPendingCanvasMouse(evt);
+        startPendingCanvasMouse(evt, { portCandidate: mouseConnectionStartCandidate(evt) });
       }
     });
 

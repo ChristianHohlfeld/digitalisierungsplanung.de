@@ -10843,8 +10843,8 @@ test.describe("State Blueprint tool", () => {
       expect(geometry.outputPortY).toBe(geometry.visualTop + geometry.height / 2);
       expect(geometry.pinX).toBe(geometry.outputPortX);
       expect(geometry.pinY).toBe(geometry.outputPortY);
-      expect(geometry.inputHit).toMatchObject({ tag: "rect", x: -32, y: -22, width: 40, height: 44, rx: 12 });
-      expect(geometry.outputHit).toMatchObject({ tag: "rect", x: -8, y: -22, width: 40, height: 44, rx: 12 });
+      expect(geometry.inputHit).toMatchObject({ tag: "rect", x: -18, y: -16, width: 26, height: 32, rx: 10 });
+      expect(geometry.outputHit).toMatchObject({ tag: "rect", x: -8, y: -16, width: 26, height: 32, rx: 10 });
     };
 
     const sourceBox = await visibleBox(page.locator('[data-id="source"]'));
@@ -10911,12 +10911,26 @@ test.describe("State Blueprint tool", () => {
       applyCamera();
       draw();
     });
-    const output = await statePort(page, "source", "out").evaluate(port => {
-      const matrix = port.getScreenCTM();
-      const point = new DOMPoint(0, 0).matrixTransform(matrix);
-      return { x: point.x, y: point.y };
-    });
-    const easyStart = { x: output.x + 28, y: output.y + 18 };
+    const easyStartForSource = async () => {
+      const output = await statePort(page, "source", "out").evaluate(port => {
+        const matrix = port.getScreenCTM();
+        const point = new DOMPoint(0, 0).matrixTransform(matrix);
+        return { x: point.x, y: point.y };
+      });
+      return { x: output.x + 28, y: output.y + 18 };
+    };
+    let easyStart = await easyStartForSource();
+    const beforeInwardDrag = await worldTransform(page);
+    await page.mouse.move(easyStart.x, easyStart.y);
+    await page.mouse.down();
+    await page.mouse.move(easyStart.x - 16, easyStart.y + 8);
+    await expect(page.locator("#map")).toHaveClass(/panning/);
+    await expect(page.locator("#map")).not.toHaveClass(/connecting/);
+    await page.mouse.up();
+    await expect.poll(() => worldTransform(page)).not.toBe(beforeInwardDrag);
+    await expect(canvasStateNodes(page)).toHaveCount(1);
+
+    easyStart = await easyStartForSource();
     const firstHit = await page.evaluate(({ x, y }) => {
       const target = document.elementFromPoint(x, y);
       return {
@@ -10928,6 +10942,9 @@ test.describe("State Blueprint tool", () => {
 
     await page.mouse.move(easyStart.x, easyStart.y);
     await page.mouse.down();
+    await expect(page.locator("#map")).not.toHaveClass(/connecting/);
+    await expect(page.locator("#map")).not.toHaveClass(/dragging-state/);
+    await page.mouse.move(easyStart.x + 8, easyStart.y);
     await expect(page.locator("#map")).toHaveClass(/connecting/);
     await expect(page.locator("#map")).not.toHaveClass(/dragging-state/);
     await page.mouse.move(easyStart.x + 96, easyStart.y + 60, { steps: 8 });
