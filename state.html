@@ -23044,7 +23044,7 @@
       startAppAtState(instance.root.id);
     }
 
-    function addTemplateToCurrentLayer(template, opts = {}) {
+    function addTemplateToCurrentLayer(template) {
       const parent = currentLayerContainer();
       const parentId = layerChildParentId(parent);
       const layerWasEmpty = !statesInLayer(parentId).some(state => !state.virtualProxy);
@@ -23060,12 +23060,7 @@
       selected = selectionFromParts([instance.root.id], []);
       saveModel("layer:add-template:" + (currentLayerId || "root"));
       draw();
-      showNodeInspector(instance.root, {
-        focus: false,
-        pulse: true,
-        forceOpen: Boolean(opts.forceOpen),
-        manualOpen: Boolean(opts.manualOpen)
-      });
+      showNodeInspector(instance.root, { focus: false, pulse: true });
       if (currentLayerId) syncToApp(false);
       else startAppAtState(instance.root.id);
       return instance.root;
@@ -24817,7 +24812,7 @@
         });
         card.querySelector(".template-use").onclick = evt => {
           evt.stopPropagation();
-          addTemplateToCurrentLayer(templateForImmediateAdd(), { forceOpen: true, manualOpen: true });
+          addTemplateToCurrentLayer(templateForImmediateAdd());
         };
         card.addEventListener("click", evt => {
           if (evt.target.closest("button, input, textarea")) return;
@@ -24826,7 +24821,7 @@
         });
         card.addEventListener("dblclick", evt => {
           if (evt.target.closest("button, input, textarea")) return;
-          addTemplateToCurrentLayer(templateForImmediateAdd(), { forceOpen: true, manualOpen: true });
+          addTemplateToCurrentLayer(templateForImmediateAdd());
         });
         wireDraggableTemplate(card, template);
         group.cards.push(card);

@@ -421,6 +421,13 @@ Editoraktion
   Transition gelegt, MUSS er in diese Transition eingesetzt werden. Die
   eingehende Transition behält ihre Identität; eine neue ausgehende
   Transition verbindet zum bisherigen Ziel.
+- **PRE-016 Panelhoheit:** Preset-Materialisierung durch `Hinzufügen`,
+  `Verwenden`, Doppelklick, Drag-Drop oder den Import einer Zustandskomponente
+  DARF den geöffneten beziehungsweise geschlossenen Inspectorzustand NICHT
+  verändern. Nur eine getrennte, ausdrücklich auf Inspector, Eigenschaften oder
+  Bearbeiten gerichtete Nutzeraktion darf ihn öffnen oder schließen. Auf Mobil
+  MÜSSEN `Hinzufügen` und `Verwenden` außerdem die gewählte Arbeitsansicht
+  unverändert lassen.
 
 ## 11. Editor-Vertrag
 

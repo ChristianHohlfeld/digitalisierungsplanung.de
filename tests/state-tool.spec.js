@@ -127,6 +127,27 @@ async function visibleBox(locator) {
   return box;
 }
 
+async function waitForWorkspaceLayout(page) {
+  await page.locator(".workspace").evaluate(element => {
+    const toMilliseconds = value => {
+      const numeric = Number.parseFloat(value) || 0;
+      return value.trim().endsWith("ms") ? numeric : numeric * 1000;
+    };
+    const style = getComputedStyle(element);
+    const durations = style.transitionDuration.split(",").map(toMilliseconds);
+    const delays = style.transitionDelay.split(",").map(toMilliseconds);
+    const count = Math.max(durations.length, delays.length);
+    let longest = 0;
+    for (let index = 0; index < count; index += 1) {
+      longest = Math.max(
+        longest,
+        durations[index % durations.length] + delays[index % delays.length]
+      );
+    }
+    return new Promise(resolve => setTimeout(resolve, longest + 34));
+  });
+}
+
 function statePort(page, stateId, side) {
   return page.locator(`svg#ports .svg-port[data-state-id="${stateId}"][data-port-side="${side}"]`);
 }
@@ -4348,6 +4369,7 @@ test.describe("State Blueprint tool", () => {
     await page.locator('[data-id="login"] .node-edit').click();
     await expect(page.locator("#pTitle")).toBeVisible();
     await expect(page.locator("#pTitle")).toHaveValue("Login");
+    await waitForWorkspaceLayout(page);
     const mapBefore = await visibleBox(page.locator("#map"));
 
     await page.locator("#btnToggleInspector").click();
@@ -4355,6 +4377,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#btnToggleInspector")).toHaveAttribute("aria-label", "Eigenschaften ausklappen");
     await expect(page.locator("#btnToggleInspector")).toHaveAttribute("aria-expanded", "false");
     await expect(page.locator("#pTitle")).toBeHidden();
+    await waitForWorkspaceLayout(page);
     const mapCollapsed = await visibleBox(page.locator("#map"));
     expect(mapCollapsed.width).toBeGreaterThan(mapBefore.width);
 
@@ -6746,6 +6769,9 @@ test.describe("State Blueprint tool", () => {
     const preset = componentPreset(page, "Checkbox-Feld");
     await expect(preset).toBeVisible();
     await preset.getByRole("button", { name: "Checkbox-Feld hinzufügen" }).click();
+    await expect(page.locator(".workspace")).toHaveClass(/inspector-collapsed/);
+    await expect(page.locator("#pTitle")).toBeHidden();
+    await page.locator("#btnToggleInspector").click();
     await expect(page.locator("#pTitle")).toHaveValue("Checkbox-Feld");
 
     let model = await savedModel(page);
@@ -11619,10 +11645,11 @@ test.describe("State Blueprint tool", () => {
     await expect(appFrame(page).getByRole("link", { name: "Dokumentation öffnen" })).toHaveCount(0);
   });
 
-  test("adds a built-in preset from the left navigator without losing preset scroll @smoke", async ({ page }) => {
+  test("adds a built-in preset without changing the user-owned inspector state or preset scroll @smoke", async ({ page }) => {
     await openTool(page);
 
     await expect(page.locator(".workspace")).toHaveClass(/inspector-collapsed/);
+    await expect(page.locator("#btnToggleInspector")).toHaveAttribute("aria-expanded", "false");
     await page.locator("#stateExplorerGroups").getByRole("button", { name: "Grundlagen" }).click();
     await expect(page.locator("#stateExplorerGroups").getByRole("button", { name: "Grundlagen" })).toHaveClass(/active/);
     const beforeScroll = await page.locator("#stateExplorerList").evaluate(el => el.scrollLeft);
@@ -11634,9 +11661,10 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#presetComposer")).toBeHidden();
     await expect(page.locator("#stateExplorer")).not.toHaveClass(/composer-active/);
     await expect(page.locator(".preview")).not.toHaveClass(/composer-active/);
-    await expect(page.locator(".workspace")).not.toHaveClass(/inspector-collapsed/);
+    await expect(page.locator(".workspace")).toHaveClass(/inspector-collapsed/);
+    await expect(page.locator("#btnToggleInspector")).toHaveAttribute("aria-expanded", "false");
     await expect(page.locator("#stateInspectorTitle")).toHaveText("Externer Link");
-    await expect(page.locator("#pTitle")).toBeVisible();
+    await expect(page.locator("#pTitle")).toBeHidden();
     await expect.poll(() => page.locator("#stateExplorerList").evaluate(el => el.scrollLeft)).toBeGreaterThanOrEqual(Math.max(0, beforeScroll - 4));
     await expect.poll(async () => {
       const stored = await savedModel(page);
@@ -11668,6 +11696,65 @@ test.describe("State Blueprint tool", () => {
       dataWires: ["link"]
     });
     await expect(appFrame(page).getByRole("link", { name: "Dokumentation öffnen" })).toBeVisible();
+
+    await page.locator("#btnToggleInspector").click();
+    await expect(page.locator(".workspace")).not.toHaveClass(/inspector-collapsed/);
+    await expect(page.locator("#btnToggleInspector")).toHaveAttribute("aria-expanded", "true");
+    const openBefore = await canvasStateNodes(page).count();
+    await componentPreset(page, "Textblock").getByRole("button", { name: "Textblock hinzufügen" }).click();
+    await expect(canvasStateNodes(page)).toHaveCount(openBefore + 1);
+    await expect(page.locator(".workspace")).not.toHaveClass(/inspector-collapsed/);
+    await expect(page.locator("#btnToggleInspector")).toHaveAttribute("aria-expanded", "true");
+    await expect(page.locator("#pTitle")).toBeVisible();
+    await expect(page.locator("#pTitle")).toHaveValue("Textblock");
+  });
+
+  test("keeps the mobile preset workspace active when adding a built-in preset @smoke", async ({ browser }) => {
+    const context = await browser.newContext({
+      baseURL: "http://localhost:8124",
+      viewport: { width: 390, height: 820 },
+      hasTouch: true,
+      isMobile: true
+    });
+    const page = await context.newPage();
+    try {
+      await openTool(page, {
+        stateTemplates: [{
+          id: "tpl_saved_note",
+          rootStateId: "tpl_saved_note",
+          title: "Gespeicherte Notiz",
+          components: [{ id: "tpl_saved_note_text", type: "text", text: "Notiz", url: "" }],
+          data: {},
+          states: [],
+          transitions: []
+        }]
+      });
+      await page.locator('[data-mobile-view="presets"]').tap();
+      await expect(page.locator(".workspace")).toHaveClass(/mobile-presets-active/);
+      const before = await canvasStateNodes(page).count();
+
+      await componentPreset(page, "Textblock").getByRole("button", { name: "Textblock hinzufügen" }).tap();
+
+      await expect(canvasStateNodes(page)).toHaveCount(before + 1);
+      await expect(page.locator(".workspace")).toHaveClass(/mobile-presets-active/);
+      await expect(page.locator(".workspace")).toHaveClass(/inspector-collapsed/);
+      await expect(page.locator('[data-mobile-view="presets"]')).toHaveClass(/active/);
+      await expect(page.locator('[data-mobile-view="presets"]')).toHaveAttribute("aria-pressed", "true");
+      await expect(page.locator("#stateExplorer")).toBeVisible();
+      await expect(page.locator("#stateInspector")).toBeHidden();
+
+      await page.locator("#stateExplorerGroups").getByRole("button", { name: "Deine Vorlagen" }).tap();
+      await page.locator(".state-template-card").filter({ hasText: "Gespeicherte Notiz" })
+        .getByRole("button", { name: "Verwenden" }).tap();
+      await expect(canvasStateNodes(page)).toHaveCount(before + 2);
+      await expect(page.locator(".workspace")).toHaveClass(/mobile-presets-active/);
+      await expect(page.locator(".workspace")).toHaveClass(/inspector-collapsed/);
+      await expect(page.locator('[data-mobile-view="presets"]')).toHaveAttribute("aria-pressed", "true");
+      await expect(page.locator("#stateExplorer")).toBeVisible();
+      await expect(page.locator("#stateInspector")).toBeHidden();
+    } finally {
+      await context.close();
+    }
   });
 
   test("filters state explorer presets by search text without breaking group layout @smoke", async ({ page }) => {
