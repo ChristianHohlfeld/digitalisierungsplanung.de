@@ -712,6 +712,14 @@ Editoraktion
   Bestände löschen und jeden gleich-originigen GET mit Cache-Buster und
   `cache: "no-store"` aus dem Netz laden. Auch Worker-Updates verwenden
   `updateViaCache: "none"`.
+- **DEMO-012 Safari-Reload-Viewport:** Root-Demo und Standalone-Export MÜSSEN
+  genau den Dokument-Viewport als vertikale Scrollfläche verwenden; `body`
+  DARF keine zweite Momentum-Scrollfläche bilden. Die automatische
+  Browser-Scrollrestauration MUSS vor dem Body deaktiviert werden. Während des
+  initialen `DOMContentLoaded`-, `load`- und `pageshow`-Fensters MUSS die
+  Runtime auch eine verspätete Safari-/Visual-Viewport-Restaurierung auf
+  Position `0,0` korrigieren. Dieser Reset MUSS mit der ersten echten
+  Nutzerinteraktion enden und DARF danach normales Scrollen nicht beeinflussen.
 
 ## 17. Ausführbare Absicherung
 

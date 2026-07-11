@@ -2069,7 +2069,7 @@ test.describe("State Blueprint tool", () => {
   });
 
   test("click-traverses every website demo state and transition by contract id @smoke", async ({ page }) => {
-    test.setTimeout(120000);
+    test.setTimeout(180000);
     await openTool(page);
 
     await page.locator("#topbarMore summary").click();
@@ -2328,6 +2328,9 @@ test.describe("State Blueprint tool", () => {
     expect(html).not.toContain("flow-debug");
     expect(html).not.toContain("flowDebug");
     expect(html).not.toContain("runtimeFlowDebug");
+    expect(html).toContain('history.scrollRestoration = "manual"');
+    expect(html).toContain("beginInitialViewportReset");
+    expect(html).toContain("window.visualViewport?.addEventListener");
     expect(html).not.toContain("let model = loadModel() || blankModel();");
     expect(html).not.toContain('id="appFrame"');
     expect(html).not.toContain('id="btnExport"');

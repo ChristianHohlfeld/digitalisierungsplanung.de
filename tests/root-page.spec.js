@@ -37,6 +37,22 @@ test.describe("Root demo export", () => {
     expect(html).not.toContain("flow-debug");
     expect(html).not.toContain("flowDebug");
     expect(html).not.toContain("runtimeFlowDebug");
+    expect(html).toContain('history.scrollRestoration = "manual"');
+    expect(html).toContain("beginInitialViewportReset");
+    expect(html).toContain("window.visualViewport?.addEventListener");
+
+    await page.addInitScript(() => {
+      const key = "safari-refresh-probe";
+      const loadCount = Number(sessionStorage.getItem(key) || 0);
+      sessionStorage.setItem(key, String(loadCount + 1));
+      if (loadCount === 0) return;
+      window.addEventListener("pageshow", () => {
+        setTimeout(() => {
+          window.scrollTo(0, Math.min(600, document.documentElement.scrollHeight - window.innerHeight));
+          window.__safariLateRestoreApplied = window.scrollY > 100;
+        }, 40);
+      }, { once: true });
+    });
 
     await page.goto("/");
     await expect(page).toHaveTitle("Zustand-Beispiel");
@@ -65,5 +81,17 @@ test.describe("Root demo export", () => {
     await expect(page.locator("#statePill")).toHaveText("site_contact");
     await page.getByRole("button", { name: "Anfrage senden" }).click();
     await expect(page.locator("#statePill")).toHaveText("site_thanks");
+
+    await page.reload({ waitUntil: "load" });
+    await expect.poll(() => page.evaluate(() => window.__safariLateRestoreApplied === true)).toBe(true);
+    await expect.poll(() => page.evaluate(() => Math.round(window.scrollY)), { timeout: 3000 }).toBe(0);
+    await expect.poll(() => page.locator(".app").evaluate(el => Math.round(el.getBoundingClientRect().top))).toBeLessThanOrEqual(24);
+    expect(await page.evaluate(() => history.scrollRestoration)).toBe("manual");
+
+    await page.mouse.wheel(0, 500);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
+    const userScrollY = await page.evaluate(() => window.scrollY);
+    await page.waitForTimeout(1500);
+    expect(await page.evaluate(() => window.scrollY)).toBe(userScrollY);
   });
 });
