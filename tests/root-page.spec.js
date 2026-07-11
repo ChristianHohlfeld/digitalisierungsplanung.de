@@ -2,6 +2,25 @@ const fs = require("node:fs");
 const { test, expect } = require("@playwright/test");
 
 test.describe("Root demo export", () => {
+  test("service worker always uses the network and removes every app cache @smoke", async ({ request }) => {
+    const sw = await request.get("/sw.js");
+    const registration = await request.get("/register-sw.js");
+    expect(sw.ok()).toBe(true);
+    expect(registration.ok()).toBe(true);
+
+    const swSource = await sw.text();
+    const registrationSource = await registration.text();
+    expect(swSource).toContain("clearAllCaches");
+    expect(swSource).toContain("names.map(name => caches.delete(name))");
+    expect(swSource).toContain("__zustand_nocache");
+    expect(swSource).toContain('cache: "no-store"');
+    expect(swSource).not.toContain("caches.open");
+    expect(swSource).not.toContain("APP_SHELL");
+    expect(swSource).not.toContain("staleWhileRevalidate");
+    expect(registrationSource).toContain('updateViaCache: "none"');
+    expect(registrationSource).toContain("/sw-version.js?__zustand_nocache=");
+  });
+
   test("serves the single Zustand demo at root @smoke", async ({ page }) => {
     const html = fs.readFileSync("index.html", "utf8");
     expect(html).toContain("EXPORTED_STATE_BLUEPRINT");
@@ -15,10 +34,14 @@ test.describe("Root demo export", () => {
     expect(html).not.toContain('id="appFrame"');
     expect(html).not.toContain('id="btnNew"');
     expect(html).not.toContain("_editor");
+    expect(html).not.toContain("flow-debug");
+    expect(html).not.toContain("flowDebug");
+    expect(html).not.toContain("runtimeFlowDebug");
 
     await page.goto("/");
     await expect(page).toHaveTitle("Zustand-Beispiel");
     await expect(page.getByRole("button", { name: "Neu" })).toHaveCount(0);
+    await expect(page.locator("#flowDebug")).toHaveCount(0);
     await expect(page.locator("#statePill")).toHaveText("site_home");
     await expect(page.getByRole("heading", { name: "Erst Klarheit. Dann digitalisieren.", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Erstgespräch anfragen" })).toBeVisible();

@@ -284,7 +284,12 @@ Client sendet ein Ereignis, das im aktuellen `/events`-Katalog angeboten wird:
 }
 ```
 
-Andere Clients im selben Raum bekommen dasselbe Ereignis mit `roomId`, `clientId`, `serverTime`, optionaler `seq`, `name` und `detail`.
+Andere Clients im selben Raum bekommen dasselbe Ereignis mit `roomId`,
+`clientId`, `serverTime`, optionaler `seq`, `name`, `detail` und `event`.
+`event` ist die vom Server normalisierte aktuelle Katalogdefinition für genau
+diesen Namen. Dadurch kann die Runtime Bindings anwenden und den Übergang
+auslösen, ohne beim Empfang nochmals von einem erfolgreichen `/events`-Abruf
+abhängig zu sein.
 
 `seq` ist optional. Wenn vorhanden, verwirft der Server alte oder doppelte Sequenzen pro `clientId` und Raum.
 

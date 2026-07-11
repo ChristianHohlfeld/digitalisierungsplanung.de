@@ -638,6 +638,7 @@ function createRealtimeServer(options = {}) {
   const config = loadConfig(options);
   const allowedOrigins = new Set(config.allowedOrigins);
   const offeredEventNames = new Set(config.eventCatalog.events.map(event => event.name));
+  const offeredEventsByName = new Map(config.eventCatalog.events.map(event => [event.name, event]));
   const rooms = new Map();
   const isOriginAllowed = origin => allowedOrigins.has("*") || allowedOrigins.has(origin);
   const isSamePublicOrigin = (origin, request) => Boolean(origin) && origin === publicBaseUrl(request);
@@ -810,7 +811,8 @@ function createRealtimeServer(options = {}) {
       clientId: emit.clientId,
       serverTime: Date.now(),
       name: emit.name,
-      detail: emit.detail
+      detail: emit.detail,
+      event: offeredEventsByName.get(emit.name)
     }) : 0;
     writeJson(response, 202, {
       ok: true,
@@ -944,6 +946,7 @@ function createRealtimeServer(options = {}) {
       sendError(socket, "invalid_message");
       return;
     }
+    if (payload.type === "runtime.event") payload.event = offeredEventsByName.get(payload.name);
     broadcast(room, socket, payload, TRANSIENT_TYPES.has(message.type));
   }
 

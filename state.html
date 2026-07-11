@@ -6093,17 +6093,6 @@
     .loading-lg { width: 3rem; height: 3rem; }
     @keyframes daisy-loading-spin { to { transform: rotate(360deg); } }
     @media (prefers-reduced-motion: reduce) { .loading-spinner { animation-duration: 1.5s; } }`;
-      const flowDebugCss = `    .flow-debug { position: fixed; left: max(12px, env(safe-area-inset-left)); bottom: max(12px, env(safe-area-inset-bottom)); z-index: 1200; display: none; gap: 8px; max-width: min(340px, calc(100vw - 24px)); pointer-events: none; font-size: 12px; }
-    .flow-debug.available { display: grid; }
-    .flow-debug-toggle { justify-self: start; min-height: 34px; padding: 7px 11px; border: 1px solid rgba(56,189,248,.42); border-radius: 999px; background: rgba(2,6,23,.82); color: #bae6fd; box-shadow: 0 12px 30px rgba(0,0,0,.32); font: inherit; font-weight: 950; pointer-events: auto; }
-    .flow-debug-panel { display: none; width: min(340px, calc(100vw - 24px)); max-height: min(46vh, 360px); overflow: auto; padding: 10px 11px; border: 1px solid rgba(56,189,248,.28); border-radius: 14px; background: rgba(2,6,23,.9); color: var(--text); box-shadow: 0 18px 50px rgba(0,0,0,.36); backdrop-filter: blur(10px); pointer-events: auto; }
-    .flow-debug.open .flow-debug-panel { display: grid; gap: 8px; }
-    .flow-debug-title { color: #7dd3fc; font-weight: 950; letter-spacing: .06em; text-transform: uppercase; }
-    .flow-debug-flow { padding: 8px; border-radius: 10px; background: rgba(56,189,248,.1); color: #e0f2fe; font-weight: 950; overflow-wrap: anywhere; }
-    .flow-debug-row { display: flex; justify-content: space-between; gap: 10px; line-height: 1.35; }
-    .flow-debug-row span { color: var(--muted); }
-    .flow-debug-row strong { min-width: 0; color: #f8fbff; text-align: right; overflow-wrap: anywhere; }
-    @media (max-width: 520px) { .flow-debug-panel { max-height: 38vh; } }`;
       const runtimeStateDeclarationsJs = `    let suppressActionUntil = 0;
     let stateActivationId = 0;`;
       const runtimeStateDeclarationsJsEnhanced = `    let suppressActionUntil = 0;
@@ -6144,6 +6133,17 @@
       }
       const name = recordRuntimeEvent(eventName, detail);
       if (!name) return false;
+      if (name.startsWith("realtime.") && hasHostWindow()) {
+        postHostMessage({
+          type: "STATE_BLUEPRINT_RUNTIME_EVENT",
+          name,
+          detail: detail && typeof detail === "object" && !Array.isArray(detail)
+            ? JSON.parse(JSON.stringify(detail))
+            : {},
+          count: Number(readValueAtPath(context, "events." + name + ".count") || 0),
+          lastAt: Number(readValueAtPath(context, "events." + name + ".lastAt") || 0)
+        });
+      }
       if (name.startsWith("realtime.")) applyRealtimeEventBindings(name, detail, realtimeEventConfig);
       runtimeEventQueue.push({ name, detail: { ...detail, eventName: name } });`;
       const runtimeNormalizeModelRealtimeJs = `      m.transitions = Array.isArray(m.transitions) ? m.transitions : [];`;
@@ -6406,90 +6406,6 @@
         type: "STATE_BLUEPRINT_RUNTIME_STATE",
         current,
         paused: runtimeIsPaused(),`;
-      const runtimeFlowDebugJs = `    function runtimeFlowDebugEnabled() {
-      return typeof IS_STANDALONE_EXPORT !== "undefined" && IS_STANDALONE_EXPORT;
-    }
-
-    function runtimeFlowDebugText(value, fallback = "-") {
-      const text = value === undefined || value === null ? "" : String(value);
-      return text.trim() || fallback;
-    }
-
-    function ensureRuntimeFlowDebug() {
-      if (!runtimeFlowDebugEnabled()) return null;
-      let root = document.getElementById("flowDebug");
-      if (root) return root;
-      root = document.createElement("div");
-      root.id = "flowDebug";
-      root.className = "flow-debug available";
-      const toggle = document.createElement("button");
-      toggle.type = "button";
-      toggle.className = "flow-debug-toggle";
-      toggle.textContent = "Ablauf";
-      toggle.setAttribute("aria-expanded", "false");
-      toggle.setAttribute("aria-controls", "flowDebugPanel");
-      const panel = document.createElement("section");
-      panel.id = "flowDebugPanel";
-      panel.className = "flow-debug-panel";
-      panel.setAttribute("aria-label", "Ablauf-Debug");
-      const title = document.createElement("div");
-      title.className = "flow-debug-title";
-      title.textContent = "Ablauf";
-      const route = document.createElement("div");
-      route.className = "flow-debug-flow";
-      route.dataset.flowDebug = "route";
-      route.textContent = "-";
-      const row = (label, key) => {
-        const line = document.createElement("div");
-        line.className = "flow-debug-row";
-        const name = document.createElement("span");
-        name.textContent = label;
-        const value = document.createElement("strong");
-        value.dataset.flowDebug = key;
-        value.textContent = "-";
-        line.append(name, value);
-        return line;
-      };
-      panel.append(
-        title,
-        route,
-        row("Zustand", "current"),
-        row("Übergang", "transition"),
-        row("Ereignis", "event"),
-        row("Geändert", "changed")
-      );
-      toggle.addEventListener("click", () => {
-        const open = !root.classList.contains("open");
-        root.classList.toggle("open", open);
-        toggle.setAttribute("aria-expanded", open ? "true" : "false");
-      });
-      root.append(toggle, panel);
-      document.body.appendChild(root);
-      return root;
-    }
-
-    function updateRuntimeFlowDebug(payload = {}) {
-      const root = ensureRuntimeFlowDebug();
-      if (!root) return;
-      const ctx = payload.context && typeof payload.context === "object" ? payload.context : context;
-      const runtimeState = ctx && ctx.state && typeof ctx.state === "object" ? ctx.state : {};
-      const previous = payload.from || runtimeState.previous || "";
-      const currentState = payload.current || current || runtimeState.current || "";
-      const transitionId = payload.transitionId || runtimeState.lastTransition || "";
-      const transition = transitionId ? model.transitions.find(item => item.id === transitionId) : null;
-      const transitionLabel = payload.label || (transition ? runtimeTransitionLabel(transition) : "");
-      const lastEvent = ctx && ctx.lastEvent !== undefined ? ctx.lastEvent : "";
-      const changed = ctx && ctx.lastChangedPath !== undefined ? ctx.lastChangedPath : "";
-      const set = (name, value) => {
-        const el = root.querySelector('[data-flow-debug="' + name + '"]');
-        if (el) el.textContent = runtimeFlowDebugText(value);
-      };
-      set("route", previous && currentState ? previous + " -> " + currentState : currentState);
-      set("current", currentState);
-      set("transition", transitionId && transitionLabel ? transitionLabel + " (" + transitionId + ")" : transitionId || transitionLabel);
-      set("event", lastEvent);
-      set("changed", changed);
-    }`;
       const runtimeMessageHandlerJs = `    window.addEventListener("message", evt => {
       const data = evt.data || {};
       if (data.type !== "STATE_BLUEPRINT_MODEL") return;
@@ -7573,7 +7489,6 @@
         .replace(maskCss, maskCssEnhanced)
         .replace(loadingCss, loadingCssEnhanced)
         .replace(dropdownCss, dropdownCssEnhanced)
-        .replace("</style>", flowDebugCss + "\n  </style>")
         .replace(runtimeStateDeclarationsJs, runtimeStateDeclarationsJsEnhanced)
         .replace(defaultContextJs, defaultContextJsEnhanced)
         .replace(emitRuntimeEventJs, emitRuntimeEventJsEnhanced)
@@ -7602,11 +7517,7 @@
         .replace(`          current = model.initial;
           syncRuntimeCurrent("storage", true);`, `          setRuntimeCurrent(model.initial, "storage", true);`)
         .replace(`    if (!findState(current)) current = model.initial;`, `    if (!findState(current)) setRuntimeCurrent(model.initial, "initial", true);`)
-        .replace(notifyRuntimeJs, runtimeFlowDebugJs + "\n" + notifyRuntimeJsEnhanced)
-        .replace(`      postHostMessage(payload);
-      transitionToNotify = null;`, `      updateRuntimeFlowDebug(payload);
-      postHostMessage(payload);
-      transitionToNotify = null;`)
+        .replace(notifyRuntimeJs, notifyRuntimeJsEnhanced)
         .replace(runtimeMessageHandlerJs, runtimeMessageHandlerJsEnhanced)
         .replace(runtimeModelPauseJs, runtimeModelPauseJsEnhanced)
         .replace(runtimeStorageContextJs, runtimeStorageContextJsEnhanced)
@@ -7703,6 +7614,9 @@
       const handled = runtimeSet(path, value, { source: "daisy", eventName: "change." + path });`, `      if (!path || !runtimeStateDataPathIsDeclared(path)) return false;
       const previous = readValueAtPath(context, path);
       const handled = runtimeSet(path, value, { source: "daisy", eventName: "change." + path });`)
+        .replace(`      if (childEntry) return [childEntry];
+      if (!state?.parentId) return direct;`, `      if (childEntry) return combineRuntimeTransitions([childEntry], direct);
+      if (!state?.parentId) return direct;`)
         .replace(`    function candidateStatesForRuntimeEvent(eventName, detail = {}) {
       const state = stateById(current);
       if (!state) return [];
@@ -8058,7 +7972,7 @@
     let isSpaceDown = false;
     let syncTimer = null;
     let appFrameReady = false;
-    let pendingFramePayload = null;
+    let pendingFramePayloads = [];
     let currentAppState = null;
     let latestRuntimeContext = {};
     let runtimePaused = false;
@@ -8079,6 +7993,8 @@
       reconnectAttempt: 0,
       reconnectTimer: 0,
       outboundQueue: [],
+      sentBusEventKeys: new Set(),
+      pendingBusEventKeys: new Set(),
       lastSentBusEventKey: "",
       pendingBusEventKey: ""
     };
@@ -11865,7 +11781,7 @@
       const state = byId(stateId);
       const direct = editorGraphOutgoing(stateId);
       const childEntry = editorRuntimeChildEntryTransition(state);
-      if (childEntry) return [childEntry];
+      if (childEntry) return editorCombineRuntimeTransitions([childEntry], direct);
       if (!state?.parentId) return direct;
       if (editorIsBoundaryExitState(state)) return editorCombineRuntimeTransitions(direct, editorParentExitTransitions(state));
       if (direct.length) return direct;
@@ -18176,6 +18092,15 @@
       return realtimeEventConfigByName(clean, { events: await fetchRealtimeEvents() });
     }
 
+    async function resolveRealtimeEventConfig(name, supplied = null) {
+      const clean = normalizeTransitionEvent(name || "");
+      if (!clean || !clean.startsWith("realtime.")) return null;
+      const suppliedEvent = normalizeRealtimeEventConfig(supplied);
+      if (suppliedEvent?.name === clean) return suppliedEvent;
+      const fetchedEvent = await fetchRealtimeEventConfig(clean).catch(() => null);
+      return fetchedEvent?.name === clean ? fetchedEvent : null;
+    }
+
     function renderRealtimeCatalogInspector() {
       const list = stateInspectorBodyEl.querySelector("#pRealtimeEventList");
       const serverEvents = stateInspectorBodyEl.querySelector("#pRealtimeServerEvents");
@@ -22371,9 +22296,57 @@
       }
     }
 
+    function queuePendingRuntimePayload(payload) {
+      if (!payload || typeof payload !== "object") return;
+      const type = String(payload.type || "");
+      if (type === "STATE_BLUEPRINT_MODEL") {
+        pendingFramePayloads = pendingFramePayloads.filter(item => item?.type !== type);
+      } else if (type === "STATE_BLUEPRINT_REALTIME_STATUS" || type === "STATE_BLUEPRINT_RUNTIME_CONTROL") {
+        pendingFramePayloads = pendingFramePayloads.filter(item => item?.type !== type);
+      }
+      pendingFramePayloads.push(payload);
+    }
+
+    function pendingRuntimePayloadPriority(payload) {
+      if (payload?.type === "STATE_BLUEPRINT_MODEL") return 0;
+      if (payload?.type === "STATE_BLUEPRINT_REALTIME_STATUS" || payload?.type === "STATE_BLUEPRINT_RUNTIME_CONTROL") return 1;
+      return 2;
+    }
+
+    function flushPendingRuntimePayloads() {
+      if (!appFrameReady || !frameEl.contentWindow || !appFrameContainsGeneratedApp()) return false;
+      const queue = pendingFramePayloads
+        .map((payload, index) => ({ payload, index }))
+        .sort((a, b) => pendingRuntimePayloadPriority(a.payload) - pendingRuntimePayloadPriority(b.payload) || a.index - b.index)
+        .map(item => item.payload);
+      pendingFramePayloads = [];
+      for (let index = 0; index < queue.length; index += 1) {
+        try {
+          frameEl.contentWindow.postMessage(queue[index], "*");
+        } catch (_) {
+          pendingFramePayloads.unshift(...queue.slice(index));
+          return false;
+        }
+      }
+      return true;
+    }
+
+    function runtimeModelPayloadForReload() {
+      const startStateId = currentAppState && byId(currentAppState) ? currentAppState : model.initial;
+      return {
+        type: "STATE_BLUEPRINT_MODEL",
+        model: snapshotModelForRuntime(),
+        reset: true,
+        startStateId,
+        paused: runtimePaused,
+        preserveFocus: true
+      };
+    }
+
     function reloadAppFrame(payload = null, opts = {}) {
-      if (payload) pendingFramePayload = payload;
-      else if (opts.preserveCurrent && currentAppState && byId(currentAppState)) {
+      if (payload?.type !== "STATE_BLUEPRINT_MODEL") queuePendingRuntimePayload(runtimeModelPayloadForReload());
+      if (payload) queuePendingRuntimePayload(payload);
+      if (!payload && opts.preserveCurrent && currentAppState && byId(currentAppState)) {
         pendingAppStartStateId = currentAppState;
         pendingAppStartSuppressLayerFollow = false;
       }
@@ -22388,13 +22361,12 @@
         } else {
           try {
             frameEl.contentWindow.postMessage(payload, "*");
-            pendingFramePayload = null;
           } catch (_) {
-            pendingFramePayload = payload;
+            queuePendingRuntimePayload(payload);
           }
         }
       } else {
-        pendingFramePayload = payload;
+        queuePendingRuntimePayload(payload);
       }
       if (appWindow && !appWindow.closed) {
         try { appWindow.postMessage(payload, "*"); } catch (_) {}
@@ -22461,8 +22433,6 @@
       if (!realtimeTransport.roomId) return false;
       const name = normalizeTransitionEvent(eventName || "");
       if (!name || !name.startsWith("realtime.")) return false;
-      const event = await fetchRealtimeEventConfig(name).catch(() => null);
-      if (!event) return false;
       const payload = {
         type: "runtime.event",
         seq: ++realtimeTransport.seq,
@@ -22471,7 +22441,6 @@
       };
       if (!realtimeTransport.joined || !realtimeTransport.socket || realtimeTransport.socket.readyState !== WebSocket.OPEN) {
         realtimeTransport.outboundQueue.push(payload);
-        realtimeTransport.outboundQueue = realtimeTransport.outboundQueue.slice(-32);
         return true;
       }
       try {
@@ -22484,25 +22453,54 @@
 
     function flushRealtimeOutboundQueue() {
       if (!realtimeTransport.joined || !realtimeTransport.socket || realtimeTransport.socket.readyState !== WebSocket.OPEN) return;
-      const queue = realtimeTransport.outboundQueue.splice(0);
-      queue.forEach(payload => realtimeTransport.socket.send(JSON.stringify(payload)));
+      while (realtimeTransport.outboundQueue.length && realtimeTransport.socket?.readyState === WebSocket.OPEN) {
+        const payload = realtimeTransport.outboundQueue[0];
+        try {
+          realtimeTransport.socket.send(JSON.stringify(payload));
+          realtimeTransport.outboundQueue.shift();
+        } catch (_) {
+          break;
+        }
+      }
     }
 
-    async function relayRuntimeBusEventToRealtime() {
-      if (!realtimeTransport.started || !realtimeTransport.roomId) return;
+    function realtimeRuntimeEventKey(name, count, lastAt) {
+      return normalizeTransitionEvent(name || "") + ":" + Math.max(0, Number(count) || 0) + ":" + Math.max(0, Number(lastAt) || 0);
+    }
+
+    async function relayRealtimeRuntimeEvent(name, detail = {}, key = "") {
+      if (!realtimeTransport.started || !realtimeTransport.roomId) return false;
+      const clean = normalizeTransitionEvent(name || "");
+      if (!clean || !clean.startsWith("realtime.")) return false;
+      if (detail.source === "realtime" || detail.__realtimeRemote === true) return;
+      const eventKey = key || clean + ":direct:" + Date.now() + ":" + (realtimeTransport.seq + 1);
+      if (realtimeTransport.sentBusEventKeys.has(eventKey) || realtimeTransport.pendingBusEventKeys.has(eventKey)) return false;
+      realtimeTransport.pendingBusEventKeys.add(eventKey);
+      realtimeTransport.pendingBusEventKey = eventKey;
+      const sent = await sendRealtimeRuntimeEvent(clean, detail);
+      realtimeTransport.pendingBusEventKeys.delete(eventKey);
+      if (realtimeTransport.pendingBusEventKey === eventKey) realtimeTransport.pendingBusEventKey = "";
+      if (sent) {
+        realtimeTransport.sentBusEventKeys.add(eventKey);
+        realtimeTransport.lastSentBusEventKey = eventKey;
+      }
+      return sent;
+    }
+
+    function relayRuntimeEventMessageToRealtime(message) {
+      const name = normalizeTransitionEvent(message?.name || "");
+      if (!name || !name.startsWith("realtime.")) return Promise.resolve(false);
+      const detail = isPlainObject(message?.detail) ? JSON.parse(JSON.stringify(message.detail)) : {};
+      const key = realtimeRuntimeEventKey(name, message?.count, message?.lastAt);
+      return relayRealtimeRuntimeEvent(name, detail, key);
+    }
+
+    function relayRuntimeBusEventToRealtime() {
       const name = normalizeTransitionEvent(latestRuntimeContext?.lastEvent || "");
-      if (!name || !name.startsWith("realtime.")) return;
+      if (!name || !name.startsWith("realtime.")) return Promise.resolve(false);
       const count = Number(jsonValueAtPath(latestRuntimeContext, "events." + name + ".count") || 0);
       const lastAt = Number(latestRuntimeContext?.lastEventAt || 0);
-      const key = name + ":" + count + ":" + lastAt;
-      if (key === realtimeTransport.lastSentBusEventKey) return;
-      if (key === realtimeTransport.pendingBusEventKey) return;
-      const detail = realtimeEventDetailFromBus(name);
-      if (detail.source === "realtime" || detail.__realtimeRemote === true) return;
-      realtimeTransport.pendingBusEventKey = key;
-      const sent = await sendRealtimeRuntimeEvent(name, detail);
-      if (realtimeTransport.pendingBusEventKey === key) realtimeTransport.pendingBusEventKey = "";
-      if (sent) realtimeTransport.lastSentBusEventKey = key;
+      return relayRealtimeRuntimeEvent(name, realtimeEventDetailFromBus(name), realtimeRuntimeEventKey(name, count, lastAt));
     }
 
     async function applyRealtimeRuntimeEvent(message) {
@@ -22510,8 +22508,7 @@
       const name = normalizeTransitionEvent(message.name || "");
       if (!name || !name.startsWith("realtime.")) return;
       const sourceDetail = isPlainObject(message.detail) ? JSON.parse(JSON.stringify(message.detail)) : {};
-      const event = await fetchRealtimeEventConfig(name).catch(() => null);
-      if (!event) return;
+      const event = await resolveRealtimeEventConfig(name, message.event) || normalizeRealtimeEventConfig({ name });
       postRuntimePayload({
         type: "STATE_BLUEPRINT_REALTIME_EVENT",
         name,
@@ -22620,7 +22617,8 @@
         const name = normalizeTransitionEvent(eventName || "");
         if (!name || !name.startsWith("realtime.")) return Promise.resolve(false);
         const sourceDetail = isPlainObject(detail) ? JSON.parse(JSON.stringify(detail)) : {};
-        return fetchRealtimeEventConfig(name).catch(() => null).then(event => {
+        return resolveRealtimeEventConfig(name).then(event => {
+          if (!event && modelRealtimeTriggerEvents().includes(name)) event = normalizeRealtimeEventConfig({ name });
           if (!event) return false;
           postRuntimePayload({
             type: "STATE_BLUEPRINT_REALTIME_EVENT",
@@ -25667,6 +25665,10 @@
         openPreviewExternalUrl(data.url);
         return;
       }
+      if (data.type === "STATE_BLUEPRINT_RUNTIME_EVENT") {
+        void relayRuntimeEventMessageToRealtime(data);
+        return;
+      }
       if (data.type !== "STATE_BLUEPRINT_RUNTIME_STATE") return;
       const previousAppState = currentAppState;
       currentAppState = data.current || null;
@@ -26051,10 +26053,8 @@
         return;
       }
       appFrameReady = true;
-      if (pendingFramePayload) {
-        const payload = pendingFramePayload;
-        pendingFramePayload = null;
-        postRuntimePayload(payload);
+      if (pendingFramePayloads.length) {
+        flushPendingRuntimePayloads();
       } else if (pendingAppStartStateId && byId(pendingAppStartStateId)) startAppAtState(pendingAppStartStateId);
       else syncToApp(true);
       startRealtimeTransport();

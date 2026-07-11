@@ -293,6 +293,16 @@ Editoraktion
 - **NEST-015 Boundary-Reparatur:** Nach Löschen oder Verschieben eines
   verankerten Childs MÜSSEN Boundary-Anker wiederverwendbar bleiben und auf
   einen gültigen Endpunkt neu gesetzt oder explizit deaktiviert werden.
+- **NEST-016 Ausgänge am aktiven Parent:** Solange ein Parent selbst der
+  aktuelle Runtime-Zustand ist, MUSS `outgoing(parent)` den synthetischen
+  Boundary-Kind-Eintritt und sämtliche echten, direkt vom Parent ausgehenden
+  Transitionen enthalten. Die Triggerart bestimmt ausschließlich, wie eine
+  Transition dargestellt beziehungsweise ausgelöst wird; sie DARF ihre
+  Zugehörigkeit zur Kandidatenmenge nicht verändern. Der Kind-Eintritt MUSS vor
+  den direkten Parent-Transitionen geordnet bleiben. Sobald ein Kind aktiv ist,
+  DÜRFEN direkte Parent-Transitionen nicht frei vererbt werden; sie sind nur
+  gemäß NEST-007 und NEST-008 am konfigurierten Boundary-Ausgang projiziert
+  verfügbar.
 
 ## 8. Darstellung und Render-Reihenfolge
 
@@ -543,6 +553,12 @@ Editoraktion
   und `ß` verwenden. ASCII-Umschriften sind nur als ausdrücklich dokumentierte
   Kompatibilitätsaliase zulässig. Technische IDs, JSON-Schlüssel, Ereignisnamen,
   Funktionsnamen und URLs DÜRFEN durch Textkorrekturen nicht verändert werden.
+- **EXP-011 Produktionsartefakt:** Standalone-HTML und Root-Demo DÜRFEN keine
+  Runtime-Diagnoseoberfläche und keinen zugehörigen Quelltext ausliefern. Das
+  schließt insbesondere `flowDebug`, `.flow-debug*`, `runtimeFlowDebug*` sowie
+  das schwebende `Ablauf`-Control mit Zustand, Übergang, Ereignis und geändertem
+  Pfad aus. Der interne Runtime-Kontext für FSM-Semantik und Tests bleibt davon
+  unberührt.
 
 ## 14. API- und MCP-Vertrag
 
@@ -595,9 +611,12 @@ Editoraktion
 - **RT-005 Bus-Eintritt:** Ein empfangenes Realtime-Ereignis MUSS über den
   globalen Bus in die Runtime eintreten. Nur deklarierte Bindings dürfen
   deklarierte `states.*`-Pfade schreiben.
-- **RT-006 Host-Relay:** Der Host liest den Runtime-Kontext nur als Snapshot,
-  relayed `lastEvent`, ignoriert Remote-Loops und DARF weder Modell noch
-  Zustandsdefaults mutieren.
+- **RT-006 Host-Relay:** Der Host liest den Runtime-Kontext nur als Snapshot und
+  DARF weder Modell noch Zustandsdefaults mutieren. Ein lokales
+  Realtime-Ereignis MUSS zusätzlich unmittelbar nach seiner Bus-Erfassung und
+  vor jeder Transition als `STATE_BLUEPRINT_RUNTIME_EVENT` an den Host gemeldet
+  werden. Der Relay-Pfad ignoriert Remote-Loops und dedupliziert über Name,
+  Zähler und Ereigniszeit; `lastEvent` ist nicht die alleinige Transportquelle.
 - **RT-007 Origins:** HTTP- und WebSocket-Browserzugriffe MÜSSEN gegen die
   konfigurierte Origin-Allowlist geprüft werden.
 - **RT-008 Raumtoken:** Wenn unsignierte Räume deaktiviert sind, MUSS der
@@ -621,6 +640,19 @@ Editoraktion
   `/token`, `/events`, `/emit` und `/ws` an den lokalen Prozess auf
   `127.0.0.1:8788` weiterleiten. Nicht definierte Kernrouten wie `/`,
   `/catalog`, `/schema` und `/api` liefern 404.
+- **RT-016 Transportierte Definition:** Der Server MUSS einem akzeptierten
+  `runtime.event` die zu diesem Namen gehörende normalisierte Katalogdefinition
+  beilegen. Der Empfänger verwendet diese Definition für Bindings und DARF den
+  fachlichen Bus-Eintritt nicht wegen eines zusätzlichen fehlgeschlagenen
+  `/events`-Abrufs verwerfen.
+- **RT-017 Frame-Warteschlange:** Ist die Vorschau-Runtime vorübergehend nicht
+  bereit, MÜSSEN Realtime-Ereignisse in einer geordneten Warteschlange erhalten
+  bleiben. Modell kommt vor Status und Status vor Ereignis. Ein späterer
+  Modell- oder Status-Payload DARF ein wartendes Ereignis nicht überschreiben.
+- **RT-018 Verbindungswarteschlange:** Lokal erzeugte Realtime-Ereignisse
+  MÜSSEN bei noch nicht verbundenem WebSocket vollständig in Reihenfolge
+  warten und nach erfolgreichem Join gesendet werden. Eine feste
+  Abschneidegrenze für fachliche Ereignisse ist verboten.
 
 ## 16. Öffentliche Demo und Produkt-Abnahme
 
@@ -674,16 +706,22 @@ Editoraktion
   ausführen.
 - **DEMO-010 Manifest:** Das Webmanifest MUSS den Namen
   `Zustand Digitalisierungsplanung` ausliefern.
+- **DEMO-011 Kein Cache:** Editor, Root-Demo, Exporte und statische Assets
+  DÜRFEN weder aus einem App-Shell-Cache noch per Stale-while-revalidate
+  ausgeliefert werden. Der Service Worker MUSS vorhandene Cache-Storage-
+  Bestände löschen und jeden gleich-originigen GET mit Cache-Buster und
+  `cache: "no-store"` aus dem Netz laden. Auch Worker-Updates verwenden
+  `updateViaCache: "none"`.
 
 ## 17. Ausführbare Absicherung
 
 - **TST-001 Testbestand:** Am Stand dieses Dokuments umfasst die ausführbare
-  Spezifikation 316 expandierte Playwright-Fälle in fünf Spec-Dateien und 14
-  Node-Server-Tests, insgesamt 330 Fälle.
-- **TST-002 Smoke:** 216 Playwright-Fälle tragen `@smoke`. `npm test` prüft
-  zuerst die 14 Server-Tests und danach diese 216 Smoke-Fälle.
+  Spezifikation 320 expandierte Playwright-Fälle in fünf Spec-Dateien und 14
+  Node-Server-Tests, insgesamt 334 Fälle.
+- **TST-002 Smoke:** 220 Playwright-Fälle tragen `@smoke`. `npm test` prüft
+  zuerst die 14 Server-Tests und danach diese 220 Smoke-Fälle.
 - **TST-003 Vollständiger Lauf:** `npm run test:full` prüft zuerst alle 14
-  Server-Tests und danach alle 316 Playwright-Fälle. Der vollständige lokale
+  Server-Tests und danach alle 320 Playwright-Fälle. Der vollständige lokale
   Vertragslauf ist damit genau ein Befehl:
 
   ```bash
@@ -699,9 +737,9 @@ Editoraktion
   der vor dem Fix am beobachteten Verhalten scheitert und nach dem Fix ohne
   Retry, Force-Click oder Sonderpfad besteht.
 - **TST-007 CI-Freigabe:** GitHub Actions und Gitea MÜSSEN beide den
-  vollständigen Bestand von 14 Server- und 316 Playwright-Fällen ausführen.
+  vollständigen Bestand von 14 Server- und 320 Playwright-Fällen ausführen.
   Gitea verwendet `npm run test:full`. GitHub Actions DARF die Playwright-Fälle
-  in disjunkte Shards aufteilen, wenn deren Vereinigung exakt alle 316 Fälle
+  in disjunkte Shards aufteilen, wenn deren Vereinigung exakt alle 320 Fälle
   enthält, die Serverfälle genau einmal laufen und der Deploy von allen Shards
   abhängt. Kein Deploy darf nur durch den kleineren Smoke-Lauf freigegeben
   werden.
@@ -778,7 +816,35 @@ Abdeckungsbereiche:
   Gitea-Abnahme. GitHub Actions prüft denselben Bestand schneller in vier
   disjunkten Playwright-Shards und einem einmaligen Serverlauf. Der Deploy-Job
   hängt vom Erfolg der gesamten Matrix ab; die Freigabe umfasst deshalb weiter
-  alle 330 Vertragsfälle.
+  alle 334 Vertragsfälle.
+- **GAP-007 Realtime-Ausgang am Parent, geschlossen am 2026-07-11:** Das im
+  Nutzerbrowser persistierte Fehlermodell enthielt einen aktiven Parent
+  `start`, dessen manuellen Boundary-Eintritt und den echten Realtime-Ausgang
+  `start -> zustand_2`. Das Serverereignis erreichte den Browser und wurde im
+  Bus gezählt; `transitionMatchesRuntimeEvent` und die leere Bedingung waren
+  beide wahr. `outgoing("start")` gab jedoch ausschließlich den synthetischen
+  Kind-Eintritt zurück und entfernte den echten Realtime-Ausgang. Runtime und
+  Editor kombinieren am aktiven Parent nun den Kind-Eintritt mit sämtlichen
+  echten direkten Parent-Ausgängen, unabhängig von deren Triggerart. Die
+  Browsertests sichern sowohl die gleichzeitige Sichtbarkeit eines direkten
+  Parent-Buttons als auch den Wechsel über einen Realtime-Ausgang nach einer
+  einzelnen Nachricht ohne Retry ab.
+- **GAP-008 Realtime-Verlustpfade, geschlossen am 2026-07-11:** Ein zweiter
+  reproduzierter Fehler überschrieb lokal erzeugte Realtime-Ereignisse durch
+  das folgende `state.*.entered`, bevor der Host den `lastEvent`-Snapshot
+  relayn konnte. Die Runtime meldet deshalb das Realtime-Ereignis vor der
+  Transition dediziert an den Host. Der Host dedupliziert, behält ausgehende
+  Ereignisse bis zum Join vollständig und überschreibt eingehende Ereignisse
+  bei einem nicht bereiten Frame nicht mehr mit Status oder Modell. Der Server
+  transportiert die Katalogdefinition mit der Nachricht, sodass ein separater
+  Katalogfehler den Bus-Eintritt nicht verwirft. Drei Browserregressionen prüfen
+  Parent-Ausgang, genau einmaligen Relay und Frame-/Katalogausfall.
+- **GAP-009 Auslieferungscache, entfernt am 2026-07-11:** Auf ausdrücklichen
+  Produktvertrag gibt es keinen App-Shell- oder Asset-Cache mehr. Der Worker
+  löscht beim Installieren und Aktivieren alle Cache-Storage-Bestände, hängt an
+  jeden gleich-originigen GET einen versionsgebundenen Cache-Buster und lädt mit
+  `no-store`. Die Registrierung lädt den Deploy-Stamp ebenfalls cachefrei und
+  setzt `updateViaCache: "none"`.
 
 ## 19. Implementierungslandkarte des Ist-Stands
 
@@ -804,9 +870,10 @@ einer Vertragsregel, ist er in Abschnitt 18 als offene Abweichung zu behandeln.
   und deaktiviert dessen lokale Editor-Modellpfade.
 - **ARC-005 Host-Runtime-Brücke:** Der Host sendet Modell, Reset- und
   Startinformationen per `STATE_BLUEPRINT_MODEL`. Die Runtime antwortet mit
-  `STATE_BLUEPRINT_RUNTIME_STATE`. Der Host verwendet diese Antwort nur für
-  Anzeige, aktive Canvas-Markierung, Ebenenbezug und Realtime-Relay; sie ist kein
-  zweiter persistierter Runtime-Speicher.
+  `STATE_BLUEPRINT_RUNTIME_STATE` und meldet Realtime-Busereignisse vor ihrer
+  Transition zusätzlich per `STATE_BLUEPRINT_RUNTIME_EVENT`. Der Host verwendet
+  diese Antworten nur für Anzeige, aktive Canvas-Markierung, Ebenenbezug und
+  Realtime-Relay; sie sind kein zweiter persistierter Runtime-Speicher.
 - **ARC-006 Runtime-Bus:** Fachliche Schreibvorgänge laufen zentral durch den
   Runtime-Bus und eine erlaubte Quellenliste. Echte UI-Ereignisse werden von
   synthetischen Ereignissen unterschieden. Pause leert Warteschlange, Timer und
@@ -833,8 +900,9 @@ einer Vertragsregel, ist er in Abschnitt 18 als offene Abweichung zu behandeln.
 - **ARC-011 Build und Öffentlichkeit:** `scripts/build-index.mjs` startet den
   echten Editor mit `?demo=zustand`, betätigt dessen Export und schreibt das
   Ergebnis als `index.html`. Die Root-Seite ist deshalb die laufende exportierte
-  Demo. `sw.js` liefert den PWA-Cache mit Network-first für Navigation und
-  Stale-while-revalidate für Assets.
+  Demo. `sw.js` hält keinen App-Cache: Er löscht vorhandene Cache-Storage-
+  Bestände und lädt Navigation sowie Assets mit Cache-Buster und `no-store`
+  ausschließlich aus dem Netz.
 - **ARC-012 Deployment:** GitHub Actions installiert Abhängigkeiten in vier
   parallelen Browser-Shards, führt die Serverfälle einmal aus und aktualisiert
   den Service-Worker-Deploy-Stamp erst nach Erfolg der vollständigen Matrix.

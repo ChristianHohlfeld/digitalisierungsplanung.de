@@ -257,6 +257,8 @@ test("serves a stateless event console for catalogued test emits", async () => {
     assert.equal(received.clientId, "console");
     assert.equal(received.name, "realtime.sip.call.incoming");
     assert.deepEqual(received.detail, { caller: "+491234", callee: "100", callId: "console-123" });
+    assert.equal(received.event?.name, "realtime.sip.call.incoming");
+    assert.deepEqual(received.event?.detail, { caller: "text", callee: "text", callId: "text" });
   });
 });
 
@@ -276,6 +278,7 @@ test("relays runtime events to peers without echoing them to the sender", async 
     assert.equal(received.clientId, "alice");
     assert.equal(received.name, "realtime.sip.call.incoming");
     assert.deepEqual(received.detail, { caller: "+491234", callee: "100", callId: "ws-123" });
+    assert.equal(received.event?.name, "realtime.sip.call.incoming");
     await assertNoMessage(alice, message => message.type === "runtime.event");
   });
 });
@@ -331,6 +334,7 @@ test("emits catalogued server events into a room without server-side state", asy
       assert.equal(received.clientId, "server");
       assert.equal(received.name, "realtime.sip.call.incoming");
       assert.deepEqual(received.detail, { caller: "+491234", callee: "100", callId: "abc-123" });
+      assert.equal(received.event?.name, "realtime.sip.call.incoming");
     }
 
     const unauthorized = await fetch(httpUrl(realtime, "/emit"), {

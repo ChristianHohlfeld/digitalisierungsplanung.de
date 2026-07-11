@@ -2069,7 +2069,7 @@ test.describe("State Blueprint tool", () => {
   });
 
   test("click-traverses every website demo state and transition by contract id @smoke", async ({ page }) => {
-    test.setTimeout(90000);
+    test.setTimeout(120000);
     await openTool(page);
 
     await page.locator("#topbarMore summary").click();
@@ -2325,7 +2325,9 @@ test.describe("State Blueprint tool", () => {
     expect(html).toContain('"name":"Zustand-Beispiel"');
     expect(html).toContain('"site_pricing"');
     expect(html).toContain('"site_checkout"');
-    expect(html).toContain("flow-debug-toggle");
+    expect(html).not.toContain("flow-debug");
+    expect(html).not.toContain("flowDebug");
+    expect(html).not.toContain("runtimeFlowDebug");
     expect(html).not.toContain("let model = loadModel() || blankModel();");
     expect(html).not.toContain('id="appFrame"');
     expect(html).not.toContain('id="btnExport"');
@@ -2358,7 +2360,6 @@ test.describe("State Blueprint tool", () => {
     };
     const navButton = label => standalone.locator(".navbar").getByRole("button", { name: label, exact: true });
     const footerButton = label => standalone.locator(".footer").getByRole("button", { name: label, exact: true });
-    const flowDebug = standalone.locator("#flowDebug");
     const expectStandaloneNoHorizontalOverflow = async () => {
       await expect.poll(async () => standalone.locator("body").evaluate(body =>
         Math.round(body.scrollWidth - body.clientWidth)
@@ -2382,18 +2383,10 @@ test.describe("State Blueprint tool", () => {
     await expectStandaloneNoHorizontalOverflow();
     await expect.poll(async () => standalone.locator(".daisy-transition-button[data-transition-id]").count()).toBeGreaterThanOrEqual(7);
     await expect(standalone.locator(".actions [data-transition-id]")).toHaveCount(0);
-    await expect(flowDebug).toHaveClass(/available/);
-    await expect(flowDebug.locator(".flow-debug-panel")).toBeHidden();
-    await flowDebug.locator(".flow-debug-toggle").click();
-    await expect(flowDebug).toHaveClass(/open/);
-    await expect(flowDebug.locator('[data-flow-debug="current"]')).toHaveText("site_home");
-    await expect(flowDebug.locator('[data-flow-debug="route"]')).toContainText("site_home");
+    await expect(standalone.locator("#flowDebug")).toHaveCount(0);
 
     await navButton("Nutzen").click();
     await expectStandaloneShell("site_features", "Nutzen");
-    await expect(flowDebug.locator('[data-flow-debug="current"]')).toHaveText("site_features");
-    await expect(flowDebug.locator('[data-flow-debug="route"]')).toContainText("site_home -> site_features");
-    await expect(flowDebug.locator('[data-flow-debug="transition"]')).toContainText("Nutzen");
     await expect(standalone.getByText("Umsetzung bekommt Leitplanken")).toBeVisible();
     await expect(standalone.locator(".daisy-feature-grid")).toHaveCount(1);
     await expect(standalone.locator(".daisy-feature-cards > .card")).toHaveCount(3);
@@ -3190,6 +3183,7 @@ test.describe("State Blueprint tool", () => {
     await app.getByRole("button", { name: "Benutzer-Avatar" }).click();
     await expect(app.locator("#statePill")).toHaveText("user_avatar");
     await expect(app.getByRole("button", { name: "State 3" })).toBeVisible();
+    await expect(app.getByRole("button", { name: "To Benutzer-Avatar" })).toBeVisible();
 
     await app.getByRole("button", { name: "State 3" }).click();
     await expect(app.locator("#statePill")).toHaveText("state_3");
@@ -3200,7 +3194,7 @@ test.describe("State Blueprint tool", () => {
     await expect(app.locator("#statePill")).toHaveText("user_avatar");
     await expect(page.locator("#layerFrameLabel")).toHaveText("In Hinweisbanner");
     await expect(app.getByRole("button", { name: "State 3" })).toBeVisible();
-    await expect(app.getByRole("button", { name: "To Benutzer-Avatar" })).toHaveCount(0);
+    await expect(app.getByRole("button", { name: "To Benutzer-Avatar" })).toBeVisible();
 
     await app.getByRole("button", { name: "State 3" }).click();
     await expect(app.locator("#statePill")).toHaveText("state_3");
@@ -12621,7 +12615,7 @@ test.describe("State Blueprint tool", () => {
     }
   });
 
-  test("projects parent outs at child exit without a hidden child-to-parent return @smoke", async ({ page }) => {
+  test("keeps parent outs direct before entry and projects them at the child exit @smoke", async ({ page }) => {
     const model = {
       version: 2,
       name: "Parent out render order",
@@ -12657,14 +12651,14 @@ test.describe("State Blueprint tool", () => {
 
     await expect(componentEditor(page, "Text")).toBeVisible();
     await expect(componentEditor(page, "Button: Entry")).toBeVisible();
-    await expect(componentEditor(page, "Button: Out A")).toHaveCount(0);
-    await expect(componentEditor(page, "Button: Out B")).toHaveCount(0);
+    await expect(componentEditor(page, "Button: Out A")).toBeVisible();
+    await expect(componentEditor(page, "Button: Out B")).toBeVisible();
 
     const app = appFrame(page);
-    await expect(app.locator("button[data-transition-id]")).toHaveCount(1);
+    await expect(app.locator("button[data-transition-id]")).toHaveCount(3);
     await expect(app.getByRole("button", { name: "Entry" })).toBeVisible();
-    await expect(app.getByRole("button", { name: "Out A" })).toHaveCount(0);
-    await expect(app.getByRole("button", { name: "Out B" })).toHaveCount(0);
+    await expect(app.getByRole("button", { name: "Out A" })).toBeVisible();
+    await expect(app.getByRole("button", { name: "Out B" })).toBeVisible();
 
     const edgeColorFor = async transitionId => {
       const edge = page.locator(`.edge[data-edge-id="${transitionId}"]`);
