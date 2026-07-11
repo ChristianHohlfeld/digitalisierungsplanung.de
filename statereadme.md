@@ -495,7 +495,13 @@ Editoraktion
 - **CAN-012 Hit-Priorität:** Innerhalb der sichtbaren Fläche eines State-Nodes
   MUSS der Node für Auswahl und Drag vor unsichtbaren Hitflächen fremder
   `.edge-pin`, `.edge-tip-hit` oder `.svg-port` liegen. Edge-Hitflächen DÜRFEN
-  keinen darunterliegenden fremden Node blockieren.
+  keinen darunterliegenden fremden Node blockieren. Liegt eine solche SVG-
+  Hitfläche geometrisch über einem fremden State, MUSS
+  `document.elementFromPoint(x, y)` den State-Node oder eines seiner Kinder
+  liefern. Ein einzelner nicht erzwungener Klick MUSS diesen State auswählen;
+  ein einzelner nicht erzwungener Drag MUSS ihn bewegen. Explizite Click-
+  Retries, Force-Clicks und Locator-Fallbacks sind für diese Treffererkennung
+  unzulässig.
 - **CAN-013 Port-Erreichbarkeit:** Die vorgesehene sichtbare Port-/Pin-Zone am
   Rand des eigenen Nodes MUSS weiterhin für Connect und Reroute erreichbar
   bleiben. Ein Drag deutlich innerhalb des Node-Körpers MUSS den Node bewegen
@@ -646,7 +652,10 @@ Editoraktion
 - **DEMO-005 Traversierung:** Ein echter Nutzer-Click MUSS für jede
   Demo-Transition `current`, `previous` und `lastTransition` exakt auf die
   erwarteten IDs setzen. Alle neun Zustände und alle 47 Transitionen MÜSSEN
-  vollständig click-traversierbar sein.
+  vollständig click-traversierbar sein. Nach einmaligem Sichtbarrollen MUSS der
+  Mittelpunkt jedes Controls bei `elementFromPoint` das Control oder eines
+  seiner Kinder liefern; anschließend MUSS genau ein nicht erzwungener Click
+  ohne Retry oder Fallback genügen.
 - **DEMO-006 Shell:** Die acht sichtbaren Seitenzustände verwenden eine
   gemeinsame Navbar mit `Zustand`, `Start`, `Nutzen`, `Angebot`, `Kontakt` und
   `Konto` sowie einen Footer mit `Zustand GmbH` und fünf gebundenen Aktionen.
@@ -669,12 +678,12 @@ Editoraktion
 ## 17. Ausführbare Absicherung
 
 - **TST-001 Testbestand:** Am Stand dieses Dokuments umfasst die ausführbare
-  Spezifikation 315 expandierte Playwright-Fälle in fünf Spec-Dateien und 14
-  Node-Server-Tests, insgesamt 329 Fälle.
-- **TST-002 Smoke:** 215 Playwright-Fälle tragen `@smoke`. `npm test` prüft
-  zuerst die 14 Server-Tests und danach diese 215 Smoke-Fälle.
+  Spezifikation 316 expandierte Playwright-Fälle in fünf Spec-Dateien und 14
+  Node-Server-Tests, insgesamt 330 Fälle.
+- **TST-002 Smoke:** 216 Playwright-Fälle tragen `@smoke`. `npm test` prüft
+  zuerst die 14 Server-Tests und danach diese 216 Smoke-Fälle.
 - **TST-003 Vollständiger Lauf:** `npm run test:full` prüft zuerst alle 14
-  Server-Tests und danach alle 315 Playwright-Fälle. Der vollständige lokale
+  Server-Tests und danach alle 316 Playwright-Fälle. Der vollständige lokale
   Vertragslauf ist damit genau ein Befehl:
 
   ```bash
@@ -690,9 +699,9 @@ Editoraktion
   der vor dem Fix am beobachteten Verhalten scheitert und nach dem Fix ohne
   Retry, Force-Click oder Sonderpfad besteht.
 - **TST-007 CI-Freigabe:** GitHub Actions und Gitea MÜSSEN beide den
-  vollständigen Bestand von 14 Server- und 315 Playwright-Fällen ausführen.
+  vollständigen Bestand von 14 Server- und 316 Playwright-Fällen ausführen.
   Gitea verwendet `npm run test:full`. GitHub Actions DARF die Playwright-Fälle
-  in disjunkte Shards aufteilen, wenn deren Vereinigung exakt alle 315 Fälle
+  in disjunkte Shards aufteilen, wenn deren Vereinigung exakt alle 316 Fälle
   enthält, die Serverfälle genau einmal laufen und der Deploy von allen Shards
   abhängt. Kein Deploy darf nur durch den kleineren Smoke-Lauf freigegeben
   werden.
@@ -710,21 +719,19 @@ Abdeckungsbereiche:
 
 ## 18. Auditbefunde, geschlossene Abweichungen und Risiken
 
-- **GAP-001 SVG-Hit-Priorität:** `CAN-012` ist fachlich verbindlich, besitzt
-  aber noch keinen vollständigen Regressionstest für einen Edge-Pin oder Port,
-  dessen unsichtbare Hitfläche über einem fremden State liegt.
-- Der vorhandene Geometrietest prüft die gemeinsame Weltposition von Node,
-  SVG-Port und Edge-Pin sowie Node-Dragging nahe dem eigenen Port.
-- Der vorhandene SVG-Test prüft Pfad-, Port- und Pin-Koordinaten.
-- Noch erforderlich ist ein Browser-Test, der einen fremden Edge-Pin gezielt
-  über einem State platziert und mit `elementFromPoint`, einfachem Click und
-  Drag beweist, dass der State beim ersten Versuch gewinnt und der Port an
-  seiner vorgesehenen Zone dennoch erreichbar bleibt.
-- Der aktuelle Demo-Traversal verwendet bis zu drei koordinatenbasierte
-  Click-Versuche und danach einen Locator-Fallback. Das beweist letztendliche
-  Erreichbarkeit, aber nicht deterministische Hit-Erkennung beim ersten Click.
-  Für `CAN-012`, `DEMO-004`, `DEMO-005` und `TST-006` ist deshalb ein
-  retryfreier Regressionstest erforderlich.
+- **GAP-001 SVG-Hit-Priorität, geschlossen am 2026-07-11:** Das Port-SVG liegt
+  jetzt gemeinsam mit den Wires unterhalb der Node-Ebene; seine Port-, Pin- und
+  Tip-Hitflächen bleiben außerhalb von Nodes interaktiv. Ein Browser-
+  Regressionstest legt `.svg-port` und `.edge-pin` eines Owners geometrisch
+  über einen fremden State. `elementsFromPoint` belegt beide SVG-Hitflächen,
+  `elementFromPoint` liefert dennoch den fremden State, und je ein unabhängiger
+  erster, nicht erzwungener Click und Drag wählt beziehungsweise bewegt nur
+  diesen State. Die vorhandenen Geometrie-, Connect- und Reroute-Tests sichern
+  die Erreichbarkeit der eigenen Portzone weiter ab. Der Demo-Traversal rollt
+  jedes Control einmal sichtbar, prüft dessen Mittelpunkt als ersten Hit und
+  führt genau einen nicht erzwungenen Click aus. Auch der allgemeine Transition-
+  Click-Helfer verlangt nun einen freien Trefferpunkt und besitzt keinen Force-
+  Fallback mehr.
 - **GAP-002 Definitionsformat, geschlossen am 2026-07-10:** Editor, MCP-Core
   und MCP-Import verwenden jetzt einheitlich
   `kind: "state-blueprint-definition"` mit `schemaVersion: 2`. Ein Smoke-Test
@@ -745,7 +752,8 @@ Abdeckungsbereiche:
   der Oberflächenübersetzung unberührt. Die normative Orthografieregel und der
   UTF-8-/Orthografie-Smoke-Test sichern native Umlaute und `ß` gegen erneute
   ASCII-Umschrift ab.
-  Der Freigabestand besteht mit 315/315 Playwright- und 14/14 Server-Fällen.
+  Der damalige Freigabestand bestand mit 315/315 Playwright- und 14/14 Server-
+  Fällen; der aktuelle Bestand ist unter `TST-001` festgehalten.
 - **GAP-005 Mobile Bedienbarkeit, geschlossen am 2026-07-11:** Der visuelle
   Ist-Audit mit 360×800, 390×844, 430×932 und 844×390 Pixeln belegte fünf
   Vertragsverletzungen: unlesbar klein eingepasste Zustände, eine nur 80 Pixel
@@ -770,7 +778,7 @@ Abdeckungsbereiche:
   Gitea-Abnahme. GitHub Actions prüft denselben Bestand schneller in vier
   disjunkten Playwright-Shards und einem einmaligen Serverlauf. Der Deploy-Job
   hängt vom Erfolg der gesamten Matrix ab; die Freigabe umfasst deshalb weiter
-  alle 329 Vertragsfälle.
+  alle 330 Vertragsfälle.
 
 ## 19. Implementierungslandkarte des Ist-Stands
 

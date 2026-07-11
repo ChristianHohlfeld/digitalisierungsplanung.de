@@ -594,8 +594,8 @@ async function clickTransitionById(page, transitionId) {
     }
     return null;
   }, transitionId);
-  if (point) await page.mouse.click(point.x, point.y);
-  else await hit.click({ force: true });
+  expect(point, `transition ${transitionId} has no unobstructed first-click point`).not.toBeNull();
+  await page.mouse.click(point.x, point.y);
 }
 
 async function gridGeometryReport(page) {
@@ -2201,6 +2201,16 @@ test.describe("State Blueprint tool", () => {
         await resetRuntimeTo(sourceId);
         await prepare(transition);
         const trigger = clickTargetFor(transition.id);
+        await trigger.scrollIntoViewIfNeeded();
+        const isFirstHit = await trigger.evaluate(element => {
+          const rect = element.getBoundingClientRect();
+          const hit = element.ownerDocument.elementFromPoint(
+            rect.left + rect.width / 2,
+            rect.top + rect.height / 2
+          );
+          return hit === element || element.contains(hit);
+        });
+        expect(isFirstHit, `${transition.id}: trigger center is not the first hit target`).toBe(true);
         await trigger.click();
         const actual = await frame.evaluate(() => {
           const state = context?.state || {};
@@ -10826,6 +10836,113 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#map")).not.toHaveClass(/connecting/);
     await page.mouse.up();
     await expect(page.locator("#map")).not.toHaveClass(/dragging-state/);
+  });
+
+  test("prioritizes a foreign state over overlapping svg ports and edge pins on first click and drag @smoke", async ({ page }) => {
+    const model = {
+      version: 2,
+      name: "Foreign state hit priority",
+      initial: "owner",
+      states: [
+        { id: "owner", title: "Owner", body: "", x: 120, y: 192 },
+        { id: "target", title: "Target", body: "", x: 624, y: 192 },
+        { id: "blocker", title: "Blocker", body: "", x: 288, y: 192 }
+      ],
+      transitions: [
+        { id: "owner_to_target", from: "owner", to: "target", label: "Next", condition: "", set: {} }
+      ]
+    };
+    await page.addInitScript(({ key, model }) => {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(key, JSON.stringify(model));
+    }, { key: STORAGE_KEY, model });
+    await page.goto("/state.html");
+    await expect(page.locator('.edge-pin[data-edge-id="owner_to_target"][data-edge-pin="out"]')).toBeVisible();
+    await expect(page.locator('.svg-port[data-state-id="owner"][data-port-side="out"]')).toBeVisible();
+
+    const foreignOverlap = () => page.evaluate(() => {
+      const pin = document.querySelector('.edge-pin[data-edge-id="owner_to_target"][data-edge-pin="out"]');
+      const port = document.querySelector('.svg-port[data-state-id="owner"][data-port-side="out"]');
+      const blocker = document.querySelector('.node[data-id="blocker"]');
+      const matrix = port?.getScreenCTM();
+      if (!pin || !port || !blocker || !matrix) return null;
+      const point = new DOMPoint(4, 0).matrixTransform(matrix);
+      const stack = document.elementsFromPoint(point.x, point.y);
+      const top = document.elementFromPoint(point.x, point.y);
+      const blockerRect = blocker.getBoundingClientRect();
+      return {
+        x: point.x,
+        y: point.y,
+        pointInsideBlocker: point.x >= blockerRect.left && point.x <= blockerRect.right &&
+          point.y >= blockerRect.top && point.y <= blockerRect.bottom,
+        topStateId: top?.closest?.(".node")?.getAttribute("data-id") || "",
+        stackHasPort: stack.some(element => element.closest?.('.svg-port[data-state-id="owner"][data-port-side="out"]')),
+        stackHasPin: stack.some(element => element.closest?.('.edge-pin[data-edge-id="owner_to_target"][data-edge-pin="out"]'))
+      };
+    });
+    const overlap = await foreignOverlap();
+    expect(overlap).toMatchObject({
+      pointInsideBlocker: true,
+      topStateId: "blocker",
+      stackHasPort: true,
+      stackHasPin: true
+    });
+
+    const blocker = page.locator('[data-id="blocker"]');
+    await page.mouse.click(overlap.x, overlap.y);
+    await expect(blocker).toHaveClass(/selected/);
+    await expect(page.locator('[data-id="owner"]')).not.toHaveClass(/selected/);
+
+    await page.reload();
+    await expect(page.locator('.edge-pin[data-edge-id="owner_to_target"][data-edge-pin="out"]')).toBeVisible();
+    const dragOverlap = await foreignOverlap();
+    expect(dragOverlap).toMatchObject({
+      pointInsideBlocker: true,
+      topStateId: "blocker",
+      stackHasPort: true,
+      stackHasPin: true
+    });
+    const beforeDrag = await savedModel(page).then(saved => ({
+      owner: saved.states.find(state => state.id === "owner"),
+      blocker: saved.states.find(state => state.id === "blocker")
+    }));
+    const topBeforeDrag = await page.evaluate(({ x, y }) => {
+      window.__foreignStateHitTargets = [];
+      for (const type of ["pointerdown", "mousedown"]) {
+        document.addEventListener(type, event => {
+          window.__foreignStateHitTargets.push({
+            type,
+            stateId: event.target?.closest?.(".node")?.getAttribute("data-id") || "",
+            portStateId: event.target?.closest?.(".svg-port")?.getAttribute("data-state-id") || "",
+            edgeId: event.target?.closest?.(".edge-pin")?.getAttribute("data-edge-id") || ""
+          });
+        }, { capture: true, once: true });
+      }
+      return document.elementFromPoint(x, y)?.closest?.(".node")?.getAttribute("data-id") || "";
+    }, dragOverlap);
+    expect(topBeforeDrag).toBe("blocker");
+    await page.mouse.move(dragOverlap.x, dragOverlap.y);
+    await page.mouse.down();
+    expect(await page.evaluate(() => window.__foreignStateHitTargets)).toEqual([
+      { type: "pointerdown", stateId: "blocker", portStateId: "", edgeId: "" },
+      { type: "mousedown", stateId: "blocker", portStateId: "", edgeId: "" }
+    ]);
+    await page.mouse.move(dragOverlap.x + 72, dragOverlap.y + 48, { steps: 8 });
+    await expect(page.locator("#map")).toHaveClass(/dragging-state/);
+    await page.mouse.up();
+    await expect(page.locator("#map")).not.toHaveClass(/dragging-state/);
+    const savedAfterDrag = await savedModel(page);
+    const ownerAfterDrag = savedAfterDrag.states.find(state => state.id === "owner");
+    const blockerAfterDrag = savedAfterDrag.states.find(state => state.id === "blocker");
+    expect({
+      owner: { x: ownerAfterDrag.x, y: ownerAfterDrag.y },
+      blockerMoved: blockerAfterDrag.x !== beforeDrag.blocker.x || blockerAfterDrag.y !== beforeDrag.blocker.y
+    }).toEqual({
+      owner: { x: beforeDrag.owner.x, y: beforeDrag.owner.y },
+      blockerMoved: true
+    });
   });
 
   test("recovers desktop drag, pan, and connection gestures when mouseup is missed", async ({ page }) => {
