@@ -5251,8 +5251,8 @@ test.describe("State Blueprint tool", () => {
 
   test("keeps undo redo deterministic across unchanged saves", async ({ page }) => {
     await openTool(page);
-    const undo = page.locator("#btnUndo");
-    const redo = page.locator("#btnRedo");
+    const undo = page.locator("#btnCanvasUndo");
+    const redo = page.locator("#btnCanvasRedo");
 
     await expect(undo).toBeDisabled();
     await expect(redo).toBeDisabled();
@@ -5281,7 +5281,7 @@ test.describe("State Blueprint tool", () => {
     await expect(redo).toBeDisabled();
   });
 
-  test("keeps undo redo reachable from the canvas history actions @smoke", async ({ page }) => {
+  test("keeps undo redo only in the top-right canvas history actions @smoke", async ({ page }) => {
     await openTool(page);
     const historyActions = page.locator("#canvasHistoryActions");
     const undo = page.locator("#btnCanvasUndo");
@@ -5289,6 +5289,20 @@ test.describe("State Blueprint tool", () => {
 
     await expect(historyActions).toBeVisible();
     await assertVisibleInViewport(page, "#canvasHistoryActions");
+    await expect(page.locator('#btnUndo, #btnRedo, #btnMobileUndo, #btnMobileRedo, [data-topbar-proxy="btnUndo"], [data-topbar-proxy="btnRedo"]')).toHaveCount(0);
+    await expect(undo.locator('svg[data-lucide="undo-2"]')).toHaveCount(1);
+    await expect(redo.locator('svg[data-lucide="redo-2"]')).toHaveCount(1);
+    await expect(undo).toHaveText("");
+    await expect(redo).toHaveText("");
+    await expect.poll(() => page.evaluate(() => {
+      const map = document.querySelector("#map")?.getBoundingClientRect();
+      const history = document.querySelector("#canvasHistoryActions")?.getBoundingClientRect();
+      if (!map || !history) return null;
+      return {
+        top: Math.round(history.top - map.top),
+        right: Math.round(map.right - history.right)
+      };
+    })).toEqual({ top: 14, right: 14 });
     await expect(undo).toBeDisabled();
     await expect(redo).toBeDisabled();
 
@@ -5308,7 +5322,7 @@ test.describe("State Blueprint tool", () => {
     await expect(redo).toBeDisabled();
   });
 
-  test("keeps mobile history actions on canvas without crowding bottom navigation @smoke", async ({ browser }) => {
+  test("keeps correctly oriented mobile history icons on canvas without crowding bottom navigation @smoke", async ({ browser }) => {
     const context = await browser.newContext({
       baseURL: "http://localhost:8124",
       viewport: { width: 390, height: 820 },
@@ -5320,8 +5334,24 @@ test.describe("State Blueprint tool", () => {
       await openTool(page);
       await expect(page.locator("#canvasHistoryActions")).toBeVisible();
       await assertVisibleInViewport(page, "#canvasHistoryActions");
-      await expect(page.locator("#btnMobileUndo")).toBeHidden();
-      await expect(page.locator("#btnMobileRedo")).toBeHidden();
+      await expect(page.locator("#btnUndo, #btnRedo, #btnMobileUndo, #btnMobileRedo")).toHaveCount(0);
+      await expect(page.locator('#btnCanvasUndo svg[data-lucide="undo-2"]')).toHaveCount(1);
+      await expect(page.locator('#btnCanvasRedo svg[data-lucide="redo-2"]')).toHaveCount(1);
+      await expect.poll(() => page.evaluate(() => {
+        const undo = document.querySelector('#btnCanvasUndo svg[data-lucide="undo-2"]');
+        const redo = document.querySelector('#btnCanvasRedo svg[data-lucide="redo-2"]');
+        return {
+          undoArrow: undo?.querySelector("path")?.getAttribute("d") || "",
+          redoArrow: redo?.querySelector("path")?.getAttribute("d") || "",
+          undoTransform: undo ? getComputedStyle(undo).transform : "",
+          redoTransform: redo ? getComputedStyle(redo).transform : ""
+        };
+      })).toEqual({
+        undoArrow: "M9 14 4 9l5-5",
+        redoArrow: "m15 14 5-5-5-5",
+        undoTransform: "none",
+        redoTransform: "none"
+      });
       await expect(page.locator("#mobileTabs button:visible")).toHaveCount(4);
       await page.locator('[data-id="login"]').tap();
       await expect(page.locator("#selectionActions")).toBeVisible();

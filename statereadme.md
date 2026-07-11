@@ -457,7 +457,12 @@ Editoraktion
   bestehenden Transition erhalten.
 - **ED-009 Undo/Redo:** Historie MUSS deterministisch sein, unveränderte Saves
   dürfen keine zusätzlichen Schritte erzeugen, und Wiederherstellung MUSS
-  Modell sowie relevante Auswahl korrekt rekonstruieren.
+  Modell sowie relevante Auswahl korrekt rekonstruieren. Undo und Redo DÜRFEN
+  als sichtbare Aktionen genau einmal erscheinen: oben rechts im Canvas. Die
+  Desktop-Topbar, das Mehr-Menü und die mobile Navigation DÜRFEN keine
+  Duplikate enthalten. Die beiden Canvas-Aktionen MÜSSEN eindeutige,
+  entgegengesetzt gerichtete Undo-/Redo-SVG-Icons ohne Spiegelung, Rotation oder
+  schriftabhängige Pfeilzeichen verwenden.
 - **ED-010 Fokus und Tabfolge:** Zustands-, Transition- und Runtime-Editoren
   MÜSSEN eine vorhersehbare Tabfolge, Enter-Commit- und Escape-Semantik besitzen.
   Ein aktiver Inline-Titeleditor MUSS den Fokus behalten; verzögerte
@@ -839,8 +844,9 @@ Abdeckungsbereiche:
   Querformat-Split. Der neue Mobile-Vertrag verwendet deshalb in Portrait,
   Querformat und auf mittleren Touch-Geräten ausschließlich vier Vollflächen:
   `canvas`, `presets`, `edit` und `app`. Die Navigation zeigt nur Canvas,
-  Vorlagen, Details und Vorschau. Undo/Redo liegen als 44-Pixel-Aktionen auf dem
-  Canvas und zusätzlich im Mehr-Menü. Mobile Panel-Resizer sind deaktiviert.
+  Vorlagen, Details und Vorschau. Undo/Redo liegen ausschließlich als
+  44-Pixel-Aktionen oben rechts auf dem Canvas. Mobile Panel-Resizer sind
+  deaktiviert.
   Beim Öffnen oder Laden fokussiert der Canvas den fachlichen Startzustand mit
   mindestens 0,82 Skalierung; der explizite Befehl `Einpassen` bleibt der
   vollständige Modellüberblick. Die Vorlagenansicht belegt die ganze

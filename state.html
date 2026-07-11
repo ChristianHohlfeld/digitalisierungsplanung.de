@@ -2881,26 +2881,22 @@
 
     .canvas-history-actions {
       position: absolute;
+      top: max(14px, env(safe-area-inset-top));
       right: max(14px, env(safe-area-inset-right));
-      bottom: 174px; /* default above expanded explorer */
+      bottom: auto;
       z-index: 25;
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 8px;
+      gap: 4px;
+      padding: 4px;
       border: 1px solid rgba(148,163,184,.24);
-      border-radius: 999px;
+      border-radius: 8px;
       background: rgba(3,7,18,.82);
       backdrop-filter: blur(10px);
       box-shadow: 0 14px 34px rgba(0,0,0,.34);
-      transition: bottom 0.18s ease;
     }
 
     .selection-actions:has(~ .state-explorer.collapsed) {
-      bottom: 60px; /* above collapsed explorer */
-    }
-
-    .canvas-history-actions:has(~ .state-explorer.collapsed) {
       bottom: 60px; /* above collapsed explorer */
     }
 
@@ -2922,9 +2918,20 @@
     }
 
     .canvas-history-actions button {
-      min-width: 54px;
+      display: grid;
+      place-items: center;
+      width: 40px;
+      min-width: 40px;
+      height: 40px;
       min-height: 40px;
-      padding: 8px 12px;
+      padding: 0;
+    }
+
+    .history-action-icon {
+      display: block;
+      width: 20px;
+      height: 20px;
+      pointer-events: none;
     }
 
     .state-explorer {
@@ -3471,8 +3478,6 @@
 
       .topbar > #btnLoad,
       .topbar > #btnExport,
-      .topbar > #btnUndo,
-      .topbar > #btnRedo,
       .topbar > #btnFit,
       .topbar > #btnRun,
       .topbar > #btnPause {
@@ -3780,10 +3785,6 @@
         box-shadow: 0 0 0 3px rgba(56,189,248,.16);
       }
 
-      .mobile-history-action {
-        display: none !important;
-      }
-
       .node {
         border-radius: 12px;
       }
@@ -4007,21 +4008,11 @@
         height: 44px;
         min-height: 44px;
         padding: 0;
-        font-size: 0;
       }
 
-      .workspace.mobile-canvas-active #btnCanvasUndo::before,
-      .workspace.mobile-canvas-active #btnCanvasRedo::before {
-        font-size: 24px;
-        line-height: 1;
-      }
-
-      .workspace.mobile-canvas-active #btnCanvasUndo::before {
-        content: "↶";
-      }
-
-      .workspace.mobile-canvas-active #btnCanvasRedo::before {
-        content: "↷";
+      .workspace.mobile-canvas-active .history-action-icon {
+        width: 22px;
+        height: 22px;
       }
 
       .workspace.mobile-canvas-active .selection-actions {
@@ -4911,8 +4902,6 @@
     <button id="btnSave">Speichern</button>
     <button id="btnLoad">Laden</button>
     <button id="btnExport">HTML exportieren</button>
-    <button id="btnUndo" title="Rückgängig" disabled="">Rückgängig</button>
-    <button id="btnRedo" title="Wiederholen" disabled="">Wiederholen</button>
     <button id="btnFit">Einpassen</button>
     <button id="btnRun">App zurücksetzen</button>
     <button id="btnPause" title="Timer und automatische Änderungen pausieren" aria-pressed="false">Pausieren</button>
@@ -4921,8 +4910,6 @@
       <div class="topbar-menu-panel">
         <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnLoad">Laden</button>
         <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnExport">HTML exportieren</button>
-        <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnUndo">Rückgängig</button>
-        <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnRedo">Wiederholen</button>
         <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnFit">Einpassen</button>
         <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnRun">App zurücksetzen</button>
         <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnPause">Pausieren</button>
@@ -4985,8 +4972,12 @@
       </div>
       <div id="selectRect" class="select-rect"></div>
       <div id="canvasHistoryActions" class="canvas-history-actions" aria-label="Arbeitsflächen-Verlauf">
-        <button id="btnCanvasUndo" type="button" title="Rückgängig" aria-label="Rückgängig" disabled="">Zurück</button>
-        <button id="btnCanvasRedo" type="button" title="Wiederholen" aria-label="Wiederholen" disabled="">Vor</button>
+        <button id="btnCanvasUndo" type="button" title="Rückgängig" aria-label="Rückgängig" disabled="">
+          <svg class="history-action-icon" data-lucide="undo-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"></path><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5A5.5 5.5 0 0 1 14.5 20H11"></path></svg>
+        </button>
+        <button id="btnCanvasRedo" type="button" title="Wiederholen" aria-label="Wiederholen" disabled="">
+          <svg class="history-action-icon" data-lucide="redo-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5"></path><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5 5.5 5.5 0 0 0 9.5 20H13"></path></svg>
+        </button>
       </div>
       <div id="selectionActions" class="selection-actions" hidden="">
         <span id="selectionCount" class="selection-count"></span>
@@ -5034,8 +5025,6 @@
     <button type="button" data-mobile-view="presets" aria-pressed="false"><span class="mobile-tab-icon" aria-hidden="true"></span><span>Vorlagen</span></button>
     <button type="button" data-mobile-view="edit" aria-pressed="false"><span class="mobile-tab-icon" aria-hidden="true"></span><span>Details</span></button>
     <button type="button" data-mobile-view="app" aria-pressed="false"><span class="mobile-tab-icon" aria-hidden="true"></span><span>Vorschau</span></button>
-    <button id="btnMobileUndo" class="mobile-history-action" type="button" title="Rückgängig" aria-label="Rückgängig" disabled="">Rückgängig</button>
-    <button id="btnMobileRedo" class="mobile-history-action" type="button" title="Wiederholen" aria-label="Wiederholen" disabled="">Wiederholen</button>
   </nav>
 
   <script>
@@ -8079,8 +8068,6 @@
     const canvasHistoryActionsEl = document.getElementById("canvasHistoryActions");
     const btnCanvasUndo = document.getElementById("btnCanvasUndo");
     const btnCanvasRedo = document.getElementById("btnCanvasRedo");
-    const btnMobileUndo = document.getElementById("btnMobileUndo");
-    const btnMobileRedo = document.getElementById("btnMobileRedo");
     const selectionActionsEl = document.getElementById("selectionActions");
     const selectionCountEl = document.getElementById("selectionCount");
     const btnSelectionCopy = document.getElementById("btnSelectionCopy");
@@ -9375,16 +9362,10 @@
     }
 
     function updateHistoryButtons() {
-      const undo = document.getElementById("btnUndo");
-      const redo = document.getElementById("btnRedo");
       const canUndo = Boolean(undoStack.length);
       const canRedo = Boolean(redoStack.length);
-      if (undo) undo.disabled = !canUndo;
-      if (redo) redo.disabled = !canRedo;
       if (btnCanvasUndo) btnCanvasUndo.disabled = !canUndo;
       if (btnCanvasRedo) btnCanvasRedo.disabled = !canRedo;
-      if (btnMobileUndo) btnMobileUndo.disabled = !canUndo;
-      if (btnMobileRedo) btnMobileRedo.disabled = !canRedo;
     }
 
     function initHistory() {
@@ -26112,12 +26093,8 @@
     document.getElementById("btnLoad").onclick = requestLoadBlueprintFile;
     document.getElementById("btnExport").onclick = exportHtmlFile;
     fileLoadEl.onchange = () => loadBlueprintFile(fileLoadEl.files?.[0]);
-    document.getElementById("btnUndo").onclick = undoModel;
-    document.getElementById("btnRedo").onclick = redoModel;
     btnCanvasUndo.onclick = undoModel;
     btnCanvasRedo.onclick = redoModel;
-    btnMobileUndo.onclick = undoModel;
-    btnMobileRedo.onclick = redoModel;
     canvasHistoryActionsEl.addEventListener("pointerdown", evt => evt.stopPropagation());
     btnSelectionCopy.onclick = copySelectedNodes;
     btnSelectionCollapse.onclick = groupOrDegroupSelected;
