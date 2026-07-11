@@ -12813,6 +12813,15 @@
       return true;
     }
 
+    function startTouchPanFromPendingGesture(start, evt) {
+      start.moved = true;
+      clearLongPress();
+      clearTouchNodeFeedback();
+      startPanning(eventFromPoint(start, evt));
+      handleCanvasMove(evt);
+      return true;
+    }
+
     function startPendingNodeTouch(evt, state) {
       stopRuntimeLayerFollow();
       clearLongPress();
@@ -12855,12 +12864,7 @@
       if (distance <= TOUCH_NODE_MOVE_CANCEL_RADIUS) return true;
       const start = pendingNodeTouch;
       pendingNodeTouch = null;
-      start.moved = true;
-      clearLongPress();
-      clearTouchNodeFeedback();
-      startPanning(eventFromPoint(start, evt));
-      handleCanvasMove(evt);
-      return true;
+      return startTouchPanFromPendingGesture(start, evt);
     }
 
     function finishPendingNodeTouch(evt) {
@@ -12873,7 +12877,7 @@
       return !tap.longPressed && !tap.moved && finishTouchNodeTap(evt, state, tap);
     }
 
-    function startPendingEdgeTouch(evt, t) {
+    function startPendingEdgeTouch(evt, t, canRewire = false) {
       stopRuntimeLayerFollow();
       clearLongPress();
       pendingEdgeTouch = {
@@ -12882,8 +12886,10 @@
         clientY: evt.clientY,
         moved: false,
         longPressed: false,
+        canRewire,
         transitionId: t.id
       };
+      if (!canRewire) return true;
       longPressTimer = setTimeout(() => {
         if (!pendingEdgeTouch || pendingEdgeTouch.pointerId !== evt.pointerId || pinchZoom || touchPointers.size > 1) return;
         pendingEdgeTouch.longPressed = true;
@@ -12897,10 +12903,10 @@
       if (pendingEdgeTouch.longPressed) return false;
       const distance = Math.hypot(evt.clientX - pendingEdgeTouch.clientX, evt.clientY - pendingEdgeTouch.clientY);
       if (distance <= 10) return true;
-      pendingEdgeTouch.moved = true;
+      const start = pendingEdgeTouch;
       pendingEdgeTouch = null;
-      clearLongPress();
-      return true;
+      suppressEdgeClickUntil = Date.now() + 650;
+      return startTouchPanFromPendingGesture(start, evt);
     }
 
     function finishPendingEdgeTouch(evt) {
@@ -12957,11 +12963,7 @@
       if (distance <= 7) return true;
       const start = pendingCanvasTouch;
       pendingCanvasTouch = null;
-      start.moved = true;
-      clearLongPress();
-      startPanning(eventFromPoint(start, evt));
-      handleCanvasMove(evt);
-      return true;
+      return startTouchPanFromPendingGesture(start, evt);
     }
 
     function trackTouchStart(evt) {
@@ -15597,14 +15599,15 @@
 
     function handleSvgEdgePointerDown(evt) {
       const el = svgEdgeTarget(evt);
-      if (!el || el.getAttribute("data-edge-rewire") !== "true" || !isTouchPointer(evt)) return false;
+      if (!el || !isTouchPointer(evt)) return false;
       const transition = transitionFromSvgEdge(el);
       if (!transition) return false;
       evt.preventDefault();
       evt.stopPropagation();
       lastTouchAt = Date.now();
       activePointerId = evt.pointerId;
-      startPendingEdgeTouch(evt, transition);
+      captureTouchPointer(evt);
+      startPendingEdgeTouch(evt, transition, el.getAttribute("data-edge-rewire") === "true");
       return true;
     }
 

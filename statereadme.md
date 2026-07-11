@@ -479,7 +479,15 @@ Editoraktion
   Scrollbars verdeckt werden.
 - **ED-013 Touch:** Touch-Drag, Long-Press, Double-Tap, Pinch-Zoom,
   Zwei-Finger-Pan und Touch-Reorder MÜSSEN absichtlich unterscheidbar sein.
-  Vertikales Preset-Scrollen DARF keinen Drag starten.
+  Ein Ein-Finger-Wisch auf dem Canvas MUSS nach Überschreiten der
+  Bewegungsschwelle pannen, unabhängig davon, ob er auf leerer Fläche, einem
+  State-Körper, einem Transition-Linienkörper, einem Transition-Label, einem
+  Edge-Pin oder einem Arrowhead beginnt. Die frühe Bewegung MUSS den jeweiligen
+  Long-Press abbrechen und DARF weder den State verschieben noch die Transition
+  umverdrahten. State-Drag und Transition-Rerouting DÜRFEN weiterhin erst nach
+  ihrem vorgesehenen Long-Press beginnen; Rerouting DARF ausschließlich von den
+  dafür vorgesehenen Arrowheads und Pins starten. Vertikales Preset-Scrollen
+  DARF keinen Drag starten.
 - **ED-014 Gestenabbruch:** Verlorenes `mouseup`, Pointer-Verlassen oder
   Fenster-Blur MUSS Drag, Pan, Connect und Rechteckauswahl sauber abbrechen.
 - **ED-015 Keine Browser-Nebeneffekte:** Canvas und Vorschau MÜSSEN

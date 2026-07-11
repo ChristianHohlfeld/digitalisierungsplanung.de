@@ -9274,6 +9274,100 @@ test.describe("State Blueprint tool", () => {
     await context.close();
   });
 
+  test("pans mobile canvas from empty space, states, transition bodies, and reroute handles @smoke", async ({ browser }) => {
+    const context = await browser.newContext({
+      baseURL: "http://localhost:8124",
+      viewport: { width: 390, height: 820 },
+      hasTouch: true,
+      isMobile: true
+    });
+    const page = await context.newPage();
+    try {
+      await openTool(page);
+      const loginEdgeId = await page.evaluate(key => {
+        const stored = JSON.parse(localStorage.getItem(`${key}.editor`) || localStorage.getItem(key) || "null");
+        const storedModel = stored?.model || stored;
+        return storedModel.transitions.find(transition => transition.from === "auth_start" && transition.label === "Login").id;
+      }, STORAGE_KEY);
+      const map = page.locator("#map");
+      const edgeBody = page.locator(`path.hit[data-edge-id="${loginEdgeId}"]`);
+      const edgeBodyPoint = () => edgeBody.evaluate(path => {
+        const point = path.getPointAtLength(path.getTotalLength() / 2);
+        const matrix = path.getScreenCTM();
+        const screenPoint = new DOMPoint(point.x, point.y).matrixTransform(matrix);
+        return { x: screenPoint.x, y: screenPoint.y };
+      });
+
+      const tapPoint = await edgeBodyPoint();
+      await page.touchscreen.tap(tapPoint.x, tapPoint.y);
+      await expect(page.locator(`path.edge[data-edge-id="${loginEdgeId}"]`)).toHaveClass(/selected/);
+      await page.evaluate(() => clearSelection("selection:canvas"));
+      const graphBefore = await savedModel(page);
+      const selectedEdgesBefore = await page.locator(".edge.selected").count();
+
+      const swipe = async (target, point, pointerId) => {
+        const cameraBefore = await worldTransform(page);
+        await target.dispatchEvent("pointerdown", {
+          bubbles: true,
+          cancelable: true,
+          pointerType: "touch",
+          pointerId,
+          isPrimary: true,
+          button: 0,
+          buttons: 1,
+          clientX: point.x,
+          clientY: point.y
+        });
+        const end = { x: point.x + 54, y: point.y + 26 };
+        await page.evaluate(({ end, pointerId }) => {
+          window.dispatchEvent(new PointerEvent("pointermove", {
+            bubbles: true,
+            cancelable: true,
+            pointerType: "touch",
+            pointerId,
+            isPrimary: true,
+            button: 0,
+            buttons: 1,
+            clientX: end.x,
+            clientY: end.y
+          }));
+        }, { end, pointerId });
+        await expect(map).toHaveClass(/panning/);
+        await expect.poll(() => worldTransform(page)).not.toBe(cameraBefore);
+        await page.evaluate(({ end, pointerId }) => {
+          window.dispatchEvent(new PointerEvent("pointerup", {
+            bubbles: true,
+            cancelable: true,
+            pointerType: "touch",
+            pointerId,
+            isPrimary: true,
+            button: 0,
+            buttons: 0,
+            clientX: end.x,
+            clientY: end.y
+          }));
+        }, { end, pointerId });
+        await expect(map).not.toHaveClass(/panning|connecting|dragging-state/);
+      };
+
+      await swipe(map, await emptyCanvasPoint(page), 331);
+      const login = page.locator('[data-id="login"]');
+      await swipe(login, await centerOf(login), 332);
+
+      await swipe(edgeBody, await edgeBodyPoint(), 333);
+
+      const arrowhead = page.locator(`circle.edge-tip-hit[data-edge-id="${loginEdgeId}"]`);
+      await swipe(arrowhead, await centerOf(arrowhead), 334);
+      await expect(page.locator(".edge.selected")).toHaveCount(selectedEdgesBefore);
+
+      const graphAfter = await savedModel(page);
+      expect(graphAfter.states).toEqual(graphBefore.states);
+      expect(graphAfter.transitions).toEqual(graphBefore.transitions);
+    } finally {
+      await context.close();
+    }
+  });
+
   test("starts transition drags from near output ports on tablet without panning @smoke", async ({ browser }) => {
     const context = await browser.newContext({
       baseURL: "http://localhost:8124",
