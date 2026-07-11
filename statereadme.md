@@ -473,10 +473,17 @@ Editoraktion
   Vorlagen, Details und Vorschau erreichbar halten. In der mobilen
   Arbeitsansicht MÜSSEN diese vier Aufgaben über vier gleich breite,
   mindestens 44 Pixel hohe Navigationsziele erreichbar sein. Jeder Modus MUSS
-  die Arbeitsfläche exklusiv und ohne Restzeile, Split-Panel oder verdeckten
-  Inhalt belegen. Controls und Beschriftungen dürfen nicht überlappen,
-  abgeschnitten werden, horizontal aus dem Viewport laufen oder durch
-  Scrollbars verdeckt werden.
+  die Arbeitsfläche ohne Restzeile, frei verschiebbaren Split oder verdeckten
+  Inhalt belegen. Canvas, Vorlagen und Details MÜSSEN jeweils eine exklusive
+  Vollfläche bleiben. Die mobile Vorschau MUSS dagegen innerhalb derselben
+  Vollfläche den echten Canvas-Renderer als nicht interaktiven Live-Monitor und
+  die bedienbare App gleichzeitig zeigen: in Portrait übereinander, in
+  Querformat nebeneinander. Der Monitor MUSS die an einer Runtime-Transition
+  beteiligten States und die bestehende State-/Kantenanimation sichtbar halten,
+  DARF keinen zweiten Renderer oder Modellstand erzeugen und DARF die vom Nutzer
+  gespeicherte Canvas-Kamera nicht überschreiben. Controls und Beschriftungen
+  dürfen nicht überlappen, abgeschnitten werden, horizontal aus dem Viewport
+  laufen oder durch Scrollbars verdeckt werden.
 - **ED-013 Touch:** Touch-Drag, Long-Press, Double-Tap, Pinch-Zoom,
   Zwei-Finger-Pan und Touch-Reorder MÜSSEN absichtlich unterscheidbar sein.
   Ein Ein-Finger-Wisch auf dem Canvas MUSS nach Überschreiten der
@@ -761,12 +768,12 @@ Editoraktion
 ## 17. Ausführbare Absicherung
 
 - **TST-001 Testbestand:** Am Stand dieses Dokuments umfasst die ausführbare
-  Spezifikation 320 expandierte Playwright-Fälle in fünf Spec-Dateien und 14
-  Node-Server-Tests, insgesamt 334 Fälle.
-- **TST-002 Smoke:** 220 Playwright-Fälle tragen `@smoke`. `npm test` prüft
-  zuerst die 14 Server-Tests und danach diese 220 Smoke-Fälle.
+  Spezifikation 324 expandierte Playwright-Fälle in fünf Spec-Dateien und 14
+  Node-Server-Tests, insgesamt 338 Fälle.
+- **TST-002 Smoke:** 224 Playwright-Fälle tragen `@smoke`. `npm test` prüft
+  zuerst die 14 Server-Tests und danach diese 224 Smoke-Fälle.
 - **TST-003 Vollständiger Lauf:** `npm run test:full` prüft zuerst alle 14
-  Server-Tests und danach alle 320 Playwright-Fälle. Der vollständige lokale
+  Server-Tests und danach alle 324 Playwright-Fälle. Der vollständige lokale
   Vertragslauf ist damit genau ein Befehl:
 
   ```bash
@@ -782,9 +789,9 @@ Editoraktion
   der vor dem Fix am beobachteten Verhalten scheitert und nach dem Fix ohne
   Retry, Force-Click oder Sonderpfad besteht.
 - **TST-007 CI-Freigabe:** GitHub Actions und Gitea MÜSSEN beide den
-  vollständigen Bestand von 14 Server- und 320 Playwright-Fällen ausführen.
+  vollständigen Bestand von 14 Server- und 324 Playwright-Fällen ausführen.
   Gitea verwendet `npm run test:full`. GitHub Actions DARF die Playwright-Fälle
-  in disjunkte Shards aufteilen, wenn deren Vereinigung exakt alle 320 Fälle
+  in disjunkte Shards aufteilen, wenn deren Vereinigung exakt alle 324 Fälle
   enthält, die Serverfälle genau einmal laufen und der Deploy von allen Shards
   abhängt. Kein Deploy darf nur durch den kleineren Smoke-Lauf freigegeben
   werden.
@@ -850,7 +857,7 @@ Abdeckungsbereiche:
   hohe und damit unbedienbare Vorschau, tote Restflächen in Details und
   Vorschau, abgeschnittene sechs-spaltige Navigation sowie ein unbrauchbarer
   Querformat-Split. Der neue Mobile-Vertrag verwendet deshalb in Portrait,
-  Querformat und auf mittleren Touch-Geräten ausschließlich vier Vollflächen:
+  Querformat und auf mittleren Touch-Geräten ausschließlich vier Arbeitsansichten:
   `canvas`, `presets`, `edit` und `app`. Die Navigation zeigt nur Canvas,
   Vorlagen, Details und Vorschau. Undo/Redo liegen ausschließlich als
   44-Pixel-Aktionen oben rechts auf dem Canvas. Mobile Panel-Resizer sind
@@ -859,7 +866,10 @@ Abdeckungsbereiche:
   mindestens 0,82 Skalierung; der explizite Befehl `Einpassen` bleibt der
   vollständige Modellüberblick. Die Vorlagenansicht belegt die ganze
   Arbeitsfläche und ordnet kompakte Karten adaptiv an. Kein mobiler Modus darf
-  eine zweite Arbeitsfläche oder eine unsichtbare Restzeile reservieren. Der
+  ein unabhängiges zweites Panel oder eine unsichtbare Restzeile reservieren.
+  Die Vorschau verwendet seit dem Live-Ablauf-Audit denselben Canvas-Renderer
+  als festen, nicht interaktiven Runtime-Monitor über beziehungsweise neben der
+  App; sie besitzt weder einen Resizer noch eine zweite Canvas-Geometrie. Der
   Nachher-Audit derselben vier Viewports bestätigt für alle 16 Kombinationen
   aus Viewport und Modus: exakt eine vollflächige Arbeitsansicht, keine
   abgeschnittenen Tabs, keinen Dokument-Overflow und keine Browser- oder
@@ -869,7 +879,7 @@ Abdeckungsbereiche:
   Gitea-Abnahme. GitHub Actions prüft denselben Bestand schneller in vier
   disjunkten Playwright-Shards und einem einmaligen Serverlauf. Der Deploy-Job
   hängt vom Erfolg der gesamten Matrix ab; die Freigabe umfasst deshalb weiter
-  alle 334 Vertragsfälle.
+  alle 338 Vertragsfälle.
 - **GAP-007 Realtime-Ausgang am Parent, geschlossen am 2026-07-11:** Das im
   Nutzerbrowser persistierte Fehlermodell enthielt einen aktiven Parent
   `start`, dessen manuellen Boundary-Eintritt und den echten Realtime-Ausgang

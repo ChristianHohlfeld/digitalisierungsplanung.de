@@ -9617,10 +9617,34 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator(".preview")).toBeVisible();
     await expectElementAboveMobileTabs(".preview");
     await expectElementAboveMobileTabs("#appFrame");
-    await expectSurfaceFillsWorkspace(".preview");
+    await expect(page.locator("#map")).toBeVisible();
+    await expectElementAboveMobileTabs("#map");
+    await expect.poll(() => page.evaluate(() => {
+      const workspace = document.querySelector("#workspace")?.getBoundingClientRect();
+      const map = document.querySelector("#map")?.getBoundingClientRect();
+      const preview = document.querySelector(".preview")?.getBoundingClientRect();
+      if (!workspace || !map || !preview) return null;
+      return {
+        monitorHeight: Math.round(map.height),
+        previewUsable: preview.height >= 360,
+        stackedWithoutGap: Math.abs(map.bottom - preview.top) <= 1,
+        fillsWorkspace: Math.abs(map.top - workspace.top) <= 1 &&
+          Math.abs(preview.bottom - workspace.bottom) <= 1 &&
+          Math.abs(map.left - workspace.left) <= 1 &&
+          Math.abs(map.right - workspace.right) <= 1 &&
+          Math.abs(preview.left - workspace.left) <= 1 &&
+          Math.abs(preview.right - workspace.right) <= 1,
+        monitorReadOnly: getComputedStyle(document.querySelector("#map")).pointerEvents === "none"
+      };
+    })).toEqual({
+      monitorHeight: 205,
+      previewUsable: true,
+      stackedWithoutGap: true,
+      fillsWorkspace: true,
+      monitorReadOnly: true
+    });
     await expect(page.locator("#selectionActions")).toBeHidden();
     await expect(page.locator("#stateInspector")).toBeHidden();
-    await expect(page.locator("#map")).toBeHidden();
     await expect(page.locator('[data-mobile-view="app"]')).toHaveClass(/active/);
 
     await page.locator('[data-mobile-view="canvas"]').tap();
@@ -9699,15 +9723,78 @@ test.describe("State Blueprint tool", () => {
 
     await landscapePage.locator('[data-mobile-view="app"]').tap();
     await expect(landscapePage.locator(".preview")).toBeVisible();
+    await expect(landscapePage.locator("#map")).toBeVisible();
     await expect.poll(() => landscapePage.locator(".preview").evaluate(el => {
-      const rect = el.getBoundingClientRect();
+      const preview = el.getBoundingClientRect();
+      const map = document.querySelector("#map").getBoundingClientRect();
       const workspace = document.querySelector("#workspace").getBoundingClientRect();
-      return Math.abs(rect.left - workspace.left) <= 1 &&
-        Math.abs(rect.top - workspace.top) <= 1 &&
-        Math.abs(rect.right - workspace.right) <= 1 &&
-        Math.abs(rect.bottom - workspace.bottom) <= 1;
-    })).toBe(true);
+      return {
+        monitorWidth: Math.round(map.width),
+        previewUsable: preview.width >= 500,
+        sideBySideWithoutGap: Math.abs(map.right - preview.left) <= 1,
+        fillsWorkspace: Math.abs(map.left - workspace.left) <= 1 &&
+          Math.abs(preview.right - workspace.right) <= 1 &&
+          Math.abs(map.top - workspace.top) <= 1 &&
+          Math.abs(map.bottom - workspace.bottom) <= 1 &&
+          Math.abs(preview.top - workspace.top) <= 1 &&
+          Math.abs(preview.bottom - workspace.bottom) <= 1,
+        monitorReadOnly: getComputedStyle(document.querySelector("#map")).pointerEvents === "none"
+      };
+    })).toEqual({
+      monitorWidth: 321,
+      previewUsable: true,
+      sideBySideWithoutGap: true,
+      fillsWorkspace: true,
+      monitorReadOnly: true
+    });
     await landscapeContext.close();
+  });
+
+  test("shows the live canvas animation while the mobile app preview stays operable @smoke", async ({ browser }) => {
+    const context = await browser.newContext({
+      baseURL: "http://localhost:8124",
+      viewport: { width: 390, height: 820 },
+      hasTouch: true,
+      isMobile: true
+    });
+    const page = await context.newPage();
+    try {
+      await openTool(page);
+      await page.waitForTimeout(240);
+      const cameraBefore = await worldTransform(page);
+      const storedCameraBefore = await page.evaluate(key => localStorage.getItem(`${key}.camera`), STORAGE_KEY);
+
+      await page.locator('[data-mobile-view="app"]').tap();
+      await expect(page.locator("#map")).toBeVisible();
+      await expect(page.locator(".preview")).toBeVisible();
+      await expect(page.locator("#map")).toHaveCSS("pointer-events", "none");
+
+      const app = appFrame(page);
+      await app.getByRole("button", { name: "Login" }).click();
+      await expect(app.locator("#statePill")).toHaveText("login");
+      await expect(page.locator('.edge[data-edge-id="t_auth_login"]')).toHaveClass(/runtime-pulse/);
+      await expect(page.locator('[data-id="auth_start"]')).toHaveClass(/runtime-exit/);
+      await expect(page.locator('[data-id="login"]')).toHaveClass(/runtime-enter/);
+      await expect.poll(() => page.evaluate(() => {
+        const monitor = document.querySelector("#map")?.getBoundingClientRect();
+        const source = document.querySelector('[data-id="auth_start"]')?.getBoundingClientRect();
+        const target = document.querySelector('[data-id="login"]')?.getBoundingClientRect();
+        if (!monitor || !source || !target) return false;
+        return [source, target].every(rect =>
+          rect.left >= monitor.left - 1 && rect.right <= monitor.right + 1 &&
+          rect.top >= monitor.top - 1 && rect.bottom <= monitor.bottom + 1
+        );
+      })).toBe(true);
+
+      await page.waitForTimeout(180);
+      await expect.poll(() => page.evaluate(key => localStorage.getItem(`${key}.camera`), STORAGE_KEY))
+        .toBe(storedCameraBefore);
+      await page.locator('[data-mobile-view="canvas"]').tap();
+      await expect(page.locator("#map")).toHaveCSS("pointer-events", "auto");
+      await expect.poll(() => worldTransform(page)).toBe(cameraBefore);
+    } finally {
+      await context.close();
+    }
   });
 
   test("keeps mid-size touch workspaces exclusive until another tab is chosen @smoke", async ({ browser }) => {
@@ -9758,7 +9845,8 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator('[data-mobile-view="app"]').tap();
     await expect(page.locator(".preview")).toBeVisible();
-    await expect(page.locator("#map")).toBeHidden();
+    await expect(page.locator("#map")).toBeVisible();
+    await expect(page.locator("#map")).toHaveCSS("pointer-events", "none");
     await context.close();
   });
 
@@ -9920,7 +10008,9 @@ test.describe("State Blueprint tool", () => {
     await expect(reopened.locator("#mobileTabs")).toBeVisible();
     await expect(reopened.locator('[data-mobile-view="app"]')).toHaveClass(/active/);
     await expect(reopened.locator(".preview")).toBeVisible();
-    await expect(reopened.locator("#map")).toBeHidden();
+    await expect(reopened.locator("#map")).toBeVisible();
+    await expect(reopened.locator("#map")).toHaveCSS("pointer-events", "none");
+    await expect(reopened.locator("#workspace")).toHaveClass(/mobile-app-active/);
     await expect(reopened.locator("#stateInspector")).toBeHidden();
     await reopened.close();
     await context.close();

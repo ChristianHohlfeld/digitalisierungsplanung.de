@@ -3540,18 +3540,14 @@
       html[data-inspector-collapsed="true"] .workspace.mobile-presets-active,
       html[data-preview-collapsed="true"] .workspace.mobile-edit-active,
       html[data-inspector-collapsed="true"] .workspace.mobile-edit-active,
-      html[data-preview-collapsed="true"] .workspace.mobile-app-active,
-      html[data-inspector-collapsed="true"] .workspace.mobile-app-active,
       .workspace.mobile-canvas-active,
       .workspace.mobile-presets-active,
       .workspace.mobile-edit-active,
-      .workspace.mobile-app-active,
       .workspace.mobile-canvas-active.preview-collapsed,
       .workspace.mobile-canvas-active.inspector-collapsed,
       .workspace.mobile-canvas-active.inspector-collapsed.preview-collapsed,
       .workspace.mobile-presets-active.preview-collapsed,
-      .workspace.mobile-edit-active.preview-collapsed,
-      .workspace.mobile-app-active.preview-collapsed {
+      .workspace.mobile-edit-active.preview-collapsed {
         grid-template-columns: 1fr;
         grid-template-rows: minmax(0, 1fr);
       }
@@ -3585,8 +3581,7 @@
       .workspace.mobile-presets-active .preview,
       .workspace.mobile-edit-active .map,
       .workspace.mobile-edit-active .preview,
-      .workspace.mobile-app-active .inspector,
-      .workspace.mobile-app-active .map {
+      .workspace.mobile-app-active .inspector {
         display: none;
       }
 
@@ -3595,11 +3590,46 @@
         grid-row: 1;
       }
 
+      html[data-preview-collapsed="true"] .workspace.mobile-app-active,
+      html[data-inspector-collapsed="true"] .workspace.mobile-app-active,
+      .workspace.mobile-app-active,
+      .workspace.mobile-app-active.preview-collapsed,
+      .workspace.mobile-app-active.inspector-collapsed,
+      .workspace.mobile-app-active.inspector-collapsed.preview-collapsed {
+        grid-template-columns: 1fr;
+        grid-template-rows: clamp(168px, 25dvh, 216px) minmax(0, 1fr);
+      }
+
+      .workspace.mobile-app-active .map {
+        display: block;
+        grid-column: 1;
+        grid-row: 1;
+        min-height: 0;
+        border-right: 0;
+        border-bottom: 1px solid #315f8c;
+        pointer-events: none;
+        cursor: default;
+        box-shadow: inset 0 -1px 0 rgba(56,189,248,.12), 0 8px 22px rgba(0,0,0,.28);
+      }
+
       .workspace.mobile-app-active .preview {
         display: grid;
-        grid-row: 1;
+        grid-column: 1;
+        grid-row: 2;
+        min-height: 0;
         border-left: 0;
         border-bottom: 0;
+      }
+
+      .workspace.mobile-app-active #layerHud,
+      .workspace.mobile-app-active #layerFrame,
+      .workspace.mobile-app-active #layerFrameComment,
+      .workspace.mobile-app-active #selectRect,
+      .workspace.mobile-app-active .state-explorer,
+      .workspace.mobile-app-active .canvas-history-actions,
+      .workspace.mobile-app-active .selection-actions,
+      .workspace.mobile-app-active .node-edit {
+        display: none !important;
       }
 
       .workspace.mobile-edit-active .inspector {
@@ -4045,24 +4075,17 @@
     @media (max-width: 720px) and (orientation: portrait) {
       html[data-preview-collapsed="true"] .workspace.mobile-edit-active,
       html[data-inspector-collapsed="true"] .workspace.mobile-edit-active,
-      html[data-preview-collapsed="true"] .workspace.mobile-app-active,
-      html[data-inspector-collapsed="true"] .workspace.mobile-app-active,
       .workspace.mobile-edit-active,
-      .workspace.mobile-app-active,
-      .workspace.mobile-edit-active.preview-collapsed,
-      .workspace.mobile-app-active.preview-collapsed {
+      .workspace.mobile-edit-active.preview-collapsed {
         grid-template-rows: minmax(0, 1fr);
       }
 
       .workspace.mobile-edit-active .map,
-      .workspace.mobile-app-active .map,
-      .workspace.mobile-edit-active .preview-resizer,
-      .workspace.mobile-app-active .preview-resizer {
+      .workspace.mobile-edit-active .preview-resizer {
         display: none;
       }
 
-      .workspace.mobile-edit-active .inspector,
-      .workspace.mobile-app-active .preview {
+      .workspace.mobile-edit-active .inspector {
         grid-row: 1;
       }
     }
@@ -4077,6 +4100,29 @@
       .workspace.mobile-canvas-active.inspector-collapsed.preview-collapsed {
         grid-template-columns: 1fr;
         grid-template-rows: minmax(0, 1fr);
+      }
+
+      html[data-preview-collapsed="true"] .workspace.mobile-app-active,
+      html[data-inspector-collapsed="true"] .workspace.mobile-app-active,
+      .workspace.mobile-app-active,
+      .workspace.mobile-app-active.preview-collapsed,
+      .workspace.mobile-app-active.inspector-collapsed,
+      .workspace.mobile-app-active.inspector-collapsed.preview-collapsed {
+        grid-template-columns: minmax(250px, 38%) minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr);
+      }
+
+      .workspace.mobile-app-active .map {
+        grid-column: 1;
+        grid-row: 1;
+        border-right: 1px solid #315f8c;
+        border-bottom: 0;
+        box-shadow: inset -1px 0 0 rgba(56,189,248,.12), 8px 0 22px rgba(0,0,0,.28);
+      }
+
+      .workspace.mobile-app-active .preview {
+        grid-column: 2;
+        grid-row: 1;
       }
 
       .workspace.mobile-presets-active .state-explorer-title {
@@ -8175,6 +8221,8 @@
     let inspectorCollapsed = uiState.inspectorCollapsed;
     let inspectorCollapsedByUser = false;
     let mobileWorkspaceView = uiState.mobileWorkspaceView;
+    let mobileAppCanvasCameraSnapshot = null;
+    let mobileCanvasNeedsRuntimeFocus = false;
     let stateExplorerCollapsed = uiState.stateExplorerCollapsed;
     let stateExplorerGroup = uiState.stateExplorerGroup;
     let stateExplorerSearch = "";
@@ -9034,6 +9082,12 @@
         workspaceEl.style.gridTemplateRows = "";
         return;
       }
+      if (mobileWorkspaceView === "app") {
+        const landscape = Boolean(window.matchMedia?.("(orientation: landscape)")?.matches);
+        workspaceEl.style.gridTemplateColumns = landscape ? "minmax(250px, 38%) minmax(0, 1fr)" : "1fr";
+        workspaceEl.style.gridTemplateRows = landscape ? "minmax(0, 1fr)" : "clamp(168px, 25dvh, 216px) minmax(0, 1fr)";
+        return;
+      }
       workspaceEl.style.gridTemplateColumns = "1fr";
       workspaceEl.style.gridTemplateRows = "minmax(0, 1fr)";
     }
@@ -9192,6 +9246,22 @@
 
     function applyMobileWorkspaceView() {
       mobileWorkspaceView = normalizeMobileWorkspaceView(mobileWorkspaceView);
+      const mobileLayout = isMobileWorkspaceLayout();
+      const wasAppView = workspaceEl.classList.contains("mobile-app-active");
+      const enteringAppView = mobileLayout && mobileWorkspaceView === "app" && !wasAppView;
+      const leavingAppView = mobileLayout && mobileWorkspaceView !== "app" && wasAppView;
+      let cameraToRestore = null;
+      if (enteringAppView && !mobileCanvasNeedsRuntimeFocus) {
+        mobileAppCanvasCameraSnapshot = { ...camera, layerId: currentLayerId || null };
+      }
+      if (leavingAppView) {
+        cameraToRestore = mobileAppCanvasCameraSnapshot;
+        mobileAppCanvasCameraSnapshot = null;
+        if (cameraToRestore && cameraToRestore.layerId !== (currentLayerId || null)) {
+          cameraToRestore = null;
+          mobileCanvasNeedsRuntimeFocus = true;
+        }
+      }
       workspaceEl.classList.toggle("mobile-canvas-active", mobileWorkspaceView === "canvas");
       workspaceEl.classList.toggle("mobile-presets-active", mobileWorkspaceView === "presets");
       workspaceEl.classList.toggle("mobile-edit-active", mobileWorkspaceView === "edit");
@@ -9204,7 +9274,18 @@
       });
       saveUiState();
       requestAnimationFrame(() => {
-        applyCamera();
+        if (mobileLayout && mobileWorkspaceView === "app") {
+          focusMobileAppCanvas(lastAppTransitionId, currentAppState || model.initial);
+        } else if (cameraToRestore) {
+          camera = { x: cameraToRestore.x, y: cameraToRestore.y, scale: cameraToRestore.scale };
+          mobileCanvasNeedsRuntimeFocus = false;
+          applyCamera();
+        } else if (mobileLayout && mobileWorkspaceView === "canvas" && mobileCanvasNeedsRuntimeFocus) {
+          mobileCanvasNeedsRuntimeFocus = false;
+          focusMobileCanvasState();
+        } else {
+          applyCamera();
+        }
         draw();
       });
     }
@@ -13858,7 +13939,7 @@
     }
 
 
-    function applyCamera() {
+    function applyCamera(options = {}) {
       camera.scale = clampScale(camera.scale);
       const tx = Math.round(camera.x);
       const ty = Math.round(camera.y);
@@ -13866,7 +13947,12 @@
       const grid = 24 * camera.scale;
       mapEl.style.backgroundSize = `${grid}px ${grid}px, ${grid}px ${grid}px, 100% 100%, 100% 100%`;
       mapEl.style.backgroundPosition = `${tx % grid}px ${ty % grid}px, ${tx % grid}px ${ty % grid}px, 0 0, 0 0`;
-      scheduleCameraSave();
+      if (options.persist === false) {
+        clearTimeout(cameraSaveTimer);
+        cameraSaveTimer = null;
+      } else {
+        scheduleCameraSave();
+      }
     }
 
     function clampScale(value) {
@@ -13965,6 +14051,53 @@
       camera.x = Math.round(rect.width / 2 - (target.x + width / 2) * camera.scale);
       camera.y = Math.round(rect.height * .38 - (target.y + height / 2) * camera.scale);
       applyCamera();
+    }
+
+    function focusMobileAppCanvas(transitionId = "", stateId = "") {
+      if (!isMobileWorkspaceLayout() || mobileWorkspaceView !== "app") return false;
+      const rect = mapEl.getBoundingClientRect();
+      if (rect.width < 1 || rect.height < 1) return false;
+      const visible = visibleStates();
+      if (!visible.length) return false;
+      const visibleById = new Map(visible.map(state => [state.id, state]));
+      let id = String(transitionId || "");
+      if (!id && activeRuntimeEdgePulses instanceof Map && activeRuntimeEdgePulses.size) {
+        id = [...activeRuntimeEdgePulses.entries()]
+          .sort((a, b) => (b[1]?.started || 0) - (a[1]?.started || 0))[0]?.[0] || "";
+      }
+      const transition = id ? visibleTransitions().find(item =>
+        item.id === id || svgEdgeConcreteId(item) === id
+      ) || edgeById(id) : null;
+      const monitorStates = [];
+      const addState = candidateId => {
+        const state = visibleById.get(String(candidateId || ""));
+        if (state && !monitorStates.some(item => item.id === state.id)) monitorStates.push(state);
+      };
+      if (transition) {
+        addState(transition.from);
+        addState(transition.to);
+      }
+      addState(stateId);
+      if (!monitorStates.length) addState(model.initial);
+      if (!monitorStates.length) monitorStates.push(visible[0]);
+
+      const minX = Math.min(...monitorStates.map(state => state.x));
+      const minY = Math.min(...monitorStates.map(state => state.y));
+      const maxX = Math.max(...monitorStates.map(state => state.x + nodeWidth(state)));
+      const maxY = Math.max(...monitorStates.map(state => state.y + nodeHeight(state)));
+      const width = Math.max(1, maxX - minX);
+      const height = Math.max(1, maxY - minY);
+      const horizontalPadding = Math.min(44, Math.max(24, rect.width * .1));
+      const verticalPadding = Math.min(24, Math.max(14, rect.height * .12));
+      camera.scale = clampScale(Math.min(
+        .92,
+        Math.max(1, rect.width - horizontalPadding * 2) / width,
+        Math.max(1, rect.height - verticalPadding * 2) / height
+      ));
+      camera.x = Math.round((rect.width - width * camera.scale) / 2 - minX * camera.scale);
+      camera.y = Math.round((rect.height - height * camera.scale) / 2 - minY * camera.scale);
+      applyCamera({ persist: false });
+      return true;
     }
 
     function fitView() {
@@ -25900,6 +26033,9 @@
         if (!selectionAlreadyRuntime) canvasNeedsDraw = true;
       }
       if (canvasNeedsDraw) draw();
+      if (isMobileWorkspaceLayout() && mobileWorkspaceView === "app") {
+        focusMobileAppCanvas(lastAppTransitionId, currentAppState);
+      }
       if (allowRuntimeLayerFollow && runtimeState && shouldFollowRuntimeState) {
         showNodeInspector(runtimeState, {
           focus: false,
@@ -25945,6 +26081,8 @@
       pendingAppStartStateId = null;
       pendingAppStartSuppressLayerFollow = false;
       lastAppTransitionId = null;
+      mobileAppCanvasCameraSnapshot = null;
+      mobileCanvasNeedsRuntimeFocus = isMobileWorkspaceLayout() && mobileWorkspaceView === "app";
       hoveredEdgeId = null;
       if (runtimeEdgePulseCleanupTimer) clearTimeout(runtimeEdgePulseCleanupTimer);
       runtimeEdgePulseCleanupTimer = 0;
@@ -26148,7 +26286,12 @@
     window.addEventListener("pointercancel", evt => {
       finishPanelResize(evt);
     }, { capture: true, passive: false });
-    window.addEventListener("resize", () => applyPanelWidths({ persist: false }));
+    window.addEventListener("resize", () => {
+      applyPanelWidths({ persist: false });
+      if (isMobileWorkspaceLayout() && mobileWorkspaceView === "app") {
+        requestAnimationFrame(() => focusMobileAppCanvas(lastAppTransitionId, currentAppState || model.initial));
+      }
+    });
     btnToggleStateExplorer.onclick = () => {
       stateExplorerCollapsed = !stateExplorerCollapsed;
       applyStateExplorerCollapsed();
