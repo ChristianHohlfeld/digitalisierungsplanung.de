@@ -532,8 +532,11 @@ Editoraktion
   unzulässig.
 - **CAN-013 Port-Erreichbarkeit:** Die vorgesehene sichtbare Port-/Pin-Zone am
   Rand des eigenen Nodes MUSS weiterhin für Connect und Reroute erreichbar
-  bleiben. Ein Drag deutlich innerhalb des Node-Körpers MUSS den Node bewegen
-  und DARF keine Verbindung starten.
+  bleiben. Die freie Maus-Zielfläche eines State-Ausgangs MUSS unabhängig vom
+  Canvas-Zoom mindestens 32 CSS-Pixel nach außen und 44 CSS-Pixel in der Höhe
+  greifbar sein. Ein Drag deutlich innerhalb des Node-Körpers MUSS den Node
+  bewegen und DARF keine Verbindung starten. Die vergrößerte Zielfläche DARF
+  die Fremd-State-Priorität aus CAN-012 NICHT umgehen.
 - **CAN-014 Layout-Stabilität:** Titel, Statusbadges, Open-Aktion, Ports und
   Layer-Rahmen DÜRFEN nicht inkonsistent überlappen. Lange Titel müssen wachsen
   oder kontrolliert auf zwei Zeilen begrenzt werden.
@@ -791,11 +794,15 @@ Abdeckungsbereiche:
   `elementFromPoint` liefert dennoch den fremden State, und je ein unabhängiger
   erster, nicht erzwungener Click und Drag wählt beziehungsweise bewegt nur
   diesen State. Die vorhandenen Geometrie-, Connect- und Reroute-Tests sichern
-  die Erreichbarkeit der eigenen Portzone weiter ab. Der Demo-Traversal rollt
-  jedes Control einmal sichtbar, prüft dessen Mittelpunkt als ersten Hit und
-  führt genau einen nicht erzwungenen Click aus. Auch der allgemeine Transition-
-  Click-Helfer verlangt nun einen freien Trefferpunkt und besitzt keinen Force-
-  Fallback mehr.
+  die Erreichbarkeit der eigenen Portzone weiter ab. Weil die Node-Ebene den
+  innerhalb des States liegenden Teil der SVG-Hitbox absichtlich verdeckt,
+  umfasst die freie Ausgangszone nun 32 × 44 CSS-Pixel und wird bei kleinem Zoom
+  zusätzlich in Bildschirmkoordinaten erkannt. Dieser Fallback läuft nur auf
+  leerer Canvas-Fläche und kann deshalb keinen eigenen oder fremden State-Drag
+  übernehmen. Der Demo-Traversal rollt jedes Control einmal sichtbar, prüft
+  dessen Mittelpunkt als ersten Hit und führt genau einen nicht erzwungenen
+  Click aus. Auch der allgemeine Transition-Click-Helfer verlangt nun einen
+  freien Trefferpunkt und besitzt keinen Force-Fallback mehr.
 - **GAP-002 Definitionsformat, geschlossen am 2026-07-10:** Editor, MCP-Core
   und MCP-Import verwenden jetzt einheitlich
   `kind: "state-blueprint-definition"` mit `schemaVersion: 2`. Ein Smoke-Test

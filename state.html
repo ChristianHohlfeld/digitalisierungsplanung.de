@@ -8051,6 +8051,8 @@
     const TOUCH_TEMPLATE_DRAG_HOLD_MS = 140;
     const TOUCH_TEMPLATE_DRAG_START_PX = 9;
     const TOUCH_TEMPLATE_SCROLL_CANCEL_PX = 16;
+    const MOUSE_PORT_START_OUTSIDE_PX = 32;
+    const MOUSE_PORT_START_VERTICAL_PX = 22;
     const TOUCH_PORT_START_INSIDE_PX = 18;
     const TOUCH_PORT_START_OUTSIDE_PX = 48;
     const TOUCH_PORT_START_VERTICAL_PX = 38;
@@ -12640,6 +12642,45 @@
       return true;
     }
 
+    function mouseConnectionStartCandidate(evt) {
+      if (evt.button !== 0 || evt.shiftKey || evt.ctrlKey || evt.metaKey || isSpaceDown ||
+        Date.now() - lastTouchAt < 700 || !isEmptyCanvasTarget(evt.target)) return null;
+      const point = screenToWorld(evt);
+      const scale = Math.max(0.1, Number(camera.scale) || 1);
+      const outsideReach = MOUSE_PORT_START_OUTSIDE_PX / scale;
+      const verticalReach = MOUSE_PORT_START_VERTICAL_PX / scale;
+      let best = null;
+      let bestScore = Infinity;
+      const states = visibleStates();
+      for (let index = states.length - 1; index >= 0; index -= 1) {
+        const state = states[index];
+        const startSide = connectionStartSide(state);
+        if (startSide !== "out") continue;
+        const port = svgStatePortPoint(state, startSide);
+        if (!port) continue;
+        const dx = point.x - port.x;
+        const dy = point.y - port.y;
+        if (dx < 0 || dx > outsideReach || Math.abs(dy) > verticalReach) continue;
+        const score = Math.hypot(dx, dy);
+        if (score < bestScore) {
+          best = { state, side: startSide };
+          bestScore = score;
+        }
+      }
+      return best;
+    }
+
+    function startMouseConnectionNearPort(evt) {
+      const candidate = mouseConnectionStartCandidate(evt);
+      if (!candidate) return false;
+      evt.preventDefault();
+      evt.stopPropagation();
+      clearLongPress();
+      pendingCanvasMouse = null;
+      startConnection(evt, candidate.state, candidate.side);
+      return true;
+    }
+
     function startPendingCanvasMouse(evt) {
       stopRuntimeLayerFollow();
       clearLongPress();
@@ -16066,14 +16107,14 @@
         return;
       }
       const inside = 8;
-      const outside = 18;
-      const height = 32;
+      const outside = 32;
+      const height = 44;
       port.appendChild(svgEl("rect", {
         x: side === "out" ? -inside : -outside,
         y: -height / 2,
         width: inside + outside,
         height,
-        rx: 10,
+        rx: 12,
         class: "svg-port-hit"
       }));
     }
@@ -25408,6 +25449,7 @@
 
     mapEl.addEventListener("mousedown", evt => {
       if (Date.now() - lastTouchAt < 700) return;
+      if (startMouseConnectionNearPort(evt)) return;
       if (evt.button === 1 || evt.button === 2 || isSpaceDown) return startPanning(evt);
       if (isEmptyCanvasTarget(evt.target)) {
         if (evt.button !== 0) return;
