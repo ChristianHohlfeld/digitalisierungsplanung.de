@@ -3375,21 +3375,25 @@
       .topbar {
         gap: 7px;
         padding: calc(7px + env(safe-area-inset-top)) 10px 7px;
-        overflow-x: auto;
-        scrollbar-width: none;
-        -ms-overflow-style: none;
+        overflow: visible;
       }
 
       .topbar::-webkit-scrollbar { display: none; }
 
       .brand {
         flex: 1 1 auto;
-        min-width: 0;
+        min-width: 48px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
         padding-right: 6px;
         background: #050b14;
+      }
+
+      .topbar > button,
+      .topbar > .topbar-menu > summary {
+        flex: 0 0 auto;
+        padding-inline: 10px;
       }
 
       .topbar > #btnLoad,
@@ -3471,7 +3475,7 @@
       .workspace.mobile-edit-active.preview-collapsed,
       .workspace.mobile-app-active.preview-collapsed {
         grid-template-columns: 1fr;
-        grid-template-rows: minmax(120px, 1fr) var(--mobile-preview-panel-height);
+        grid-template-rows: minmax(0, 1fr);
       }
 
       .inspector,
@@ -3494,86 +3498,41 @@
       .workspace.mobile-presets-active .preview-resizer,
       .workspace.mobile-edit-active .preview-resizer,
       .workspace.mobile-app-active .preview-resizer {
-        display: block;
-        top: auto;
-        right: 0;
-        bottom: calc(var(--mobile-preview-panel-height) - 9px);
-        left: 0;
-        width: auto;
-        height: 18px;
-        min-width: 0;
-        min-height: 18px;
-        cursor: row-resize;
-      }
-
-      .workspace.mobile-canvas-active .preview-resizer::after,
-      .workspace.mobile-presets-active .preview-resizer::after,
-      .workspace.mobile-edit-active .preview-resizer::after,
-      .workspace.mobile-app-active .preview-resizer::after {
-        top: 8px;
-        right: 16px;
-        bottom: auto;
-        left: 16px;
-        width: auto;
-        height: 2px;
+        display: none;
       }
 
       .workspace.mobile-canvas-active .inspector,
+      .workspace.mobile-canvas-active .preview,
       .workspace.mobile-presets-active .inspector,
       .workspace.mobile-presets-active .preview,
+      .workspace.mobile-edit-active .map,
       .workspace.mobile-edit-active .preview,
-      .workspace.mobile-app-active .inspector {
+      .workspace.mobile-app-active .inspector,
+      .workspace.mobile-app-active .map {
         display: none;
       }
 
       .workspace.mobile-canvas-active .map {
+        display: block;
         grid-row: 1;
-      }
-
-      .workspace.mobile-canvas-active .preview {
-        display: grid;
-        grid-row: 2;
-        border-left: 0;
-        border-top: 1px solid #18314d;
-        border-bottom: 0;
       }
 
       .workspace.mobile-app-active .preview {
         display: grid;
         grid-row: 1;
         border-left: 0;
-        border-bottom: 1px solid #18314d;
-      }
-
-      .workspace.mobile-app-active .map,
-      .workspace.mobile-edit-active .map {
-        display: block;
-        grid-row: 2;
+        border-bottom: 0;
       }
 
       .workspace.mobile-edit-active .inspector {
         display: grid;
         grid-row: 1;
-        border-bottom: 1px solid #18314d;
-      }
-
-      .workspace.mobile-canvas-active .preview-title {
-        min-height: 40px;
-        padding: 0 10px;
-      }
-
-      .workspace.mobile-canvas-active .preview-title-text {
-        font-size: 12px;
-      }
-
-      .workspace.mobile-canvas-active .preview-toggle {
-        width: 36px;
-        height: 36px;
+        border-bottom: 0;
       }
 
       .workspace.mobile-presets-active .map {
         display: block;
-        grid-row: 1 / 3;
+        grid-row: 1;
         overflow: hidden;
         background: #050b14;
       }
@@ -3657,11 +3616,11 @@
       .mobile-tabs {
         display: grid;
         flex: 0 0 auto;
-        grid-template-columns: repeat(4, minmax(0, 1fr)) auto auto;
-        gap: 8px;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 6px;
         width: 100%;
-        min-height: calc(61px + env(safe-area-inset-bottom));
-        padding: 8px max(10px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+        min-height: calc(58px + env(safe-area-inset-bottom));
+        padding: 6px max(8px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
         border-top: 1px solid #18314d;
         background: rgba(5,11,20,.96);
         position: relative;
@@ -3671,7 +3630,7 @@
       .mobile-tabs button {
         min-width: 0;
         min-height: 44px;
-        border-radius: 14px;
+        border-radius: 8px;
         color: #bfdbfe;
         background: #0a1728;
         display: grid;
@@ -3680,6 +3639,13 @@
         padding: 6px 5px;
         font-size: 11px;
         line-height: 1.05;
+      }
+
+      .mobile-tabs button > span:last-child {
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
       .mobile-tab-icon {
@@ -3742,8 +3708,7 @@
       }
 
       .mobile-history-action {
-        width: 52px;
-        padding-inline: 4px;
+        display: none !important;
       }
 
       .node {
@@ -3770,12 +3735,14 @@
       }
 
       .state-explorer {
-        left: 8px;
-        right: 8px;
-        top: auto;
-        bottom: 8px;
+        inset: 0;
         width: auto;
-        height: 132px;
+        height: 100%;
+        border: 0;
+        border-radius: 0;
+        background: #050b14;
+        box-shadow: none;
+        backdrop-filter: none;
       }
 
       .workspace.mobile-canvas-active .state-explorer {
@@ -3784,12 +3751,10 @@
 
       .workspace.mobile-presets-active .state-explorer {
         display: grid;
-        top: 8px;
-        bottom: calc(var(--mobile-preview-panel-height) + 8px);
-        height: auto;
+        inset: 0;
+        height: 100%;
         z-index: 70;
-        background: rgba(3,7,18,.98);
-        backdrop-filter: none;
+        background: #050b14;
       }
 
       .workspace.template-touch-dragging .state-explorer {
@@ -3799,18 +3764,15 @@
       }
 
       .state-explorer.collapsed {
-        top: auto;
-        bottom: 8px;
-        width: 46px;
+        inset: 0;
+        width: auto;
+        height: 100%;
       }
 
       .workspace.mobile-presets-active .state-explorer.collapsed {
-        left: 8px;
-        right: 8px;
-        top: 8px;
-        bottom: calc(var(--mobile-preview-panel-height) + 8px);
+        inset: 0;
         width: auto;
-        height: auto;
+        height: 100%;
         opacity: 1;
       }
 
@@ -3828,45 +3790,57 @@
         overflow-x: hidden;
         overflow-y: auto;
         touch-action: pan-y;
-        padding: 8px;
+        padding: 10px;
       }
 
       .workspace.mobile-presets-active .state-explorer-title {
-        flex-wrap: wrap;
-        align-content: flex-start;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+          "title add"
+          "search search"
+          "tabs tabs";
+        align-items: center;
         min-height: 0;
-        padding: 8px;
+        padding: 8px 10px 10px;
         gap: 7px;
       }
 
+      .workspace.mobile-presets-active .state-explorer-title > span:first-child {
+        grid-area: title;
+      }
+
       .workspace.mobile-presets-active .state-explorer-search {
-        order: 2;
-        flex: 1 1 100%;
+        grid-area: search;
         min-width: 0;
       }
 
       .workspace.mobile-presets-active .state-explorer-search input {
-        min-height: 42px;
-        height: 42px;
+        min-height: 44px;
+        height: 44px;
         font-size: 16px;
       }
 
       .workspace.mobile-presets-active .state-explorer-tabs {
-        order: 3;
-        flex: 1 1 100%;
-        min-height: 32px;
+        grid-area: tabs;
+        min-height: 44px;
         max-width: 100%;
-        flex-wrap: wrap;
-        overflow-x: hidden;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scrollbar-width: none;
       }
 
       .workspace.mobile-presets-active .state-explorer-hint {
         display: none;
       }
 
-      .workspace.mobile-presets-active .state-explorer-add,
+      .workspace.mobile-presets-active .state-explorer-add {
+        grid-area: add;
+        min-height: 44px;
+      }
+
       .workspace.mobile-presets-active .state-explorer-toggle {
-        flex: 0 0 auto;
+        display: none;
       }
 
       .workspace.mobile-presets-active .state-explorer:not(.composer-active) .state-explorer-section {
@@ -3878,7 +3852,8 @@
 
       .workspace.mobile-presets-active .state-explorer:not(.composer-active) .state-explorer-section-items {
         display: grid;
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(auto-fit, minmax(152px, 1fr));
+        gap: 8px;
         min-width: 0;
         max-width: 100%;
       }
@@ -3898,7 +3873,12 @@
         max-width: 100%;
         min-width: 0;
         flex-basis: auto;
+        border-radius: 8px;
         touch-action: pan-y;
+      }
+
+      .workspace.mobile-presets-active .state-template-card[data-template-kind="user"] {
+        grid-column: 1 / -1;
       }
 
       .workspace.mobile-presets-active .state-template-empty {
@@ -3910,7 +3890,7 @@
       }
 
       .workspace.mobile-presets-active .template-actions button {
-        min-height: 38px;
+        min-height: 44px;
       }
 
       input, textarea {
@@ -3936,12 +3916,39 @@
       }
 
       .canvas-history-actions {
+        top: max(10px, env(safe-area-inset-top));
         right: max(10px, env(safe-area-inset-right));
-        bottom: calc(max(12px, env(safe-area-inset-bottom)) + 62px) !important;
+        bottom: auto !important;
+        gap: 4px;
+        padding: 4px;
+        border-radius: 8px;
       }
 
       .workspace.mobile-canvas-active .canvas-history-actions {
-        display: none;
+        display: flex;
+      }
+
+      .workspace.mobile-canvas-active .canvas-history-actions button {
+        width: 44px;
+        min-width: 44px;
+        height: 44px;
+        min-height: 44px;
+        padding: 0;
+        font-size: 0;
+      }
+
+      .workspace.mobile-canvas-active #btnCanvasUndo::before,
+      .workspace.mobile-canvas-active #btnCanvasRedo::before {
+        font-size: 24px;
+        line-height: 1;
+      }
+
+      .workspace.mobile-canvas-active #btnCanvasUndo::before {
+        content: "↶";
+      }
+
+      .workspace.mobile-canvas-active #btnCanvasRedo::before {
+        content: "↷";
       }
 
       .workspace.mobile-canvas-active .selection-actions {
@@ -4004,43 +4011,14 @@
       .workspace.mobile-canvas-active.preview-collapsed,
       .workspace.mobile-canvas-active.inspector-collapsed,
       .workspace.mobile-canvas-active.inspector-collapsed.preview-collapsed {
-        grid-template-columns: minmax(300px, 1fr) var(--preview-panel-width);
+        grid-template-columns: 1fr;
         grid-template-rows: minmax(0, 1fr);
       }
 
-      .workspace.mobile-canvas-active .map {
-        grid-column: 1;
-        grid-row: 1;
-      }
-
-      .workspace.mobile-canvas-active .preview {
-        grid-column: 2;
-        grid-row: 1;
-        border-top: 0;
-        border-left: 1px solid #18314d;
-      }
-
-      html[data-preview-collapsed="true"] .workspace.mobile-canvas-active .preview-resizer,
-      .workspace.mobile-canvas-active.preview-collapsed .preview-resizer,
-      .workspace.mobile-canvas-active .preview-resizer {
-        top: 0;
-        right: calc(var(--preview-panel-width) - 9px);
-        bottom: 0;
-        left: auto;
-        width: 18px;
-        height: auto;
-        min-width: 18px;
-        min-height: 0;
-        cursor: col-resize;
-      }
-
-      .workspace.mobile-canvas-active .preview-resizer::after {
-        top: 16px;
-        right: auto;
-        bottom: 16px;
-        left: 8px;
-        width: 2px;
-        height: auto;
+      .workspace.mobile-presets-active .state-explorer-title {
+        grid-template-columns: auto minmax(160px, .8fr) minmax(0, 1fr) auto;
+        grid-template-areas: "title search tabs add";
+        padding-block: 6px;
       }
     }
 
@@ -4653,14 +4631,13 @@
 
     @media (max-width: 720px), (max-width: 899px) and (pointer: coarse), (max-height: 520px) and (max-width: 900px) {
       .workspace.mobile-presets-active .state-explorer .template-body {
-        display: -webkit-box !important;
-        min-height: 0;
+        display: none !important;
       }
 
       .workspace.mobile-presets-active .component-preset-card,
       .workspace.mobile-presets-active .state-template-card {
         height: auto !important;
-        min-height: 86px !important;
+        min-height: 96px !important;
       }
     }
 
@@ -4972,10 +4949,10 @@
     </aside>
   </div>
   <nav id="mobileTabs" class="mobile-tabs" aria-label="Mobile Arbeitsansichten">
-    <button type="button" data-mobile-view="canvas" class="active" aria-pressed="true"><span class="mobile-tab-icon" aria-hidden="true"></span><span>Arbeitsfläche</span></button>
+    <button type="button" data-mobile-view="canvas" class="active" aria-pressed="true"><span class="mobile-tab-icon" aria-hidden="true"></span><span>Canvas</span></button>
     <button type="button" data-mobile-view="presets" aria-pressed="false"><span class="mobile-tab-icon" aria-hidden="true"></span><span>Vorlagen</span></button>
-    <button type="button" data-mobile-view="edit" aria-pressed="false"><span class="mobile-tab-icon" aria-hidden="true"></span><span>Bearbeiten</span></button>
-    <button type="button" data-mobile-view="app" aria-pressed="false"><span class="mobile-tab-icon" aria-hidden="true"></span><span>App</span></button>
+    <button type="button" data-mobile-view="edit" aria-pressed="false"><span class="mobile-tab-icon" aria-hidden="true"></span><span>Details</span></button>
+    <button type="button" data-mobile-view="app" aria-pressed="false"><span class="mobile-tab-icon" aria-hidden="true"></span><span>Vorschau</span></button>
     <button id="btnMobileUndo" class="mobile-history-action" type="button" title="Rückgängig" aria-label="Rückgängig" disabled="">Rückgängig</button>
     <button id="btnMobileRedo" class="mobile-history-action" type="button" title="Wiederholen" aria-label="Wiederholen" disabled="">Wiederholen</button>
   </nav>
@@ -8996,19 +8973,13 @@
     }
 
     function applyWorkspaceSplitStyle() {
-      const mobileSplit = isMobileWorkspaceLayout();
-      if (!mobileSplit) {
+      if (!isMobileWorkspaceLayout()) {
         workspaceEl.style.gridTemplateColumns = "";
         workspaceEl.style.gridTemplateRows = "";
         return;
       }
-      if (mobileCanvasPreviewSideBySide()) {
-        workspaceEl.style.gridTemplateColumns = `minmax(300px, 1fr) ${previewPanelWidth}px`;
-        workspaceEl.style.gridTemplateRows = "";
-      } else {
-        workspaceEl.style.gridTemplateColumns = "";
-        workspaceEl.style.gridTemplateRows = `minmax(120px, 1fr) ${previewPanelWidth}px`;
-      }
+      workspaceEl.style.gridTemplateColumns = "1fr";
+      workspaceEl.style.gridTemplateRows = "minmax(0, 1fr)";
     }
 
     function applyPanelWidths(opts = {}) {
@@ -9026,8 +8997,8 @@
     }
 
     function startPanelResize(kind, evt) {
-      const mobilePreviewResize = kind === "preview" && isMobileWorkspaceLayout();
-      if (isMobileWorkspaceLayout() && !mobilePreviewResize) return;
+      if (isMobileWorkspaceLayout()) return;
+      const mobilePreviewResize = false;
       evt.preventDefault();
       evt.stopPropagation();
       clearQuickRenameSession();
@@ -13867,6 +13838,33 @@
 
     function resetView() {
       camera = { x: 32, y: 32, scale: 1 };
+      applyCamera();
+    }
+
+    function focusMobileCanvasState() {
+      if (!isMobileWorkspaceLayout() || mobileWorkspaceView !== "canvas") return;
+      const states = visibleStates();
+      if (!states.length) {
+        resetView();
+        return;
+      }
+      const selectedId = selected?.nodes?.length === 1 ? selected.nodes[0] : "";
+      const target = states.find(state => state.id === selectedId) ||
+        states.find(state => state.id === currentAppState) ||
+        states.find(state => state.id === model.initial) ||
+        states[0];
+      const rect = mapEl.getBoundingClientRect();
+      if (rect.width < 1 || rect.height < 1) return;
+      const width = nodeWidth(target);
+      const height = nodeHeight(target);
+      const fittedScale = Math.min(
+        1,
+        Math.max(1, rect.width - 64) / Math.max(1, width),
+        Math.max(1, rect.height - 112) / Math.max(1, height)
+      );
+      camera.scale = clampScale(Math.max(.82, fittedScale));
+      camera.x = Math.round(rect.width / 2 - (target.x + width / 2) * camera.scale);
+      camera.y = Math.round(rect.height * .38 - (target.y + height / 2) * camera.scale);
       applyCamera();
     }
 
@@ -25780,7 +25778,14 @@
       syncStateDragDropTarget("");
       showEmptyInspector();
       updateSelectRect();
-      if (shouldFit) fitView();
+      if (shouldFit) {
+        if (isMobileWorkspaceLayout()) {
+          setMobileWorkspaceView("canvas");
+          requestAnimationFrame(focusMobileCanvasState);
+        } else {
+          fitView();
+        }
+      }
       draw();
       initHistory();
       persistModel();
@@ -26086,7 +26091,10 @@
     draw();
     initHistory();
     persistModel(false);
-    setTimeout(fitView, 50);
+    setTimeout(() => {
+      if (isMobileWorkspaceLayout()) focusMobileCanvasState();
+      else fitView();
+    }, 50);
     if (demoEntry && initialPersistedModelExists) {
       consumeDemoEntryUrl();
       setTimeout(async () => {

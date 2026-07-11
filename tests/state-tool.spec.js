@@ -5271,7 +5271,7 @@ test.describe("State Blueprint tool", () => {
     await expect(redo).toBeDisabled();
   });
 
-  test("keeps mobile history actions in the bottom tab bar without covering canvas selection @smoke", async ({ browser }) => {
+  test("keeps mobile history actions on canvas without crowding bottom navigation @smoke", async ({ browser }) => {
     const context = await browser.newContext({
       baseURL: "http://localhost:8124",
       viewport: { width: 390, height: 820 },
@@ -5281,11 +5281,11 @@ test.describe("State Blueprint tool", () => {
     const page = await context.newPage();
     try {
       await openTool(page);
-      await expect(page.locator("#canvasHistoryActions")).toBeHidden();
-      await expect(page.locator("#btnMobileUndo")).toBeVisible();
-      await assertVisibleInViewport(page, "#btnMobileUndo");
-      await expect(page.locator("#btnMobileRedo")).toBeVisible();
-      await assertVisibleInViewport(page, "#btnMobileRedo");
+      await expect(page.locator("#canvasHistoryActions")).toBeVisible();
+      await assertVisibleInViewport(page, "#canvasHistoryActions");
+      await expect(page.locator("#btnMobileUndo")).toBeHidden();
+      await expect(page.locator("#btnMobileRedo")).toBeHidden();
+      await expect(page.locator("#mobileTabs button:visible")).toHaveCount(4);
       await page.locator('[data-id="login"]').tap();
       await expect(page.locator("#selectionActions")).toBeVisible();
       await assertVisibleInViewport(page, "#selectionActions");
@@ -5293,13 +5293,17 @@ test.describe("State Blueprint tool", () => {
         const map = document.querySelector("#map")?.getBoundingClientRect();
         const selection = document.querySelector("#selectionActions")?.getBoundingClientRect();
         const mobileTabs = document.querySelector("#mobileTabs")?.getBoundingClientRect();
-        if (!map || !selection || !mobileTabs) return { inCanvas: false, nearCanvasBottom: false, aboveTabs: false };
+        const history = document.querySelector("#canvasHistoryActions")?.getBoundingClientRect();
+        if (!map || !selection || !mobileTabs || !history) {
+          return { inCanvas: false, nearCanvasBottom: false, aboveTabs: false, separateFromHistory: false };
+        }
         return {
           inCanvas: selection.top >= map.top && selection.bottom <= map.bottom + 1,
           nearCanvasBottom: map.bottom - selection.bottom <= 28,
-          aboveTabs: selection.bottom <= mobileTabs.top
+          aboveTabs: selection.bottom <= mobileTabs.top,
+          separateFromHistory: selection.bottom <= history.top || selection.top >= history.bottom
         };
-      })).toEqual({ inCanvas: true, nearCanvasBottom: true, aboveTabs: true });
+      })).toEqual({ inCanvas: true, nearCanvasBottom: true, aboveTabs: true, separateFromHistory: true });
 
       await page.evaluate(() => {
         const state = model.states.find(item => item.id === "login");
@@ -5308,11 +5312,11 @@ test.describe("State Blueprint tool", () => {
         draw();
       });
       await expect(page.locator('[data-id="login"] .title')).toHaveText("Sign in");
-      await expect(page.locator("#btnMobileUndo")).toBeEnabled();
+      await expect(page.locator("#btnCanvasUndo")).toBeEnabled();
 
-      await page.locator("#btnMobileUndo").tap();
+      await page.locator("#btnCanvasUndo").tap();
       await expect(page.locator('[data-id="login"] .title')).toHaveText("Login");
-      await expect(page.locator("#btnMobileRedo")).toBeEnabled();
+      await expect(page.locator("#btnCanvasRedo")).toBeEnabled();
     } finally {
       await context.close();
     }
@@ -9317,73 +9321,31 @@ test.describe("State Blueprint tool", () => {
           rect.bottom <= tabsRect.top + 1;
       }, selector)).toBe(true);
     };
+    const expectSurfaceFillsWorkspace = async selector => {
+      await expect.poll(() => page.evaluate(sel => {
+        const surface = document.querySelector(sel)?.getBoundingClientRect();
+        const workspace = document.querySelector("#workspace")?.getBoundingClientRect();
+        if (!surface || !workspace) return false;
+        return Math.abs(surface.left - workspace.left) <= 1 &&
+          Math.abs(surface.top - workspace.top) <= 1 &&
+          Math.abs(surface.right - workspace.right) <= 1 &&
+          Math.abs(surface.bottom - workspace.bottom) <= 1;
+      }, selector)).toBe(true);
+    };
 
     await expect(page.locator("#mobileTabs")).toBeVisible();
-    await expect.poll(() => page.locator("#mobileTabs").evaluate(el => getComputedStyle(el).gridTemplateColumns.split(" ").filter(Boolean).length)).toBe(6);
+    await expect(page.locator("#mobileTabs button:visible")).toHaveCount(4);
+    await expect(page.locator("#mobileTabs button:visible")).toHaveText(["Canvas", "Vorlagen", "Details", "Vorschau"]);
+    await expect.poll(() => page.locator("#mobileTabs").evaluate(el => getComputedStyle(el).gridTemplateColumns.split(" ").filter(Boolean).length)).toBe(4);
     await expect(page.locator("#map")).toBeVisible();
     await expectElementAboveMobileTabs("#map");
+    await expectSurfaceFillsWorkspace("#map");
     await expect(page.locator("#stateExplorer")).toBeHidden();
     await expect(page.locator("#stateInspector")).toBeHidden();
-    await expect(page.locator(".preview")).toBeVisible();
-    await expectElementAboveMobileTabs(".preview");
-    await expectElementAboveMobileTabs("#appFrame");
-    await expect.poll(() => page.evaluate(() => {
-      const map = document.querySelector("#map")?.getBoundingClientRect();
-      const preview = document.querySelector(".preview")?.getBoundingClientRect();
-      if (!map || !preview) return false;
-      return map.bottom <= preview.top + 1 && map.height > preview.height;
-    })).toBe(true);
-    await expect(page.locator("#previewResizeHandle")).toBeVisible();
-    const beforeResizeModel = await savedModel(page);
-    const beforeSplit = await page.evaluate(() => {
-      const map = document.querySelector("#map")?.getBoundingClientRect();
-      const preview = document.querySelector(".preview")?.getBoundingClientRect();
-      const handle = document.querySelector("#previewResizeHandle")?.getBoundingClientRect();
-      return {
-        mapHeight: Math.round(map?.height || 0),
-        previewHeight: Math.round(preview?.height || 0),
-        handleX: Math.round((handle?.left || 0) + (handle?.width || 0) / 2),
-        handleY: Math.round((handle?.top || 0) + (handle?.height || 0) / 2)
-      };
-    });
-    await page.mouse.move(beforeSplit.handleX, beforeSplit.handleY);
-    await page.mouse.down();
-    await page.mouse.move(beforeSplit.handleX, beforeSplit.handleY - 82, { steps: 5 });
-    await page.mouse.up();
-    await expect.poll(() => page.evaluate(() => {
-      const map = document.querySelector("#map")?.getBoundingClientRect();
-      const preview = document.querySelector(".preview")?.getBoundingClientRect();
-      const workspace = document.querySelector("#workspace");
-      const tabs = document.querySelector("#mobileTabs")?.getBoundingClientRect();
-      return {
-        mapHeight: Math.round(map?.height || 0),
-        previewHeight: Math.round(preview?.height || 0),
-        previewInside: Boolean(preview && tabs && preview.bottom <= tabs.top + 1),
-        savedPreview: JSON.parse(localStorage.getItem("stateBlueprintHotLinked.model.v2.ui") || "{}").previewWidth,
-        cssPreviewHeight: workspace ? parseFloat(getComputedStyle(workspace).getPropertyValue("--mobile-preview-panel-height")) : 0
-      };
-    })).toMatchObject({
-      mapHeight: expect.any(Number),
-      previewHeight: expect.any(Number),
-      previewInside: true,
-      savedPreview: expect.any(Number),
-      cssPreviewHeight: expect.any(Number)
-    });
-    const afterSplit = await page.evaluate(() => {
-      const map = document.querySelector("#map")?.getBoundingClientRect();
-      const previewEl = document.querySelector(".preview");
-      const preview = previewEl?.getBoundingClientRect();
-      const workspace = document.querySelector("#workspace");
-      return {
-        mapHeight: Math.round(map?.height || 0),
-        previewHeight: Math.round(preview?.height || 0),
-        cssPreviewHeight: workspace ? Math.round(parseFloat(getComputedStyle(workspace).getPropertyValue("--mobile-preview-panel-height"))) : 0
-      };
-    });
-    expect(afterSplit.previewHeight).toBeGreaterThan(beforeSplit.previewHeight + 40);
-    expect(afterSplit.mapHeight).toBeLessThan(beforeSplit.mapHeight - 40);
-    expect(afterSplit.cssPreviewHeight).toBeGreaterThan(beforeSplit.previewHeight + 40);
-    expect(await savedModel(page)).toEqual(beforeResizeModel);
+    await expect(page.locator(".preview")).toBeHidden();
+    await expect(page.locator("#previewResizeHandle")).toBeHidden();
+    await expect(page.locator("#canvasHistoryActions")).toBeVisible();
+    await expect.poll(async () => Math.round((await page.locator('[data-id="auth_start"]').boundingBox())?.width || 0)).toBeGreaterThanOrEqual(140);
     await expect(page.locator("#stateInspectorBody")).not.toContainText("Click a state");
     await expect(page.locator("#stateInspectorBody")).not.toContainText("Drag a state");
     await page.evaluate(() => {
@@ -9421,6 +9383,13 @@ test.describe("State Blueprint tool", () => {
         .filter(card => card.getBoundingClientRect().width > 40 && card.getBoundingClientRect().height > 40).length
     )).toBeGreaterThan(3);
     await expectElementAboveMobileTabs("#stateExplorer");
+    await expectSurfaceFillsWorkspace("#stateExplorer");
+    await expect.poll(() => page.locator("#stateExplorer").evaluate(explorer => {
+      const leftEdges = [...explorer.querySelectorAll(".component-preset-card")]
+        .filter(card => card.getBoundingClientRect().width > 40 && card.getBoundingClientRect().height > 40)
+        .map(card => Math.round(card.getBoundingClientRect().left));
+      return new Set(leftEdges).size;
+    })).toBeGreaterThanOrEqual(2);
     await expect(page.locator("#selectionActions")).toBeHidden();
     await expect(page.locator("#canvasHistoryActions")).toBeHidden();
     await expect(page.locator("#stateInspector")).toBeHidden();
@@ -9465,6 +9434,7 @@ test.describe("State Blueprint tool", () => {
     await page.locator('[data-mobile-view="edit"]').tap();
     await expect(page.locator("#stateInspector")).toBeVisible();
     await expectElementAboveMobileTabs("#stateInspector");
+    await expectSurfaceFillsWorkspace("#stateInspector");
     await expect(page.locator("#selectionActions")).toBeHidden();
     await expect(page.locator("#map")).toBeHidden();
     await expect(page.locator(".preview")).toBeHidden();
@@ -9474,6 +9444,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator(".preview")).toBeVisible();
     await expectElementAboveMobileTabs(".preview");
     await expectElementAboveMobileTabs("#appFrame");
+    await expectSurfaceFillsWorkspace(".preview");
     await expect(page.locator("#selectionActions")).toBeHidden();
     await expect(page.locator("#stateInspector")).toBeHidden();
     await expect(page.locator("#map")).toBeHidden();
@@ -9523,27 +9494,50 @@ test.describe("State Blueprint tool", () => {
     const landscapePage = await landscapeContext.newPage();
     await openTool(landscapePage);
     await expect(landscapePage.locator("#mobileTabs")).toBeVisible();
-    await expect.poll(() => landscapePage.locator("#mobileTabs").evaluate(el => getComputedStyle(el).gridTemplateColumns.split(" ").filter(Boolean).length)).toBe(6);
+    await expect(landscapePage.locator("#mobileTabs button:visible")).toHaveCount(4);
+    await expect.poll(() => landscapePage.locator("#mobileTabs").evaluate(el => getComputedStyle(el).gridTemplateColumns.split(" ").filter(Boolean).length)).toBe(4);
+    await expect.poll(() => landscapePage.locator("#mobileTabs").evaluate(tabs =>
+      [...tabs.querySelectorAll("button")].filter(button => getComputedStyle(button).display !== "none").every(button => {
+        const rect = button.getBoundingClientRect();
+        return button.scrollWidth <= button.clientWidth + 1 && rect.left >= 0 && rect.right <= window.innerWidth;
+      })
+    )).toBe(true);
     await expect(landscapePage.locator("#map")).toBeVisible();
-    await expect(landscapePage.locator(".preview")).toBeVisible();
+    await expect(landscapePage.locator(".preview")).toBeHidden();
     await expect.poll(() => landscapePage.evaluate(() => {
       const map = document.querySelector("#map")?.getBoundingClientRect();
-      const preview = document.querySelector(".preview")?.getBoundingClientRect();
-      const tabs = document.querySelector("#mobileTabs")?.getBoundingClientRect();
-      if (!map || !preview || !tabs) return false;
-      return map.right <= preview.left + 1 && preview.bottom <= tabs.top + 1;
+      const workspace = document.querySelector("#workspace")?.getBoundingClientRect();
+      if (!map || !workspace) return false;
+      return Math.abs(map.left - workspace.left) <= 1 &&
+        Math.abs(map.top - workspace.top) <= 1 &&
+        Math.abs(map.right - workspace.right) <= 1 &&
+        Math.abs(map.bottom - workspace.bottom) <= 1;
     })).toBe(true);
+
+    await landscapePage.locator('[data-mobile-view="presets"]').tap();
+    await expect(landscapePage.locator("#stateExplorer")).toBeVisible();
+    await expect(landscapePage.locator("#stateInspector")).toBeHidden();
+    await expect(landscapePage.locator(".preview")).toBeHidden();
+
+    await landscapePage.locator('[data-mobile-view="edit"]').tap();
+    await expect(landscapePage.locator("#stateInspector")).toBeVisible();
+    await expect(landscapePage.locator("#map")).toBeHidden();
+    await expect(landscapePage.locator(".preview")).toBeHidden();
+
     await landscapePage.locator('[data-mobile-view="app"]').tap();
     await expect(landscapePage.locator(".preview")).toBeVisible();
     await expect.poll(() => landscapePage.locator(".preview").evaluate(el => {
       const rect = el.getBoundingClientRect();
-      const tabs = document.querySelector("#mobileTabs").getBoundingClientRect();
-      return rect.bottom <= tabs.top + 1;
+      const workspace = document.querySelector("#workspace").getBoundingClientRect();
+      return Math.abs(rect.left - workspace.left) <= 1 &&
+        Math.abs(rect.top - workspace.top) <= 1 &&
+        Math.abs(rect.right - workspace.right) <= 1 &&
+        Math.abs(rect.bottom - workspace.bottom) <= 1;
     })).toBe(true);
     await landscapeContext.close();
   });
 
-  test("keeps mid-size touch canvas free of side drawers until a workspace tab is chosen @smoke", async ({ browser }) => {
+  test("keeps mid-size touch workspaces exclusive until another tab is chosen @smoke", async ({ browser }) => {
     const context = await browser.newContext({
       baseURL: "http://localhost:8124",
       viewport: { width: 820, height: 1180 },
@@ -9573,25 +9567,25 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#map")).toBeVisible();
     await expect(page.locator("#stateInspector")).toBeHidden();
     await expect(page.locator("#stateExplorer")).toBeHidden();
-    await expect(page.locator(".preview")).toBeVisible();
+    await expect(page.locator(".preview")).toBeHidden();
 
     await page.locator('[data-id="auth_start"] .title').tap();
     await expect(page.locator('[data-mobile-view="canvas"]')).toHaveClass(/active/);
     await expect(page.locator("#stateInspector")).toBeHidden();
     await expect(page.locator("#stateExplorer")).toBeHidden();
-    await expect(page.locator(".preview")).toBeVisible();
+    await expect(page.locator(".preview")).toBeHidden();
 
     await page.locator('[data-mobile-view="edit"]').tap();
     await expect(page.locator("#stateInspector")).toBeVisible();
-    await expect(page.locator("#map")).toBeVisible();
+    await expect(page.locator("#map")).toBeHidden();
     await page.locator('[data-mobile-view="canvas"]').tap();
     await expect(page.locator("#map")).toBeVisible();
     await expect(page.locator("#stateInspector")).toBeHidden();
-    await expect(page.locator(".preview")).toBeVisible();
+    await expect(page.locator(".preview")).toBeHidden();
 
     await page.locator('[data-mobile-view="app"]').tap();
     await expect(page.locator(".preview")).toBeVisible();
-    await expect(page.locator("#map")).toBeVisible();
+    await expect(page.locator("#map")).toBeHidden();
     await context.close();
   });
 
@@ -12735,19 +12729,28 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#btnTogglePreview")).toBeHidden();
   });
 
-  test("hides the topbar scrollbar on narrow screens", async ({ page }) => {
+  test("keeps narrow topbar actions visible without horizontal scrolling", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 820 });
     await openTool(page);
 
     const topbar = await page.locator(".topbar").evaluate(el => {
       const style = getComputedStyle(el);
+      const controls = ["#btnNew", "#btnSave", "#topbarMore summary"]
+        .map(selector => el.querySelector(selector)?.getBoundingClientRect())
+        .filter(Boolean);
       return {
         overflowX: style.overflowX,
-        scrollbarWidth: style.scrollbarWidth
+        scrollbarWidth: style.scrollbarWidth,
+        fits: el.scrollWidth <= el.clientWidth + 1,
+        controlsInside: controls.every(rect => rect.left >= 0 && rect.right <= window.innerWidth)
       };
     });
-    expect(topbar.overflowX).toBe("auto");
-    expect(topbar.scrollbarWidth).toBe("none");
+    expect(topbar).toEqual({
+      overflowX: "visible",
+      scrollbarWidth: "none",
+      fits: true,
+      controlsInside: true
+    });
   });
 
   test("keeps the canvas free of helper and zoom overlays around the state explorer", async ({ page }) => {

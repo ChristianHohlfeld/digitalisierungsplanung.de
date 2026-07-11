@@ -437,8 +437,13 @@ Editoraktion
 - **ED-011 Lokale UI:** Panelbreiten, Explorerzustand, Preview-Collapse und mobile
   Arbeitsansicht dürfen lokal persistieren, ohne das Modell zu verändern.
 - **ED-012 Responsive Bedienung:** Desktop, Tablet und Mobile MÜSSEN Canvas,
-  Presets, Editor und App erreichbar halten. Controls dürfen nicht überlappen,
-  horizontal aus dem Viewport laufen oder durch Scrollbars verdeckt werden.
+  Vorlagen, Details und Vorschau erreichbar halten. In der mobilen
+  Arbeitsansicht MÜSSEN diese vier Aufgaben über vier gleich breite,
+  mindestens 44 Pixel hohe Navigationsziele erreichbar sein. Jeder Modus MUSS
+  die Arbeitsfläche exklusiv und ohne Restzeile, Split-Panel oder verdeckten
+  Inhalt belegen. Controls und Beschriftungen dürfen nicht überlappen,
+  abgeschnitten werden, horizontal aus dem Viewport laufen oder durch
+  Scrollbars verdeckt werden.
 - **ED-013 Touch:** Touch-Drag, Long-Press, Double-Tap, Pinch-Zoom,
   Zwei-Finger-Pan und Touch-Reorder MÜSSEN absichtlich unterscheidbar sein.
   Vertikales Preset-Scrollen DARF keinen Drag starten.
@@ -741,13 +746,25 @@ Abdeckungsbereiche:
   UTF-8-/Orthografie-Smoke-Test sichern native Umlaute und `ß` gegen erneute
   ASCII-Umschrift ab.
   Der Freigabestand besteht mit 315/315 Playwright- und 14/14 Server-Fällen.
-- **GAP-005 Responsive Erwartungen, geschlossen am 2026-07-10:** Auf schmalen
-  Portrait-Telefonen sind `edit` und `app` exklusive Vollflächenansichten. Die
-  Canvas-Ansicht zeigt die Map oben und die skalierbare Vorschau unten; die
-  Preset-Ansicht blendet die Canvas-Szene aus. Mittlere Touch-Geräte behalten
-  den getesteten Split. Die Mobile-Navigation besitzt sechs stabile Spalten
-  einschließlich Undo/Redo, und die geschlossene Topbar bleibt horizontal
-  scrollbar, während das feste Mehr-Menü sichtbar bleibt.
+- **GAP-005 Mobile Bedienbarkeit, geschlossen am 2026-07-11:** Der visuelle
+  Ist-Audit mit 360×800, 390×844, 430×932 und 844×390 Pixeln belegte fünf
+  Vertragsverletzungen: unlesbar klein eingepasste Zustände, eine nur 80 Pixel
+  hohe und damit unbedienbare Vorschau, tote Restflächen in Details und
+  Vorschau, abgeschnittene sechs-spaltige Navigation sowie ein unbrauchbarer
+  Querformat-Split. Der neue Mobile-Vertrag verwendet deshalb in Portrait,
+  Querformat und auf mittleren Touch-Geräten ausschließlich vier Vollflächen:
+  `canvas`, `presets`, `edit` und `app`. Die Navigation zeigt nur Canvas,
+  Vorlagen, Details und Vorschau. Undo/Redo liegen als 44-Pixel-Aktionen auf dem
+  Canvas und zusätzlich im Mehr-Menü. Mobile Panel-Resizer sind deaktiviert.
+  Beim Öffnen oder Laden fokussiert der Canvas den fachlichen Startzustand mit
+  mindestens 0,82 Skalierung; der explizite Befehl `Einpassen` bleibt der
+  vollständige Modellüberblick. Die Vorlagenansicht belegt die ganze
+  Arbeitsfläche und ordnet kompakte Karten adaptiv an. Kein mobiler Modus darf
+  eine zweite Arbeitsfläche oder eine unsichtbare Restzeile reservieren. Der
+  Nachher-Audit derselben vier Viewports bestätigt für alle 16 Kombinationen
+  aus Viewport und Modus: exakt eine vollflächige Arbeitsansicht, keine
+  abgeschnittenen Tabs, keinen Dokument-Overflow und keine Browser- oder
+  Konsolenfehler.
 - **GAP-006 Geteilte CI-Abnahme, geschlossen am 2026-07-10:**
   `npm run test:full` umfasst Server und Browser und bleibt die lokale sowie die
   Gitea-Abnahme. GitHub Actions prüft denselben Bestand schneller in vier
