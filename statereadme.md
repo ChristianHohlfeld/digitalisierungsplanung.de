@@ -1170,10 +1170,16 @@ Abdeckungsbereiche:
 - **GAP-027 Erste unkontrollierte Auslieferung, offen am 2026-07-12:** Der
   Service Worker erzwingt Cache-Buster und `no-store`, sobald er eine Seite
   kontrolliert. Die erste HTML-Antwort vor Registrierung des Workers wird im
-  Repository jedoch nicht durch einen Origin-Headervertrag abgesichert. Soll
-  DEMO-011 ausnahmslos auch für diesen ersten Request gelten, benötigt die
-  statische Auslieferung eine überprüfbare server- oder CDN-seitige
-  `Cache-Control: no-store`-Regel.
+  Repository jedoch nicht durch einen Origin-Headervertrag abgesichert. Der
+  Produktionsabruf nach Freigabe von `release-64` am 2026-07-12 bestätigt den
+  offenen Widerspruch: `/`, `index.html`, `state.html`, `sw.js`,
+  `register-sw.js` und `sw-version.js` werden von GitHub Pages jeweils mit
+  `Cache-Control: max-age=600` ausgeliefert. Cache-Buster, Fetch-Option und
+  `updateViaCache: "none"` sichern nur die dafür vorgesehenen Browserpfade; sie
+  ändern diesen Origin-Header nicht und schützen insbesondere den ersten noch
+  unkontrollierten Dokumentabruf nicht. Soll DEMO-011 ausnahmslos auch für
+  diesen Request gelten, benötigt die statische Auslieferung eine überprüfbare
+  server- oder CDN-seitige `Cache-Control: no-store`-Regel.
 - **GAP-028 Condition-Sprache ohne exakte Grammatik, offen am 2026-07-12:** Die
   Runtime unterstützt faktisch eine kleine Sprache aus `!`, Vergleichen, `&&`
   und `||`, zerlegt diese Operatoren jedoch per String-Split und validiert die
