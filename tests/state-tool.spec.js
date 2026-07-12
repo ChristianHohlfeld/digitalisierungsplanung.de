@@ -9490,6 +9490,73 @@ test.describe("State Blueprint tool", () => {
     await context.close();
   });
 
+  test("starts tablet connections from the inward half of an owner port @smoke", async ({ browser }) => {
+    const context = await browser.newContext({
+      baseURL: "http://localhost:8124",
+      viewport: { width: 900, height: 820 },
+      hasTouch: true
+    });
+    try {
+      const page = await context.newPage();
+      const model = {
+        version: 2,
+        name: "Touch owner port",
+        initial: "source",
+        states: [
+          { id: "source", title: "Source", body: "", x: 120, y: 192 },
+          { id: "target", title: "Target", body: "", x: 576, y: 192 }
+        ],
+        transitions: []
+      };
+      await page.addInitScript(({ key, model }) => {
+        localStorage.clear();
+        localStorage.setItem(key, JSON.stringify(model));
+      }, { key: STORAGE_KEY, model });
+      await page.goto("/state.html");
+
+      const output = await centerOf(statePort(page, "source", "out"));
+      const start = { x: output.x - 4, y: output.y };
+      const dropTarget = await centerOf(page.locator('[data-id="target"]'));
+      await page.locator('[data-id="source"]').dispatchEvent("pointerdown", {
+        bubbles: true,
+        cancelable: true,
+        pointerType: "touch",
+        pointerId: 422,
+        clientX: start.x,
+        clientY: start.y
+      });
+      await expect(page.locator("#map")).toHaveClass(/connecting/);
+      await expect(page.locator("#map")).not.toHaveClass(/dragging-state/);
+
+      await page.evaluate(({ point }) => {
+        window.dispatchEvent(new PointerEvent("pointermove", {
+          bubbles: true,
+          cancelable: true,
+          pointerType: "touch",
+          pointerId: 422,
+          clientX: point.x,
+          clientY: point.y
+        }));
+        window.dispatchEvent(new PointerEvent("pointerup", {
+          bubbles: true,
+          cancelable: true,
+          pointerType: "touch",
+          pointerId: 422,
+          clientX: point.x,
+          clientY: point.y
+        }));
+      }, { point: dropTarget });
+
+      await expect(page.locator("#map")).not.toHaveClass(/connecting/);
+      await expect.poll(async () => {
+        const saved = await savedModel(page);
+        return saved.transitions.some(transition => transition.from === "source" && transition.to === "target");
+      }).toBe(true);
+    } finally {
+      await context.close();
+    }
+  });
+
   test("creates a state on empty-canvas touch double tap without changing single tap behavior @smoke", async ({ browser }) => {
     const context = await browser.newContext({
       baseURL: "http://localhost:8124",
@@ -10718,10 +10785,12 @@ test.describe("State Blueprint tool", () => {
 
     const before = await page.evaluate(() => ({
       wires: [...document.querySelectorAll("#wires [data-view-key]")].map(el => el.getAttribute("data-view-key")).sort(),
-      ports: [...document.querySelectorAll("#ports [data-view-key]")].map(el => el.getAttribute("data-view-key")).sort()
+      ports: [...document.querySelectorAll("#ports [data-view-key]")].map(el => el.getAttribute("data-view-key")).sort(),
+      portVisuals: [...document.querySelectorAll("#portVisuals [data-view-key]")].map(el => el.getAttribute("data-view-key")).sort()
     }));
     expect(before.wires.length).toBeGreaterThan(transitions.length * 2);
     expect(before.ports.length).toBeGreaterThan(states.length);
+    expect(before.portVisuals.length).toBeGreaterThan(states.length * 2);
 
     const result = await page.evaluate(() => {
       window.__stateBlueprintPerfMetrics = {};
@@ -10730,18 +10799,22 @@ test.describe("State Blueprint tool", () => {
         perf: { ...window.__stateBlueprintPerfMetrics },
         wires: [...document.querySelectorAll("#wires [data-view-key]")].map(el => el.getAttribute("data-view-key")).sort(),
         ports: [...document.querySelectorAll("#ports [data-view-key]")].map(el => el.getAttribute("data-view-key")).sort(),
+        portVisuals: [...document.querySelectorAll("#portVisuals [data-view-key]")].map(el => el.getAttribute("data-view-key")).sort(),
         hasPersistentSvgPool: Boolean(document.querySelector("#wires").__recycledSvg || document.querySelector("#ports").__recycledSvg)
       };
     });
 
     expect(result.wires).toEqual(before.wires);
     expect(result.ports).toEqual(before.ports);
+    expect(result.portVisuals).toEqual(before.portVisuals);
     expect(result.hasPersistentSvgPool).toBe(false);
     expect(result.perf.wireSyncs || 0).toBe(1);
     expect(result.perf.wireElementsCreated || 0).toBe(0);
     expect(result.perf.portElementsCreated || 0).toBe(0);
+    expect(result.perf.portVisualElementsCreated || 0).toBe(0);
     expect(result.perf.wireElementsReused || 0).toBeGreaterThan(transitions.length * 2);
     expect(result.perf.portElementsReused || 0).toBeGreaterThan(states.length);
+    expect(result.perf.portVisualElementsReused || 0).toBe(before.portVisuals.length);
     expect(result.perf.wireRebuilds || 0).toBe(0);
   });
 
@@ -11081,6 +11154,8 @@ test.describe("State Blueprint tool", () => {
       const node = document.querySelector('.node[data-id="source"]');
       const inputPort = document.querySelector('svg#ports .svg-port[data-state-id="source"][data-port-side="in"]');
       const outputPort = document.querySelector('svg#ports .svg-port[data-state-id="source"][data-port-side="out"]');
+      const visualInputPort = document.querySelector('svg#portVisuals .port-visual[data-state-id="source"][data-port-side="in"]');
+      const visualOutputPort = document.querySelector('svg#portVisuals .port-visual[data-state-id="source"][data-port-side="out"]');
       const pin = document.querySelector('.edge-pin[data-edge-id="source_to_target"][data-edge-pin="out"]');
       const transform = String(node?.style.transform || "");
       const translate = transform.match(/translate3d?\(\s*(-?\d+(?:\.\d+)?)px,\s*(-?\d+(?:\.\d+)?)px/i);
@@ -11092,6 +11167,8 @@ test.describe("State Blueprint tool", () => {
       const height = Number.parseFloat(node?.style.height || "0");
       const inputPortPoint = nums(inputPort?.getAttribute("transform") || "");
       const outputPortPoint = nums(outputPort?.getAttribute("transform") || "");
+      const visualInputPortPoint = nums(visualInputPort?.getAttribute("transform") || "");
+      const visualOutputPortPoint = nums(visualOutputPort?.getAttribute("transform") || "");
       const hitBox = port => {
         const hit = port?.querySelector(".svg-port-hit");
         return hit ? {
@@ -11115,6 +11192,10 @@ test.describe("State Blueprint tool", () => {
         inputPortY: inputPortPoint[1],
         outputPortX: outputPortPoint[0],
         outputPortY: outputPortPoint[1],
+        visualInputPortX: visualInputPortPoint[0],
+        visualInputPortY: visualInputPortPoint[1],
+        visualOutputPortX: visualOutputPortPoint[0],
+        visualOutputPortY: visualOutputPortPoint[1],
         inputHit: hitBox(inputPort),
         outputHit: hitBox(outputPort),
         pinX: Number.parseFloat(pin?.getAttribute("cx") || "0"),
@@ -11128,6 +11209,10 @@ test.describe("State Blueprint tool", () => {
       expect(geometry.outputPortX).toBe(geometry.visualLeft + geometry.width);
       expect(geometry.inputPortY).toBe(geometry.visualTop + geometry.height / 2);
       expect(geometry.outputPortY).toBe(geometry.visualTop + geometry.height / 2);
+      expect(geometry.visualInputPortX).toBe(geometry.inputPortX);
+      expect(geometry.visualInputPortY).toBe(geometry.inputPortY);
+      expect(geometry.visualOutputPortX).toBe(geometry.outputPortX);
+      expect(geometry.visualOutputPortY).toBe(geometry.outputPortY);
       expect(geometry.pinX).toBe(geometry.outputPortX);
       expect(geometry.pinY).toBe(geometry.outputPortY);
       expect(geometry.inputHit).toMatchObject({ tag: "rect", x: -18, y: -16, width: 26, height: 32, rx: 10 });
@@ -11244,6 +11329,93 @@ test.describe("State Blueprint tool", () => {
       const saved = await savedModel(page);
       return saved.transitions.filter(transition => transition.from === "source").length;
     }).toBe(1);
+  });
+
+  test("renders own connection ports above the state and starts from their inward half @smoke", async ({ page }) => {
+    const model = {
+      version: 2,
+      name: "Own port priority",
+      initial: "source",
+      states: [
+        { id: "source", title: "Source", body: "", x: 120, y: 192 },
+        { id: "target", title: "Target", body: "", x: 624, y: 192 }
+      ],
+      transitions: []
+    };
+    await page.addInitScript(({ key, model }) => {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(key, JSON.stringify(model));
+    }, { key: STORAGE_KEY, model });
+    await page.goto("/state.html");
+
+    const interactivePort = page.locator('#ports .svg-port[data-state-id="source"][data-port-side="out"]');
+    const visualPort = page.locator('#portVisuals .port-visual[data-state-id="source"][data-port-side="out"]');
+    await expect(interactivePort).toBeVisible();
+    await expect(visualPort).toBeVisible();
+
+    const portReport = await page.evaluate(() => {
+      const interactive = document.querySelector('#ports .svg-port[data-state-id="source"][data-port-side="out"]');
+      const visual = document.querySelector('#portVisuals .port-visual[data-state-id="source"][data-port-side="out"]');
+      const owner = document.querySelector('.node[data-id="source"]');
+      const pointFor = element => {
+        const matrix = element?.getScreenCTM();
+        return matrix ? new DOMPoint(0, 0).matrixTransform(matrix) : null;
+      };
+      const interactivePoint = pointFor(interactive);
+      const visualPoint = pointFor(visual);
+      const inwardPoint = interactivePoint ? { x: interactivePoint.x - 4, y: interactivePoint.y } : null;
+      const ownerRect = owner?.getBoundingClientRect();
+      const top = inwardPoint ? document.elementFromPoint(inwardPoint.x, inwardPoint.y) : null;
+      return {
+        interactivePoint: interactivePoint ? { x: interactivePoint.x, y: interactivePoint.y } : null,
+        visualPoint: visualPoint ? { x: visualPoint.x, y: visualPoint.y } : null,
+        inwardPoint,
+        pointInsideOwner: Boolean(inwardPoint && ownerRect &&
+          inwardPoint.x >= ownerRect.left && inwardPoint.x <= ownerRect.right &&
+          inwardPoint.y >= ownerRect.top && inwardPoint.y <= ownerRect.bottom),
+        topStateId: top?.closest?.(".node")?.getAttribute("data-id") || "",
+        interactiveZ: Number(getComputedStyle(document.querySelector("#ports")).zIndex),
+        nodeZ: Number(getComputedStyle(document.querySelector("#nodes")).zIndex),
+        visualZ: Number(getComputedStyle(document.querySelector("#portVisuals")).zIndex),
+        visualPointerEvents: getComputedStyle(visual).pointerEvents
+      };
+    });
+    expect(portReport).toMatchObject({
+      pointInsideOwner: true,
+      topStateId: "source",
+      interactiveZ: 1,
+      nodeZ: 2,
+      visualZ: 3,
+      visualPointerEvents: "none"
+    });
+    expect(portReport.visualPoint.x).toBeCloseTo(portReport.interactivePoint.x, 4);
+    expect(portReport.visualPoint.y).toBeCloseTo(portReport.interactivePoint.y, 4);
+
+    await page.mouse.click(portReport.inwardPoint.x, portReport.inwardPoint.y);
+    await page.mouse.click(portReport.inwardPoint.x, portReport.inwardPoint.y);
+    await expect(page.locator("#map")).not.toHaveClass(/connecting|dragging-state/);
+    expect(await savedModel(page).then(saved => ({ states: saved.states.length, transitions: saved.transitions.length })))
+      .toEqual({ states: 2, transitions: 0 });
+
+    const before = await savedModel(page).then(saved => saved.states.find(state => state.id === "source"));
+    await page.mouse.move(portReport.inwardPoint.x, portReport.inwardPoint.y);
+    await page.mouse.down();
+    await page.mouse.move(portReport.inwardPoint.x + 10, portReport.inwardPoint.y);
+    await expect(page.locator("#map")).toHaveClass(/connecting/);
+    await expect(page.locator("#map")).not.toHaveClass(/dragging-state/);
+
+    const targetBox = await visibleBox(page.locator('[data-id="target"]'));
+    await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 8 });
+    await page.mouse.up();
+    await expect(page.locator("#map")).not.toHaveClass(/connecting/);
+    await expect.poll(async () => {
+      const saved = await savedModel(page);
+      return saved.transitions.filter(transition => transition.from === "source" && transition.to === "target").length;
+    }).toBe(1);
+    const after = await savedModel(page).then(saved => saved.states.find(state => state.id === "source"));
+    expect({ x: after.x, y: after.y }).toEqual({ x: before.x, y: before.y });
   });
 
   test("prioritizes a foreign state over overlapping svg ports and edge pins on first click and drag @smoke", async ({ page }) => {

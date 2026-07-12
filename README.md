@@ -231,7 +231,7 @@ npm run test:state-explorer
 npm run test:state-render
 ```
 
-`npm test` führt die Server-Tests und die wichtigsten Playwright-Abläufe aus. `npm run test:full` führt den vollständigen Bestand lokal in einem Lauf aus. GitHub Actions verteilt dieselben 326 Browserfälle vollständig auf vier parallele Shards, führt die 18 Serverfälle einmal aus und erhöht erst nach dem Gesamterfolg aller 344 Fälle die gemeinsame Release-Sequenz in `sw-version.js`.
+`npm test` führt die Server-Tests und die wichtigsten Playwright-Abläufe aus. `npm run test:full` führt den vollständigen Bestand lokal in einem Lauf aus. GitHub Actions verteilt dieselben 328 Browserfälle vollständig auf vier parallele Shards, führt die 18 Serverfälle einmal aus und erhöht erst nach dem Gesamterfolg aller 346 Fälle die gemeinsame Release-Sequenz in `sw-version.js`.
 
 ## Ordner
 

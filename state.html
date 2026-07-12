@@ -1380,11 +1380,24 @@
       filter: drop-shadow(0 0 5px rgba(245,158,11,.65));
     }
 
-    #ports {
+    #ports,
+    #portVisuals {
       position: absolute;
       overflow: visible;
       pointer-events: none;
+    }
+
+    #ports {
       z-index: 1;
+    }
+
+    #portVisuals {
+      z-index: 3;
+    }
+
+    #portVisuals *,
+    #portVisuals .port-visual {
+      pointer-events: none !important;
     }
 
     #ports .svg-port,
@@ -8104,6 +8117,7 @@
     const TOUCH_TEMPLATE_DRAG_START_PX = 9;
     const TOUCH_TEMPLATE_SCROLL_CANCEL_PX = 16;
     const MOUSE_PORT_START_OUTSIDE_PX = 32;
+    const MOUSE_PORT_START_INSIDE_PX = 8;
     const MOUSE_PORT_START_VERTICAL_PX = 22;
     const TOUCH_PORT_START_INSIDE_PX = 18;
     const TOUCH_PORT_START_OUTSIDE_PX = 48;
@@ -12693,7 +12707,8 @@
 
     function touchConnectionStartCandidate(evt) {
       if (!isTouchPointer(evt) || pinchZoom || touchPointers.size > 1) return null;
-      if (!isEmptyCanvasTarget(evt.target)) return null;
+      const ownerNodeId = evt.target?.closest?.(".node:not(.boundary-proxy)")?.dataset?.id || "";
+      if (!isEmptyCanvasTarget(evt.target) && !ownerNodeId) return null;
       const point = screenToWorld(evt);
       const scale = Math.max(0.1, Number(camera.scale) || 1);
       const insideReach = TOUCH_PORT_START_INSIDE_PX / scale;
@@ -12704,6 +12719,7 @@
       const states = visibleStates();
       for (let index = states.length - 1; index >= 0; index -= 1) {
         const state = states[index];
+        if (ownerNodeId && state.id !== ownerNodeId) continue;
         const startSide = connectionStartSide(state);
         if (startSide !== "out") continue;
         const port = svgStatePortPoint(state, startSide);
@@ -12729,6 +12745,7 @@
       activePointerId = evt.pointerId;
       captureTouchPointer(evt);
       clearLongPress();
+      lastEmptyCanvasTap = null;
       pendingCanvasTouch = null;
       pendingNodeTouch = null;
       pendingEdgeTouch = null;
@@ -12738,9 +12755,12 @@
 
     function mouseConnectionStartCandidate(evt) {
       if (evt.button !== 0 || evt.shiftKey || evt.ctrlKey || evt.metaKey || isSpaceDown ||
-        Date.now() - lastTouchAt < 700 || !isEmptyCanvasTarget(evt.target)) return null;
+        Date.now() - lastTouchAt < 700) return null;
+      const ownerNodeId = evt.target?.closest?.(".node:not(.boundary-proxy)")?.dataset?.id || "";
+      if (!isEmptyCanvasTarget(evt.target) && !ownerNodeId) return null;
       const point = screenToWorld(evt);
       const scale = Math.max(0.1, Number(camera.scale) || 1);
+      const insideReach = MOUSE_PORT_START_INSIDE_PX / scale;
       const outsideReach = MOUSE_PORT_START_OUTSIDE_PX / scale;
       const verticalReach = MOUSE_PORT_START_VERTICAL_PX / scale;
       let best = null;
@@ -12748,20 +12768,22 @@
       const states = visibleStates();
       for (let index = states.length - 1; index >= 0; index -= 1) {
         const state = states[index];
+        if (ownerNodeId && state.id !== ownerNodeId) continue;
         const startSide = connectionStartSide(state);
         if (startSide !== "out") continue;
         const port = svgStatePortPoint(state, startSide);
         if (!port) continue;
         const dx = point.x - port.x;
         const dy = point.y - port.y;
-        if (dx < 0 || dx > outsideReach || Math.abs(dy) > verticalReach) continue;
+        if (dx < (ownerNodeId ? -insideReach : 0) || dx > outsideReach || Math.abs(dy) > verticalReach) continue;
         const score = Math.hypot(dx, dy);
         if (score < bestScore) {
           best = {
             state,
             side: startSide,
             clientOffsetX: dx * scale,
-            clientOffsetY: dy * scale
+            clientOffsetY: dy * scale,
+            outwardX: ownerNodeId ? 1 : 0
           };
           bestScore = score;
         }
@@ -12775,9 +12797,10 @@
       evt.preventDefault();
       evt.stopPropagation();
       const now = Date.now();
+      const portCandidate = options.portCandidate || null;
       const hadSelection = Boolean(selectedNodeIdList().length || selectedEdgeIdList().length);
-      if (hadSelection) lastEmptyCanvasClick = null;
-      if (!hadSelection && lastEmptyCanvasClick &&
+      if (hadSelection || portCandidate) lastEmptyCanvasClick = null;
+      if (!portCandidate && !hadSelection && lastEmptyCanvasClick &&
         now - lastEmptyCanvasClick.time < 420 &&
         Math.hypot(evt.clientX - lastEmptyCanvasClick.x, evt.clientY - lastEmptyCanvasClick.y) <= 10
       ) {
@@ -12792,7 +12815,7 @@
         clientX: evt.clientX,
         clientY: evt.clientY,
         moved: false,
-        portCandidate: options.portCandidate || null
+        portCandidate
       };
       longPressTimer = setTimeout(() => {
         if (!pendingCanvasMouse || pendingCanvasMouse.moved) return;
@@ -12816,7 +12839,9 @@
       const dragY = evt.clientY - start.clientY;
       const portOffsetX = start.portCandidate?.clientOffsetX || 0;
       const portOffsetY = start.portCandidate?.clientOffsetY || 0;
-      const dragMovesOutward = dragX > 0 && dragX * portOffsetX + dragY * portOffsetY > 0;
+      const dragMovesOutward = start.portCandidate?.outwardX
+        ? dragX * start.portCandidate.outwardX > 0
+        : dragX > 0 && dragX * portOffsetX + dragY * portOffsetY > 0;
       if (start.portCandidate && dragMovesOutward) {
         const startEvent = eventFromPoint(start, evt);
         startEvent.pointerType = "mouse";
@@ -12831,6 +12856,11 @@
 
     function finishPendingCanvasMouse() {
       if (!pendingCanvasMouse) return false;
+      if (pendingCanvasMouse.portCandidate) {
+        pendingCanvasMouse = null;
+        clearLongPress();
+        return true;
+      }
       lastEmptyCanvasClick = {
         time: Date.now(),
         x: pendingCanvasMouse.clientX,
@@ -16177,6 +16207,48 @@
       return overlay;
     }
 
+    function getPortVisualOverlay() {
+      let overlay = document.getElementById("portVisuals");
+      if (!overlay) {
+        overlay = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        overlay.id = "portVisuals";
+        overlay.setAttribute("aria-hidden", "true");
+        worldEl.appendChild(overlay);
+      }
+      overlay.setAttribute("viewBox", wiresEl.getAttribute("viewBox") || "");
+      overlay.style.left = wiresEl.style.left;
+      overlay.style.top = wiresEl.style.top;
+      overlay.style.width = wiresEl.style.width;
+      overlay.style.height = wiresEl.style.height;
+      return overlay;
+    }
+
+    function syncPortVisuals(portOverlay) {
+      const visualOverlay = getPortVisualOverlay();
+      const fragment = document.createDocumentFragment();
+      const sync = createSvgSync(visualOverlay, fragment, {
+        createMetric: "portVisualElementsCreated",
+        reuseMetric: "portVisualElementsReused",
+        removeMetric: "portVisualElementsRemoved"
+      });
+      for (const source of portOverlay.querySelectorAll(".svg-port")) {
+        const sourceKey = source.getAttribute("data-view-key") || "";
+        if (!sourceKey) continue;
+        const visual = syncSvgElement(sync, `visual:${sourceKey}`, "g", {
+          transform: source.getAttribute("transform"),
+          class: [...source.classList].filter(name => name !== "svg-port").concat("port-visual").join(" "),
+          style: source.getAttribute("style"),
+          "data-state-id": source.getAttribute("data-state-id"),
+          "data-port-side": source.getAttribute("data-port-side"),
+          "aria-hidden": "true"
+        });
+        visual.replaceChildren(...[...source.children]
+          .filter(child => !child.classList.contains("svg-port-hit"))
+          .map(child => child.cloneNode(true)));
+      }
+      finishSvgSync(sync);
+    }
+
     function addSvgStatePorts(state, sync = null) {
       if (!state) return;
       if (state.virtualProxy) {
@@ -16210,18 +16282,19 @@
 
     function updateSvgStatePortPositions(state) {
       if (!state) return;
-      const overlay = document.getElementById("ports");
-      if (!overlay) return;
-      overlay.querySelectorAll(`.svg-port[data-state-id="${CSS.escape(state.id)}"]`).forEach(port => {
-        const side = port.dataset.portSide || "out";
-        const point = svgStatePortPoint(state, side);
-        if (port.tagName.toLowerCase() === "g") {
-          port.setAttribute("transform", `translate(${point.x} ${point.y})`);
-        } else {
-          port.setAttribute("cx", point.x);
-          port.setAttribute("cy", point.y);
-        }
-      });
+      for (const overlay of [document.getElementById("ports"), document.getElementById("portVisuals")]) {
+        if (!overlay) continue;
+        overlay.querySelectorAll(`.svg-port[data-state-id="${CSS.escape(state.id)}"], .port-visual[data-state-id="${CSS.escape(state.id)}"]`).forEach(port => {
+          const side = port.dataset.portSide || "out";
+          const point = svgStatePortPoint(state, side);
+          if (port.tagName.toLowerCase() === "g") {
+            port.setAttribute("transform", `translate(${point.x} ${point.y})`);
+          } else {
+            port.setAttribute("cx", point.x);
+            port.setAttribute("cy", point.y);
+          }
+        });
+      }
     }
 
     function addSvgStatePort(state, side, sync = null) {
@@ -16662,12 +16735,19 @@
             if (evt.button === 1 || evt.button === 2 || isSpaceDown) return startPanning(evt);
             if (evt.button !== 0) return;
 
+            const portCandidate = mouseConnectionStartCandidate(evt);
+            if (portCandidate) {
+              startPendingCanvasMouse(evt, { portCandidate });
+              return;
+            }
+
             startNodeDrag(evt, s);
           });
 
           el.addEventListener("pointerdown", evt => {
             const s = el.__state;
             if (!isTouchPointer(evt) || evt.target.closest(".port, .port-slot, .node-edit")) return;
+            if (startTouchConnectionNearPort(evt)) return;
             evt.preventDefault();
             evt.stopPropagation();
             suppressCanvasTextSelection();
@@ -16703,6 +16783,7 @@
       }
       for (const state of states) addSvgStatePorts(state, portSync);
       finishSvgSync(portSync);
+      syncPortVisuals(portOverlay);
 
       applyRuntimeEdgePulses();
       applyRuntimeStatePulses();

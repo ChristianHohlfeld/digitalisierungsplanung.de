@@ -592,12 +592,18 @@ Editoraktion
   liefern. Ein einzelner nicht erzwungener Klick MUSS diesen State auswählen;
   ein einzelner nicht erzwungener Drag MUSS ihn bewegen. Explizite Click-
   Retries, Force-Clicks und Locator-Fallbacks sind für diese Treffererkennung
-  unzulässig.
+  unzulässig. Eine rein visuelle, pointerlose Portprojektion DARF über der
+  Node-Ebene liegen; sie DARF `elementFromPoint()` und die Ereignisquelle nicht
+  verändern.
 - **CAN-013 Port-Erreichbarkeit:** Die vorgesehene sichtbare Port-/Pin-Zone am
   Rand des eigenen Nodes MUSS weiterhin für Connect und Reroute erreichbar
-  bleiben. Die freie Maus-Zielfläche eines State-Ausgangs MUSS unabhängig vom
-  Canvas-Zoom mindestens 32 CSS-Pixel nach außen und 44 CSS-Pixel in der Höhe
-  greifbar sein. Dort MUSS erst eine vom Port weg gerichtete Mausbewegung von
+  bleiben. Das sichtbare Portsymbol MUSS über der Fläche seines eigenen Nodes
+  gezeichnet werden. Beginnt ein Pointer auf der innerhalb des Owner-Nodes
+  liegenden Hälfte dieses Symbols, MUSS der Owner den Start als Portinteraktion
+  und nicht als Node-Drag behandeln. Die freie Maus-Zielfläche eines
+  State-Ausgangs MUSS unabhängig vom Canvas-Zoom mindestens 32 CSS-Pixel nach
+  außen und 44 CSS-Pixel in der Höhe greifbar sein. Dort MUSS erst eine vom Port
+  weg gerichtete Mausbewegung von
   mehr als 7 CSS-Pixeln die Verbindung starten. Drücken, Klicken und eine zum
   Port gerichtete Drag-Bewegung DÜRFEN keine Verbindung starten. Ein Drag
   deutlich innerhalb des Node-Körpers MUSS den Node bewegen und DARF keine
@@ -868,12 +874,12 @@ Editoraktion
 ## 17. Ausführbare Absicherung
 
 - **TST-001 Testbestand:** Am Stand dieses Dokuments umfasst die ausführbare
-  Spezifikation 326 expandierte Playwright-Fälle in fünf Spec-Dateien und 18
-  Node-Server-Tests, insgesamt 344 Fälle.
-- **TST-002 Smoke:** 226 Playwright-Fälle tragen `@smoke`. `npm test` prüft
-  zuerst die 18 Server-Tests und danach diese 226 Smoke-Fälle.
+  Spezifikation 328 expandierte Playwright-Fälle in fünf Spec-Dateien und 18
+  Node-Server-Tests, insgesamt 346 Fälle.
+- **TST-002 Smoke:** 228 Playwright-Fälle tragen `@smoke`. `npm test` prüft
+  zuerst die 18 Server-Tests und danach diese 228 Smoke-Fälle.
 - **TST-003 Vollständiger Lauf:** `npm run test:full` prüft zuerst alle 18
-  Server-Tests und danach alle 326 Playwright-Fälle. Der vollständige lokale
+  Server-Tests und danach alle 328 Playwright-Fälle. Der vollständige lokale
   Vertragslauf ist damit genau ein Befehl:
 
   ```bash
@@ -889,9 +895,9 @@ Editoraktion
   der vor dem Fix am beobachteten Verhalten scheitert und nach dem Fix ohne
   Retry, Force-Click oder Sonderpfad besteht.
 - **TST-007 CI-Freigabe:** GitHub Actions und Gitea MÜSSEN beide den
-  vollständigen Bestand von 18 Server- und 326 Playwright-Fällen ausführen.
+  vollständigen Bestand von 18 Server- und 328 Playwright-Fällen ausführen.
   Gitea verwendet `npm run test:full`. GitHub Actions DARF die Playwright-Fälle
-  in disjunkte Shards aufteilen, wenn deren Vereinigung exakt alle 326 Fälle
+  in disjunkte Shards aufteilen, wenn deren Vereinigung exakt alle 328 Fälle
   enthält, die Serverfälle genau einmal laufen und der Deploy von allen Shards
   abhängt. Kein Deploy darf nur durch den kleineren Smoke-Lauf freigegeben
   werden.
@@ -922,10 +928,18 @@ Abdeckungsbereiche:
 
 ## 18. Auditbefunde, geschlossene Abweichungen und Risiken
 
-- **GAP-001 SVG-Hit-Priorität, geschlossen am 2026-07-11:** Das Port-SVG liegt
-  jetzt gemeinsam mit den Wires unterhalb der Node-Ebene; seine Port-, Pin- und
-  Tip-Hitflächen bleiben außerhalb von Nodes interaktiv. Ein Browser-
-  Regressionstest legt `.svg-port` und `.edge-pin` eines Owners geometrisch
+- **GAP-001 SVG-Hit-Priorität, geschlossen am 2026-07-12:** Das interaktive
+  Port-SVG liegt gemeinsam mit den Wires unterhalb der Node-Ebene; seine Port-,
+  Pin- und Tip-Hitflächen bleiben außerhalb von Nodes interaktiv. Eine zweite,
+  pointerlose SVG-Projektion zeichnet ausschließlich die sichtbaren Ports über
+  dem eigenen Node. Der Owner erkennt die innere Hälfte seines
+  Ausgangsports selbst als Connect-Kandidaten, ohne die Trefferreihenfolge für
+  fremde States zu ändern. Ein eigener Browser-Regressionsfall beweist die
+  Ebenenfolge interaktiver Port `1`, Nodes `2`, pointerlose Portprojektion `3`,
+  identische Portkoordinaten während Live-Drag, zwei reine Klicks ohne
+  Seiteneffekt sowie den ersten Mouse- und Touch-Connect vom inneren Halbkreis.
+  Ein weiterer Browser-Regressionsfall legt `.svg-port` und `.edge-pin` eines
+  Owners geometrisch
   über einen fremden State. `elementsFromPoint` belegt beide SVG-Hitflächen,
   `elementFromPoint` liefert dennoch den fremden State, und je ein unabhängiger
   erster, nicht erzwungener Click und Drag wählt beziehungsweise bewegt nur
@@ -992,7 +1006,7 @@ Abdeckungsbereiche:
   Gitea-Abnahme. GitHub Actions prüft denselben Bestand schneller in vier
   disjunkten Playwright-Shards und einem einmaligen Serverlauf. Der Deploy-Job
   hängt vom Erfolg der gesamten Matrix ab; die Freigabe umfasst deshalb weiter
-  alle 344 Vertragsfälle.
+  alle 346 Vertragsfälle.
 - **GAP-007 Realtime-Ausgang am Parent, geschlossen am 2026-07-11:** Das im
   Nutzerbrowser persistierte Fehlermodell enthielt einen aktiven Parent
   `start`, dessen manuellen Boundary-Eintritt und den echten Realtime-Ausgang
