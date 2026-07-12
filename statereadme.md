@@ -247,6 +247,15 @@ Editoraktion
 - **TRN-014 Pause:** `runtime.paused` MUSS automatische Fortsetzungen, Timer und
   Change-Verarbeitung stoppen und anstehende automatische Arbeit verwerfen.
   Beim Fortsetzen DÜRFEN keine veralteten Ereignisse nachgeholt werden.
+- **TRN-015 Name und Route:** Eine neue Transition ohne ausdrücklich gesetztes
+  Label MUSS exakt `Weiter` heißen. Das Label ist nutzereigene Anzeige und DARF
+  beim Umbenennen eines Zustands oder Umverdrahten der Transition nicht
+  automatisch geändert werden. Der Inspector MUSS die echte Verbindung als
+  `Quellzustand → Zielzustand` getrennt vom editierbaren Label anzeigen. Bei der
+  Normalisierung dürfen die bekannten alten Generatorwerte `Zu <aktueller
+  Zieltitel>` und `To <aktueller Zieltitel>` nur bei exakter Übereinstimmung in
+  `Weiter` überführt werden. Leere Labels werden ebenfalls `Weiter`; alle
+  anderen Labels bleiben unverändert.
 
 ## 7. Verschachtelung und Boundary
 
@@ -790,12 +799,12 @@ Editoraktion
 ## 17. Ausführbare Absicherung
 
 - **TST-001 Testbestand:** Am Stand dieses Dokuments umfasst die ausführbare
-  Spezifikation 324 expandierte Playwright-Fälle in fünf Spec-Dateien und 18
-  Node-Server-Tests, insgesamt 342 Fälle.
-- **TST-002 Smoke:** 224 Playwright-Fälle tragen `@smoke`. `npm test` prüft
-  zuerst die 18 Server-Tests und danach diese 224 Smoke-Fälle.
+  Spezifikation 326 expandierte Playwright-Fälle in fünf Spec-Dateien und 18
+  Node-Server-Tests, insgesamt 344 Fälle.
+- **TST-002 Smoke:** 226 Playwright-Fälle tragen `@smoke`. `npm test` prüft
+  zuerst die 18 Server-Tests und danach diese 226 Smoke-Fälle.
 - **TST-003 Vollständiger Lauf:** `npm run test:full` prüft zuerst alle 18
-  Server-Tests und danach alle 324 Playwright-Fälle. Der vollständige lokale
+  Server-Tests und danach alle 326 Playwright-Fälle. Der vollständige lokale
   Vertragslauf ist damit genau ein Befehl:
 
   ```bash
@@ -811,12 +820,19 @@ Editoraktion
   der vor dem Fix am beobachteten Verhalten scheitert und nach dem Fix ohne
   Retry, Force-Click oder Sonderpfad besteht.
 - **TST-007 CI-Freigabe:** GitHub Actions und Gitea MÜSSEN beide den
-  vollständigen Bestand von 18 Server- und 324 Playwright-Fällen ausführen.
+  vollständigen Bestand von 18 Server- und 326 Playwright-Fällen ausführen.
   Gitea verwendet `npm run test:full`. GitHub Actions DARF die Playwright-Fälle
-  in disjunkte Shards aufteilen, wenn deren Vereinigung exakt alle 324 Fälle
+  in disjunkte Shards aufteilen, wenn deren Vereinigung exakt alle 326 Fälle
   enthält, die Serverfälle genau einmal laufen und der Deploy von allen Shards
   abhängt. Kein Deploy darf nur durch den kleineren Smoke-Lauf freigegeben
   werden.
+- **TST-008 Parallele Ausführung:** Parallelisierung DARF ausschließlich die
+  Verteilung des vollständigen Testbestands verändern. Der lokale automatische
+  Standard ist auf höchstens vier Playwright-Worker begrenzt, CI auf höchstens
+  zwei Worker je disjunktem Shard. `PLAYWRIGHT_WORKERS` beziehungsweise
+  `TEST_WORKERS` dürfen dies für bewusst dimensionierte Ausführungsumgebungen
+  überschreiben. Parallelisierung DARF weder Retries noch gelockerte Timeouts,
+  ausgelassene Fälle oder abgeschwächte Assertions einführen.
 
 Abdeckungsbereiche:
 
@@ -901,7 +917,7 @@ Abdeckungsbereiche:
   Gitea-Abnahme. GitHub Actions prüft denselben Bestand schneller in vier
   disjunkten Playwright-Shards und einem einmaligen Serverlauf. Der Deploy-Job
   hängt vom Erfolg der gesamten Matrix ab; die Freigabe umfasst deshalb weiter
-  alle 342 Vertragsfälle.
+  alle 344 Vertragsfälle.
 - **GAP-007 Realtime-Ausgang am Parent, geschlossen am 2026-07-11:** Das im
   Nutzerbrowser persistierte Fehlermodell enthielt einen aktiven Parent
   `start`, dessen manuellen Boundary-Eintritt und den echten Realtime-Ausgang
@@ -930,6 +946,39 @@ Abdeckungsbereiche:
   jeden gleich-originigen GET einen versionsgebundenen Cache-Buster und lädt mit
   `no-store`. Die Registrierung lädt den Deploy-Stamp ebenfalls cachefrei und
   setzt `updateViaCache: "none"`.
+- **GAP-010 Zielabhängige Übergangsnamen, geschlossen am 2026-07-12:** Neue
+  Transitionen aus Canvas, API, MCP und Prompt-Planung verwenden den stabilen
+  Standard `Weiter`. Editor und Zustandsinspektor zeigen Quelle und Ziel separat
+  als Route. Die enge Bestandsmigration ersetzt nur einen zum aktuellen Ziel
+  exakt passenden alten Generatornamen; eigene und bereits veraltete Namen
+  bleiben erhalten. Regressionen sichern zusätzlich ab, dass eine spätere
+  Zustandsumbenennung das Transitionlabel nicht verändert.
+- **GAP-011 Mobile Real-Browser-Nachabnahme, geschlossen am 2026-07-12:** Die
+  vier mobilen Arbeitsansichten wurden nach der Umsetzung erneut in Chromium
+  bei 360×800 und 390×844 Pixeln sowie im Querformat bei 844×390 Pixeln
+  bedient und fotografiert. Canvas, Vorlagen, Details und Vorschau bleiben ohne
+  relevante horizontale Überläufe oder gegenseitige Überdeckung erreichbar.
+  In der Vorschau bleibt der nicht interaktive Live-Canvas sichtbar, während
+  die App unabhängig vertikal bedienbar ist; ein einzelner normaler Klick auf
+  `Nutzen` wechselte App und Canvas-Markierung gemeinsam zu `site_features`.
+  Verzögerte Kamera-Speicherungen erfassen ihren Canvas-Snapshot bereits beim
+  Planen und lesen niemals später die temporäre Monitor-Kamera aus; auch ein
+  zeitgleich fälliger Speichertimer kann die nutzereigene Kamera daher nicht
+  überschreiben.
+  Die gleiche Vorschau wurde zusätzlich mit WebKit geprüft. Ein WebKit-Reload
+  der zuvor gescrollten Root-Demo endete nach `DOMContentLoaded`, `load` und
+  dem verzögerten Viewport-Fenster bei Dokument-, Body- und Visual-Viewport-
+  Position `0`; es traten keine Page-Errors und kein festsitzender oberer
+  Leerraum auf.
+- **GAP-012 Lokale Testparallelität, geschlossen am 2026-07-12:** Sechs
+  gleichzeitige Chromium-Worker auf einem Rechner mit sechs logischen Kernen
+  sättigten die Ausführungsumgebung. Unveränderte UI-, Timer- und Demo-Fälle
+  benötigten dadurch das Zwei- bis Dreifache ihrer kontrollierten Laufzeit und
+  verfehlten Interaktionsfenster. Alle fünf betroffenen Szenarien bestanden
+  anschließend ohne Produktänderung jeweils zweimal mit zwei Workern. Der
+  lokale automatische Standard verwendet deshalb höchstens vier Worker. Die
+  Abdeckung bleibt vollständig; CI beschleunigt weiter über vier disjunkte
+  Shards mit jeweils höchstens zwei Workern.
 
 ## 19. Implementierungslandkarte des Ist-Stands
 

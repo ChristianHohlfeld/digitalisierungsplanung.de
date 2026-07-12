@@ -2329,17 +2329,17 @@ test.describe("Core browser contracts", () => {
       showNodeInspector(byId("navbar_shop_cart"), { forceOpen: true, manualOpen: true });
     });
     await expect(page.locator("#pTitle")).toHaveValue("Kopfleiste Shop/Warenkorb");
-    await expect(page.locator("#pComponents .component-editor").filter({ hasText: "Schaltfläche: To State 7" })).toHaveCount(0);
+    await expect(page.locator("#pComponents .component-editor").filter({ hasText: "Schaltfläche: Weiter" })).toHaveCount(0);
 
     await page.evaluate(() => startAppAtState("navbar_shop_cart", { preserveFocus: true }));
     await expect(app.locator("#statePill")).toHaveText("navbar_shop_cart");
     await app.getByRole("button", { name: "Settings" }).click();
     await expect(app.locator("#statePill")).toHaveText("settings");
-    await expect(app.getByRole("button", { name: "To State 7" })).toHaveCount(0);
+    await expect(app.getByRole("button", { name: "Weiter" })).toHaveCount(0);
 
     await app.getByRole("button", { name: "Back to navbar" }).click();
     await expect(app.locator("#statePill")).toHaveText("navbar_shop_cart");
-    await expect(app.getByRole("button", { name: "To State 7" })).toHaveCount(0);
+    await expect(app.getByRole("button", { name: "Weiter" })).toHaveCount(0);
   });
 
   test("child output proxy follows the real parent out transition after reroutes @smoke", async ({ page }) => {
@@ -2373,17 +2373,17 @@ test.describe("Core browser contracts", () => {
     await expect(app.locator("#statePill")).toHaveText("start");
     await app.getByRole("button", { name: "Kopfleiste Shop/Warenkorb" }).click();
     await expect(app.locator("#statePill")).toHaveText("navbar_shop_cart");
-    await expect(app.getByRole("button", { name: "To State 7" })).toBeVisible();
+    await expect(app.getByRole("button", { name: "Weiter" })).toBeVisible();
 
     await app.getByRole("button", { name: "Settings" }).click();
     await expect(app.locator("#statePill")).toHaveText("settings");
-    await expect(app.getByRole("button", { name: "To State 7" })).toHaveCount(0);
+    await expect(app.getByRole("button", { name: "Weiter" })).toHaveCount(0);
 
     await app.getByRole("button", { name: "Back to navbar" }).click();
     await expect(app.locator("#statePill")).toHaveText("navbar_shop_cart");
-    await expect(app.getByRole("button", { name: "To State 7" })).toBeVisible();
+    await expect(app.getByRole("button", { name: "Weiter" })).toBeVisible();
 
-    await app.getByRole("button", { name: "To State 7" }).click();
+    await app.getByRole("button", { name: "Weiter" }).click();
     await expect(app.locator("#statePill")).toHaveText("state_7");
   });
 

@@ -233,7 +233,7 @@ function planTransition(model, prompt, args) {
     id: `${normalizeId(sourceId)}_to_${normalizeId(targetId)}`,
     from: sourceId,
     to: targetId,
-    label: timer ? "Continue" : titleCase(title, "Next"),
+    label: "Weiter",
     triggerType: timer ? "timer" : "button",
     timerMs: timer ? parseDurationSeconds(prompt) * 1000 : 3000,
     condition: "",
@@ -426,7 +426,7 @@ function planWorkflow(model, prompt, args) {
   const transitions = spec.transitions || states.slice(0, -1).map((state, index) => ({
     fromIndex: index,
     toIndex: index + 1,
-    label: states[index + 1].title
+    label: "Weiter"
   }));
   transitions.forEach(transition => {
     const from = states[transition.fromIndex];
@@ -437,7 +437,7 @@ function planWorkflow(model, prompt, args) {
       id: `${normalizeId(from.id)}_to_${normalizeId(to.id)}`,
       from: from.id,
       to: to.id,
-      label: transition.label || to.title,
+      label: transition.label || "Weiter",
       triggerType: "button",
       condition: transition.condition || "",
       set: transition.set || {}

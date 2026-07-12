@@ -96,6 +96,42 @@ test.describe("State Blueprint MCP", () => {
     expect(applied.model.transitions[0].id).not.toBe("start");
   });
 
+  test("uses Weiter as the shared transition default without rewriting custom names @smoke", () => {
+    const normalized = normalizeModel({
+      version: 2,
+      name: "Transition names",
+      initial: "start",
+      states: [
+        { id: "start", title: "Start" },
+        { id: "target", title: "Zustand 2" },
+        { id: "custom_source", title: "Formular" },
+        { id: "custom_target", title: "Konto" },
+        { id: "stale_source", title: "Früher" },
+        { id: "stale_target", title: "Aktuelles Ziel" }
+      ],
+      transitions: [
+        { id: "legacy_exact", from: "start", to: "target", label: "Zu Zustand 2" },
+        { id: "custom", from: "custom_source", to: "custom_target", label: "Anmelden" },
+        { id: "legacy_stale", from: "stale_source", to: "stale_target", label: "Zu Früheres Ziel" }
+      ]
+    });
+
+    expect(normalized.transitions.map(transition => transition.label)).toEqual([
+      "Weiter",
+      "Anmelden",
+      "Zu Früheres Ziel"
+    ]);
+
+    const created = applyCommands({}, [
+      { command: "scene.new", title: "Defaults" },
+      { command: "state.create", id: "one", title: "Eins" },
+      { command: "state.create", id: "two", title: "Zwei" },
+      { command: "transition.create", id: "one_two", from: "one", to: "two" },
+      { command: "state.upsert", id: "two", title: "Umbenannt" }
+    ]);
+    expect(created.workspace.model.transitions[0].label).toBe("Weiter");
+  });
+
   test("documents the public MCP tools and model actions @smoke", () => {
     const apiDoc = fs.readFileSync(path.join(process.cwd(), "docs", "state-blueprint-api.md"), "utf8");
     const mcpDoc = fs.readFileSync(path.join(process.cwd(), "docs", "state-blueprint-mcp.md"), "utf8");

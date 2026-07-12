@@ -499,9 +499,20 @@ function byModelId(model, id) {
   return model?.states?.find?.(state => state.id === id) || null;
 }
 
-function defaultTransitionLabel(transition, model) {
+function legacyGeneratedTransitionLabels(transition, model) {
   const target = byModelId(model, transition?.to);
-  return target?.title ? `To ${target.title}` : "Next";
+  const title = String(target?.title || target?.id || "").trim();
+  return title ? [`Zu ${title}`, `To ${title}`] : [];
+}
+
+function defaultTransitionLabel() {
+  return "Weiter";
+}
+
+function normalizeTransitionLabel(transition, model) {
+  const label = String(transition?.label || "").trim();
+  if (!label || legacyGeneratedTransitionLabels(transition, model).includes(label)) return defaultTransitionLabel();
+  return label;
 }
 
 function boundaryProxyId(parentId, side, transitionId) {
@@ -637,7 +648,7 @@ function normalizeModel(input) {
       return {
         ...transition,
         id,
-        label: String(transition.label || defaultTransitionLabel(transition, m)),
+        label: normalizeTransitionLabel(transition, m),
         condition: String(transition.condition || ""),
         set: normalizeDataObject(transition.set),
         triggerType,
@@ -1502,14 +1513,13 @@ function insertStateOnTransition(model, command) {
   });
   const oldTo = transition.to;
   const oldGroupEntryId = transition.groupEntryId || "";
-  const oldLabel = transition.label;
   transition.to = state.id;
   transition.groupEntryId = "";
   const next = upsertTransition(model, {
     id: command.nextTransitionId || command.transitionIdAfter,
     from: state.id,
     to: oldTo,
-    label: command.nextLabel || oldLabel || defaultTransitionLabel({ to: oldTo }, model),
+    label: command.nextLabel || defaultTransitionLabel(),
     triggerType: transition.triggerType,
     triggerEvent: command.nextTriggerEvent || "",
     timerMs: transition.timerMs,

@@ -136,6 +136,7 @@
       cursor: pointer;
       font-weight: 750;
       font-size: 13px;
+      font-family: inherit;
       min-height: 34px;
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
@@ -1834,6 +1835,16 @@
     .row { display: flex; gap: 8px; align-items: center; }
     .row button { flex: 1; }
     .small { font-size: 12px; color: var(--muted); line-height: 1.35; }
+    .transition-route {
+      min-width: 0;
+      padding-left: 9px;
+      border-left: 2px solid rgba(56,189,248,.58);
+      color: #bfdbfe;
+      font-size: 12px;
+      font-weight: 850;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
     .state-action-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -5097,6 +5108,12 @@
       min-height: 100dvh;
       overflow: visible;
       -webkit-overflow-scrolling: auto;
+    }
+    button,
+    input,
+    select,
+    textarea {
+      font-family: inherit;
     }`;
       const runtimeInitialViewportJs = `  <script>
     (() => {
@@ -6283,6 +6300,14 @@
       const runtimeStateDeclarationsJsEnhanced = `    let suppressActionUntil = 0;
     let stateActivationId = 0;
     let lastRenderedStateId = "";`;
+      const runtimeTransitionLabelJs = `    function runtimeTransitionLabel(t) {
+      const target = findState(t?.to);
+      const title = String(target?.title || target?.id || "").trim();
+      return String(t?.label || "").trim() || (title ? "Zu " + title : "Weiter");
+    }`;
+      const runtimeTransitionLabelJsEnhanced = `    function runtimeTransitionLabel(t) {
+      return String(t?.label || "").trim() || "Weiter";
+    }`;
       const defaultContextJs = `    function defaultContext(m) {
       return { state: { current: m?.initial || "", previous: "", lastTransition: "" } };
     }`;
@@ -7676,6 +7701,7 @@
         .replace(loadingCss, loadingCssEnhanced)
         .replace(dropdownCss, dropdownCssEnhanced)
         .replace(runtimeStateDeclarationsJs, runtimeStateDeclarationsJsEnhanced)
+        .replace(runtimeTransitionLabelJs, runtimeTransitionLabelJsEnhanced)
         .replace(defaultContextJs, defaultContextJsEnhanced)
         .replace(emitRuntimeEventJs, emitRuntimeEventJsEnhanced)
         .replace(runtimeNormalizeModelRealtimeJs, runtimeNormalizeModelRealtimeJsEnhanced)
@@ -8939,13 +8965,25 @@
       } catch (_) { return null; }
     }
 
-    function saveCamera() {
-      try { localStorage.setItem(STORAGE_KEY + ".camera", JSON.stringify(camera)); } catch (_) {}
+    function cameraSnapshotForPersistence(value = null) {
+      const monitorSnapshot = isMobileWorkspaceLayout() && mobileWorkspaceView === "app"
+        ? mobileAppCanvasCameraSnapshot
+        : null;
+      const source = value || monitorSnapshot || camera;
+      return { x: source.x, y: source.y, scale: source.scale };
+    }
+
+    function saveCamera(value = null) {
+      try { localStorage.setItem(STORAGE_KEY + ".camera", JSON.stringify(cameraSnapshotForPersistence(value))); } catch (_) {}
     }
 
     function scheduleCameraSave() {
       clearTimeout(cameraSaveTimer);
-      cameraSaveTimer = setTimeout(saveCamera, 140);
+      const snapshot = cameraSnapshotForPersistence();
+      cameraSaveTimer = setTimeout(() => {
+        cameraSaveTimer = null;
+        saveCamera(snapshot);
+      }, 140);
     }
 
     function normalizeMobileWorkspaceView(view) {
@@ -11286,10 +11324,20 @@
       return rawTriggerEvent;
     }
 
-    function defaultTransitionLabel(transition, sourceModel = model) {
+    function legacyGeneratedTransitionLabels(transition, sourceModel = model) {
       const target = byModelId(sourceModel, transition?.to);
       const title = String(target?.title || target?.id || "").trim();
-      return title ? `Zu ${title}` : "Weiter";
+      return title ? [`Zu ${title}`, `To ${title}`] : [];
+    }
+
+    function defaultTransitionLabel() {
+      return "Weiter";
+    }
+
+    function normalizeTransitionLabel(transition, sourceModel = model) {
+      const label = String(transition?.label || "").trim();
+      if (!label || legacyGeneratedTransitionLabels(transition, sourceModel).includes(label)) return defaultTransitionLabel();
+      return label;
     }
 
     function transitionDisplayLabel(transition, sourceModel = model) {
@@ -11396,7 +11444,7 @@
         while (!id || modelIds.has(id)) id = `${base}_${i++}`;
         modelIds.add(id);
         t.id = id;
-        t.label = String(t.label || defaultTransitionLabel(t, m));
+        t.label = normalizeTransitionLabel(t, m);
         t.condition = t.condition || "";
         t.set = normalizeDataObject(t.set);
         t.triggerType = normalizeTransitionTriggerType(t);
@@ -19589,6 +19637,7 @@
           <div class="inspector-collapse-body">
             <div class="data-source-panel">
               <div class="field"><label>Ausgehender Übergang</label><select id="pStateFlowTransition"></select></div>
+              <div id="pStateFlowRoute" class="transition-route" aria-label="Verbindung" hidden></div>
               <div class="row">
                 <div class="field"><label>Bewegt sich bei</label><select id="pStateTriggerType">
                   <option value="button">Klick</option>
@@ -19794,6 +19843,7 @@
       const initialDataStatus = root.querySelector("#pInitialDataStatus");
       const dataWireList = root.querySelector("#pDataWireList");
       const flowTransitionSelect = root.querySelector("#pStateFlowTransition");
+      const flowTransitionRoute = root.querySelector("#pStateFlowRoute");
       const stateTriggerType = root.querySelector("#pStateTriggerType");
       const stateTriggerTimer = root.querySelector("#pStateTriggerTimer");
       const stateTriggerTimerField = root.querySelector("#pStateTriggerTimerField");
@@ -20255,6 +20305,10 @@
           stateTriggerTimer.disabled = true;
           if (stateTriggerTimerField) stateTriggerTimerField.hidden = true;
           if (stateTriggerEventField) stateTriggerEventField.hidden = true;
+          if (flowTransitionRoute) {
+            flowTransitionRoute.textContent = "";
+            flowTransitionRoute.hidden = true;
+          }
           stateTriggerPreview.className = "condition-preview empty";
           stateTriggerPreview.textContent = "Dieser Zustand stoppt, bis ein ausgehender Übergang verbunden ist.";
           return;
@@ -20262,18 +20316,25 @@
         rows.forEach(({ transition, runtime, boundaryEntry }) => {
           const option = document.createElement("option");
           option.value = transition.id;
-          const target = byId(transition.to);
           const label = transitionDisplayLabel(runtime || transition);
           option.textContent = boundaryEntry
             ? `${label} (Eingang)`
             : runtime?.runtimeParentExit
-            ? target ? `${label} -> ${target.title || target.id} (Ausgang)` : `${label} (Ausgang)`
-            : target ? `${label} -> ${target.title || target.id}` : label;
+            ? `${label} (Ausgang)`
+            : label;
           flowTransitionSelect.appendChild(option);
         });
         const selectedRow = stateFlowRowById(rows.some(row => row.transition.id === selectedId) ? selectedId : rows[0].transition.id, rows) || rows[0];
         const selectedTransition = selectedRow.transition;
         flowTransitionSelect.value = selectedTransition.id;
+        if (flowTransitionRoute) {
+          const routeSource = byId(selectedTransition.from);
+          const routeTarget = byId(selectedTransition.to);
+          const routeSourceLabel = String(routeSource?.title || routeSource?.id || selectedTransition.from || "").trim();
+          const routeTargetLabel = String(routeTarget?.title || routeTarget?.id || selectedTransition.to || "").trim();
+          flowTransitionRoute.textContent = routeSourceLabel && routeTargetLabel ? `${routeSourceLabel} → ${routeTargetLabel}` : "";
+          flowTransitionRoute.hidden = !flowTransitionRoute.textContent;
+        }
         const mode = stateFlowTriggerMode(selectedTransition);
         stateTriggerType.disabled = false;
         stateTriggerType.value = mode;
@@ -21618,7 +21679,7 @@
       if (wasEditingTemplate) renderStateExplorer();
       root.innerHTML = `
         <h3>Übergang</h3>
-        <div class="small"><b>${escapeHtml(fromLabel)}</b> → <b>${escapeHtml(toLabel)}</b></div>
+        <div id="pTransitionRoute" class="transition-route" aria-label="Verbindung">${escapeHtml(fromLabel)} → ${escapeHtml(toLabel)}</div>
         <div class="field"><label>Beschriftung</label><input id="pLabel"></div>
         <div class="field"><label>Startet wenn</label><select id="pTriggerType"><option value="button">Schaltfläche geklickt</option><option value="change">Datenwert ändert sich</option><option value="event">App-Ereignis passiert</option><option value="realtime">Realtime-Ereignis passiert</option><option value="timer">Nach Verzögerung</option><option value="auto">Sofort</option></select></div>
         <div class="data-source-panel transition-rule-panel">

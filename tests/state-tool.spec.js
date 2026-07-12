@@ -3208,18 +3208,18 @@ test.describe("State Blueprint tool", () => {
     await app.getByRole("button", { name: "Benutzer-Avatar" }).click();
     await expect(app.locator("#statePill")).toHaveText("user_avatar");
     await expect(app.getByRole("button", { name: "State 3" })).toBeVisible();
-    await expect(app.getByRole("button", { name: "To Benutzer-Avatar" })).toBeVisible();
+    await expect(app.getByRole("button", { name: "Weiter" })).toBeVisible();
 
     await app.getByRole("button", { name: "State 3" }).click();
     await expect(app.locator("#statePill")).toHaveText("state_3");
     await expect(page.locator("#layerFrameLabel")).toHaveText("In Benutzer-Avatar");
     await expect(page.locator('[data-id="state_3"]')).toHaveClass(/active/);
 
-    await app.getByRole("button", { name: "To Benutzer-Avatar" }).click();
+    await app.getByRole("button", { name: "Weiter" }).click();
     await expect(app.locator("#statePill")).toHaveText("user_avatar");
     await expect(page.locator("#layerFrameLabel")).toHaveText("In Hinweisbanner");
     await expect(app.getByRole("button", { name: "State 3" })).toBeVisible();
-    await expect(app.getByRole("button", { name: "To Benutzer-Avatar" })).toBeVisible();
+    await expect(app.getByRole("button", { name: "Weiter" })).toBeVisible();
 
     await app.getByRole("button", { name: "State 3" }).click();
     await expect(app.locator("#statePill")).toHaveText("state_3");
@@ -3534,8 +3534,10 @@ test.describe("State Blueprint tool", () => {
       options.map(option => ({ value: option.value, text: option.textContent || "" }))
     );
     expect(leafOptions.map(option => option.value)).toEqual(["t_leaf_local", "parent_done", "parent_retry"]);
-    expect(leafOptions.map(option => option.text)).toContain("Finish Parent -> Done (Ausgang)");
-    expect(leafOptions.map(option => option.text)).toContain("Retry Parent -> Retry (Ausgang)");
+    expect(leafOptions.map(option => option.text)).toContain("Finish Parent (Ausgang)");
+    expect(leafOptions.map(option => option.text)).toContain("Retry Parent (Ausgang)");
+    await page.locator("#pStateFlowTransition").selectOption("parent_done");
+    await expect(page.locator("#pStateFlowRoute")).toHaveText("Parent → Done");
   });
 
   test("child output proxy stops when the collapsed parent has no real outgoing transition @smoke", async ({ page }) => {
@@ -5507,7 +5509,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#pLabel")).toHaveValue("");
     await expect(loginEdge).toHaveCount(1);
     await expect(loginEdge).toHaveClass(/selected/);
-    await expect(loginLabel).toHaveText("Zu Login");
+    await expect(loginLabel).toHaveText("Weiter");
 
     await page.keyboard.press("Enter");
     await expect(page.locator("#pLabel")).toHaveCount(0);
@@ -8453,6 +8455,7 @@ test.describe("State Blueprint tool", () => {
         rootCard: root.getPropertyValue("--card").trim(),
         rootPrimary: root.getPropertyValue("--primary").trim(),
         fontFamily: root.fontFamily,
+        bodyFontFamily: getComputedStyle(body).fontFamily,
         bodyBg: getComputedStyle(body).backgroundColor,
         bodyColor: getComputedStyle(body).color,
         screenBg: styleOf("#screen").backgroundColor,
@@ -8465,6 +8468,7 @@ test.describe("State Blueprint tool", () => {
         buttonTransitionColor: colorToRgb(buttonColor),
         buttonTransitionStrongColor: colorToRgb(buttonStrongColor),
         buttonBackgroundImage: buttonStyle.backgroundImage,
+        buttonFontFamily: buttonStyle.fontFamily,
         inputBg: styleOf(".typed-input").backgroundColor,
         inputColor: styleOf(".typed-input").color,
       };
@@ -8490,6 +8494,7 @@ test.describe("State Blueprint tool", () => {
     expect(theme.buttonBg).toBe(theme.buttonTransitionColor);
     expect(theme.buttonTransitionStrongColor).toBe(theme.buttonTransitionColor);
     expect(theme.fontFamily).toContain("Atkinson Hyperlegible");
+    expect(theme.buttonFontFamily).toBe(theme.bodyFontFamily);
     expect(theme.screenBg).not.toBe("rgb(255, 255, 255)");
     expect(theme.pillBg).not.toBe("rgb(255, 255, 255)");
   });
@@ -8631,6 +8636,61 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator(`.edge[data-edge-id="${loginEdgeId}"]`)).toHaveCount(1);
   });
 
+  test("keeps transition names independent from their separately shown route @smoke", async ({ page }) => {
+    const inputModel = {
+      version: 2,
+      name: "Transition names",
+      initial: "start",
+      states: [
+        { id: "start", title: "Start", components: [], x: 96, y: 120 },
+        { id: "target", title: "Zustand 2", components: [], x: 384, y: 120 },
+        { id: "custom_source", title: "Formular", components: [], x: 96, y: 360 },
+        { id: "custom_target", title: "Konto", components: [], x: 384, y: 360 },
+        { id: "stale_source", title: "Früher", components: [], x: 672, y: 120 },
+        { id: "stale_target", title: "Aktuelles Ziel", components: [], x: 960, y: 120 }
+      ],
+      transitions: [
+        { id: "legacy_exact", from: "start", to: "target", label: "Zu Zustand 2", condition: "", set: {} },
+        { id: "custom", from: "custom_source", to: "custom_target", label: "Anmelden", condition: "", set: {} },
+        { id: "legacy_stale", from: "stale_source", to: "stale_target", label: "Zu Früheres Ziel", condition: "", set: {} }
+      ]
+    };
+    await page.addInitScript(({ key, model }) => {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(key, JSON.stringify(model));
+    }, { key: STORAGE_KEY, model: inputModel });
+    await page.goto("/state.html");
+    await expect(page.locator('[data-id="start"]')).toBeVisible();
+
+    await expect.poll(() => page.evaluate(() => model.transitions.map(transition => transition.label))).toEqual([
+      "Weiter",
+      "Anmelden",
+      "Zu Früheres Ziel"
+    ]);
+
+    await openStateInspector(page, "start");
+    await expect(page.locator("#pStateFlowTransition option")).toHaveText(["Weiter"]);
+    await expect(page.locator("#pStateFlowRoute")).toHaveText("Start → Zustand 2");
+
+    await page.locator('.edge-label[data-edge-id="legacy_exact"]').click();
+    await expect(page.locator("#pLabel")).toHaveValue("Weiter");
+    await expect(page.locator("#pTransitionRoute")).toHaveText("Start → Zustand 2");
+
+    await page.locator('[data-id="target"] .node-edit').click();
+    await page.locator("#pTitle").fill("Bestätigung");
+    await expect.poll(async () => (await savedModel(page)).transitions.find(transition => transition.id === "legacy_exact")?.label).toBe("Weiter");
+
+    await openStateInspector(page, "start");
+    await expect(page.locator("#pStateFlowRoute")).toHaveText("Start → Bestätigung");
+    await expect.poll(async () => (await savedModel(page)).transitions.map(transition => transition.label)).toEqual([
+      "Weiter",
+      "Anmelden",
+      "Zu Früheres Ziel"
+    ]);
+  });
+
   test("quick title editing keeps a collapsed inspector collapsed", async ({ page }) => {
     await openTool(page);
 
@@ -8722,8 +8782,8 @@ test.describe("State Blueprint tool", () => {
 
     await page.keyboard.press("Escape");
     await page.locator('[data-id="start"]').click();
-    await expect(transitions[0].label).toBe("Zu Start");
-    await appFrame(page).getByRole("button", { name: "Zu Start" }).click();
+    await expect(transitions[0].label).toBe("Weiter");
+    await appFrame(page).getByRole("button", { name: "Weiter" }).click();
     await expect(appFrame(page).locator("#statePill")).toHaveText("start");
   });
 
@@ -9762,6 +9822,18 @@ test.describe("State Blueprint tool", () => {
     try {
       await openTool(page);
       await page.waitForTimeout(240);
+      const delayedSaveProbe = await page.evaluate(async key => {
+        const canvasSnapshot = { x: camera.x, y: camera.y, scale: camera.scale };
+        localStorage.setItem(`${key}.camera`, JSON.stringify(canvasSnapshot));
+        scheduleCameraSave();
+        camera = { x: canvasSnapshot.x - 45, y: canvasSnapshot.y - 48, scale: .72 };
+        await new Promise(resolve => setTimeout(resolve, 180));
+        const stored = localStorage.getItem(`${key}.camera`);
+        camera = canvasSnapshot;
+        applyCamera({ persist: false });
+        return { expected: JSON.stringify(canvasSnapshot), stored };
+      }, STORAGE_KEY);
+      expect(delayedSaveProbe.stored).toBe(delayedSaveProbe.expected);
       const cameraBefore = await worldTransform(page);
       const storedCameraBefore = await page.evaluate(key => localStorage.getItem(`${key}.camera`), STORAGE_KEY);
 
@@ -11874,7 +11946,7 @@ test.describe("State Blueprint tool", () => {
     });
     const splitOutgoing = model.transitions.find(transition => transition.from === inserted.id && transition.to === "login");
     expect(splitOutgoing).toMatchObject({
-      label: "Zu Login",
+      label: "Weiter",
       triggerType: "button",
       condition: "",
       set: {}

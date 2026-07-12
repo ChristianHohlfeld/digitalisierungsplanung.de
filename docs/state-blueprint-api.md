@@ -247,13 +247,18 @@ Fields:
 | `id` | string | nein | Stabile Übergangsidentität. |
 | `from` | Zustands-ID | ja | Quellzustand. |
 | `to` | Zustands-ID | ja | Zielzustand. |
-| `label` | string | nein | Beschriftung für Schaltfläche oder Kante. |
+| `label` | string | nein | Nutzereigene Beschriftung für Schaltfläche oder Kante. Ohne Angabe exakt `Weiter`; Quelle und Ziel bleiben davon getrennte `from`-/`to`-Referenzen. |
 | `triggerType` | `button`, `change`, `event`, `realtime`, `timer`, `auto` | nein | Standard ist `button`. |
 | `triggerEvent` | string | nein | Expliziter Ereignisname. Wird für Schaltfläche/Timer/Auto erzeugt, wenn leer. Realtime-Übergänge behalten eine konkrete `realtime.*`-Referenz. |
 | `timerMs` | number | nein | Dauer für Timer-Übergänge. |
 | `condition` | string | nein | Bedingung über Bus-Pfade. |
 | `set` | object | nein | Patch, der beim Übergang in den globalen Bus geschrieben wird. |
 | `groupEntryId`, `groupExitId` | Zustands-ID | nein | Editor-Projektionshinweise, kein Runtime-Zustand. |
+
+Das Label wird bei einer Zustandsumbenennung oder beim Umverdrahten nicht
+automatisch verändert. Bekannte alte Generatorwerte `Zu <aktueller Zieltitel>`
+und `To <aktueller Zieltitel>` werden nur bei exakter Übereinstimmung zu
+`Weiter`; andere und eigene Namen bleiben unverändert.
 
 Schaltflächen-Übergang:
 
