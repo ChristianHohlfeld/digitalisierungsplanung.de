@@ -21,10 +21,11 @@ Der wichtigste Gedanke: Nur verstandene Prozesse lassen sich sauber digitalisier
 
 ## Grundvertrag
 
-Es gibt genau eine fachliche Wahrheit:
+Es gibt zwei fachliche Wahrheiten mit einer festen Grenze:
 
 ```text
-globaler JSON-Datenbus
+normalisiertes JSON-Modell = persistierte Struktur
+globaler JSON-Daten-/Ereignisbus = veränderliche Laufzeit
 ```
 
 Regeln:
@@ -230,7 +231,7 @@ npm run test:state-explorer
 npm run test:state-render
 ```
 
-`npm test` führt die Server-Tests und die wichtigsten Playwright-Abläufe aus. `npm run test:full` führt den vollständigen Bestand lokal in einem Lauf aus. GitHub Actions verteilt dieselben 324 Browserfälle vollständig auf vier parallele Shards, führt die Serverfälle einmal aus und erhöht erst nach dem Gesamterfolg die gemeinsame Release-Sequenz in `sw-version.js`.
+`npm test` führt die Server-Tests und die wichtigsten Playwright-Abläufe aus. `npm run test:full` führt den vollständigen Bestand lokal in einem Lauf aus. GitHub Actions verteilt dieselben 326 Browserfälle vollständig auf vier parallele Shards, führt die 18 Serverfälle einmal aus und erhöht erst nach dem Gesamterfolg aller 344 Fälle die gemeinsame Release-Sequenz in `sw-version.js`.
 
 ## Ordner
 
