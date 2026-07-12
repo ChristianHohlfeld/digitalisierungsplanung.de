@@ -40,7 +40,7 @@ jobs:
         if: matrix.shard == '1/4'
         run: npm run test:server
       - name: Run browser contract shard
-        run: npm run test:browser -- --shard=${{ matrix.shard }} --reporter=line
+        run: npm run test:browser -- --shard=${{ matrix.shard }} --reporter=line,github
 
   deploy:
     needs: contract-tests
