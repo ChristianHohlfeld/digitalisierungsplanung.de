@@ -6,6 +6,8 @@ Schema: State Blueprint Version 2
 
 Stand: 2026-07-12
 
+Auditbasis: Quellcommit `3ef5b0b`, gemeinsame Freigabe `release-62`
+
 Dieses Dokument ist der schriftliche Vertrag von Zustand / Digitalisierungsplanung.
 Es beschreibt die Invarianten, die Editor, Runtime, Export, API, MCP und
 Realtime-Transport gemeinsam einhalten müssen. Die Tests sind die ausführbare
@@ -872,7 +874,7 @@ Abdeckungsbereiche:
   `kind: "state-blueprint-definition"` mit `schemaVersion: 2`. Ein Smoke-Test
   liest den Editor-Discriminator, vergleicht ihn mit dem MCP-Export und prüft
   Export, Reimport, Validierung und persistierten Workspace als Roundtrip.
-- **GAP-003 Geteilte Kernlogik:** Modellnormalisierung und Teile der
+- **GAP-003 Geteilte Kernlogik, offen am 2026-07-12:** Modellnormalisierung und Teile der
   Ablauflogik existieren getrennt im Host, in der eingebetteten Runtime und im
   MCP-Core. Die finale Runtime wird zusätzlich durch exakte String-Ersetzungen
   von `enhanceGeneratedAppHtml(APP_HTML)` erzeugt. Source-Tests wirken als
@@ -979,6 +981,123 @@ Abdeckungsbereiche:
   lokale automatische Standard verwendet deshalb höchstens vier Worker. Die
   Abdeckung bleibt vollständig; CI beschleunigt weiter über vier disjunkte
   Shards mit jeweils höchstens zwei Workern.
+- **GAP-013 Geteilte Runtime-Erzeugung, offen am 2026-07-12:** Die finale
+  Runtime entsteht weiterhin aus `APP_HTML` und 105 überwiegend stillen
+  String-Ersetzungen in `enhanceGeneratedAppHtml`. Mindestens die vorgesehene
+  Erweiterung von `runtimeChildEntryTransition` greift im auditierten Stand
+  nicht: Das erzeugte `index.html` enthält weder `runtimeBoundaryEntry` noch die
+  dort vorgesehenen Boundary-Trigger-, Condition- und Timerfelder. Auch
+  `replaceGeneratedRange` gibt bei fehlenden Markern unverändert die Quelle
+  zurück. Damit können Vorschau, Export und MCP-Export trotz grüner
+  Quelltextalarme semantisch driften. Das widerspricht PRN-007 und EXP-007.
+- **GAP-014 Label bleibt nicht überall reine Anzeige, offen am 2026-07-12:** Die
+  exportierte Runtime normalisiert ein leeres Transitionlabel noch zu `Next`;
+  der MCP-Upsert behält bei einem ausdrücklich leeren Label den bisherigen Namen
+  statt `Weiter` zu setzen. Zusätzlich klassifiziert `isNegativeTransition`
+  Labels anhand von Wörtern wie `Fehler`, `Zurück`, `Back` oder `Abbruch`, um die
+  per Enter aktivierte Standardaktion auszuwählen. Eine reine Umbenennung kann
+  dadurch Laufzeitverhalten ändern. Das verletzt TRN-004, TRN-005 und TRN-015.
+- **GAP-015 Verdeckte Fetch- und Eingabeinferenz, offen am 2026-07-12:**
+  `transitionMatchesRuntimeEvent` behandelt eine Transition als passenden
+  Fetch-Ausgang, sobald ihre Condition den aktiven Fetch-Zielpfad erwähnt. Eine
+  nicht typisierte und dadurch als `button` normalisierte Transition kann so
+  ohne Button-Ereignis automatisch feuern. `inferVariables` leitet außerdem aus
+  Condition-Text nicht deklarierte Eingabefelder ab und rendert sie. Condition
+  entscheidet damit nicht nur nach einem passenden Trigger über die Zulassung,
+  sondern beeinflusst Trigger und Darstellung. Das widerspricht PRN-002,
+  TRN-003 und TRN-006; bestehende Fetch-Tests schreiben einen Teil dieses
+  Verhaltens derzeit fest.
+- **GAP-016 Realtime-Bindings ohne wirksames Ziel, offen am 2026-07-12:** Der
+  Standardkatalog und `docs/realtime-api.md` liefern Bindings nach
+  `realtime.*`. `runtimeExternalWritePathIsAuthorized` erlaubt für externe
+  Bindings dagegen nur deklarierte `states.*`-Pfade oder ausdrücklich
+  freigegebene Bookkeeping-Pfade und verwirft diese Katalogziele. Ein Test
+  erwartet dieses Verwerfen ausdrücklich. Der Ereignispayload liegt bereits
+  ohne Kopie unter `events.<name>.detail`; der Vertrag muss entscheiden, ob
+  Katalogbindings ganz entfallen oder ausschließlich modellseitig deklarierte
+  State-Ziele verwenden.
+- **GAP-017 Mehrdeutige Ereignisauflösung, offen am 2026-07-12:** Mehrere
+  ausgehende Event-, Realtime-, Change-, Timer- oder Auto-Transitionen können
+  denselben effektiven Auslöser besitzen. Die Runtime feuert derzeit die erste
+  Transition in Modellreihenfolge, deren Condition wahr ist. Weder Vertrag noch
+  Validator definieren oder beanstanden diese unsichtbare Priorität. Auch die
+  Reihenfolge zwischen direktem Child-Ausgang und projiziertem Parent-Ausgang
+  ist dadurch fachlich relevant, ohne als Priorität modelliert zu sein.
+- **GAP-018 Realtime-Zustellgarantie, offen am 2026-07-12:** Die ausgehende
+  Browserqueue ist flüchtiger Speicher. Ein Payload wird direkt nach
+  `WebSocket.send` entfernt; der Server bestätigt weder Annahme noch Relay und
+  besitzt kein Replay. Reload, Prozessneustart oder ein Verbindungsabbruch im
+  unbestätigten Fenster können daher Ereignisse verlieren. Die Sequenzprüfung
+  verhindert Duplikate, ersetzt aber kein ACK. Eine unbegrenzte flüchtige Queue
+  ist zugleich keine belastbare Ressourcenregel. Der bestehende zustandslose
+  Serververtrag garantiert geordnete Live-Übertragung, aber keine absolute oder
+  dauerhafte Zustellung.
+- **GAP-019 Erzwungene und wiederholte Testinteraktionen, offen am 2026-07-12:**
+  Gemeinsame Inspector-Helfer in `state-tool.spec.js` und
+  `core-contracts.spec.js` verwenden weiterhin Playwright-Force-Clicks. Der
+  gemeinsame Ebenenwechsel-Helfer versucht einen Doppelklick bis zu dreimal.
+  Dadurch können zahlreiche Tests trotz einer real schwer oder nicht beim
+  ersten Versuch erreichbaren Bedienfläche grün bleiben. Das widerspricht
+  TST-006 und der für CAN-012 beziehungsweise DEMO-005 bereits durchgesetzten
+  Ersttrefferregel.
+- **GAP-020 Triggerdialekt `immediate` gegen `auto`, offen am 2026-07-12:**
+  TRN-003 und FX-008 nennen `immediate`; Editor, API-Dokumentation, MCP und
+  Runtime akzeptieren stattdessen `auto`. Ein eingelesenes `immediate` wird
+  aktuell zu `button` normalisiert. Es gibt damit keinen einzigen
+  schemaübergreifend kanonischen Namen für eine ereignislose unmittelbare
+  Fortsetzung.
+- **GAP-021 Template-Tokens gegen strukturierte Data Wires, offen am
+  2026-07-12:** REN-010 verbietet eine sichtbare Datenabbildung über
+  `{{...}}`-Tokens. Die Runtime implementiert mit `renderLiteralText` und
+  `exactTemplatePath` weiterhin genau diese Syntax; zahlreiche Tests und
+  Testmodelle verwenden sie für Text, Links, Fetch und Repeat. Der aktuelle
+  Bestand behauptet deshalb gleichzeitig, Tokens seien verboten und
+  ausführbarer Vertragsbestand.
+- **GAP-022 Pause als Schattenzustand, offen am 2026-07-12:** Neben
+  `runtime.paused` im Bus hält der Host `runtimePaused` als schreibbare lokale
+  Variable und der MCP-Workspace ein gleichnamiges Editorfeld. Die Hostvariable
+  steuert Buttontext, Reload-Payload und den nächsten Toggle-Befehl. Das ist mehr
+  als eine rein lesende Momentaufnahme und widerspricht STA-010, solange ihre
+  Projektions- und Befehlsgrenze nicht enger definiert oder die Variable entfernt
+  wird.
+- **GAP-023 Safari nur manuell nachgewiesen, offen am 2026-07-12:**
+  DEMO-012 besitzt einen automatisierten Reload-Test, der reguläre
+  Vertragsbestand installiert und startet jedoch nur Chromium. Der in GAP-011
+  genannte WebKit-Lauf war eine manuelle Abnahme und ist keine dauerhafte
+  CI-Regression. Der ursprüngliche Safari-Fehler kann deshalb browserbezogen
+  zurückkehren, ohne die Freigabematrix zu brechen.
+- **GAP-024 Uneinheitliche Node-Geometrie, offen am 2026-07-12:** Der Editor
+  berechnet State-Breiten titelabhängig zwischen 168 und 720 Pixeln; der MCP-Core
+  rechnet für Bounds, Gruppierung, Duplikation und Viewport-Fit fest mit 168
+  Pixeln. CAN-014 erlaubt sowohl Wachstum als auch kontrollierte Zweizeiligkeit
+  und entscheidet die Produktfrage damit nicht. Editor und headless Operationen
+  besitzen aktuell keine gemeinsame Geometriewahrheit.
+- **GAP-025 Verbleibende Kompatibilitätsoberflächen, offen am 2026-07-12:** Der
+  MCP-Workspace akzeptiert zusätzlich `state-blueprint.definition`, Releasecode
+  erkennt weiterhin `deploy-*`, und der Prompt-Parser akzeptiert `uebergang`.
+  Diese Pfade sind weder einheitlich als notwendige Eingabekompatibilität
+  dokumentiert noch vollständig aus dem strikten Schema entfernt. Damit bleibt
+  die allgemeine Regel „keine alten Aliase“ unscharf.
+- **GAP-026 Halbe Realtime-Produktoberflächen, offen am 2026-07-12:** Der Server
+  unterstützt und testet `presence.cursor` sowie Peer-Join/-Leave, obwohl der
+  Editor diese Presence nicht verwendet. Der Host veröffentlicht zusätzlich
+  `window.__stateBlueprintRealtime.emit`, ohne dass ein Emitter als
+  Modelloperation, Transitionwirkung oder Zustellvertrag definiert ist. Der
+  Ist-Stand ist dadurch weder klar trigger-only noch ein vollständiges
+  Emittersystem.
+- **GAP-027 Erste unkontrollierte Auslieferung, offen am 2026-07-12:** Der
+  Service Worker erzwingt Cache-Buster und `no-store`, sobald er eine Seite
+  kontrolliert. Die erste HTML-Antwort vor Registrierung des Workers wird im
+  Repository jedoch nicht durch einen Origin-Headervertrag abgesichert. Soll
+  DEMO-011 ausnahmslos auch für diesen ersten Request gelten, benötigt die
+  statische Auslieferung eine überprüfbare server- oder CDN-seitige
+  `Cache-Control: no-store`-Regel.
+- **GAP-028 Condition-Sprache ohne exakte Grammatik, offen am 2026-07-12:** Die
+  Runtime unterstützt faktisch eine kleine Sprache aus `!`, Vergleichen, `&&`
+  und `||`, zerlegt diese Operatoren jedoch per String-Split und validiert die
+  Syntax beim Speichern nicht. Klammern, Escaping, Operatoren in Stringwerten,
+  Typumwandlung und Fehlerdarstellung sind nicht normativ festgelegt. Ein
+  Schreibfehler kann deshalb lediglich als nicht erfüllte Condition erscheinen.
 
 ## 19. Implementierungslandkarte des Ist-Stands
 
@@ -1001,7 +1120,8 @@ einer Vertragsregel, ist er in Abschnitt 18 als offene Abweichung zu behandeln.
   Standalone-Runtime. `enhanceGeneratedAppHtml` erweitert diesen Quelltext;
   `GENERATED_APP_HTML` wird anschließend als Blob-URL in das Vorschau-Iframe
   geladen. Der Standalone-Export injiziert das Modell in genau diesen Quelltext
-  und deaktiviert dessen lokale Editor-Modellpfade.
+  und deaktiviert dessen lokale Editor-Modellpfade. Die Erweiterungen beruhen
+  derzeit auf stillen String- und Bereichsersetzungen; siehe GAP-013.
 - **ARC-005 Host-Runtime-Brücke:** Der Host sendet Modell, Reset- und
   Startinformationen per `STATE_BLUEPRINT_MODEL`. Die Runtime antwortet mit
   `STATE_BLUEPRINT_RUNTIME_STATE` und meldet Realtime-Busereignisse vor ihrer
@@ -1016,11 +1136,15 @@ einer Vertragsregel, ist er in Abschnitt 18 als offene Abweichung zu behandeln.
   Warteschlange verarbeitet. Die Condition-Auswertung nutzt ein begrenztes, eval-freies
   Ausdrucksmodell. Fetch ist ein State-Eintrittseffekt; Aktivierungs-ID und
   Quellsignatur verwerfen veraltete Antworten, Retries wachsen exponentiell und
-  Erfolg beziehungsweise Fehler treten wieder als FSM-Ereignisse ein.
+  Erfolg beziehungsweise Fehler treten wieder als FSM-Ereignisse ein. Der
+  aktuelle Resolver leitet die Fetch-Kandidatur zusätzlich aus dem Condition-
+  Text ab; siehe GAP-015.
 - **ARC-008 Rendering:** Die Runtime rendert die aktive Eltern-/Kindkette aus
   strukturierten State-Daten. Explizite Render-Reihenfolge verbindet manuelle
   Komponenten, `dataWire`-Referenzen und `transitionButton`-Referenzen. Text ist
   Anzeige; nur explizite Transition-IDs binden eine Nutzeraktion an den Ablauf.
+  Parallel dazu interpretiert `renderLiteralText` weiterhin `{{path}}`-Tokens;
+  siehe GAP-021.
 - **ARC-009 MCP-Schicht:** `mcp/state-blueprint-core.js` implementiert
   normalisierte Modellaktionen und Editor-Kommandos ohne DOM. Der
   `state-blueprint-server.js` stellt sie als zeilenbasiertes JSON-RPC über stdio
@@ -1030,7 +1154,8 @@ einer Vertragsregel, ist er in Abschnitt 18 als offene Abweichung zu behandeln.
 - **ARC-010 Realtime-Schicht:** `server/server.js` liefert Katalog, HMAC-
   Raumtoken, WebSocket-Relay und HTTP-Emit. Der Server bleibt fachlich zustandslos.
   Das vorhandene Presence-Protokoll ist flüchtig und derzeit nicht in die
-  Editoroberfläche integriert.
+  Editoroberfläche integriert. Der Host besitzt daneben eine nicht modellierte
+  lokale Emit-Funktion; siehe GAP-018 und GAP-026.
 - **ARC-011 Build und Öffentlichkeit:** `scripts/build-index.mjs` startet den
   echten Editor mit `?demo=zustand`, betätigt dessen Export und schreibt das
   Ergebnis als `index.html`. Die Root-Seite ist deshalb die laufende exportierte
@@ -1054,13 +1179,111 @@ state.html / MCP-Aktion
   -> optional: /events + /token + /ws als reiner Ereignistransport
 ```
 
-## 20. Nicht normative Richtung
+## 20. Zentraler Vertragsstand und offene Entscheidungen
+
+### 20.1 Bereits festgelegter Kern
+
+Die folgenden Leitfragen sind normativ entschieden und stehen nicht erneut zur
+Disposition, solange der Vertrag nicht ausdrücklich gemeinsam geändert wird:
+
+- Zustand ist eine ausführbare FSM und kein bloßes Diagramm. Das normalisierte
+  Modell ist die strukturelle Wahrheit, der globale JSON-Bus die einzige
+  veränderliche Laufzeitwahrheit; DOM, SVG, Host und Server sind Projektion oder
+  Transport.
+- Eine Transition ist der einzige fachliche State-Wechsel. Trigger, Condition
+  und `set` besitzen getrennte Aufgaben. Label und sichtbarer Text sind reine
+  Anzeige; neue oder leere Labels heißen `Weiter`, die Route wird separat
+  dargestellt.
+- Parent und Children sind echte verschachtelte Zustandsmaschinen. Ein- und
+  Ausgang laufen ausschließlich über die erklärte Boundary und echte
+  Parent-Transitionen; fehlende Ausgänge stoppen den Ablauf.
+- Realtime ist kein zweites Modell und keine kollaborative Graphbearbeitung.
+  Katalogisierte Ereignisse treten über den Bus ein; Server und Host dürfen die
+  fachliche Modell- und Bushoheit nicht übernehmen.
+- Mobile verwendet genau die vier exklusiven Arbeitsansichten Canvas, Vorlagen,
+  Details und Vorschau. Die Vorschau zeigt App und nicht interaktiven
+  Live-Canvas gemeinsam; Gesten müssen ohne verdeckte Bedienflächen oder
+  konkurrierende Panels funktionieren.
+- Inspector-, Vorschau- und Vorlagenzustand gehören dem Nutzer. Preset-Aktionen
+  dürfen diese Zustände und die gewählte mobile Arbeitsansicht nicht eigenmächtig
+  öffnen, schließen oder wechseln.
+- State, Ports, Pins und Kabel teilen ein Koordinatensystem. Fremde SVG-
+  Hitflächen dürfen einen State nicht überdecken; normale Erstinteraktionen
+  müssen ohne Force, Retry oder Locator-Fallback treffen.
+- Standalone-Export und Root-Demo verwenden dieselbe Runtime wie die Vorschau
+  und enthalten weder Editor- noch Ablauf-Diagnoseoberflächen. Sichtbare deutsche
+  Systemtexte verwenden native Umlaute und `ß`.
+- Es gibt keinen App-Shell- oder Asset-Cache. Frontend, Service Worker und
+  Backend teilen genau eine erst nach vollständigem Vertragslauf erhöhte
+  `release-N`-Wahrheit; Deployment muss verifizieren und bei Fehlern auf die
+  letzte gesunde Freigabe zurückrollen.
+- Testbeschleunigung darf nur parallelisieren. Vollständigkeit, echte
+  Browserinteraktion und der Verzicht auf Retries oder abgeschwächte Assertions
+  bleiben Teil der Freigabe.
+
+### 20.2 Noch offene Entscheidungen
+
+Die folgenden Entscheidungen sind ausdrücklich noch nicht normativ. Bis zu
+ihrer gemeinsamen Festlegung dürfen Implementierung oder Tests keine der
+Varianten stillschweigend zum Vertrag erklären:
+
+- **DEC-001 Standardaktion bei Enter:** Soll Enter nur bei exakt einer sichtbaren
+  Button-Transition feuern, immer der expliziten Render-Reihenfolge folgen oder
+  über ein eigenes Modellfeld eine Standardtransition erhalten? Eine
+  Labelauswertung ist gemäß TRN-004 und TRN-005 keine zulässige Variante.
+- **DEC-002 Mehrere Transitionen für dasselbe Ereignis:** Zur Wahl stehen ein
+  striktes Eindeutigkeitsgebot, explizite Prioritäten oder die Regel „alle
+  passenden Conditions auswerten, genau ein wahrer Kandidat feuert, mehrere
+  wahre Kandidaten stoppen mit Ambiguitätsfehler“. Eine unsichtbare
+  Modellreihenfolge ist keine belastbare Fachregel.
+- **DEC-003 Realtime-Emitter:** Zu entscheiden ist, ob Zustand vorerst
+  ausschließlich katalogisierte externe Realtime-Ereignisse konsumiert oder
+  selbst fachliche Ereignisse emittieren darf. Ein späterer Emitter müsste eine
+  explizite Modellwirkung mit Reihenfolge relativ zu `set` und State-Wechsel,
+  Payloadschema, Berechtigung, ACK und Fehlersemantik sein; `triggerType` darf
+  dafür nicht überladen werden.
+- **DEC-004 Realtime-Zustellung:** Der Vertrag muss ehrlich zwischen geordneter
+  sitzungsgebundener Live-Zustellung und dauerhafter garantierter Zustellung
+  wählen. Dauerhafte Garantie erfordert mindestens ACK, idempotente Sequenzen,
+  persistente Outbox und Replay und ist mit einem vollständig zustandslosen
+  Transport allein nicht erreichbar.
+- **DEC-005 Boundary-Eintritt:** Festzulegen ist, ob der aus der Boundary
+  abgeleitete Kind-Eintritt die einzige erlaubte abgeleitete Transition bleibt
+  oder als echte Transition im Modell materialisiert wird. In beiden Fällen
+  müssen Trigger, Condition, Timer, ID, Reihenfolge und Darstellung denselben
+  Resolver verwenden wie normale Transitionen.
+- **DEC-006 Kanonischer Soforttrigger:** `auto` oder `immediate` muss als einziger
+  Schemawert gewählt werden. Der andere Begriff darf danach weder Alias noch
+  Fallback sein.
+- **DEC-007 Datenabbildung:** Zu entscheiden ist zwischen ausschließlich
+  strukturierten Data Wires und einer ausdrücklich unterstützten, validierten
+  Template-Sprache. Beides gleichzeitig widerspricht dem Ziel einer einzigen
+  verständlichen Datenbindung.
+- **DEC-008 Node-Breite:** Zur Wahl stehen eine feste, rasterkonforme Breite mit
+  höchstens zwei Titelzeilen oder eine titelabhängige Breite, die dann auch MCP,
+  Routing und Viewport-Berechnung gemeinsam verwenden müssen.
+- **DEC-009 Kompatibilitätspolitik:** Zu entscheiden ist, ob Schema v2 strikt
+  alle alten Aliase ablehnt oder welche wenigen Eingabealiasse an welcher
+  Systemgrenze weiterhin erlaubt und dokumentiert werden. Persistenz und Export
+  bleiben in jedem Fall aliasfrei.
+- **DEC-010 Erste No-Cache-Antwort:** Zu entscheiden ist, welche kontrollierte
+  Hostinggrenze die `no-store`-Header für HTML, Service Worker, Deploy-Stamp und
+  Assets beweisbar setzt und wie dieser Headervertrag getestet wird.
+- **DEC-011 Condition-Grammatik:** Die unterstützten Operatoren, Typregeln,
+  Klammern, Stringliterale, Fehler und Validierung müssen exakt definiert werden;
+  alternativ entfällt freie Condition-Eingabe zugunsten ausschließlich
+  strukturierter Regeln.
+
+## 21. Nicht normative Richtung
 
 Diese Punkte beschreiben mögliche Weiterentwicklung und sind kein bestehender
 Abnahmevertrag:
 
-- visuelles Verbinden von Datenpfaden und Darstellungsbausteinen,
 - stärkere Typ-, Wertebereichs- und Schema-Prüfung des globalen Datenbaums,
 - einfachere Auswahl von Datenkonstellationen für Change-Übergänge,
 - ein Preset-Designer für vollständig vertragskonforme DaisyUI-Bausteine,
-- vollständige, nachvollziehbare und testbare API-Steuerung jeder Editoraktion.
+- vollständige, nachvollziehbare und testbare API-Steuerung jeder Editoraktion,
+- eine gemeinsam importierte Modell-/Runtime-Quelle statt String-Patching,
+- ausschließlich explizite Trigger, Datenbindungen und Transitionwirkungen,
+- ein Resolver, der Mehrdeutigkeit sichtbar und fehlgeschlossen behandelt,
+- eine benannte und technisch nachweisbare Realtime-Zustellklasse.
