@@ -251,11 +251,11 @@ Editoraktion
   Label MUSS exakt `Weiter` heißen. Das Label ist nutzereigene Anzeige und DARF
   beim Umbenennen eines Zustands oder Umverdrahten der Transition nicht
   automatisch geändert werden. Der Inspector MUSS die echte Verbindung als
-  `Quellzustand → Zielzustand` getrennt vom editierbaren Label anzeigen. Bei der
-  Normalisierung dürfen die bekannten alten Generatorwerte `Zu <aktueller
-  Zieltitel>` und `To <aktueller Zieltitel>` nur bei exakter Übereinstimmung in
-  `Weiter` überführt werden. Leere Labels werden ebenfalls `Weiter`; alle
-  anderen Labels bleiben unverändert.
+  `Quellzustand → Zielzustand` getrennt vom editierbaren Label anzeigen. Die
+  Normalisierung DARF den Labelinhalt nicht anhand von Quelle, Ziel, Sprache,
+  Präfix oder vermeintlicher Herkunft interpretieren. Ein leeres Label wird
+  `Weiter`; jedes vorhandene nicht leere Label bleibt nach dem Trimmen
+  unverändert. Es gibt keine Kompatibilitätsliste und keine Labelmigration.
 
 ## 7. Verschachtelung und Boundary
 
@@ -946,12 +946,12 @@ Abdeckungsbereiche:
   jeden gleich-originigen GET einen versionsgebundenen Cache-Buster und lädt mit
   `no-store`. Die Registrierung lädt den Deploy-Stamp ebenfalls cachefrei und
   setzt `updateViaCache: "none"`.
-- **GAP-010 Zielabhängige Übergangsnamen, geschlossen am 2026-07-12:** Neue
+- **GAP-010 Zielunabhängige Übergangsnamen, geschlossen am 2026-07-12:** Neue
   Transitionen aus Canvas, API, MCP und Prompt-Planung verwenden den stabilen
   Standard `Weiter`. Editor und Zustandsinspektor zeigen Quelle und Ziel separat
-  als Route. Die enge Bestandsmigration ersetzt nur einen zum aktuellen Ziel
-  exakt passenden alten Generatornamen; eigene und bereits veraltete Namen
-  bleiben erhalten. Regressionen sichern zusätzlich ab, dass eine spätere
+  als Route. Labelinhalte werden weder als Generatorwerte erkannt noch anhand
+  eines Ziels umgeschrieben. Die zuvor vorhandene Kompatibilitätserkennung ist
+  vollständig entfernt. Regressionen sichern zusätzlich ab, dass eine spätere
   Zustandsumbenennung das Transitionlabel nicht verändert.
 - **GAP-011 Mobile Real-Browser-Nachabnahme, geschlossen am 2026-07-12:** Die
   vier mobilen Arbeitsansichten wurden nach der Umsetzung erneut in Chromium

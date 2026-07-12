@@ -3191,7 +3191,7 @@ test.describe("State Blueprint tool", () => {
         }
       ],
       transitions: [
-        { id: "loop_parent", from: "user_avatar", to: "user_avatar", label: "To Benutzer-Avatar", condition: "", triggerType: "button", triggerEvent: "button.loop_parent.clicked", set: {} }
+        { id: "loop_parent", from: "user_avatar", to: "user_avatar", label: "Weiter", condition: "", triggerType: "button", triggerEvent: "button.loop_parent.clicked", set: {} }
       ]
     };
 
@@ -8636,7 +8636,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator(`.edge[data-edge-id="${loginEdgeId}"]`)).toHaveCount(1);
   });
 
-  test("keeps transition names independent from their separately shown route @smoke", async ({ page }) => {
+  test("keeps every explicit transition name opaque and separate from its route @smoke", async ({ page }) => {
     const inputModel = {
       version: 2,
       name: "Transition names",
@@ -8646,13 +8646,13 @@ test.describe("State Blueprint tool", () => {
         { id: "target", title: "Zustand 2", components: [], x: 384, y: 120 },
         { id: "custom_source", title: "Formular", components: [], x: 96, y: 360 },
         { id: "custom_target", title: "Konto", components: [], x: 384, y: 360 },
-        { id: "stale_source", title: "Früher", components: [], x: 672, y: 120 },
-        { id: "stale_target", title: "Aktuelles Ziel", components: [], x: 960, y: 120 }
+        { id: "empty_source", title: "Leer", components: [], x: 672, y: 120 },
+        { id: "empty_target", title: "Fertig", components: [], x: 960, y: 120 }
       ],
       transitions: [
-        { id: "legacy_exact", from: "start", to: "target", label: "Zu Zustand 2", condition: "", set: {} },
+        { id: "explicit", from: "start", to: "target", label: "Bestätigen", condition: "", set: {} },
         { id: "custom", from: "custom_source", to: "custom_target", label: "Anmelden", condition: "", set: {} },
-        { id: "legacy_stale", from: "stale_source", to: "stale_target", label: "Zu Früheres Ziel", condition: "", set: {} }
+        { id: "empty", from: "empty_source", to: "empty_target", label: "   ", condition: "", set: {} }
       ]
     };
     await page.addInitScript(({ key, model }) => {
@@ -8665,29 +8665,29 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator('[data-id="start"]')).toBeVisible();
 
     await expect.poll(() => page.evaluate(() => model.transitions.map(transition => transition.label))).toEqual([
-      "Weiter",
+      "Bestätigen",
       "Anmelden",
-      "Zu Früheres Ziel"
+      "Weiter"
     ]);
 
     await openStateInspector(page, "start");
-    await expect(page.locator("#pStateFlowTransition option")).toHaveText(["Weiter"]);
+    await expect(page.locator("#pStateFlowTransition option")).toHaveText(["Bestätigen"]);
     await expect(page.locator("#pStateFlowRoute")).toHaveText("Start → Zustand 2");
 
-    await page.locator('.edge-label[data-edge-id="legacy_exact"]').click();
-    await expect(page.locator("#pLabel")).toHaveValue("Weiter");
+    await page.locator('.edge-label[data-edge-id="explicit"]').click();
+    await expect(page.locator("#pLabel")).toHaveValue("Bestätigen");
     await expect(page.locator("#pTransitionRoute")).toHaveText("Start → Zustand 2");
 
     await page.locator('[data-id="target"] .node-edit').click();
     await page.locator("#pTitle").fill("Bestätigung");
-    await expect.poll(async () => (await savedModel(page)).transitions.find(transition => transition.id === "legacy_exact")?.label).toBe("Weiter");
+    await expect.poll(async () => (await savedModel(page)).transitions.find(transition => transition.id === "explicit")?.label).toBe("Bestätigen");
 
     await openStateInspector(page, "start");
     await expect(page.locator("#pStateFlowRoute")).toHaveText("Start → Bestätigung");
     await expect.poll(async () => (await savedModel(page)).transitions.map(transition => transition.label)).toEqual([
-      "Weiter",
+      "Bestätigen",
       "Anmelden",
-      "Zu Früheres Ziel"
+      "Weiter"
     ]);
   });
 

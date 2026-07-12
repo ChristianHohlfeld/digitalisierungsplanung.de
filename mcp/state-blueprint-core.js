@@ -499,20 +499,13 @@ function byModelId(model, id) {
   return model?.states?.find?.(state => state.id === id) || null;
 }
 
-function legacyGeneratedTransitionLabels(transition, model) {
-  const target = byModelId(model, transition?.to);
-  const title = String(target?.title || target?.id || "").trim();
-  return title ? [`Zu ${title}`, `To ${title}`] : [];
-}
-
 function defaultTransitionLabel() {
   return "Weiter";
 }
 
-function normalizeTransitionLabel(transition, model) {
+function normalizeTransitionLabel(transition) {
   const label = String(transition?.label || "").trim();
-  if (!label || legacyGeneratedTransitionLabels(transition, model).includes(label)) return defaultTransitionLabel();
-  return label;
+  return label || defaultTransitionLabel();
 }
 
 function boundaryProxyId(parentId, side, transitionId) {
@@ -648,7 +641,7 @@ function normalizeModel(input) {
       return {
         ...transition,
         id,
-        label: normalizeTransitionLabel(transition, m),
+        label: normalizeTransitionLabel(transition),
         condition: String(transition.condition || ""),
         set: normalizeDataObject(transition.set),
         triggerType,
@@ -1095,7 +1088,7 @@ function upsertTransition(model, args) {
   const sourceState = byModelId(model, from);
   target.from = from;
   target.to = to;
-  target.label = String(args.label || target.label || defaultTransitionLabel(target, model));
+  target.label = String(args.label || target.label || defaultTransitionLabel());
   target.condition = rewriteStateScopedCondition(sourceState, args.condition || "");
   target.set = normalizeStateScopedPatch(sourceState, args.set);
   target.triggerType = normalizeTransitionTriggerType(args);

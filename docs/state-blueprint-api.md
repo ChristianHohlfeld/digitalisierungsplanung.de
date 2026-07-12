@@ -256,9 +256,9 @@ Fields:
 | `groupEntryId`, `groupExitId` | Zustands-ID | nein | Editor-Projektionshinweise, kein Runtime-Zustand. |
 
 Das Label wird bei einer Zustandsumbenennung oder beim Umverdrahten nicht
-automatisch verändert. Bekannte alte Generatorwerte `Zu <aktueller Zieltitel>`
-und `To <aktueller Zieltitel>` werden nur bei exakter Übereinstimmung zu
-`Weiter`; andere und eigene Namen bleiben unverändert.
+automatisch verändert. Die Normalisierung interpretiert den Inhalt nicht anhand
+von Quelle, Ziel, Sprache oder Präfixen. Ein leeres Label wird `Weiter`; jedes
+vorhandene nicht leere Label bleibt nach dem Trimmen unverändert.
 
 Schaltflächen-Übergang:
 

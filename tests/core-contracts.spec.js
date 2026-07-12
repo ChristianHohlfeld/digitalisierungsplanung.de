@@ -995,13 +995,14 @@ test.describe("Core source contracts", () => {
     expect(appHtml).not.toContain("runtimeNextSiblingTransition");
     expect(appHtml).not.toContain("__runtime_next_child");
     expect(html).toContain("function defaultTransitionLabel");
-    expect(html).toContain("label: defaultTransitionLabel({ from: connecting.from, to: targetId })");
+    expect(html).toContain("label: defaultTransitionLabel()");
     expect(html).toContain("function transitionColorInLayer");
     expect(html).toContain("function actionTransitionColor");
     expect(html).toContain('item.classList.add("transition-button-render")');
     expect(html).toContain('item.style.setProperty("--transition-button-color", actionTransitionColor(actionTransition, s))');
     expect(appHtml).toContain("function runtimeTransitionLabel");
     expect(appHtml).toContain("button.textContent = runtimeTransitionLabel(t)");
+    expect(appHtml).toContain('return String(t?.label || "").trim() || "Weiter";');
     expect(appHtml).toContain("function runtimeTransitionHue");
     expect(appHtml).toContain("function runtimeTransitionColor");
     expect(appHtml).not.toContain("const globalIndex = model.transitions.findIndex");
@@ -1971,7 +1972,7 @@ test.describe("Core browser contracts", () => {
         { id: "direct_b", title: "Direct B", body: "", components: [], data: {}, parentId: "parent", x: 720, y: 216 }
       ],
       transitions: [
-        { id: "t_intro", from: "entry_child", to: "exit_child", label: "To Exit", condition: "", triggerType: "button", set: {} },
+        { id: "t_intro", from: "entry_child", to: "exit_child", label: "Weiter", condition: "", triggerType: "button", set: {} },
         { id: "t_direct_a", from: "exit_child", to: "direct_a", label: "Direct A", condition: "", triggerType: "button", set: {} },
         { id: "t_direct_b", from: "exit_child", to: "direct_b", label: "Direct B", condition: "", triggerType: "button", set: {} },
         { id: "t_parent_exit", from: "parent", to: "outside", label: "Parent Out", condition: "", triggerType: "button", groupExitId: "exit_child", set: {} }
@@ -2363,7 +2364,7 @@ test.describe("Core browser contracts", () => {
         { id: "state_7", title: "State 7", body: "", components: [], data: {}, x: 520, y: 180 }
       ],
       transitions: [
-        { id: "t_parent_out", from: "start", to: "state_7", label: "To State 7", condition: "", triggerType: "button", groupExitId: "navbar_shop_cart", set: {} },
+        { id: "t_parent_out", from: "start", to: "state_7", label: "Weiter", condition: "", triggerType: "button", groupExitId: "navbar_shop_cart", set: {} },
         { id: "t_settings", from: "navbar_shop_cart", to: "settings", label: "Settings", condition: "", triggerType: "button", set: {} },
         { id: "t_back", from: "settings", to: "navbar_shop_cart", label: "Back to navbar", condition: "", triggerType: "button", set: {} }
       ]

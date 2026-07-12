@@ -96,7 +96,7 @@ test.describe("State Blueprint MCP", () => {
     expect(applied.model.transitions[0].id).not.toBe("start");
   });
 
-  test("uses Weiter as the shared transition default without rewriting custom names @smoke", () => {
+  test("uses Weiter only for empty labels and treats every explicit name as opaque @smoke", () => {
     const normalized = normalizeModel({
       version: 2,
       name: "Transition names",
@@ -106,20 +106,20 @@ test.describe("State Blueprint MCP", () => {
         { id: "target", title: "Zustand 2" },
         { id: "custom_source", title: "Formular" },
         { id: "custom_target", title: "Konto" },
-        { id: "stale_source", title: "Früher" },
-        { id: "stale_target", title: "Aktuelles Ziel" }
+        { id: "empty_source", title: "Leer" },
+        { id: "empty_target", title: "Fertig" }
       ],
       transitions: [
-        { id: "legacy_exact", from: "start", to: "target", label: "Zu Zustand 2" },
+        { id: "explicit", from: "start", to: "target", label: "Bestätigen" },
         { id: "custom", from: "custom_source", to: "custom_target", label: "Anmelden" },
-        { id: "legacy_stale", from: "stale_source", to: "stale_target", label: "Zu Früheres Ziel" }
+        { id: "empty", from: "empty_source", to: "empty_target", label: "   " }
       ]
     });
 
     expect(normalized.transitions.map(transition => transition.label)).toEqual([
-      "Weiter",
+      "Bestätigen",
       "Anmelden",
-      "Zu Früheres Ziel"
+      "Weiter"
     ]);
 
     const created = applyCommands({}, [
