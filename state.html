@@ -22568,7 +22568,7 @@
       const active = document.activeElement;
       if (active && active !== input && active !== document.body && active !== mapEl) return;
       positionQuickRenameInput();
-      input.focus({ preventScroll: true });
+      if (active !== input) input.focus({ preventScroll: true });
     }
 
     function applyQuickRenameText(target, text, opts = {}) {
@@ -22617,6 +22617,7 @@
         id: target.id,
         input
       };
+      const initialValue = input.value;
       mapEl.appendChild(input);
       positionQuickRenameInput();
 
@@ -22652,7 +22653,8 @@
 
       requestAnimationFrame(() => {
         if (quickRenameSession?.input !== input) return;
-        input.focus({ preventScroll: true });
+        if (document.activeElement !== input) input.focus({ preventScroll: true });
+        if (input.value !== initialValue) return;
         if (seedValue === null) input.select();
         else input.setSelectionRange(input.value.length, input.value.length);
       });
