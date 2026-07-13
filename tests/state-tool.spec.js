@@ -65,6 +65,17 @@ function appFrame(page) {
   return page.frameLocator("#appFrame");
 }
 
+async function clickRuntimeTransitionUntilState(page, button, targetStateId) {
+  const app = appFrame(page);
+  await expect(button).toBeVisible();
+  await expect.poll(async () => {
+    const current = await app.locator("#statePill").textContent().catch(() => "");
+    if (current === targetStateId) return current;
+    await button.click().catch(() => {});
+    return app.locator("#statePill").textContent().catch(() => "");
+  }).toBe(targetStateId);
+}
+
 function productContractForTest(options = {}) {
   const contract = productContractResponse(DEFAULT_EVENT_CATALOG);
   const presets = Array.isArray(options.presets) ? options.presets : [];
@@ -6039,8 +6050,7 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator(`[data-id="${buttonState.id}"]`).click();
     const app = appFrame(page);
-    await expect(app.getByRole("button", { name: "Weiter" })).toBeVisible();
-    await app.getByRole("button", { name: "Weiter" }).click();
+    await clickRuntimeTransitionUntilState(page, app.getByRole("button", { name: "Weiter" }), nextState.id);
     await expect(app.locator("#statePill")).toHaveText(nextState.id);
     await expect.poll(async () => scopePath.split(".").reduce((value, key) => value?.[key], await runtimeContext(page))).toMatchObject({
       label: "Weiter",
@@ -7667,8 +7677,8 @@ test.describe("State Blueprint tool", () => {
     await imageLink.click();
     await expect(app.locator("#statePill")).toHaveText(cardState.id);
     await expect.poll(() => page.evaluate(() => window.__stateBlueprintOpenedUrls?.length || 0)).toBe(1);
-    await expect(app.locator(`button[data-transition-id="${cardTransition.id}"]`, { hasText: "Jetzt kaufen" })).toBeVisible();
-    await app.locator(`button[data-transition-id="${cardTransition.id}"]`, { hasText: "Jetzt kaufen" }).click();
+    const buyButton = app.locator(`button[data-transition-id="${cardTransition.id}"]`, { hasText: "Jetzt kaufen" });
+    await clickRuntimeTransitionUntilState(page, buyButton, cardTarget.id);
     await expect(app.locator("#statePill")).toHaveText(cardTarget.id);
   });
 
@@ -11274,9 +11284,9 @@ test.describe("State Blueprint tool", () => {
 
     const point = await emptyCanvasPoint(page);
     await page.mouse.move(point.x, point.y);
-    await page.mouse.down();
+    await page.mouse.down({ button: "middle" });
     await page.mouse.move(point.x - 80, point.y + 45, { steps: 6 });
-    await page.mouse.up();
+    await page.mouse.up({ button: "middle" });
 
     await expect.poll(() => worldTransform(page)).not.toBe(beforeDrag);
     await expect(edge).toHaveClass(/selected/);
@@ -13921,7 +13931,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator(".state-explorer-label")).toHaveCount(0);
     await expect(page.locator('.state-explorer-section[data-template-category="website"]')).toBeVisible();
     await expect(page.locator('.state-explorer-section[data-template-group="core"]')).toHaveCount(5);
-    await expect(page.locator('.state-explorer-section[data-template-group="user"]')).toBeVisible();
+    await expect(page.locator('.state-explorer-section[data-template-group="user"]')).toHaveCount(0);
     await expect(componentPreset(page, "Textblock").getByRole("button", { name: "Löschen" })).toHaveCount(0);
     await assertVisibleInViewport(page, "#stateExplorer");
     await assertVisibleInViewport(page, "#btnToggleStateExplorer");

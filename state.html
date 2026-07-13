@@ -9036,6 +9036,8 @@
     let composingTemplateId = null;
     let previewTemplateId = "";
     let presetPreviewActive = false;
+    let manualDegroupTargetId = "";
+    let selectionActionDegroupTargetId = "";
     let suppressTemplateClickUntil = 0;
     let presetComposerDraft = null;
     let presetComposerSyncTimer = null;
@@ -14225,6 +14227,15 @@
       return state && statesInLayer(state.id).length ? state : null;
     }
 
+    function compositeStateForDegroupId(id) {
+      const state = byModelId(model, id);
+      return state && statesInLayer(state.id).length ? state : null;
+    }
+
+    function rememberManualDegroupTargetFromSelection() {
+      manualDegroupTargetId = selectedCompositeStateForDegroup()?.id || "";
+    }
+
     function selectedEdgeIds() {
       return new Set(selected?.edges || []);
     }
@@ -14271,6 +14282,7 @@
       clearQuickRenameSession();
       const previousNode = kind === "node" ? singleSelectedNodeId() : null;
       selected = kind === "node" ? selectionFromParts([id], []) : selectionFromParts([], [id]);
+      rememberManualDegroupTargetFromSelection();
       saveSelection(historyKey);
       const singleNode = kind === "node" ? singleSelectedNodeId() : null;
       if (opts.startRuntime !== false && singleNode && singleNode !== previousNode && byModelId(model, singleNode)) {
@@ -14287,6 +14299,7 @@
       if (index >= 0) list.splice(index, 1);
       else list.push(id);
       selected = selectionFromParts(nodes, edges);
+      rememberManualDegroupTargetFromSelection();
       saveSelection();
       const singleNode = singleSelectedNodeId();
       if (singleNode && byModelId(model, singleNode)) {
@@ -14297,6 +14310,7 @@
     function clearSelection(historyKey = null) {
       clearQuickRenameSession();
       selected = null;
+      manualDegroupTargetId = "";
       showEmptyInspector();
       saveSelection(historyKey);
       draw();
@@ -14308,6 +14322,7 @@
         .map(state => state.id);
       const edgeIds = visibleTransitions().map(transition => transition.id);
       selected = selectionFromParts(nodeIds, edgeIds, { allCurrentLayer: true });
+      manualDegroupTargetId = "";
       showEmptyInspector();
       saveSelection("selection:all");
       draw();
@@ -14948,6 +14963,7 @@
       ensureDefaultBoundaryTransitions(group, statesInLayer(group.id));
       normalizeModel(model);
       selected = selectionFromParts([group.id], []);
+      manualDegroupTargetId = group.id;
       showNodeInspector(group, { focus: false });
       saveModel("group:collapse");
       draw();
@@ -14983,6 +14999,7 @@
       const entry = childBoundaryState(parent, "input") || children[0];
       const exit = childBoundaryState(parent, "output") || children[children.length - 1] || entry;
       if (!entry || !exit) return false;
+      const removedLayerIsOpen = Boolean(currentLayerId && (currentLayerId === parent.id || isDescendant(parent.id, currentLayerId)));
 
       for (const transition of model.transitions) {
         if (isBoundaryFlowTransition(transition)) continue;
@@ -15009,7 +15026,10 @@
       model.transitions = model.transitions.filter(transition => transition.from !== parent.id && transition.to !== parent.id);
       ensureDefaultBoundaryTransitions(outerParent, statesInLayer(outerParentId));
       normalizeModel(model);
+      if (removedLayerIsOpen) currentLayerId = outerParentId && byId(outerParentId) ? outerParentId : null;
       selected = selectionFromParts(children.map(child => child.id), []);
+      if (manualDegroupTargetId === parent.id) manualDegroupTargetId = "";
+      if (selectionActionDegroupTargetId === parent.id) selectionActionDegroupTargetId = "";
       showEmptyInspector();
       saveModel("group:degroup");
       draw();
@@ -15017,7 +15037,8 @@
     }
 
     function groupOrDegroupSelected() {
-      const composite = selectedCompositeStateForDegroup();
+      const composite = compositeStateForDegroupId(selectionActionDegroupTargetId) || selectedCompositeStateForDegroup();
+      selectionActionDegroupTargetId = "";
       if (composite) {
         degroupCompositeState(composite);
         return;
@@ -23433,7 +23454,7 @@
       clearPresetPreviewUi();
       runtimeLayerFollowEnabled = Boolean(opts.allowLayerFollow);
       if (opts.allowLayerFollow) suppressRuntimeLayerFollowUntil = 0;
-      if (opts.suppressLayerFollow) suppressRuntimeLayerFollowUntil = Date.now() + 1200;
+      if (opts.suppressLayerFollow) suppressRuntimeLayerFollowUntil = Date.now() + 4000;
       pendingAppStartStateId = id;
       pendingAppStartSuppressLayerFollow = Boolean(opts.suppressLayerFollow);
       syncStateEl.textContent = "Start";
@@ -25168,6 +25189,9 @@
 
     function renderStateExplorer(opts = {}) {
       const scrollSnapshot = opts.scrollToGroup ? null : stateExplorerScrollSnapshot();
+      if (stateExplorerSearchEl && document.activeElement === stateExplorerSearchEl) {
+        stateExplorerSearch = String(stateExplorerSearchEl.value || "");
+      }
       const searchQuery = normalizePresetSearchText(stateExplorerSearch);
       if (stateExplorerSearchEl && stateExplorerSearchEl.value !== stateExplorerSearch) stateExplorerSearchEl.value = stateExplorerSearch;
       stateExplorerEl.classList.toggle("searching", Boolean(searchQuery));
@@ -25461,7 +25485,7 @@
         panning = null;
         mapEl.classList.remove("panning");
         setTimeout(() => {
-          if (!panning) suppressEdgeClickUntil = 0;
+          if (!panning && Date.now() >= suppressEdgeClickUntil) suppressEdgeClickUntil = 0;
         }, 0);
       }
       if (dragging) {
@@ -26556,6 +26580,13 @@
     btnSelectionCopy.onclick = copySelectedNodes;
     btnSelectionCollapse.onclick = groupOrDegroupSelected;
     btnSelectionDelete.onclick = deleteSelectedItems;
+    const rememberSelectionActionTarget = () => {
+      selectionActionDegroupTargetId = selectedCompositeStateForDegroup()?.id || manualDegroupTargetId || "";
+      cancelPendingNodeRuntimeStart();
+      stopRuntimeLayerFollow(4000);
+    };
+    selectionActionsEl.addEventListener("pointerdown", rememberSelectionActionTarget, { capture: true });
+    selectionActionsEl.addEventListener("focusin", rememberSelectionActionTarget, { capture: true });
     btnToggleInspector.onclick = () => {
       inspectorCollapsed = !inspectorCollapsed;
       inspectorCollapsedByUser = inspectorCollapsed;
