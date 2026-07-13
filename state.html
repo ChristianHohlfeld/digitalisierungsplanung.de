@@ -13322,6 +13322,7 @@
       pendingCanvasMouse = {
         clientX: evt.clientX,
         clientY: evt.clientY,
+        startedAt: Date.now(),
         moved: false,
         portCandidate
       };
@@ -13425,6 +13426,13 @@
       return true;
     }
 
+    function ignoreTransientDesktopMouseRelease(evt) {
+      if (evt.buttons !== 0) return false;
+      if (boxSelecting || dragging || connecting || panning) return false;
+      const pendingStartedAt = pendingCanvasMouse?.startedAt || pendingEdgeMouse?.startedAt || 0;
+      return Boolean(pendingStartedAt && Date.now() - pendingStartedAt < 120);
+    }
+
     function cancelStaleDesktopMouseGesture(evt) {
       if (Date.now() - lastTouchAt < 700) return false;
       if (activePointerId !== null || pendingCanvasTouch || pendingNodeTouch || pendingEdgeTouch || touchPointers.size) return false;
@@ -13442,6 +13450,7 @@
       pendingEdgeMouse = {
         clientX: evt.clientX,
         clientY: evt.clientY,
+        startedAt: Date.now(),
         transition: t
       };
       return true;
@@ -23012,6 +23021,7 @@
       positionQuickRenameInput();
 
       input.addEventListener("input", () => {
+        input.dataset.edited = "true";
         const activeTarget = quickRenameTarget();
         if (!activeTarget || !quickRenameSessionMatches(activeTarget)) return;
         applyQuickRenameText(activeTarget, input.value, { keepInputFocus: true });
@@ -23041,12 +23051,24 @@
         }, 30);
       });
 
+      input.focus({ preventScroll: true });
+      if (seedValue === null) {
+        input.select();
+      } else {
+        input.setSelectionRange(input.value.length, input.value.length);
+      }
       requestAnimationFrame(() => {
         if (quickRenameSession?.input !== input) return;
         if (document.activeElement !== input) input.focus({ preventScroll: true });
-        if (input.value !== initialValue) return;
-        if (seedValue === null) input.select();
-        else input.setSelectionRange(input.value.length, input.value.length);
+        if (input.value !== initialValue || input.dataset.edited === "true") return;
+        if (seedValue === null) {
+          if (input.selectionStart !== 0 || input.selectionEnd !== input.value.length) return;
+          input.select();
+        } else {
+          const end = input.value.length;
+          if (input.selectionStart !== end || input.selectionEnd !== end) return;
+          input.setSelectionRange(end, end);
+        }
       });
       return input;
     }
@@ -25885,6 +25907,7 @@
     }, { passive: false });
 
     window.addEventListener("mousemove", evt => {
+      if (ignoreTransientDesktopMouseRelease(evt)) return;
       if (cancelStaleDesktopMouseGesture(evt)) return;
       if (updatePendingEdgeMouse(evt)) return;
       if (updatePendingCanvasMouse(evt)) return;
