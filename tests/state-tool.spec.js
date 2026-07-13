@@ -4245,7 +4245,7 @@ test.describe("State Blueprint tool", () => {
   test("persists newly added component text immediately and renders it in preview", async ({ page }) => {
     await openTool(page);
 
-    await page.locator('[data-id="login"]').click();
+    await page.locator('[data-id="login"] .node-edit').click();
     await openInitialValuesEditor(page);
     await page.locator("#pData").fill('{"userName":"Ada"}');
     await expect.poll(async () => {
