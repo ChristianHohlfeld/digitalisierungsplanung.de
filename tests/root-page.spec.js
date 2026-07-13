@@ -41,6 +41,8 @@ test.describe("Root demo export", () => {
     expect(html).toContain('history.scrollRestoration = "manual"');
     expect(html).toContain("beginInitialViewportReset");
     expect(html).toContain("window.visualViewport?.addEventListener");
+    expect(html).toContain("Array.isArray(cursor) && /^\\d+$/.test(part)");
+    expect(html).not.toContain("Array.isArray(cursor) && /^d+$/.test(part)");
 
     await page.addInitScript(() => {
       const key = "safari-refresh-probe";

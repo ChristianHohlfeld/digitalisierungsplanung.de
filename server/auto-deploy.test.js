@@ -7,7 +7,27 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const test = require("node:test");
 
-const BASH = process.platform === "win32" ? "C:\\Program Files\\Git\\bin\\bash.exe" : "bash";
+function resolveBash() {
+  const candidates = [
+    process.env.BASH,
+    process.platform === "win32" ? "C:\\Program Files\\Git\\bin\\bash.exe" : "",
+    process.platform === "win32" && process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "Programs", "Git", "bin", "bash.exe") : "",
+    process.platform === "win32" ? "C:\\Program Files (x86)\\Git\\bin\\bash.exe" : "",
+    "bash"
+  ].filter(Boolean);
+  for (const candidate of candidates) {
+    const result = spawnSync(candidate, ["--version"], { encoding: "utf8" });
+    if (result.status === 0) return candidate;
+  }
+  return "bash";
+}
+
+const BASH = resolveBash();
+const BASH_PATH_STYLE = (() => {
+  if (process.platform !== "win32") return "posix";
+  const probe = spawnSync(BASH, ["-lc", "pwd -W >/dev/null 2>&1 && printf git || printf wsl"], { encoding: "utf8" });
+  return probe.stdout.trim() === "git" ? "git" : "wsl";
+})();
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -29,7 +49,10 @@ function bashPath(value) {
   const normalized = path.resolve(value).replaceAll("\\", "/");
   if (process.platform !== "win32") return normalized;
   const match = normalized.match(/^([a-zA-Z]):\/(.*)$/);
-  return match ? `/${match[1].toLowerCase()}/${match[2]}` : normalized;
+  if (!match) return normalized;
+  const drive = match[1].toLowerCase();
+  const rest = match[2];
+  return BASH_PATH_STYLE === "git" ? `/${drive}/${rest}` : `/mnt/${drive}/${rest}`;
 }
 
 function shellQuote(value) {
@@ -40,6 +63,14 @@ function writeExecutable(file, source) {
   fs.writeFileSync(file, source, { encoding: "utf8", mode: 0o755 });
 }
 
+function readIfExists(file) {
+  try {
+    return fs.readFileSync(file, "utf8");
+  } catch (_) {
+    return "";
+  }
+}
+
 function releaseSource(sequence) {
   return `globalThis.ZUSTAND_RELEASE_SEQUENCE = ${sequence};\n` +
     `globalThis.ZUSTAND_RELEASE_ID = "release-${sequence}";\n` +
@@ -47,7 +78,7 @@ function releaseSource(sequence) {
     `globalThis.ZUSTAND_RELEASE_SOURCE = "${String(sequence).padStart(7, "0")}";\n`;
 }
 
-test("auto deploy advances only verified releases and restores the last release after failure", () => {
+test("auto deploy advances only verified green releases and retries failed deploys without rollback", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "zustand-auto-deploy-"));
   try {
     const sourceRepo = path.join(root, "source");
@@ -132,9 +163,9 @@ exec ${shellQuote(bashPath(process.execPath))} "$@"
       FAKE_HEALTH_FILE: bashPath(healthFile),
       FAKE_LOG_FILE: bashPath(logFile)
     };
-    const command = `export PATH=${shellQuote(bashPath(fakeBin))}:$PATH; bash ${shellQuote(script)} --once`;
+    const command = `export PATH=${shellQuote(bashPath(fakeBin))}:"$PATH"; bash ${shellQuote(script)} --once`;
     const first = run(BASH, ["-c", command], { env: commonEnv, allowFailure: true });
-    assert.equal(first.status, 0, `${first.stdout}\n${first.stderr}\n${fs.readFileSync(logFile, "utf8")}`);
+    assert.equal(first.status, 0, `${first.stdout}\n${first.stderr}\n${readIfExists(logFile)}`);
     assert.match(first.stdout, /Deployment complete: release-59/);
     assert.equal(git(appDir, "rev-parse", "HEAD"), release59);
     assert.match(fs.readFileSync(path.join(stateDir, "deployed-release.env"), "utf8"), /RELEASE_ID=release-59/);
@@ -151,10 +182,17 @@ exec ${shellQuote(bashPath(process.execPath))} "$@"
       allowFailure: true
     });
     assert.equal(failed.status, 1, `${failed.stdout}\n${failed.stderr}`);
-    assert.match(failed.stdout, /Rollback is healthy on release-59/);
-    assert.equal(git(appDir, "rev-parse", "HEAD"), release59);
+    assert.match(failed.stdout, /Deployment of release-60 failed\. Marker remains on release-59/);
+    assert.doesNotMatch(failed.stdout, /Rollback|Restoring/);
+    assert.equal(git(appDir, "rev-parse", "HEAD"), git(sourceRepo, "rev-parse", "HEAD"));
     assert.match(fs.readFileSync(path.join(stateDir, "deployed-release.env"), "utf8"), /RELEASE_ID=release-59/);
     assert.equal(JSON.parse(fs.readFileSync(healthFile, "utf8")).releaseId, "release-59");
+
+    const retried = run(BASH, ["-c", command], { env: commonEnv, allowFailure: true });
+    assert.equal(retried.status, 0, `${retried.stdout}\n${retried.stderr}\n${readIfExists(logFile)}`);
+    assert.match(retried.stdout, /Deployment complete: release-60/);
+    assert.match(fs.readFileSync(path.join(stateDir, "deployed-release.env"), "utf8"), /RELEASE_ID=release-60/);
+    assert.equal(JSON.parse(fs.readFileSync(healthFile, "utf8")).releaseId, "release-60");
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

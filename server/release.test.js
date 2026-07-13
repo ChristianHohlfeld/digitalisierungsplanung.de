@@ -9,6 +9,38 @@ const { loadReleaseInfo, parseReleaseSource } = require("./release");
 
 const ROOT = path.resolve(__dirname, "..");
 
+function resolveBash() {
+  const candidates = [
+    process.env.BASH,
+    process.platform === "win32" ? "C:\\Program Files\\Git\\bin\\bash.exe" : "",
+    process.platform === "win32" && process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "Programs", "Git", "bin", "bash.exe") : "",
+    process.platform === "win32" ? "C:\\Program Files (x86)\\Git\\bin\\bash.exe" : "",
+    "bash"
+  ].filter(Boolean);
+  for (const candidate of candidates) {
+    const result = spawnSync(candidate, ["--version"], { encoding: "utf8" });
+    if (result.status === 0) return candidate;
+  }
+  return "bash";
+}
+
+const BASH = resolveBash();
+const BASH_PATH_STYLE = (() => {
+  if (process.platform !== "win32") return "posix";
+  const probe = spawnSync(BASH, ["-lc", "pwd -W >/dev/null 2>&1 && printf git || printf wsl"], { encoding: "utf8" });
+  return probe.stdout.trim() === "git" ? "git" : "wsl";
+})();
+
+function bashPath(value) {
+  const normalized = path.resolve(value).replaceAll("\\", "/");
+  if (process.platform !== "win32") return normalized;
+  const match = normalized.match(/^([a-zA-Z]):\/(.*)$/);
+  if (!match) return normalized;
+  const drive = match[1].toLowerCase();
+  const rest = match[2];
+  return BASH_PATH_STYLE === "git" ? `/${drive}/${rest}` : `/mnt/${drive}/${rest}`;
+}
+
 test("parses the canonical release file and supports matching process metadata", () => {
   const parsed = parseReleaseSource(`
 globalThis.ZUSTAND_RELEASE_SEQUENCE = 59;
@@ -45,17 +77,15 @@ globalThis.ZUSTAND_RELEASE_SOURCE = "1234567890abcdef";
   });
 });
 
-test("keeps automatic deployment locked, release-gated, force-synced, verified, and rollback-safe", () => {
+test("keeps automatic deployment locked, release-gated, force-synced, verified, and retry-only", () => {
   const autoDeploy = fs.readFileSync(path.join(__dirname, "auto-deploy.sh"), "utf8");
   const deploy = fs.readFileSync(path.join(__dirname, "deploy.sh"), "utf8");
   const ecosystem = fs.readFileSync(path.join(__dirname, "ecosystem.config.cjs"), "utf8");
   const runScript = fs.readFileSync(path.join(__dirname, "run.sh"), "utf8");
   const workflow = fs.readFileSync(path.join(ROOT, ".github", "workflows", "deploy.yml"), "utf8");
   const writer = fs.readFileSync(path.join(ROOT, "scripts", "write-release-version.mjs"), "utf8");
-  const bash = process.platform === "win32" ? "C:\\Program Files\\Git\\bin\\bash.exe" : "bash";
-
   for (const script of ["auto-deploy.sh", "deploy.sh", "run.sh"]) {
-    const syntax = spawnSync(bash, ["-n", path.join(__dirname, script)], { encoding: "utf8" });
+    const syntax = spawnSync(BASH, ["-n", bashPath(path.join(__dirname, script))], { encoding: "utf8" });
     assert.equal(syntax.status, 0, syntax.stderr || `${script} failed bash -n`);
   }
 
@@ -64,13 +94,11 @@ test("keeps automatic deployment locked, release-gated, force-synced, verified, 
   assert.match(autoDeploy, /reset --hard/);
   assert.match(autoDeploy, /clean -ffdx/);
   assert.match(autoDeploy, /Waiting for the green CI release stamp/);
-  assert.match(autoDeploy, /running_release_id/);
-  assert.match(autoDeploy, /commit_for_release/);
-  assert.match(autoDeploy, /previous_release_commit/);
   assert.match(autoDeploy, /prepare_deploy_runner/);
   assert.match(autoDeploy, /bash "\$DEPLOY_RUNNER"/);
-  assert.match(autoDeploy, /Deployment of .* failed\. Restoring/);
-  assert.match(autoDeploy, /Rollback is healthy/);
+  assert.match(autoDeploy, /Marker remains on/);
+  assert.doesNotMatch(autoDeploy, /running_release_id|commit_for_release|previous_release_commit/);
+  assert.doesNotMatch(autoDeploy, /Rollback|rollback|failed\. Restoring/);
   assert.match(autoDeploy, /OnUnitInactiveSec=\$\{AUTO_DEPLOY_INTERVAL\}/);
 
   const deployGate = autoDeploy.indexOf('if deploy_checked_out_release "$target_release"; then');

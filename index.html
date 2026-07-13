@@ -2173,7 +2173,7 @@
         let cursor = normalizeStateDataObject(state.data);
         let declared = parts.length > 0;
         for (const part of parts) {
-          if (Array.isArray(cursor) && /^d+$/.test(part) && Number(part) < cursor.length) {
+          if (Array.isArray(cursor) && /^\d+$/.test(part) && Number(part) < cursor.length) {
             cursor = cursor[Number(part)];
             continue;
           }

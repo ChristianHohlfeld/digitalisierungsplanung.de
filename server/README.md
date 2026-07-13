@@ -107,10 +107,10 @@ advanced the shared `release-N` ID in `release-version.js`. It then locks agains
 second run, discards all local repository changes, checks out the exact remote
 commit, runs `deploy.sh`, updates the PM2 environment, validates Nginx and
 requires `/healthz` to report the same release ID. The success marker advances
-only after all checks pass. A failed update is retried and then rolled back to
-the last verified commit; the timer tries the new release again later.
-Every deployment and rollback requires `/healthz.releaseId` to match the exact
-checked-out `release-N` file. There is no compatibility payload.
+only after all checks pass. A failed deployment does not advance the marker and
+does not search for older commits; the timer keeps retrying the latest green
+`release-N` until that same release is live. Non-stamped `main` changes are
+discarded by the next force sync.
 
 Useful commands:
 

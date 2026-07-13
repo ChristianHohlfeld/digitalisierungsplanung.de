@@ -169,44 +169,6 @@ health_reports_release() {
   ' <<<"$payload"
 }
 
-running_release_id() {
-  local payload
-  payload="$(curl -fsS --max-time 5 http://127.0.0.1:8788/healthz 2>/dev/null)" || return 1
-  node -e '
-    const fs = require("node:fs");
-    const body = JSON.parse(fs.readFileSync(0, "utf8"));
-    if (!body.ok || typeof body.releaseId !== "string") process.exit(1);
-    process.stdout.write(body.releaseId);
-  ' <<<"$payload"
-}
-
-commit_for_release() {
-  local expected="$1"
-  local commit candidate
-  while read -r commit; do
-    candidate="$(release_id_from_ref "$commit" || true)"
-    if [[ "$candidate" == "$expected" ]]; then
-      printf '%s' "$commit"
-      return 0
-    fi
-  done < <(git -C "$APP_DIR" rev-list --all --max-count=300 -- release-version.js)
-  return 1
-}
-
-previous_release_commit() {
-  local target_commit="$1"
-  local target_release="$2"
-  local commit candidate
-  while read -r commit; do
-    candidate="$(release_id_from_ref "$commit" || true)"
-    if [[ -n "$candidate" && "$candidate" != "$target_release" ]]; then
-      printf '%s' "$commit"
-      return 0
-    fi
-  done < <(git -C "$APP_DIR" rev-list --max-count=300 "${target_commit}^" -- release-version.js)
-  return 1
-}
-
 verify_release() {
   local expected="$1"
   nginx -t >/dev/null 2>&1 || return 1
@@ -353,7 +315,6 @@ run_once() {
     log "Remote main has no new tested release stamp yet. Waiting for CI."
     return 0
   fi
-  prepare_deploy_runner "$target_ref"
 
   local deployed_release deployed_commit
   deployed_release="$(marker_field RELEASE_ID)"
@@ -377,53 +338,30 @@ run_once() {
       return 0
     fi
     log "${deployed_release} is marked deployed but unhealthy; redeploying it."
+    local redeploy_commit="$deployed_commit"
+    if [[ -z "$redeploy_commit" ]] || ! git -C "$APP_DIR" cat-file -e "${redeploy_commit}^{commit}" 2>/dev/null; then
+      redeploy_commit="$target_commit"
+    fi
+    sync_to_commit "$redeploy_commit" full
+    prepare_deploy_runner "$redeploy_commit"
     if deploy_checked_out_release "$deployed_release"; then
       return 0
     fi
     return 1
   fi
 
-  local previous_commit previous_release previous_sequence previous_built_at previous_source_commit
-  previous_release="$deployed_release"
-  previous_commit="$deployed_commit"
-  if [[ -z "$previous_release" ]]; then
-    previous_release="$(running_release_id || true)"
-  fi
-  if [[ -z "$previous_commit" && -n "$previous_release" ]]; then
-    previous_commit="$(commit_for_release "$previous_release" || true)"
-  fi
-  if [[ -z "$previous_commit" ]]; then
-    previous_commit="$(previous_release_commit "$target_commit" "$target_release" || true)"
-  fi
-  if [[ -z "$previous_commit" ]] || ! git -C "$APP_DIR" cat-file -e "${previous_commit}^{commit}" 2>/dev/null; then
-    previous_commit="$(git -C "$APP_DIR" rev-parse HEAD)"
-  fi
-  if [[ -z "$previous_release" ]]; then
-    previous_release="$(release_id_from_ref "$previous_commit" || true)"
-  fi
-  previous_sequence="$(release_sequence_from_ref "$previous_commit" || true)"
-  previous_built_at="$(release_built_at_from_ref "$previous_commit" || true)"
-  previous_source_commit="$(release_source_commit_from_ref "$previous_commit" || true)"
-
   log "New tested release ${target_release} at ${target_commit}; currently ${deployed_release:-unmanaged}."
   sync_to_commit "$target_commit" full
+  prepare_deploy_runner "$target_commit"
   if deploy_checked_out_release "$target_release"; then
     write_marker "$target_release" "$target_sequence" "$target_commit" "$target_built_at" "$target_source_commit"
     log "Deployment complete: ${target_release}."
     return 0
   fi
 
-  log "Deployment of ${target_release} failed. Restoring ${previous_release:-the previous commit}."
-  if [[ -n "$previous_release" && "$previous_release" =~ ^(release|deploy)-[a-zA-Z0-9._-]+$ ]]; then
-    sync_to_commit "$previous_commit" full
-    if deploy_checked_out_release "$previous_release"; then
-      write_marker "$previous_release" "${previous_sequence:-0}" "$previous_commit" "$previous_built_at" "$previous_source_commit"
-      log "Rollback is healthy on ${previous_release}; the timer will retry the update."
-      return 1
-    fi
-  fi
   recover_services
-  printf 'Update and rollback both failed. Inspect journalctl and PM2 immediately.\n' >&2
+  log "Deployment of ${target_release} failed. Marker remains on ${deployed_release:-none}; the timer will retry this green release."
+  printf 'Update failed. Inspect journalctl and PM2 if the retry does not recover.\n' >&2
   return 1
 }
 

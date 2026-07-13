@@ -153,8 +153,9 @@ sudo bash server/auto-deploy.sh --install
 Danach prüft ein Systemd-Timer jede Minute `origin/main`. Er reagiert erst auf
 eine nach vollständigem CI-Lauf hochgezählte `release-N`-ID, verwirft lokale
 Änderungen im Server-Checkout, deployt exakt den freigegebenen Commit und prüft
-PM2, Nginx sowie die gleiche ID in `/healthz`. Bei einem Fehlschlag bleibt
-beziehungsweise wird der letzte verifizierte Stand wieder aktiv.
+PM2, Nginx sowie die gleiche ID in `/healthz`. Bei einem Fehlschlag wird der
+Marker nicht weitergeschrieben; der Timer versucht denselben neuesten grünen
+Release erneut. Nicht freigegebene `main`-Zwischenstände werden nicht deployed.
 
 ```bash
 sudo bash server/auto-deploy.sh --once
