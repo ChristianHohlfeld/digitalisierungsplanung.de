@@ -4448,6 +4448,11 @@
         touch-action: pan-y;
       }
 
+      .workspace.mobile-presets-active .state-explorer.searching .state-template-card,
+      .workspace.mobile-presets-active .state-explorer.searching .component-preset-card {
+        touch-action: none;
+      }
+
       .workspace.mobile-presets-active .component-preset-card {
         grid-template-columns: minmax(0, 1fr) 44px;
         grid-template-rows: auto !important;
@@ -25877,13 +25882,14 @@
       if (!templateTouchDrag.active) {
         const listStyle = stateExplorerListEl ? getComputedStyle(stateExplorerListEl) : null;
         const scrollsVertically = listStyle?.flexDirection === "column";
+        const searchDragMode = Boolean(stateExplorerEl?.classList.contains("searching"));
         const scrollAxis = scrollsVertically ? absY : absX;
         const dragAxis = scrollsVertically ? absX : absY;
-        if (scrollAxis >= TOUCH_TEMPLATE_SCROLL_CANCEL_PX && scrollAxis > dragAxis * 1.35) {
+        if (!searchDragMode && scrollAxis >= TOUCH_TEMPLATE_SCROLL_CANCEL_PX && scrollAxis > dragAxis * 1.35) {
           cancelTemplateTouchDrag({ restoreView: false });
           return false;
         }
-        if (distance >= TOUCH_TEMPLATE_DRAG_START_PX && dragAxis >= Math.min(scrollAxis * 0.75 + 1, TOUCH_TEMPLATE_DRAG_START_PX)) {
+        if (distance >= TOUCH_TEMPLATE_DRAG_START_PX && (searchDragMode || dragAxis >= Math.min(scrollAxis * 0.75 + 1, TOUCH_TEMPLATE_DRAG_START_PX))) {
           beginTemplateTouchDrag();
         }
       }

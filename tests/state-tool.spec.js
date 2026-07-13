@@ -2213,7 +2213,7 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator("#layerBack").click();
     await page.reload();
-    if (await page.locator("#layerBack").isVisible()) await page.locator("#layerBack").click();
+    await expect.poll(() => page.evaluate(() => currentLayerId || "")).toBe("");
     await expect(parent).toBeVisible();
     await parent.click();
     await expectImmediateChildSelection();
@@ -10820,6 +10820,84 @@ test.describe("State Blueprint tool", () => {
       }));
       window.dispatchEvent(new PointerEvent("pointerup", {
         pointerId: 41,
+        pointerType: "touch",
+        isPrimary: true,
+        button: 0,
+        buttons: 0,
+        clientX: x,
+        clientY: y,
+        bubbles: true,
+        cancelable: true
+      }));
+    }, drop);
+
+    await expect(canvasStateNodes(page)).toHaveCount(before + 1);
+    await expect(nodeByTitle(page, "Textblock")).toBeVisible();
+    await expect(page.locator(".template-drag-ghost")).toHaveCount(0);
+    await context.close();
+  });
+
+  test("drops filtered mobile presets onto the canvas with a vertical touch drag @smoke", async ({ browser }) => {
+    const context = await browser.newContext({
+      baseURL: "http://localhost:8124",
+      viewport: { width: 390, height: 820 },
+      hasTouch: true,
+      isMobile: true
+    });
+    const page = await context.newPage();
+    await openTool(page);
+
+    await page.locator('[data-mobile-view="presets"]').tap();
+    await page.locator("#stateExplorerSearch").fill("textblock");
+    const preset = componentPreset(page, "Textblock");
+    await expect(preset).toBeVisible();
+    await expect(page.locator("#stateExplorer")).toHaveClass(/searching/);
+    const start = await centerOf(preset);
+    const before = await canvasStateNodes(page).count();
+
+    await preset.dispatchEvent("pointerdown", {
+      pointerId: 42,
+      pointerType: "touch",
+      isPrimary: true,
+      button: 0,
+      buttons: 1,
+      clientX: start.x,
+      clientY: start.y,
+      bubbles: true,
+      cancelable: true
+    });
+    await page.waitForTimeout(40);
+    await page.evaluate(({ x, y }) => {
+      window.dispatchEvent(new PointerEvent("pointermove", {
+        pointerId: 42,
+        pointerType: "touch",
+        isPrimary: true,
+        button: 0,
+        buttons: 1,
+        clientX: x,
+        clientY: y,
+        bubbles: true,
+        cancelable: true
+      }));
+    }, { x: start.x + 2, y: start.y - 18 });
+    await expect(page.locator('[data-mobile-view="canvas"]')).toHaveClass(/active/);
+    await expect(page.locator(".template-drag-ghost")).toBeVisible();
+
+    const drop = await emptyCanvasPoint(page);
+    await page.evaluate(({ x, y }) => {
+      window.dispatchEvent(new PointerEvent("pointermove", {
+        pointerId: 42,
+        pointerType: "touch",
+        isPrimary: true,
+        button: 0,
+        buttons: 1,
+        clientX: x,
+        clientY: y,
+        bubbles: true,
+        cancelable: true
+      }));
+      window.dispatchEvent(new PointerEvent("pointerup", {
+        pointerId: 42,
         pointerType: "touch",
         isPrimary: true,
         button: 0,
