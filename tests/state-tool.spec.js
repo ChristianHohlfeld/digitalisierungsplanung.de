@@ -10513,7 +10513,7 @@ test.describe("State Blueprint tool", () => {
     }
   });
 
-  test("keeps mid-size touch workspaces exclusive until another tab is chosen @smoke", async ({ browser }) => {
+  test("keeps the canvas visible beside mid-size touch workspace panels @smoke", async ({ browser }) => {
     const context = await browser.newContext({
       baseURL: "http://localhost:8124",
       viewport: { width: 820, height: 1180 },
@@ -10553,7 +10553,14 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator('[data-mobile-view="edit"]').tap();
     await expect(page.locator("#stateInspector")).toBeVisible();
-    await expect(page.locator("#map")).toBeHidden();
+    await expect(page.locator("#map")).toBeVisible();
+    await expect(page.locator("#mapScene")).toBeVisible();
+    await expect.poll(() => page.evaluate(() => {
+      const scene = document.querySelector("#mapScene")?.getBoundingClientRect();
+      const inspector = document.querySelector("#stateInspector")?.getBoundingClientRect();
+      if (!scene || !inspector) return false;
+      return scene.height >= 176 && inspector.height >= 360 && Math.abs(scene.bottom - inspector.top) <= 1;
+    })).toBe(true);
     await page.locator('[data-mobile-view="canvas"]').tap();
     await expect(page.locator("#map")).toBeVisible();
     await expect(page.locator("#stateInspector")).toBeHidden();
