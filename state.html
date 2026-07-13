@@ -8609,7 +8609,10 @@
       if (runtimeCurrent !== current && findState(runtimeCurrent)) current = runtimeCurrent;
       syncRuntimeCurrent("runtime", true);`, `      if (!findState(current)) setRuntimeCurrent(model.initial, "runtime", true);
       const runtimeCurrent = resolveRuntimeTarget(current, null);
-      if (runtimeCurrent !== current && findState(runtimeCurrent)) setRuntimeCurrent(runtimeCurrent, "runtime", true);
+      if (runtimeCurrent !== current && findState(runtimeCurrent)) {
+        setRuntimeCurrent(runtimeCurrent, "runtime", true);
+        runCurrentStateEntryEffects({ fetch: true, defaults: true });
+      }
       syncRuntimeCurrent("runtime", true);`)
         .replace(`        current = requestedStart || model.initial;
         syncRuntimeCurrent(data.reset ? "reset" : "host", true);`, `        setRuntimeCurrent(requestedStart || model.initial, data.reset ? "reset" : "host", true);`)

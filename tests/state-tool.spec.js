@@ -2200,6 +2200,12 @@ test.describe("State Blueprint tool", () => {
       await expect(page.locator("#pTitle")).toHaveValue("Anfrage");
       await expect(app.getByRole("heading", { name: "Anfrage", exact: true })).toHaveCount(1);
       await expect(app.locator(".navbar")).toHaveCount(1);
+      await expect(app.locator(".navbar")).toContainText("Zustand");
+      await expect(app.locator(".navbar")).toContainText("Start");
+      await expect(app.locator(".navbar")).not.toContainText("Kopf-Navigation");
+      await expect(app.getByText("Klarheits-Workshop")).toBeVisible();
+      await expect(app.getByText("1.900 EUR")).toBeVisible();
+      await expect(app.getByRole("button", { name: "Anfrage senden", exact: true })).toHaveCount(1);
     };
 
     await parent.click();
