@@ -52,6 +52,24 @@ test("rejects catalog fields outside the contract instead of silently normalizin
   assert.throws(
     () => validateEventCatalog({
       ...DEFAULT_EVENT_CATALOG,
+      events: [{ ...DEFAULT_EVENT_CATALOG.events[0], name: "realtime.sip.call.missed" }],
+      emitters: [{ ...DEFAULT_EVENT_CATALOG.emitters[0], events: ["realtime.sip.call.missed"] }]
+    }),
+    error => error.code === "unknown_event_contract"
+  );
+  assert.throws(
+    () => validateEventCatalog({
+      ...DEFAULT_EVENT_CATALOG,
+      events: [{
+        ...DEFAULT_EVENT_CATALOG.events[0],
+        detail: { ...DEFAULT_EVENT_CATALOG.events[0].detail, queue: "text" }
+      }]
+    }),
+    error => error.code === "invalid_event_detail_contract"
+  );
+  assert.throws(
+    () => validateEventCatalog({
+      ...DEFAULT_EVENT_CATALOG,
       emitters: [{ ...DEFAULT_EVENT_CATALOG.emitters[0], id: "sip.threecx" }, { ...DEFAULT_EVENT_CATALOG.emitters[0], id: "sip.threecx" }]
     }),
     error => error.code === "duplicate_emitter"
@@ -62,6 +80,16 @@ test("rejects catalog fields outside the contract instead of silently normalizin
       emitters: [{ ...DEFAULT_EVENT_CATALOG.emitters[0], id: "realtime.sip.call.incoming" }]
     }),
     error => error.code === "catalog_id_collision"
+  );
+  assert.throws(
+    () => validateEventCatalog({
+      ...DEFAULT_EVENT_CATALOG,
+      emitters: [
+        ...DEFAULT_EVENT_CATALOG.emitters,
+        { ...DEFAULT_EVENT_CATALOG.emitters[1], id: "sip.threecx.child" }
+      ]
+    }),
+    error => error.code === "catalog_path_collision"
   );
 });
 

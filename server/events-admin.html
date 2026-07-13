@@ -32,6 +32,7 @@
     textarea { min-height: 82px; padding: 10px; resize: vertical; }
     textarea[readonly], input[readonly] { color: #cfe8ff; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; line-height: 1.45; }
     button { min-height: 40px; padding: 0 13px; border-color: #23729b; background: #0b3a55; color: #dff7ff; font-weight: 850; cursor: pointer; }
+    button:disabled { opacity: .55; cursor: not-allowed; }
     button.secondary { border-color: var(--line); background: var(--field); color: var(--text); }
     button.danger { border-color: #7f1d1d; background: #3f1018; color: #ffe4e6; }
     button.chip { min-height: 38px; padding: 0 12px; }
@@ -68,7 +69,7 @@
     <header>
       <div>
         <h1>Event Designer</h1>
-        <div class="muted">Event type, dataset, fields. Same contract as the canvas.</div>
+        <div class="muted">Event type, contract dataset, fields. Same contract as the canvas.</div>
       </div>
       <div class="row">
         <a href="/console.html">Console</a>
@@ -91,11 +92,11 @@
     <section class="panel stack">
       <div class="row between">
         <h2>2. Dataset</h2>
-        <button id="newEvent" class="secondary" type="button">New dataset</button>
+        <button id="newEvent" class="secondary" type="button">Add contract dataset</button>
       </div>
       <label>Edit dataset<select id="eventSelect"></select></label>
       <div class="grid">
-        <label>Dataset key<input id="datasetKey" autocomplete="off" placeholder="sip.call.incoming"></label>
+        <label>Contract dataset<select id="datasetKey"></select></label>
         <label>Canvas label<input id="eventLabel" autocomplete="off" placeholder="Incoming call"></label>
       </div>
       <label>Description<textarea id="eventDescription" placeholder="Business fact that happened"></textarea></label>
@@ -104,20 +105,14 @@
     <section class="panel stack">
       <div class="row between">
         <h2>3. Fields</h2>
-        <button id="addField" class="secondary" type="button">Add field</button>
+        <button id="addField" class="secondary" type="button" disabled>Fields from contract</button>
       </div>
       <div id="fields" class="stack"></div>
     </section>
 
     <section class="panel stack">
       <h2>4. Emits from</h2>
-      <div class="chip-grid">
-        <button class="chip" type="button" data-preset="threecx">3CX</button>
-        <button class="chip" type="button" data-preset="gmail">Gmail</button>
-        <button class="chip" type="button" data-preset="outlook">Outlook</button>
-        <button class="chip" type="button" data-preset="webhook">Webhook</button>
-        <button class="chip" type="button" data-preset="data">Data</button>
-      </div>
+      <div id="presetButtons" class="chip-grid"></div>
       <div id="sourceHint" class="muted"></div>
     </section>
 
@@ -170,52 +165,35 @@
     const EVENT_TYPES = [{ id: "realtime", label: "Realtime" }];
     const TYPES = ["text", "email", "password", "number", "boolean", "url", "image", "object", "list"];
     const CONNECTOR_TYPES = ["sip", "email", "webhook", "data"];
-    const DEFAULT_STATE = {
-      path: "realtime",
-      schema: {
-        roomId: "text",
-        clientId: "text",
-        status: "text",
-        connected: "boolean",
-        joined: "boolean",
-        connecting: "boolean",
-        reconnectAttempt: "number",
-        error: "text"
-      }
-    };
-    const EVENT_TEMPLATES = {
-      "realtime.sip.call.incoming": { name: "realtime.sip.call.incoming", label: "Incoming call", description: "SIP phone call started", detail: { caller: "text", callee: "text", callId: "text" }, bindings: [] },
-      "realtime.sip.call.answered": { name: "realtime.sip.call.answered", label: "Call answered", description: "SIP phone call was answered", detail: { callId: "text", agent: "text" }, bindings: [] },
-      "realtime.sip.call.ended": { name: "realtime.sip.call.ended", label: "Call ended", description: "SIP phone call ended", detail: { callId: "text", duration: "number" }, bindings: [] },
-      "realtime.mail.received": { name: "realtime.mail.received", label: "Mail received", description: "Inbound email arrived", detail: { from: "email", subject: "text", messageId: "text" }, bindings: [] },
-      "realtime.endpoint.updated": { name: "realtime.endpoint.updated", label: "Endpoint updated", description: "External endpoint reported a new status", detail: { endpoint: "url", status: "number", changedAt: "text" }, bindings: [] },
-      "realtime.data.updated": { name: "realtime.data.updated", label: "Data updated", description: "External data source reported an update", detail: { key: "text", value: "object" }, bindings: [] }
-    };
-    const PRESETS = {
-      threecx: { id: "sip.threecx", type: "sip", label: "3CX / SIP phone system", description: "Business phone bridge for real call events", events: ["realtime.sip.call.incoming", "realtime.sip.call.answered", "realtime.sip.call.ended"] },
-      gmail: { id: "mail.gmail", type: "email", label: "Gmail inbox", description: "Gmail bridge for new email events", events: ["realtime.mail.received"] },
-      outlook: { id: "mail.outlook", type: "email", label: "Outlook inbox", description: "Microsoft Outlook bridge for new email events", events: ["realtime.mail.received"] },
-      webhook: { id: "webhook.endpoint", type: "webhook", label: "Webhook endpoint", description: "External systems calling a webhook bridge", events: ["realtime.endpoint.updated"] },
-      data: { id: "data.source", type: "data", label: "Data source", description: "Data connector bridge for changed business data", events: ["realtime.data.updated"] }
-    };
-    const NEW_EVENT_BY_SOURCE = {
-      sip: "sip.call.custom",
-      email: "mail.custom",
-      webhook: "endpoint.custom",
-      data: "data.custom"
-    };
+    const DEFAULT_PROVIDER = { id: "digitalisierungsplanung.realtime", label: "Digitalisierungsplanung Realtime" };
     let catalog = {
-      provider: { id: "digitalisierungsplanung.realtime", label: "Digitalisierungsplanung Realtime" },
-      state: DEFAULT_STATE,
+      provider: DEFAULT_PROVIDER,
+      state: { path: "realtime", schema: {} },
       events: [],
       emitters: []
     };
+    let contract = null;
+    let eventTemplates = {};
+    let contractEmitters = [];
+    let defaultEventName = "";
     let selectedEventIndex = 0;
     let selectedConnectorIndex = 0;
     let selectedEventType = "realtime";
+    const ADMIN_SECRET_STORAGE_KEY = "digitalisierungsplanung.realtime.adminSecret";
 
     const el = id => document.getElementById(id);
     const statusEl = el("status");
+
+    try {
+      el("secret").value = localStorage.getItem(ADMIN_SECRET_STORAGE_KEY) || "";
+    } catch (_) {}
+    el("secret").addEventListener("input", () => {
+      try {
+        const value = el("secret").value.trim();
+        if (value) localStorage.setItem(ADMIN_SECRET_STORAGE_KEY, value);
+        else localStorage.removeItem(ADMIN_SECRET_STORAGE_KEY);
+      } catch (_) {}
+    });
 
     for (const type of EVENT_TYPES) {
       const option = document.createElement("option");
@@ -246,13 +224,36 @@
       return JSON.parse(JSON.stringify(value));
     }
 
-    function normalizeEvent(event = {}) {
+    function allowedEventNames() {
+      return new Set(Object.keys(eventTemplates));
+    }
+
+    function defaultEventTemplate() {
+      return eventTemplates[defaultEventName] || Object.values(eventTemplates)[0] || null;
+    }
+
+    function templateForEventName(name) {
+      return eventTemplates[name] || defaultEventTemplate();
+    }
+
+    function normalizeContractEvent(event = {}) {
       return {
-        name: String(event.name || "realtime.custom").trim(),
-        label: String(event.label || "Custom dataset").trim(),
+        name: String(event.name || "").trim(),
+        label: String(event.label || "Contract dataset").trim(),
         description: String(event.description || "").trim(),
-        detail: event.detail && typeof event.detail === "object" && !Array.isArray(event.detail) ? event.detail : {},
-        bindings: Array.isArray(event.bindings) ? event.bindings : []
+        detail: event.detail && typeof event.detail === "object" && !Array.isArray(event.detail) ? clone(event.detail) : {},
+        bindings: Array.isArray(event.bindings) ? clone(event.bindings) : []
+      };
+    }
+
+    function normalizeEvent(event = {}) {
+      const template = templateForEventName(String(event.name || defaultEventName || "").trim());
+      return {
+        name: template?.name || String(event.name || "").trim(),
+        label: String(event.label || template?.label || "Contract dataset").trim(),
+        description: String(event.description || "").trim(),
+        detail: clone(template?.detail || {}),
+        bindings: clone(template?.bindings || [])
       };
     }
 
@@ -268,11 +269,18 @@
     }
 
     function cleanCatalog(input) {
+      const allowed = allowedEventNames();
+      const events = (input.events || []).map(normalizeEvent).filter(event => allowed.has(event.name));
+      const eventNames = new Set(events.map(event => event.name));
+      const emitters = (input.emitters || []).map(normalizeConnector).map(source => ({
+        ...source,
+        events: source.events.filter(name => allowed.has(name) && eventNames.has(name))
+      })).filter(source => source.events.length);
       return {
-        provider: input.provider || { id: "digitalisierungsplanung.realtime", label: "Digitalisierungsplanung Realtime" },
-        state: input.state || DEFAULT_STATE,
-        events: (input.events || []).map(normalizeEvent),
-        emitters: (input.emitters || []).map(normalizeConnector)
+        provider: input.provider || contract?.provider || DEFAULT_PROVIDER,
+        state: input.state || contract?.state || { path: "realtime", schema: {} },
+        events,
+        emitters
       };
     }
 
@@ -284,17 +292,8 @@
 
     function eventNameFromDatasetKey(key) {
       const clean = String(key || "custom").trim().replace(/^realtime\./, "");
-      return selectedEventType + "." + clean;
-    }
-
-    function uniqueId(base, existing) {
-      const clean = String(base || "custom").replace(/[^a-zA-Z0-9_.:-]+/g, ".").replace(/^\.+|\.+$/g, "") || "custom";
-      if (!existing.has(clean)) return clean;
-      for (let index = 2; index < 1000; index += 1) {
-        const candidate = clean + "." + index;
-        if (!existing.has(candidate)) return candidate;
-      }
-      return clean + "." + Date.now();
+      const name = selectedEventType + "." + clean;
+      return eventTemplates[name] ? name : defaultEventName;
     }
 
     function sourceForEvent(eventName) {
@@ -310,10 +309,13 @@
     }
 
     function ensureCatalog() {
+      if (!defaultEventName) return;
       catalog = cleanCatalog(catalog);
-      catalog.events = catalog.events.filter(event => event.name.startsWith(selectedEventType + "."));
-      if (!catalog.events.length) catalog.events.push(normalizeEvent({ name: "realtime.custom", label: "Custom dataset", detail: { value: "text" } }));
-      if (!catalog.emitters.length) catalog.emitters.push(normalizeConnector({ ...PRESETS.webhook, events: [catalog.events[0].name] }));
+      if (!catalog.events.length) catalog.events.push(normalizeEvent({ name: defaultEventName }));
+      if (!catalog.emitters.length) {
+        const source = contractEmitters[0] || { id: "webhook.endpoint", type: "webhook", label: "Webhook endpoint", description: "", events: [catalog.events[0].name] };
+        catalog.emitters.push(normalizeConnector({ ...source, events: [catalog.events[0].name] }));
+      }
       selectedEventIndex = Math.max(0, Math.min(selectedEventIndex, catalog.events.length - 1));
       selectedConnectorIndex = Math.max(0, Math.min(selectedConnectorIndex, catalog.emitters.length - 1));
       const event = selectedEvent();
@@ -332,18 +334,12 @@
     function syncEventFromForm() {
       const event = selectedEvent();
       if (!event) return;
-      const oldName = event.name;
-      event.name = eventNameFromDatasetKey(el("datasetKey").value);
+      const template = templateForEventName(event.name);
+      event.name = template?.name || event.name;
       event.label = el("eventLabel").value.trim();
       event.description = el("eventDescription").value.trim();
-      const detail = {};
-      for (const row of [...el("fields").querySelectorAll("[data-field-row]")]) {
-        const path = row.querySelector("[data-field-path]").value.trim();
-        const type = row.querySelector("[data-field-type]").value;
-        if (path) detail[path] = type;
-      }
-      event.detail = detail;
-      replaceEventName(oldName, event.name);
+      event.detail = clone(template?.detail || {});
+      event.bindings = clone(template?.bindings || []);
       const source = selectedConnector();
       if (source && event.name && !source.events.includes(event.name)) source.events.push(event.name);
     }
@@ -410,6 +406,23 @@
       };
     }
 
+    function renderDatasetSelect(event) {
+      const select = el("datasetKey");
+      const current = datasetKeyFromEventName(event?.name || defaultEventName);
+      select.innerHTML = "";
+      for (const template of Object.values(eventTemplates)) {
+        const option = document.createElement("option");
+        option.value = datasetKeyFromEventName(template.name);
+        option.textContent = `${template.label || template.name} (${datasetKeyFromEventName(template.name)})`;
+        option.selected = option.value === current;
+        select.appendChild(option);
+      }
+      select.onchange = () => {
+        applyDatasetTemplate(select.value);
+        render();
+      };
+    }
+
     function addFieldRow(path = "", type = "text") {
       const row = document.createElement("div");
       row.className = "field-row";
@@ -421,12 +434,14 @@
       pathInput.dataset.fieldPath = "true";
       pathInput.value = path;
       pathInput.placeholder = "caller";
+      pathInput.readOnly = true;
       pathLabel.appendChild(pathInput);
 
       const typeLabel = document.createElement("label");
       typeLabel.textContent = "Type";
       const typeSelect = document.createElement("select");
       typeSelect.dataset.fieldType = "true";
+      typeSelect.disabled = true;
       for (const item of TYPES) {
         const option = document.createElement("option");
         option.value = item;
@@ -438,37 +453,40 @@
 
       const remove = document.createElement("button");
       remove.type = "button";
-      remove.className = "danger";
-      remove.textContent = "Remove";
-      remove.onclick = () => {
-        row.remove();
-        syncEventFromForm();
-        renderReadouts();
-      };
-      pathInput.oninput = typeSelect.onchange = () => {
-        syncEventFromForm();
-        renderEventSelect();
-        renderReadouts();
-      };
+      remove.className = "secondary";
+      remove.textContent = "Locked";
+      remove.disabled = true;
       row.append(pathLabel, typeLabel, remove);
       el("fields").appendChild(row);
+    }
+
+    function applyDatasetTemplate(datasetKey) {
+      const event = selectedEvent();
+      if (!event) return;
+      const oldName = event.name;
+      const name = eventNameFromDatasetKey(datasetKey);
+      const template = templateForEventName(name);
+      if (!template) return;
+      event.name = template.name;
+      event.label = template.label;
+      event.description = template.description;
+      event.detail = clone(template.detail || {});
+      event.bindings = clone(template.bindings || []);
+      replaceEventName(oldName, event.name);
+      const source = selectedConnector();
+      if (source && !source.events.includes(event.name)) source.events.push(event.name);
     }
 
     function renderEventEditor() {
       const event = selectedEvent();
       renderEventSelect();
+      renderDatasetSelect(event);
       el("eventType").value = selectedEventType;
-      el("datasetKey").value = datasetKeyFromEventName(event.name);
       el("eventLabel").value = event.label;
       el("eventDescription").value = event.description;
       el("fields").innerHTML = "";
       for (const [path, type] of Object.entries(event.detail || {})) addFieldRow(path, type);
       if (!Object.keys(event.detail || {}).length) addFieldRow("value", "text");
-      el("datasetKey").oninput = () => {
-        syncEventFromForm();
-        renderEventSelect();
-        renderReadouts();
-      };
       el("eventLabel").oninput = el("eventDescription").oninput = () => {
         syncEventFromForm();
         renderEventSelect();
@@ -497,9 +515,17 @@
 
     function renderPresetButtons() {
       const source = selectedConnector();
-      for (const button of document.querySelectorAll("[data-preset]")) {
-        const preset = PRESETS[button.dataset.preset];
-        button.classList.toggle("active", Boolean(preset && preset.id === source.id));
+      const box = el("presetButtons");
+      box.innerHTML = "";
+      for (const preset of contractEmitters) {
+        const button = document.createElement("button");
+        button.className = "chip";
+        button.type = "button";
+        button.dataset.presetId = preset.id;
+        button.textContent = preset.label || preset.id;
+        button.classList.toggle("active", preset.id === source?.id);
+        button.onclick = () => addPresetSource(preset.id);
+        box.appendChild(button);
       }
     }
 
@@ -574,6 +600,10 @@
     }
 
     function render() {
+      if (!defaultEventName) {
+        setStatus("Loading server contract...");
+        return;
+      }
       ensureCatalog();
       renderConnectorEditor();
       renderEventEditor();
@@ -581,7 +611,25 @@
       renderReadouts();
     }
 
+    function applyContract(payload) {
+      contract = payload || {};
+      const events = Array.isArray(contract.events) ? contract.events : [];
+      eventTemplates = Object.fromEntries(events.map(event => [event.name, normalizeContractEvent(event)]));
+      defaultEventName = events[0]?.name || "";
+      contractEmitters = Array.isArray(contract.emitters) ? contract.emitters.map(normalizeConnector) : [];
+      if (contract.state) catalog.state = contract.state;
+      if (contract.provider) catalog.provider = contract.provider;
+    }
+
+    async function loadContract() {
+      const response = await fetch("/events/contract", { cache: "no-store" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Contract load failed");
+      applyContract(payload);
+    }
+
     async function loadPublicCatalog() {
+      await loadContract();
       const response = await fetch("/events", { cache: "no-store" });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -603,6 +651,7 @@
         return;
       }
       setStatus("Loading secure catalog...");
+      if (!defaultEventName) await loadContract();
       const response = await fetch("/events-admin/catalog", { headers: authHeaders(), cache: "no-store" });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -639,9 +688,7 @@
 
     function createEventFromDatasetKey(datasetKey) {
       const eventName = eventNameFromDatasetKey(datasetKey);
-      const template = EVENT_TEMPLATES[eventName] || { name: eventName, label: "Custom dataset", description: "", detail: { value: "text" }, bindings: [] };
-      const existing = new Set(catalog.events.map(event => event.name));
-      return normalizeEvent({ ...clone(template), name: uniqueId(template.name, existing) });
+      return normalizeEvent(templateForEventName(eventName));
     }
 
     function selectEventByName(name) {
@@ -651,12 +698,12 @@
 
     function addPresetSource(name) {
       syncFromForm();
-      const preset = clone(PRESETS[name] || PRESETS.webhook);
+      const preset = clone(contractEmitters.find(source => source.id === name) || contractEmitters[0]);
+      if (!preset) return;
       const existingSourceIndex = catalog.emitters.findIndex(source => source.id === preset.id);
       if (existingSourceIndex >= 0) {
         selectedConnectorIndex = existingSourceIndex;
       } else {
-        preset.id = uniqueId(preset.id, new Set(catalog.emitters.map(source => source.id)));
         catalog.emitters.push(normalizeConnector(preset));
         selectedConnectorIndex = catalog.emitters.length - 1;
       }
@@ -673,12 +720,17 @@
     function newEvent() {
       syncFromForm();
       const source = selectedConnector();
-      const event = createEventFromDatasetKey(NEW_EVENT_BY_SOURCE[source.type] || "custom");
-      catalog.events.push(event);
-      selectedEventIndex = catalog.events.length - 1;
-      source.events.push(event.name);
+      const candidates = contractEmitters
+        .filter(preset => !source?.type || preset.type === source.type)
+        .flatMap(preset => preset.events || [])
+        .filter((name, index, list) => name && list.indexOf(name) === index);
+      const eventName = candidates.find(name => !source.events.includes(name)) || candidates[0] || defaultEventName;
+      if (!eventName) return;
+      if (!catalog.events.some(event => event.name === eventName)) catalog.events.push(createEventFromDatasetKey(datasetKeyFromEventName(eventName)));
+      if (!source.events.includes(eventName)) source.events.push(eventName);
+      selectEventByName(eventName);
       render();
-      setStatus("New dataset ready. Rename it and save.", "warn");
+      setStatus("Contract dataset added. Save to publish.", "warn");
     }
 
     function deleteEvent() {
@@ -706,7 +758,7 @@
       const stillOffered = new Set(catalog.emitters.flatMap(source => source.events || []));
       catalog.events = catalog.events.filter(event => stillOffered.has(event.name));
       if (!catalog.events.length) {
-        catalog.events.push(normalizeEvent({ name: "realtime.custom", label: "Custom dataset", detail: { value: "text" } }));
+        catalog.events.push(normalizeEvent({ name: defaultEventName }));
         catalog.emitters[0].events.push(catalog.events[0].name);
       }
       selectedEventIndex = 0;
@@ -725,9 +777,7 @@
     el("deleteEvent").onclick = deleteEvent;
     el("deleteConnector").onclick = deleteSource;
     el("addField").onclick = () => {
-      addFieldRow("value", "text");
-      syncEventFromForm();
-      renderReadouts();
+      setStatus("Fields are fixed by /events/contract.", "warn");
     };
     el("copyEmit").onclick = async () => {
       try {
@@ -737,10 +787,6 @@
         setStatus(error.message, "bad");
       }
     };
-    for (const button of document.querySelectorAll("[data-preset]")) {
-      button.onclick = () => addPresetSource(button.dataset.preset);
-    }
-
     render();
     loadPublicCatalog().catch(error => setStatus(error.message, "bad"));
   </script>

@@ -198,6 +198,17 @@ test("serves the event and connector catalog only to allowed origins", async () 
       headers: { Origin: "https://evil.example" }
     });
     assert.equal(rejected.status, 403);
+
+    const contract = await fetch(httpUrl(realtime, "/events/contract"), {
+      headers: { Origin: ORIGIN }
+    });
+    assert.equal(contract.status, 200);
+    const contractPayload = await contract.json();
+    assert.ok(contractPayload.events.some(event => event.name === "realtime.sip.call.incoming"));
+    assert.deepEqual(
+      contractPayload.events.find(event => event.name === "realtime.sip.call.incoming").detail,
+      { caller: "text", callee: "text", callId: "text" }
+    );
   });
 });
 
@@ -257,6 +268,7 @@ test("nginx proxies only lean public realtime routes", () => {
     "console.html",
     "events-admin.html",
     "/events-admin/catalog",
+    "/events/contract",
     "/healthz",
     "/version",
     "/token",
@@ -298,6 +310,9 @@ test("serves an admin event designer that validates, commits, and pushes the cat
       assert.match(html, /Realtime Event Designer/);
       assert.match(html, /Save to GitHub/);
       assert.match(html, /fetch\("\/events"/);
+      assert.match(html, /fetch\("\/events\/contract"/);
+      assert.match(html, /localStorage\.setItem\(ADMIN_SECRET_STORAGE_KEY/);
+      assert.doesNotMatch(html, /sip\.call\.custom/);
       assert.doesNotMatch(html, /admin-secret/);
 
       const unauthorized = await fetch(httpUrl(realtime, "/events-admin/catalog"));
@@ -321,14 +336,18 @@ test("serves an admin event designer that validates, commits, and pushes the cat
       assert.equal(invalid.status, 400);
       assert.deepEqual(await invalid.json(), { error: "unknown_field" });
 
-      loaded.catalog.events.push({
-        name: "realtime.sip.call.missed",
-        label: "Missed call",
-        description: "SIP phone call was missed",
-        detail: { callId: "text", caller: "text" },
-        bindings: []
+      loaded.catalog.events[0].label = "Incoming call updated";
+      const validateOnly = await fetch(httpUrl(realtime, "/events-admin/catalog?validate=1"), {
+        method: "POST",
+        headers: {
+          authorization: "Bearer admin-secret",
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({ catalog: loaded.catalog, validateOnly: true })
       });
-      loaded.catalog.emitters[0].events.push("realtime.sip.call.missed");
+      assert.equal(validateOnly.status, 200);
+      assert.equal((await validateOnly.json()).ok, true);
+
       const saved = await fetch(httpUrl(realtime, "/events-admin/catalog"), {
         method: "POST",
         headers: {
@@ -337,12 +356,12 @@ test("serves an admin event designer that validates, commits, and pushes the cat
         },
         body: JSON.stringify({
           catalog: loaded.catalog,
-          message: "Add missed call event"
+          message: "Update incoming call label"
         })
       });
       assert.equal(saved.status, 200);
       assert.deepEqual(await saved.json(), { ok: true, changed: true, commit: "abc123" });
-      assert.match(fs.readFileSync(catalogPath, "utf8"), /realtime\.sip\.call\.missed/);
+      assert.match(fs.readFileSync(catalogPath, "utf8"), /Incoming call updated/);
       assert.ok(calls.some(args => args[0] === "add" && args.includes("server/event-catalog.json")));
       assert.ok(calls.some(args => args[0] === "commit" || args.includes("commit")));
       assert.ok(calls.some(args => args[0] === "push" || args.includes("push")));
@@ -361,6 +380,7 @@ test("serves a stateless event console for catalogued test emits", async () => {
     assert.match(html, /Realtime Event Console/);
     assert.match(html, /fetch\("\/events"/);
     assert.match(html, /fetch\("\/emit"/);
+    assert.match(html, /localStorage\.setItem\(EMIT_SECRET_STORAGE_KEY/);
     assert.doesNotMatch(html, /emit-secret/);
 
     const socket = await connectClient(realtime, { clientId: "alice" });

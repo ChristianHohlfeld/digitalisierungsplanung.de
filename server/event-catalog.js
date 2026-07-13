@@ -119,6 +119,13 @@ const DEFAULT_EVENT_CATALOG = Object.freeze({
   ]
 });
 
+const PREDEFINED_EVENT_CONTRACTS = Object.freeze(Object.fromEntries(
+  DEFAULT_EVENT_CATALOG.events.map(event => [
+    event.name,
+    Object.freeze({ detail: Object.freeze({ ...event.detail }) })
+  ])
+));
+
 function isPlainObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -166,6 +173,22 @@ function normalizeEmitterType(value) {
   return type;
 }
 
+function pathContainsPath(left, right) {
+  return left === right || left.startsWith(`${right}.`) || right.startsWith(`${left}.`);
+}
+
+function assertNoPathCollisions(paths, label) {
+  const cleanPaths = paths.map(pathValue => sanitizeStatePath(pathValue)).filter(Boolean).sort();
+  for (let index = 0; index < cleanPaths.length; index += 1) {
+    const left = cleanPaths[index];
+    for (let nextIndex = index + 1; nextIndex < cleanPaths.length; nextIndex += 1) {
+      const right = cleanPaths[nextIndex];
+      if (!pathContainsPath(left, right)) continue;
+      throw contractError("catalog_path_collision", `${label} has colliding paths: ${left} and ${right}`);
+    }
+  }
+}
+
 function normalizeSchema(value, label) {
   if (!isPlainObject(value)) throw contractError("invalid_schema", `${label} must be an object`);
   const out = {};
@@ -175,6 +198,7 @@ function normalizeSchema(value, label) {
     if (Object.hasOwn(out, cleanPath)) throw contractError("duplicate_path", `${label}.${cleanPath} is duplicated`);
     out[cleanPath] = normalizeValueType(rawType);
   }
+  assertNoPathCollisions(Object.keys(out), label);
   return out;
 }
 
@@ -199,6 +223,29 @@ function normalizeBindings(value, detail, eventName) {
       type: normalizeValueType(binding.type || detail[sourceDetailPath] || "text")
     };
   });
+}
+
+function assertPredefinedEventContract(name, detail) {
+  const contract = PREDEFINED_EVENT_CONTRACTS[name];
+  if (!contract) {
+    throw contractError("unknown_event_contract", `${name} is not a predefined realtime dataset`);
+  }
+  const expected = contract.detail;
+  const actualKeys = Object.keys(detail).sort();
+  const expectedKeys = Object.keys(expected).sort();
+  if (actualKeys.length !== expectedKeys.length) {
+    throw contractError("invalid_event_detail_contract", `${name}.detail must match its predefined schema`);
+  }
+  for (let index = 0; index < expectedKeys.length; index += 1) {
+    if (actualKeys[index] !== expectedKeys[index]) {
+      throw contractError("invalid_event_detail_contract", `${name}.detail must match its predefined schema`);
+    }
+  }
+  for (const key of expectedKeys) {
+    if (detail[key] !== expected[key]) {
+      throw contractError("invalid_event_detail_contract", `${name}.detail.${key} must be ${expected[key]}`);
+    }
+  }
 }
 
 function validateEventCatalog(value) {
@@ -236,6 +283,7 @@ function validateEventCatalog(value) {
     const label = String(event.label || "").trim();
     if (!label) throw contractError("invalid_event_label", `${name}.label is required`);
     const detail = normalizeSchema(event.detail || {}, `${name}.detail`);
+    assertPredefinedEventContract(name, detail);
     return {
       name,
       label,
@@ -293,6 +341,11 @@ function validateEventCatalog(value) {
       throw contractError("event_without_emitter", `${event.name} has no emitter`);
     }
   }
+  assertNoPathCollisions([
+    state.path,
+    ...events.map(event => eventStateRoot(event.name)),
+    ...emitters.map(emitter => emitterStateRoot(emitter.id))
+  ], "catalog.contributes");
 
   return { provider, state, events, emitters };
 }
@@ -357,6 +410,10 @@ function eventCatalogResponse(catalog) {
   };
 }
 
+function predefinedEventContractResponse() {
+  return eventCatalogResponse(validateEventCatalog(DEFAULT_EVENT_CATALOG));
+}
+
 function detailTypeMatches(value, type) {
   if (type === "number") return typeof value === "number" && Number.isFinite(value);
   if (type === "boolean") return typeof value === "boolean";
@@ -380,6 +437,7 @@ function validateEventDetail(detail, schema) {
 module.exports = {
   DEFAULT_EVENT_CATALOG,
   DEFAULT_EVENT_CATALOG_PATH,
+  PREDEFINED_EVENT_CONTRACTS,
   VALID_EMITTER_TYPES,
   VALID_VALUE_TYPES,
   contractError,
@@ -388,6 +446,7 @@ module.exports = {
   emitterStateRoot,
   loadEventCatalog,
   loadEventCatalogFile,
+  predefinedEventContractResponse,
   sanitizeEventName,
   sanitizeId,
   sanitizeStatePath,

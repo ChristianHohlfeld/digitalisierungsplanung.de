@@ -56,13 +56,14 @@ triggerType: realtime
 triggerEvent: realtime.sip.call.incoming
 ```
 
-Open `https://realtime.digitalisierungsplanung.de/console.html?room=<room-id>` for a browser test emitter. The console loads connector sources, event names, and detail fields from `/events`, then POSTs to `/emit` with the Bearer secret you paste into the page. It stores no server-side state.
+Open `https://realtime.digitalisierungsplanung.de/console.html?room=<room-id>` for a browser test emitter. The console loads connector sources, event names, and detail fields from `/events`, then POSTs to `/emit` with the Bearer secret. The emit secret is stored only in this browser's localStorage for convenience; it is not rendered by the server or stored server-side.
 
 ## Event Catalog
 
 The event catalog is the server-side source of truth for offered realtime events and connector sources. Unknown `realtime.*` names are rejected on `/emit`, rejected on `/ws`, and ignored by the host bridge before they can enter the generated runtime.
 
 - `server/event-catalog.json`: single catalog source in Git.
+- `/events/contract`: strict server contract for allowed event keys, detail types, and collision-free state contribution paths.
 - `/events`: event and connector definitions.
 - `/ws`: WebSocket relay only.
 - `/emit`: authenticated server-to-server fire endpoint only.
@@ -84,13 +85,14 @@ Workspace automation or small mail bridge. For Outlook this is a Microsoft
 automation or Graph/mail bridge. The realtime server does not poll mailboxes or
 run a SIP stack.
 
-The designer follows the canvas contract order: event type, dataset, fields,
-source. It loads the live `/events` catalog without an admin secret. The admin
-secret is required only when saving. A save validates the strict catalog
-contract, writes `server/event-catalog.json`, commits it, and pushes it to
-GitHub.
+The designer follows the canvas contract order: event type, contract dataset,
+fixed fields, source. It loads `/events/contract` for the allowed keys and data
+types, then `/events` for the active catalog. The admin secret is stored only in
+this browser's localStorage and is required when reloading or saving through the
+admin API. A save validates the same strict server contract, writes
+`server/event-catalog.json`, commits it, and pushes it to GitHub.
 
-All connector IDs are globally unique and path-safe. Runtime state is written under `events.<eventName>.*` and `emitters.<emitterId>.*`. The canvas should store only concrete refs it uses, mainly `triggerType: realtime` and `triggerEvent`. It should not store preset contracts, endpoint definitions, catalog copies, or preset instances.
+All connector IDs are globally unique and path-safe. Runtime state is written under `events.<eventName>.*` and `emitters.<emitterId>.*`. Exact ID collisions and parent/child path collisions are rejected server-side. The canvas should store only concrete refs it uses, mainly `triggerType: realtime` and `triggerEvent`. It should not store preset contracts, endpoint definitions, catalog copies, or preset instances.
 
 Detailed payloads, error codes, curl examples, and WebSocket frame shapes are documented in [`../docs/realtime-api.md`](../docs/realtime-api.md).
 

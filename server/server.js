@@ -14,6 +14,7 @@ const DEFAULT_ALLOWED_ORIGINS = ["https://digitalisierungsplanung.de"];
 const DEFAULT_PATH = "/ws";
 const DEFAULT_TOKEN_PATH = "/token";
 const DEFAULT_EVENTS_PATH = "/events";
+const DEFAULT_EVENTS_CONTRACT_PATH = "/events/contract";
 const DEFAULT_EMIT_PATH = "/emit";
 const DEFAULT_CONSOLE_PATH = "/console.html";
 const DEFAULT_EVENTS_ADMIN_PATH = "/events-admin.html";
@@ -82,7 +83,7 @@ const CONSOLE_HTML = `<!doctype html>
         <button id="send" type="submit">Emit event</button>
         <button id="reload" type="button">Reload events</button>
       </div>
-      <div class="hint">Events come from <code>/events</code>. The secret stays in this browser field and is sent only as the Bearer token for <code>/emit</code>.</div>
+      <div class="hint">Events come from <code>/events</code>. The secret is stored locally in this browser and is sent only as the Bearer token for <code>/emit</code>.</div>
     </form>
     <div id="result" class="result">No event emitted yet.</div>
   </main>
@@ -97,7 +98,19 @@ const CONSOLE_HTML = `<!doctype html>
     const secretEl = document.getElementById("secret");
     const sendEl = document.getElementById("send");
     const stateLinkEl = document.getElementById("stateLink");
+    const EMIT_SECRET_STORAGE_KEY = "digitalisierungsplanung.realtime.emitSecret";
     let catalog = null;
+
+    try {
+      secretEl.value = localStorage.getItem(EMIT_SECRET_STORAGE_KEY) || "";
+    } catch (_) {}
+    secretEl.addEventListener("input", () => {
+      try {
+        const value = secretEl.value.trim();
+        if (value) localStorage.setItem(EMIT_SECRET_STORAGE_KEY, value);
+        else localStorage.removeItem(EMIT_SECRET_STORAGE_KEY);
+      } catch (_) {}
+    });
 
     function setResult(message, ok = true) {
       resultEl.classList.toggle("ok", ok);
@@ -287,6 +300,7 @@ function loadConfig(options = {}) {
     path: options.path || env.REALTIME_PATH || DEFAULT_PATH,
     tokenPath: options.tokenPath || env.REALTIME_TOKEN_PATH || DEFAULT_TOKEN_PATH,
     eventsPath: options.eventsPath || env.REALTIME_EVENTS_PATH || DEFAULT_EVENTS_PATH,
+    eventsContractPath: options.eventsContractPath || env.REALTIME_EVENTS_CONTRACT_PATH || DEFAULT_EVENTS_CONTRACT_PATH,
     emitPath: options.emitPath || env.REALTIME_EMIT_PATH || DEFAULT_EMIT_PATH,
     consolePath: options.consolePath || env.REALTIME_CONSOLE_PATH || DEFAULT_CONSOLE_PATH,
     eventsAdminPath: options.eventsAdminPath || env.REALTIME_EVENTS_ADMIN_PATH || DEFAULT_EVENTS_ADMIN_PATH,
@@ -740,6 +754,12 @@ function createRealtimeServer(options = {}) {
       writeJson(response, 200, eventCatalogResponse(config), prepared.headers);
       return;
     }
+    if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.eventsContractPath) {
+      const prepared = prepareCatalogResponse(request, response);
+      if (prepared.done) return;
+      writeJson(response, 200, eventCatalog.predefinedEventContractResponse(), prepared.headers);
+      return;
+    }
     if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.emitPath) {
       void handleEmitRequest(request, response);
       return;
@@ -834,6 +854,7 @@ function createRealtimeServer(options = {}) {
   }
 
   async function handleAdminCatalogRequest(request, response) {
+    const requestUrl = new URL(request.url || "/", "http://localhost");
     const headers = adminHeadersForRequest(request);
     if (!headers) {
       writeJson(response, 403, { error: "origin_not_allowed" });
@@ -875,6 +896,10 @@ function createRealtimeServer(options = {}) {
 
     try {
       const catalog = eventCatalog.validateEventCatalog(payload.catalog);
+      if (payload.validateOnly === true || requestUrl.searchParams.get("validate") === "1") {
+        writeJson(response, 200, { ok: true, catalog }, headers);
+        return;
+      }
       const result = writeCatalogCommitAndPush(config, catalog, payload.message);
       writeJson(response, 200, result, headers);
     } catch (error) {

@@ -104,6 +104,7 @@ Der Server in [`server/`](server/) ist nur Transport. Er speichert keine fachlic
 | `GET /healthz` | Gesundheitsprüfung |
 | `GET /version` | gemeinsame Frontend-/Backend-Release-ID |
 | `GET /events` | erlaubte Echtzeit-Ereignisse |
+| `GET /events/contract` | strikt erlaubte Event-Keys, Detail-Typen und State-Beiträge |
 | `GET /token` | signiertes Raum-Token für den Browser |
 | `GET /console.html` | Testoberfläche für Ereignisse |
 | `GET /events-admin.html` | einfacher Designer für Event-Type, Datensatz und Felder |
@@ -111,16 +112,18 @@ Der Server in [`server/`](server/) ist nur Transport. Er speichert keine fachlic
 | `POST /emit` | authentifiziertes Ereignis von außen |
 | `WSS /ws` | WebSocket-Verbindung |
 
-Der Ereigniskatalog liegt in [`server/event-catalog.json`](server/event-catalog.json).
-Er definiert angebotene `realtime.*`-Events, erlaubte Connectoren wie 3CX,
-Gmail, Outlook, Webhook und Datenquelle, die Detail-Payloads und den Beitrag zum
-globalen State Tree. Der Canvas speichert keine Katalogkopie, sondern nur
-konkrete Referenzen wie `triggerType: realtime` und `triggerEvent`.
+Der harte Contract kommt aus dem Server unter `/events/contract`: erlaubte
+`realtime.*`-Keys, feste Detail-Datentypen und kollisionsfreie State-Beiträge.
+Der aktive Ereigniskatalog liegt in [`server/event-catalog.json`](server/event-catalog.json)
+und darf nur diese Contract-Events anbieten. Der Canvas speichert keine
+Katalogkopie, sondern nur konkrete Referenzen wie `triggerType: realtime` und
+`triggerEvent`.
 
 Der Designer arbeitet in der gleichen Reihenfolge wie der Canvas-Vertrag:
-Event-Type, Datensatz, Felder, Quelle. Er lädt den aktuellen `/events`-Katalog
-direkt ohne Secret. Das Admin-Secret wird nur zum Speichern genutzt; beim
-Speichern validiert der Server den Contract, committet
+Event-Type, Contract-Datensatz, feste Felder, Quelle. Er lädt `/events/contract`
+für erlaubte Keys/Typen und `/events` für den aktiven Katalog. Das Admin-Secret
+bleibt lokal im Browser gespeichert; beim Speichern validiert der Server den Contract,
+committet
 `server/event-catalog.json` und pusht nach GitHub.
 
 Ein Ereignis von außen senden:

@@ -35,7 +35,7 @@ http://127.0.0.1:8788
 
 Browser-Origin ist in Produktion auf `https://digitalisierungsplanung.de` begrenzt. Konfiguriert wird das über `REALTIME_ALLOWED_ORIGINS`.
 
-`/events` erlaubt:
+`/events` und `/events/contract` erlauben:
 
 - Anfragen ohne `Origin`, z.B. `curl` oder Server-zu-Server,
 - Anfragen mit erlaubtem `Origin`,
@@ -74,6 +74,12 @@ realtime.
 ```
 
 `/emit` und WSS-`runtime.event` akzeptieren nur Ereignisse, die im aktuellen `/events`-Katalog angeboten werden. `/emit` braucht zusätzlich eine angebotene `emitterId`; diese Quelle muss für das konkrete Ereignis freigeschaltet sein.
+
+Der harte Dataset-Contract kommt aus `/events/contract`. Neue Event-Namen oder
+Detail-Felder sind nicht frei erfunden: sie müssen dort als fester
+`realtime.*`-Key mit festen Datentypen existieren. Exakte ID-Kollisionen und
+Parent/Child-Pfadkollisionen im globalen State Tree werden serverseitig
+abgelehnt.
 
 ## REST-Endpunkte
 
@@ -120,13 +126,18 @@ Release-Commit.
 
 ### `GET /console.html`
 
-HTML-Testkonsole für `/emit`. Die Seite speichert serverseitig nichts. Das Emit-Secret wird nur im Browserfeld verwendet und als Bearer-Token an `/emit` gesendet.
+HTML-Testkonsole für `/emit`. Die Seite speichert serverseitig nichts. Das
+Emit-Secret wird lokal im Browser-`localStorage` gespeichert und als
+Bearer-Token an `/emit` gesendet.
 
 ### `GET /events-admin.html`
 
 Einfacher Designer für `server/event-catalog.json`. Er folgt dem Canvas-Vertrag:
-Event-Type, Datensatz, Felder, Quelle. Er lädt den aktuellen `/events`-Katalog
-ohne Secret. Der globale State-Beitrag wird aus Datensatz und Quelle abgeleitet.
+Event-Type, Contract-Datensatz, feste Felder, Quelle. Er lädt `/events/contract`
+für erlaubte Keys/Typen und den aktuellen `/events`-Katalog ohne Secret. Der
+globale State-Beitrag wird aus Datensatz und Quelle abgeleitet. Das
+Admin-Secret wird lokal im Browser-`localStorage` gespeichert und nur als
+Bearer-Token an die Admin-API gesendet.
 
 ### `GET/POST /events-admin/catalog`
 
@@ -135,9 +146,11 @@ Secret-geschützte Admin-API für den Designer.
 - Auth: `Authorization: Bearer <REALTIME_ADMIN_SECRET>`
 - `GET`: lädt den Katalog aus `server/event-catalog.json`
 - `POST`: validiert, schreibt, committet und pusht den Katalog
+- `POST ?validate=1` oder Body `{ "validateOnly": true }`: validiert ohne Git-Schreibvorgang
 
 Die UI braucht diese Admin-API nur für sicheren Load und Save. Lesen kann sie
-den öffentlichen Live-Katalog über `/events`.
+den öffentlichen Contract über `/events/contract` und den Live-Katalog über
+`/events`.
 
 Der Save-Pfad nutzt Git. Falls der Server-Checkout nicht mit seinen vorhandenen
 Remote-Credentials pushen kann, muss `REALTIME_GIT_PUSH_TOKEN` gesetzt sein.
@@ -145,6 +158,14 @@ Remote-Credentials pushen kann, muss `REALTIME_GIT_PUSH_TOKEN` gesetzt sein.
 ### `GET /events`
 
 Ereignisdefinitionen. Das ist die Live-Quelle für auswählbare Realtime-Ereignisse im Editor.
+
+### `GET /events/contract`
+
+Harter Server-Contract für den Designer: erlaubte Event-Keys, feste
+Detail-Datentypen, erlaubte Default-Emitter und abgeleitete
+State-Contribution-Pfade. Die UI nutzt diesen Endpoint für Auswahl und Anzeige;
+die Autorität für Kollisionsfreiheit und Uniqueness bleibt trotzdem
+`validateEventCatalog` auf dem Server.
 
 Antwort:
 
@@ -493,6 +514,7 @@ REALTIME_PORT=8788
 REALTIME_PATH=/ws
 REALTIME_TOKEN_PATH=/token
 REALTIME_EVENTS_PATH=/events
+REALTIME_EVENTS_CONTRACT_PATH=/events/contract
 REALTIME_EMIT_PATH=/emit
 REALTIME_CONSOLE_PATH=/console.html
 REALTIME_EVENTS_ADMIN_PATH=/events-admin.html
