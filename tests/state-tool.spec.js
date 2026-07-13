@@ -1013,7 +1013,12 @@ test.describe("State Blueprint tool", () => {
     await page.locator("#pTitle").fill("Lesson ready");
     await openStateLayer(page, createdStateId);
     await addComponentState(page, "Note");
-    await componentEditor(page, "Note").locator("textarea").fill("Ready for {{states.start.userName}} as {{states.start.role}}");
+    const readyNoteTemplate = "Ready for {{states.start.userName}} as {{states.start.role}}";
+    await componentEditor(page, "Note").locator("textarea").fill(readyNoteTemplate);
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return model.states.find(state => state.parentId === createdStateId && state.title === "Note")?.components[0]?.text || "";
+    }).toBe(readyNoteTemplate);
     await page.keyboard.press("Alt+ArrowLeft");
 
     const app = appFrame(page);
@@ -1048,7 +1053,7 @@ test.describe("State Blueprint tool", () => {
     expect(start.data.userName).toBe("Ada");
     expect(start.data.profile.tier).toBe("starter");
     expect(model.states.filter(state => state.parentId === "start").map(state => state.components[0]?.type)).toEqual(["heading", "text", "list", "link", "note"]);
-    expect(model.states.find(state => state.parentId === done.id && state.title === "Note").components[0].text).toBe("Ready for {{states.start.userName}} as {{states.start.role}}");
+    expect(model.states.find(state => state.parentId === done.id && state.title === "Note").components[0].text).toBe(readyNoteTemplate);
     expect(transition.label).toBe("Submit");
     expect(transition.condition).toBe(submitCondition);
     expect(transition.set).toEqual({ "states.start.userName": "Grace", "states.start.role": "member" });
