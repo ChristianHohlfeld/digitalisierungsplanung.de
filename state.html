@@ -16901,7 +16901,7 @@
       const el = svgEdgeTarget(evt);
       if (!el || evt.button !== 0) return false;
       const canRewire = el.getAttribute("data-edge-rewire") === "true";
-      const canPan = el.classList.contains("hit") || el.classList.contains("edge");
+      const canPan = el.classList.contains("hit") || el.classList.contains("edge") || el.classList.contains("edge-label");
       if (!canRewire && !canPan) return false;
       const transition = transitionFromSvgEdge(el);
       if (!transition) return false;
@@ -26495,7 +26495,13 @@
     }, { passive: false });
 
     window.addEventListener("pointerup", evt => {
-      if (!isTouchPointer(evt)) return;
+      if (!isTouchPointer(evt)) {
+        flushQueuedCanvasMove(evt);
+        if (finishPendingEdgeMouse(evt)) return;
+        if (finishPendingCanvasMouse()) return;
+        handleCanvasEnd(evt);
+        return;
+      }
       evt.preventDefault();
       flushQueuedCanvasMove(evt);
       if (evt.pointerId === activePointerId) {

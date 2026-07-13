@@ -592,6 +592,12 @@ Editoraktion
   bestätigter Einzelclick die Runtime starten. Ein gültiger Doppelclick MUSS den
   ausstehenden Runtime-Start verwerfen und ausschließlich die innere State-Ebene
   öffnen.
+- **ED-023 Deterministischer Desktop-Abschluss:** State-, Canvas- und
+  Transition-Gesten MÜSSEN beim zugehörigen `pointerup` genau einmal
+  abgeschlossen werden. Ein nachfolgendes `mouseup` DARF dieselbe Geste weder
+  erneut anwenden noch ihre Auswahl verlieren. Sichtbares Transition-Label,
+  Pfad und Hitfläche MÜSSEN denselben Gestenpfad verwenden; ihre Einzel- und
+  Shift-Auswahl DARF nicht von einem nativen Browser-`click` abhängen.
 
 ## 12. Canvas, Routing und Treffererkennung
 
