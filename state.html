@@ -26675,6 +26675,7 @@
         refreshRuntimeInteractionState();
       }
       const previousAppState = hostRuntimeStateView();
+      if (data.transitionId) cancelPendingNodeRuntimeStart();
       const runtimeStateId = String(data.current || "");
       const runtimeEventContext = isPlainObject(data.context) ? data.context : {};
       applyRuntimeStateView(runtimeStateId);
