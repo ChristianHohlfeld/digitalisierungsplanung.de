@@ -9095,6 +9095,10 @@
     const MOBILE_SHEET_DEFAULT_TOP_RATIO = 0.42;
     const MOBILE_SHEET_MIN_HEIGHT = 112;
     const MOBILE_SHEET_SNAP_PX = 72;
+    const MOBILE_CANVAS_FOCUS_MAX_SCALE = 0.68;
+    const MOBILE_CANVAS_FOCUS_MIN_SCALE = 0.36;
+    const MOBILE_RUNTIME_FOLLOW_MAX_SCALE = 0.72;
+    const MOBILE_RUNTIME_FOLLOW_MIN_SCALE = 0.38;
 
     const workspaceEl = document.getElementById("workspace");
     const runtimePauseBannerEl = document.getElementById("runtimePauseBanner");
@@ -14141,7 +14145,10 @@
       showEmptyInspector();
       updateSelectRect();
       if (opts.persist !== false) saveSelection(historyKey + ":" + (nextLayerId || "root"));
-      if (opts.fit === true) fitView();
+      if (opts.fit === true) {
+        if (isMobileWorkspaceLayout()) focusMobileCanvasState({ allowPanelView: true });
+        else fitView();
+      }
       if (opts.draw === false) return;
       draw();
     }
@@ -14188,6 +14195,7 @@
       lastEmptyCanvasTap = null;
       navigateToLayer(state.id, "layer:auto-entry", { fit: true, persist: false, draw: false });
       selected = selectionFromParts([entry.id], []);
+      if (isMobileWorkspaceLayout()) focusMobileCanvasState({ allowPanelView: true, stateId: entry.id });
       saveSelection("layer:auto-entry:" + state.id + ":" + entry.id);
       showNodeProperties(entry, {
         focus: false,
@@ -15935,7 +15943,7 @@
         resetView();
         return;
       }
-      const selectedId = selected?.nodes?.length === 1 ? selected.nodes[0] : "";
+      const selectedId = String(options.stateId || (selected?.nodes?.length === 1 ? selected.nodes[0] : ""));
       const target = states.find(state => state.id === selectedId) ||
         states.find(state => state.id === hostRuntimeStateView()) ||
         states.find(state => state.id === model.initial) ||
@@ -15945,11 +15953,13 @@
       const width = nodeWidth(target);
       const height = nodeHeight(target);
       const fittedScale = Math.min(
-        1,
+        MOBILE_CANVAS_FOCUS_MAX_SCALE,
         Math.max(1, rect.width - 64) / Math.max(1, width),
         Math.max(1, rect.height - 112) / Math.max(1, height)
       );
-      camera.scale = clampScale(Math.max(.82, fittedScale));
+      const targetScale = Math.max(MOBILE_CANVAS_FOCUS_MIN_SCALE, fittedScale);
+      const currentScale = Number.isFinite(camera.scale) ? camera.scale : targetScale;
+      camera.scale = clampScale(options.allowZoomIn === true ? targetScale : Math.min(currentScale, targetScale));
       camera.x = Math.round(rect.width / 2 - (target.x + width / 2) * camera.scale);
       camera.y = Math.round(rect.height * .38 - (target.y + height / 2) * camera.scale);
       applyCamera();
@@ -15999,11 +16009,14 @@
       const maxY = Math.max(...states.map(state => state.y + nodeHeight(state)));
       const width = Math.max(1, maxX - minX);
       const height = Math.max(1, maxY - minY);
-      const scale = clampScale(Math.max(.58, Math.min(
-        1,
+      const fittedScale = Math.min(
+        MOBILE_RUNTIME_FOLLOW_MAX_SCALE,
         (rect.width - 64) / Math.max(1, width + 64),
         (rect.height - 48) / Math.max(1, height + 64)
-      )));
+      );
+      const targetScale = Math.max(MOBILE_RUNTIME_FOLLOW_MIN_SCALE, fittedScale);
+      const currentScale = Number.isFinite(camera.scale) ? camera.scale : targetScale;
+      const scale = clampScale(Math.min(currentScale, targetScale));
       camera.scale = scale;
       camera.x = Math.round((rect.width - width * scale) / 2 - minX * scale);
       camera.y = Math.round((rect.height - height * scale) / 2 - minY * scale);

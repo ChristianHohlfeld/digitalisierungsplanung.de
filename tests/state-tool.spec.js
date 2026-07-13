@@ -2226,6 +2226,52 @@ test.describe("State Blueprint tool", () => {
     await expectExclusiveChild();
   });
 
+  test("keeps mobile demo Anfrage auto-entry camera modest @smoke", async ({ browser }) => {
+    const context = await browser.newContext({
+      baseURL: "http://localhost:8124",
+      viewport: { width: 390, height: 820 },
+      hasTouch: true,
+      isMobile: true
+    });
+    const page = await context.newPage();
+    try {
+      await page.addInitScript(key => {
+        for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+          localStorage.removeItem(name);
+        }
+      }, STORAGE_KEY);
+      await page.goto("/state.html?demo=zustand");
+      await expect(page).toHaveURL(/\/state\.html$/);
+      await expect(page.locator('[data-id="site_checkout_flow"]')).toBeAttached();
+
+      await page.evaluate(() => {
+        setMobileWorkspaceView("canvas");
+        const state = byId("site_checkout_flow");
+        const rect = mapEl.getBoundingClientRect();
+        camera.scale = 0.64;
+        camera.x = Math.round(rect.width / 2 - (state.x + nodeWidth(state) / 2) * camera.scale);
+        camera.y = Math.round(rect.height * 0.38 - (state.y + nodeHeight(state) / 2) * camera.scale);
+        applyCamera({ persist: false });
+        draw();
+      });
+
+      await expect(page.locator('[data-id="site_checkout_flow"]')).toBeVisible();
+      await page.locator('[data-id="site_checkout_flow"]').tap();
+
+      await expect.poll(() => page.evaluate(() => ({
+        layerId: currentLayerId,
+        selectedNodes: selected?.nodes || []
+      }))).toEqual({
+        layerId: "site_checkout_flow",
+        selectedNodes: ["site_checkout"]
+      });
+      await expect.poll(() => page.evaluate(() => camera.scale)).toBeLessThanOrEqual(0.68);
+      await expect(page.locator('[data-id="site_checkout"]')).toHaveClass(/selected/);
+    } finally {
+      await context.close();
+    }
+  });
+
   test("asks before replacing stored work from the demo entry URL @smoke", async ({ page }) => {
     await page.addInitScript(({ key, model }) => {
       for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
@@ -10359,7 +10405,16 @@ test.describe("State Blueprint tool", () => {
     await expectMobileSheetHandle(page, false);
     await expect(page.locator("#mobileCommandBar")).toBeVisible();
     await expect(page.locator("#canvasHistoryActions")).toBeHidden();
-    await expect.poll(async () => Math.round((await page.locator('[data-id="auth_start"]').boundingBox())?.width || 0)).toBeGreaterThanOrEqual(140);
+    await expect.poll(() => page.evaluate(() => {
+      const box = document.querySelector('[data-id="auth_start"]')?.getBoundingClientRect();
+      return {
+        stateStaysTouchable: Math.round(box?.width || 0) >= 100,
+        mobileFocusDoesNotOverZoom: camera.scale <= 0.681
+      };
+    })).toEqual({
+      stateStaysTouchable: true,
+      mobileFocusDoesNotOverZoom: true
+    });
     await expect(page.locator("#stateInspectorBody")).not.toContainText("Click a state");
     await expect(page.locator("#stateInspectorBody")).not.toContainText("Drag a state");
     await page.evaluate(() => {
