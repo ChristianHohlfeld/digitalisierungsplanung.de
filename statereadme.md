@@ -527,16 +527,20 @@ Editoraktion
 - **ED-012 Responsive Bedienung:** Desktop, Tablet und Mobile MÜSSEN Canvas,
   Vorlagen, Details und Vorschau erreichbar halten. In der mobilen
   Arbeitsansicht MÜSSEN diese vier Aufgaben über vier gleich breite,
-  mindestens 44 Pixel hohe Navigationsziele erreichbar sein. Jeder Modus MUSS
-  die Arbeitsfläche ohne Restzeile, frei verschiebbaren Split oder verdeckten
-  Inhalt belegen. Canvas, Vorlagen und Details MÜSSEN jeweils eine exklusive
-  Vollfläche bleiben. Die mobile Vorschau MUSS dagegen innerhalb derselben
-  Vollfläche den echten Canvas-Renderer als nicht interaktiven Live-Monitor und
-  die bedienbare App gleichzeitig zeigen: in Portrait übereinander, in
-  Querformat nebeneinander. Der Monitor MUSS die an einer Runtime-Transition
-  beteiligten States und die bestehende State-/Kantenanimation sichtbar halten,
-  DARF keinen zweiten Renderer oder Modellstand erzeugen und DARF die vom Nutzer
-  gespeicherte Canvas-Kamera nicht überschreiben. Controls und Beschriftungen
+  mindestens 44 Pixel hohe Navigationsziele erreichbar sein. Der Canvas MUSS in
+  jedem mobilen Modus sichtbar bleiben und DARF von keinem Panel vollständig
+  oder teilweise überdeckt werden. Nur der Canvas-Modus verwendet die gesamte
+  Arbeitsfläche. Vorlagen, Details und Vorschau teilen sie mit demselben echten
+  Canvas-Renderer: in Portrait übereinander, in Querformat nebeneinander. Die
+  Vorschau verwendet den Canvas als nicht interaktiven Live-Monitor; Vorlagen
+  und Details behalten den normalen Editor-Canvas als Kontext. Jeder Teil MUSS
+  eine feste, bedienbare Mindestgröße besitzen; mobile Resizer und unsichtbare
+  Restflächen sind verboten. Der gemeinsame Canvas MUSS die an einer
+  Runtime-Transition beteiligten States und die bestehende State-/Kantenanimation
+  sichtbar halten, DARF keinen zweiten Renderer oder Modellstand erzeugen und
+  DARF die vom Nutzer gespeicherte Canvas-Kamera nicht überschreiben. Beim
+  Wechsel zurück in den Canvas-Modus MUSS die vorherige Kamera exakt
+  wiederhergestellt werden. Controls und Beschriftungen
   dürfen nicht überlappen, abgeschnitten werden, horizontal aus dem Viewport
   laufen oder durch Scrollbars verdeckt werden.
 - **ED-013 Touch:** Touch-Drag, Long-Press, Double-Tap, Pinch-Zoom,
@@ -1013,29 +1017,29 @@ Abdeckungsbereiche:
   ASCII-Umschrift ab.
   Der damalige Freigabestand bestand mit 315/315 Playwright- und 14/14 Server-
   Fällen; der aktuelle Bestand ist unter `TST-001` festgehalten.
-- **GAP-005 Mobile Bedienbarkeit, geschlossen am 2026-07-11:** Der visuelle
+- **GAP-005 Mobile Bedienbarkeit, geschlossen am 2026-07-11 und nachgeschärft am
+  2026-07-13:** Der visuelle
   Ist-Audit mit 360×800, 390×844, 430×932 und 844×390 Pixeln belegte fünf
   Vertragsverletzungen: unlesbar klein eingepasste Zustände, eine nur 80 Pixel
   hohe und damit unbedienbare Vorschau, tote Restflächen in Details und
   Vorschau, abgeschnittene sechs-spaltige Navigation sowie ein unbrauchbarer
-  Querformat-Split. Der neue Mobile-Vertrag verwendet deshalb in Portrait,
-  Querformat und auf mittleren Touch-Geräten ausschließlich vier Arbeitsansichten:
+  Querformat-Split. Der Mobile-Vertrag verwendet deshalb in Portrait,
+  Querformat und auf mittleren Touch-Geräten genau vier Aufgaben:
   `canvas`, `presets`, `edit` und `app`. Die Navigation zeigt nur Canvas,
   Vorlagen, Details und Vorschau. Undo/Redo liegen ausschließlich als
   44-Pixel-Aktionen oben rechts auf dem Canvas. Mobile Panel-Resizer sind
   deaktiviert.
   Beim Öffnen oder Laden fokussiert der Canvas den fachlichen Startzustand mit
   mindestens 0,82 Skalierung; der explizite Befehl `Einpassen` bleibt der
-  vollständige Modellüberblick. Die Vorlagenansicht belegt die ganze
-  Arbeitsfläche und ordnet kompakte Karten adaptiv an. Kein mobiler Modus darf
-  ein unabhängiges zweites Panel oder eine unsichtbare Restzeile reservieren.
-  Die Vorschau verwendet seit dem Live-Ablauf-Audit denselben Canvas-Renderer
-  als festen, nicht interaktiven Runtime-Monitor über beziehungsweise neben der
-  App; sie besitzt weder einen Resizer noch eine zweite Canvas-Geometrie. Der
-  Nachher-Audit derselben vier Viewports bestätigt für alle 16 Kombinationen
-  aus Viewport und Modus: exakt eine vollflächige Arbeitsansicht, keine
-  abgeschnittenen Tabs, keinen Dokument-Overflow und keine Browser- oder
-  Konsolenfehler.
+  vollständige Modellüberblick. Eine spätere Vollflächenregel für Vorlagen und
+  Details erwies sich als unbrauchbar, weil sie den Canvas vollständig verdeckte;
+  sie ist ersatzlos entfernt. Canvas bleibt jetzt in allen vier Aufgaben sichtbar.
+  Vorlagen, Details und Vorschau liegen in Portrait unter und in Querformat neben
+  demselben Renderer, ohne Überdeckung oder zweiten Modellstand. Nur die Vorschau
+  schaltet ihn als Live-Monitor nicht interaktiv. Die Panelkamera ist temporär;
+  die Nutzerkamera wird beim Rückwechsel exakt wiederhergestellt. Browsertests
+  prüfen Sichtbarkeit, Mindestgröße, lückenlose Teilung und fehlende Überdeckung
+  für alle vier Aufgaben in Portrait und Querformat.
 - **GAP-006 Geteilte CI-Abnahme, geschlossen am 2026-07-10:**
   `npm run test:full` umfasst Server und Browser und bleibt die lokale sowie die
   Gitea-Abnahme. GitHub Actions prüft denselben Bestand schneller in vier
@@ -1378,10 +1382,11 @@ Disposition, solange der Vertrag nicht ausdrücklich gemeinsam geändert wird:
   und keine passive Renderregion. `renderMode` ist verboten. Verschachtelte
   States bleiben echte FSM-Schritte; sichtbarer Inhalt gehört als Komponente
   auf genau den State, der ihn rendert.
-- Mobile verwendet genau die vier exklusiven Arbeitsansichten Canvas, Vorlagen,
-  Details und Vorschau. Die Vorschau zeigt App und nicht interaktiven
-  Live-Canvas gemeinsam; Gesten müssen ohne verdeckte Bedienflächen oder
-  konkurrierende Panels funktionieren.
+- Mobile verwendet genau die vier Aufgaben Canvas, Vorlagen, Details und
+  Vorschau. Der echte Canvas bleibt in jeder davon sichtbar; Vorlagen, Details
+  und App teilen sich den verbleibenden Platz ohne Überdeckung. Nur die Vorschau
+  verwendet ihn als nicht interaktiven Live-Monitor. Gesten müssen ohne
+  verdeckte Bedienflächen oder konkurrierende Panels funktionieren.
 - Inspector-, Vorschau- und Vorlagenzustand gehören dem Nutzer. Touch-Auswahl,
   Runtime-Nachrichten und Preset-Aktionen dürfen diese Zustände und die gewählte
   mobile Arbeitsansicht nicht eigenmächtig öffnen, schließen oder wechseln.

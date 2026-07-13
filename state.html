@@ -3677,6 +3677,8 @@
       }
 
       .workspace {
+        --mobile-canvas-context-height: clamp(176px, 25dvh, 216px);
+        --mobile-canvas-context-width: clamp(250px, 38vw, 320px);
         position: relative;
         flex: 1 1 0;
         width: 100%;
@@ -3700,20 +3702,30 @@
       html[data-preview-collapsed="true"] .workspace.mobile-canvas-active,
       html[data-inspector-collapsed="true"] .workspace.mobile-canvas-active,
       html[data-inspector-collapsed="true"][data-preview-collapsed="true"] .workspace.mobile-canvas-active,
+      .workspace.mobile-canvas-active,
+      .workspace.mobile-canvas-active.preview-collapsed,
+      .workspace.mobile-canvas-active.inspector-collapsed,
+      .workspace.mobile-canvas-active.inspector-collapsed.preview-collapsed {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(0, 1fr);
+      }
+
       html[data-preview-collapsed="true"] .workspace.mobile-presets-active,
       html[data-inspector-collapsed="true"] .workspace.mobile-presets-active,
       html[data-preview-collapsed="true"] .workspace.mobile-edit-active,
       html[data-inspector-collapsed="true"] .workspace.mobile-edit-active,
-      .workspace.mobile-canvas-active,
+      html[data-preview-collapsed="true"] .workspace.mobile-app-active,
+      html[data-inspector-collapsed="true"] .workspace.mobile-app-active,
       .workspace.mobile-presets-active,
       .workspace.mobile-edit-active,
-      .workspace.mobile-canvas-active.preview-collapsed,
-      .workspace.mobile-canvas-active.inspector-collapsed,
-      .workspace.mobile-canvas-active.inspector-collapsed.preview-collapsed,
+      .workspace.mobile-app-active,
       .workspace.mobile-presets-active.preview-collapsed,
-      .workspace.mobile-edit-active.preview-collapsed {
+      .workspace.mobile-edit-active.preview-collapsed,
+      .workspace.mobile-app-active.preview-collapsed,
+      .workspace.mobile-app-active.inspector-collapsed,
+      .workspace.mobile-app-active.inspector-collapsed.preview-collapsed {
         grid-template-columns: 1fr;
-        grid-template-rows: minmax(0, 1fr);
+        grid-template-rows: var(--mobile-canvas-context-height) minmax(0, 1fr);
       }
 
       .inspector,
@@ -3743,7 +3755,6 @@
       .workspace.mobile-canvas-active .preview,
       .workspace.mobile-presets-active .inspector,
       .workspace.mobile-presets-active .preview,
-      .workspace.mobile-edit-active .map,
       .workspace.mobile-edit-active .preview,
       .workspace.mobile-app-active .inspector {
         display: none;
@@ -3752,16 +3763,6 @@
       .workspace.mobile-canvas-active .map {
         display: block;
         grid-row: 1;
-      }
-
-      html[data-preview-collapsed="true"] .workspace.mobile-app-active,
-      html[data-inspector-collapsed="true"] .workspace.mobile-app-active,
-      .workspace.mobile-app-active,
-      .workspace.mobile-app-active.preview-collapsed,
-      .workspace.mobile-app-active.inspector-collapsed,
-      .workspace.mobile-app-active.inspector-collapsed.preview-collapsed {
-        grid-template-columns: 1fr;
-        grid-template-rows: clamp(168px, 25dvh, 216px) minmax(0, 1fr);
       }
 
       .workspace.mobile-app-active .map {
@@ -3798,20 +3799,45 @@
 
       .workspace.mobile-edit-active .inspector {
         display: grid;
-        grid-row: 1;
+        grid-column: 1;
+        grid-row: 2;
+        height: auto;
+        max-height: none;
         border-bottom: 0;
+      }
+
+      .workspace.mobile-edit-active .map {
+        display: block;
+        grid-column: 1;
+        grid-row: 1;
+        height: var(--mobile-canvas-context-height);
+        min-height: var(--mobile-canvas-context-height);
+        max-height: var(--mobile-canvas-context-height);
+        border-right: 0;
+        border-bottom: 1px solid #315f8c;
+        box-shadow: inset 0 -1px 0 rgba(56,189,248,.12), 0 8px 22px rgba(0,0,0,.28);
+      }
+
+      .workspace.mobile-edit-active .state-explorer {
+        display: none !important;
       }
 
       .workspace.mobile-presets-active .map {
         display: block;
-        grid-row: 1;
+        grid-row: 1 / -1;
         overflow: hidden;
-        background: #050b14;
       }
 
-      .workspace.mobile-presets-active #mapScene,
+      .workspace.mobile-presets-active #mapScene {
+        display: block;
+        inset: 0 0 auto;
+        height: var(--mobile-canvas-context-height);
+        border-bottom: 1px solid #315f8c;
+        box-shadow: inset 0 -1px 0 rgba(56,189,248,.12), 0 8px 22px rgba(0,0,0,.28);
+      }
+
       .workspace.mobile-presets-active #layerHud {
-        display: none;
+        display: flex;
       }
 
       .workspace.mobile-presets-active #selectRect {
@@ -4019,9 +4045,10 @@
 
       .workspace.mobile-presets-active .state-explorer {
         display: grid;
-        inset: 0;
-        height: 100%;
+        inset: var(--mobile-canvas-context-height) 0 0;
+        height: auto;
         z-index: 70;
+        border-top: 1px solid #315f8c;
         background: #050b14;
       }
 
@@ -4038,9 +4065,9 @@
       }
 
       .workspace.mobile-presets-active .state-explorer.collapsed {
-        inset: 0;
+        inset: var(--mobile-canvas-context-height) 0 0;
         width: auto;
-        height: 100%;
+        height: auto;
         opacity: 1;
       }
 
@@ -4236,24 +4263,6 @@
       }
     }
 
-    @media (max-width: 720px) and (orientation: portrait) {
-      html[data-preview-collapsed="true"] .workspace.mobile-edit-active,
-      html[data-inspector-collapsed="true"] .workspace.mobile-edit-active,
-      .workspace.mobile-edit-active,
-      .workspace.mobile-edit-active.preview-collapsed {
-        grid-template-rows: minmax(0, 1fr);
-      }
-
-      .workspace.mobile-edit-active .map,
-      .workspace.mobile-edit-active .preview-resizer {
-        display: none;
-      }
-
-      .workspace.mobile-edit-active .inspector {
-        grid-row: 1;
-      }
-    }
-
     @media (max-width: 899px) and (pointer: coarse) and (orientation: landscape) {
       html[data-preview-collapsed="true"] .workspace.mobile-canvas-active,
       html[data-inspector-collapsed="true"] .workspace.mobile-canvas-active,
@@ -4266,14 +4275,57 @@
         grid-template-rows: minmax(0, 1fr);
       }
 
+      html[data-preview-collapsed="true"] .workspace.mobile-presets-active,
+      html[data-inspector-collapsed="true"] .workspace.mobile-presets-active,
+      html[data-preview-collapsed="true"] .workspace.mobile-edit-active,
+      html[data-inspector-collapsed="true"] .workspace.mobile-edit-active,
       html[data-preview-collapsed="true"] .workspace.mobile-app-active,
       html[data-inspector-collapsed="true"] .workspace.mobile-app-active,
+      .workspace.mobile-presets-active,
+      .workspace.mobile-edit-active,
       .workspace.mobile-app-active,
       .workspace.mobile-app-active.preview-collapsed,
       .workspace.mobile-app-active.inspector-collapsed,
       .workspace.mobile-app-active.inspector-collapsed.preview-collapsed {
-        grid-template-columns: minmax(250px, 38%) minmax(0, 1fr);
+        grid-template-columns: var(--mobile-canvas-context-width) minmax(0, 1fr);
         grid-template-rows: minmax(0, 1fr);
+      }
+
+      .workspace.mobile-edit-active .map {
+        grid-column: 1;
+        grid-row: 1;
+        width: var(--mobile-canvas-context-width);
+        min-width: var(--mobile-canvas-context-width);
+        max-width: var(--mobile-canvas-context-width);
+        height: 100%;
+        min-height: 0;
+        max-height: 100%;
+        border-right: 1px solid #315f8c;
+        border-bottom: 0;
+        box-shadow: inset -1px 0 0 rgba(56,189,248,.12), 8px 0 22px rgba(0,0,0,.28);
+      }
+
+      .workspace.mobile-edit-active .inspector {
+        grid-column: 2;
+        grid-row: 1;
+      }
+
+      .workspace.mobile-presets-active .map {
+        grid-column: 1 / -1;
+        grid-row: 1;
+      }
+
+      .workspace.mobile-presets-active #mapScene {
+        width: var(--mobile-canvas-context-width);
+        height: 100%;
+        border-right: 1px solid #315f8c;
+        border-bottom: 0;
+        box-shadow: inset -1px 0 0 rgba(56,189,248,.12), 8px 0 22px rgba(0,0,0,.28);
+      }
+
+      .workspace.mobile-presets-active .state-explorer,
+      .workspace.mobile-presets-active .state-explorer.collapsed {
+        inset: 0 0 0 var(--mobile-canvas-context-width);
       }
 
       .workspace.mobile-app-active .map {
@@ -8808,7 +8860,7 @@
     let inspectorCollapsed = uiState.inspectorCollapsed;
     let inspectorCollapsedByUser = false;
     let mobileWorkspaceView = uiState.mobileWorkspaceView;
-    let mobileAppCanvasCameraSnapshot = null;
+    let mobilePanelCanvasCameraSnapshot = null;
     let mobileCanvasNeedsRuntimeFocus = false;
     let stateExplorerCollapsed = uiState.stateExplorerCollapsed;
     let stateExplorerGroup = uiState.stateExplorerGroup;
@@ -9540,8 +9592,8 @@
     }
 
     function cameraSnapshotForPersistence(value = null) {
-      const monitorSnapshot = isMobileWorkspaceLayout() && mobileWorkspaceView === "app"
-        ? mobileAppCanvasCameraSnapshot
+      const monitorSnapshot = isMobileWorkspaceLayout() && mobileWorkspaceView !== "canvas"
+        ? mobilePanelCanvasCameraSnapshot
         : null;
       const source = value || monitorSnapshot || camera;
       return { x: source.x, y: source.y, scale: source.scale };
@@ -9694,10 +9746,14 @@
         workspaceEl.style.gridTemplateRows = "";
         return;
       }
-      if (mobileWorkspaceView === "app") {
+      if (mobileWorkspaceView !== "canvas") {
         const landscape = Boolean(window.matchMedia?.("(orientation: landscape)")?.matches);
-        workspaceEl.style.gridTemplateColumns = landscape ? "minmax(250px, 38%) minmax(0, 1fr)" : "1fr";
-        workspaceEl.style.gridTemplateRows = landscape ? "minmax(0, 1fr)" : "clamp(168px, 25dvh, 216px) minmax(0, 1fr)";
+        workspaceEl.style.gridTemplateColumns = landscape
+          ? "var(--mobile-canvas-context-width) minmax(0, 1fr)"
+          : "1fr";
+        workspaceEl.style.gridTemplateRows = landscape
+          ? "minmax(0, 1fr)"
+          : "var(--mobile-canvas-context-height) minmax(0, 1fr)";
         return;
       }
       workspaceEl.style.gridTemplateColumns = "1fr";
@@ -9857,16 +9913,18 @@
     function applyMobileWorkspaceView() {
       mobileWorkspaceView = normalizeMobileWorkspaceView(mobileWorkspaceView);
       const mobileLayout = isMobileWorkspaceLayout();
-      const wasAppView = workspaceEl.classList.contains("mobile-app-active");
-      const enteringAppView = mobileLayout && mobileWorkspaceView === "app" && !wasAppView;
-      const leavingAppView = mobileLayout && mobileWorkspaceView !== "app" && wasAppView;
+      const wasPanelView = workspaceEl.classList.contains("mobile-presets-active") ||
+        workspaceEl.classList.contains("mobile-edit-active") ||
+        workspaceEl.classList.contains("mobile-app-active");
+      const enteringPanelView = mobileLayout && mobileWorkspaceView !== "canvas" && !wasPanelView;
+      const leavingPanelView = mobileLayout && mobileWorkspaceView === "canvas" && wasPanelView;
       let cameraToRestore = null;
-      if (enteringAppView && !mobileCanvasNeedsRuntimeFocus) {
-        mobileAppCanvasCameraSnapshot = { ...camera, layerId: currentLayerId || null };
+      if (enteringPanelView && !mobileCanvasNeedsRuntimeFocus) {
+        mobilePanelCanvasCameraSnapshot = { ...camera, layerId: currentLayerId || null };
       }
-      if (leavingAppView) {
-        cameraToRestore = mobileAppCanvasCameraSnapshot;
-        mobileAppCanvasCameraSnapshot = null;
+      if (leavingPanelView) {
+        cameraToRestore = mobilePanelCanvasCameraSnapshot;
+        mobilePanelCanvasCameraSnapshot = null;
         if (cameraToRestore && cameraToRestore.layerId !== (currentLayerId || null)) {
           cameraToRestore = null;
           mobileCanvasNeedsRuntimeFocus = true;
@@ -9886,6 +9944,8 @@
       requestAnimationFrame(() => {
         if (mobileLayout && mobileWorkspaceView === "app") {
           focusMobileAppCanvas(lastAppTransitionId, hostRuntimeStateView() || model.initial);
+        } else if (mobileLayout && (mobileWorkspaceView === "presets" || mobileWorkspaceView === "edit")) {
+          focusMobileCanvasState({ allowPanelView: true });
         } else if (cameraToRestore) {
           camera = { x: cameraToRestore.x, y: cameraToRestore.y, scale: cameraToRestore.scale };
           mobileCanvasNeedsRuntimeFocus = false;
@@ -13760,7 +13820,9 @@
         clientY: evt.clientY,
         startedAt: Date.now(),
         transition: t,
-        canRewire
+        canRewire,
+        edit: Boolean(evt.target?.closest?.(".edge-label")),
+        shiftKey: Boolean(evt.shiftKey)
       };
       return true;
     }
@@ -13781,9 +13843,20 @@
       return true;
     }
 
-    function finishPendingEdgeMouse() {
+    function finishPendingEdgeMouse(evt) {
       if (!pendingEdgeMouse) return false;
+      const start = pendingEdgeMouse;
       pendingEdgeMouse = null;
+      const edgeId = svgEdgeConcreteId(start.transition);
+      if (!edgeId) return true;
+      suppressEdgeClickUntil = Date.now() + 80;
+      if (start.shiftKey || evt?.shiftKey) {
+        toggleSelection("edge", edgeId);
+        refreshInspectorForSelection();
+        draw();
+      } else {
+        selectEdge(edgeId, evt?.clientX ?? start.clientX, evt?.clientY ?? start.clientY, { edit: start.edit });
+      }
       return true;
     }
 
@@ -14892,8 +14965,9 @@
       applyCamera();
     }
 
-    function focusMobileCanvasState() {
-      if (!isMobileWorkspaceLayout() || mobileWorkspaceView !== "canvas") return;
+    function focusMobileCanvasState(options = {}) {
+      if (!isMobileWorkspaceLayout()) return;
+      if (mobileWorkspaceView !== "canvas" && options.allowPanelView !== true) return;
       const states = visibleStates();
       if (!states.length) {
         resetView();
@@ -14904,7 +14978,7 @@
         states.find(state => state.id === hostRuntimeStateView()) ||
         states.find(state => state.id === model.initial) ||
         states[0];
-      const rect = mapEl.getBoundingClientRect();
+      const rect = mapSceneEl.getBoundingClientRect();
       if (rect.width < 1 || rect.height < 1) return;
       const width = nodeWidth(target);
       const height = nodeHeight(target);
@@ -23212,6 +23286,7 @@
     }
 
     function startQuickRenameInput(target, seedValue = null) {
+      cancelPendingNodeRuntimeStart();
       if (quickRenameSessionMatches(target) && quickRenameSession?.input) {
         if (seedValue !== null) {
           quickRenameSession.input.value = String(seedValue);
@@ -26158,7 +26233,7 @@
 
     window.addEventListener("mouseup", evt => {
       flushQueuedCanvasMove(evt);
-      if (finishPendingEdgeMouse()) return;
+      if (finishPendingEdgeMouse(evt)) return;
       if (finishPendingCanvasMouse()) return;
       handleCanvasEnd(evt);
     });
@@ -26666,8 +26741,8 @@
       pendingAppStartStateId = null;
       pendingAppStartSuppressLayerFollow = false;
       lastAppTransitionId = null;
-      mobileAppCanvasCameraSnapshot = null;
-      mobileCanvasNeedsRuntimeFocus = isMobileWorkspaceLayout() && mobileWorkspaceView === "app";
+      mobilePanelCanvasCameraSnapshot = null;
+      mobileCanvasNeedsRuntimeFocus = isMobileWorkspaceLayout() && mobileWorkspaceView !== "canvas";
       hoveredEdgeId = null;
       if (runtimeEdgePulseCleanupTimer) clearTimeout(runtimeEdgePulseCleanupTimer);
       runtimeEdgePulseCleanupTimer = 0;
@@ -26876,6 +26951,8 @@
       applyPanelWidths({ persist: false });
       if (isMobileWorkspaceLayout() && mobileWorkspaceView === "app") {
         requestAnimationFrame(() => focusMobileAppCanvas(lastAppTransitionId, hostRuntimeStateView() || model.initial));
+      } else if (isMobileWorkspaceLayout() && (mobileWorkspaceView === "presets" || mobileWorkspaceView === "edit")) {
+        requestAnimationFrame(() => focusMobileCanvasState({ allowPanelView: true }));
       }
     });
     btnToggleStateExplorer.onclick = () => {
