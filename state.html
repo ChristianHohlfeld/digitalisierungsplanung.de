@@ -3644,10 +3644,6 @@
       display: none;
     }
 
-    .mobile-split-resizer {
-      display: none;
-    }
-
     @media (max-width: 900px) {
       .workspace { grid-template-columns: var(--inspector-panel-width) minmax(0, 1fr); grid-template-rows: 1fr 45vh; }
       html[data-preview-collapsed="true"] .workspace,
@@ -3760,8 +3756,6 @@
       }
 
       .workspace {
-        --mobile-canvas-context-height: clamp(176px, 25dvh, 216px);
-        --mobile-canvas-context-width: clamp(250px, 38vw, 320px);
         position: relative;
         flex: 1 1 0;
         width: 100%;
@@ -3808,7 +3802,7 @@
       .workspace.mobile-app-active.inspector-collapsed,
       .workspace.mobile-app-active.inspector-collapsed.preview-collapsed {
         grid-template-columns: 1fr;
-        grid-template-rows: var(--mobile-canvas-context-height) minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr);
       }
 
       .inspector,
@@ -3823,40 +3817,6 @@
 
       .panel-resizer {
         display: none;
-      }
-
-      .workspace.mobile-presets-active .mobile-split-resizer,
-      .workspace.mobile-edit-active .mobile-split-resizer,
-      .workspace.mobile-app-active .mobile-split-resizer {
-        position: absolute;
-        z-index: 95;
-        display: block;
-        left: 50%;
-        top: calc(var(--mobile-canvas-context-height) - 22px);
-        width: 52px;
-        min-width: 52px;
-        height: 44px;
-        min-height: 44px;
-        padding: 0;
-        border: 0;
-        border-radius: 8px;
-        background: transparent;
-        box-shadow: none;
-        transform: translateX(-50%);
-        cursor: row-resize;
-        touch-action: none;
-      }
-
-      .mobile-split-resizer::after {
-        content: "";
-        position: absolute;
-        left: 14px;
-        right: 14px;
-        top: 20px;
-        height: 4px;
-        border-radius: 999px;
-        background: #7dd3fc;
-        box-shadow: 0 0 0 3px rgba(2,6,23,.78), 0 0 0 4px rgba(56,189,248,.28);
       }
 
       html[data-preview-collapsed="true"] .workspace.mobile-canvas-active .preview-resizer,
@@ -3877,30 +3837,43 @@
         display: none;
       }
 
-      .workspace.mobile-canvas-active .map {
-        display: block;
-        grid-row: 1;
-      }
-
+      .workspace.mobile-canvas-active .map,
+      .workspace.mobile-presets-active .map,
+      .workspace.mobile-edit-active .map,
       .workspace.mobile-app-active .map {
         display: block;
         grid-column: 1;
         grid-row: 1;
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        height: 100%;
         min-height: 0;
+        max-height: 100%;
         border-right: 0;
-        border-bottom: 1px solid #315f8c;
+        border-bottom: 0;
+        box-shadow: none;
+      }
+
+      .workspace.mobile-app-active .map {
         pointer-events: none;
         cursor: default;
-        box-shadow: inset 0 -1px 0 rgba(56,189,248,.12), 0 8px 22px rgba(0,0,0,.28);
       }
 
       .workspace.mobile-app-active .preview {
         display: grid;
-        grid-column: 1;
-        grid-row: 2;
-        min-height: 0;
+        position: absolute;
+        z-index: 72;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: min(64%, 560px);
+        min-height: min(320px, calc(100% - 24px));
+        max-height: calc(100% - 24px);
         border-left: 0;
+        border-top: 1px solid #315f8c;
         border-bottom: 0;
+        box-shadow: 0 -12px 28px rgba(0,0,0,.34);
       }
 
       .workspace.mobile-app-active #layerHud,
@@ -3916,41 +3889,32 @@
 
       .workspace.mobile-edit-active .inspector {
         display: grid;
-        grid-column: 1;
-        grid-row: 2;
-        height: auto;
-        max-height: none;
+        position: absolute;
+        z-index: 72;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: min(62%, 520px);
+        min-height: min(300px, calc(100% - 24px));
+        max-height: calc(100% - 24px);
+        border-top: 1px solid #315f8c;
         border-bottom: 0;
-      }
-
-      .workspace.mobile-edit-active .map {
-        display: block;
-        grid-column: 1;
-        grid-row: 1;
-        height: var(--mobile-canvas-context-height);
-        min-height: var(--mobile-canvas-context-height);
-        max-height: var(--mobile-canvas-context-height);
         border-right: 0;
-        border-bottom: 1px solid #315f8c;
-        box-shadow: inset 0 -1px 0 rgba(56,189,248,.12), 0 8px 22px rgba(0,0,0,.28);
+        box-shadow: 0 -12px 28px rgba(0,0,0,.34);
       }
 
       .workspace.mobile-edit-active .state-explorer {
         display: none !important;
       }
 
-      .workspace.mobile-presets-active .map {
-        display: block;
-        grid-row: 1 / -1;
-        overflow: hidden;
-      }
-
       .workspace.mobile-presets-active #mapScene {
         display: block;
-        inset: 0 0 auto;
-        height: var(--mobile-canvas-context-height);
-        border-bottom: 1px solid #315f8c;
-        box-shadow: inset 0 -1px 0 rgba(56,189,248,.12), 0 8px 22px rgba(0,0,0,.28);
+        inset: 0;
+        width: auto;
+        height: auto;
+        border-right: 0;
+        border-bottom: 0;
+        box-shadow: none;
       }
 
       .workspace.mobile-presets-active #layerHud {
@@ -4269,11 +4233,14 @@
 
       .workspace.mobile-presets-active .state-explorer {
         display: grid;
-        inset: var(--mobile-canvas-context-height) 0 0;
-        height: auto;
+        inset: auto 0 0 0;
+        height: min(58%, 470px);
+        min-height: min(300px, calc(100% - 24px));
+        max-height: calc(100% - 24px);
         z-index: 70;
         border-top: 1px solid #315f8c;
         background: #050b14;
+        box-shadow: 0 -12px 28px rgba(0,0,0,.34);
       }
 
       .workspace.template-touch-dragging .state-explorer {
@@ -4289,9 +4256,11 @@
       }
 
       .workspace.mobile-presets-active .state-explorer.collapsed {
-        inset: var(--mobile-canvas-context-height) 0 0;
+        inset: auto 0 0 0;
         width: auto;
-        height: auto;
+        height: min(58%, 470px);
+        min-height: min(300px, calc(100% - 24px));
+        max-height: calc(100% - 24px);
         opacity: 1;
       }
 
@@ -4514,80 +4483,80 @@
       .workspace.mobile-app-active.preview-collapsed,
       .workspace.mobile-app-active.inspector-collapsed,
       .workspace.mobile-app-active.inspector-collapsed.preview-collapsed {
-        grid-template-columns: var(--mobile-canvas-context-width) minmax(0, 1fr);
+        grid-template-columns: 1fr;
         grid-template-rows: minmax(0, 1fr);
       }
 
       .workspace.mobile-edit-active .map {
         grid-column: 1;
         grid-row: 1;
-        width: var(--mobile-canvas-context-width);
-        min-width: var(--mobile-canvas-context-width);
-        max-width: var(--mobile-canvas-context-width);
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
         height: 100%;
         min-height: 0;
         max-height: 100%;
-        border-right: 1px solid #315f8c;
+        border-right: 0;
         border-bottom: 0;
-        box-shadow: inset -1px 0 0 rgba(56,189,248,.12), 8px 0 22px rgba(0,0,0,.28);
+        box-shadow: none;
       }
 
       .workspace.mobile-edit-active .inspector {
-        grid-column: 2;
-        grid-row: 1;
+        inset: 0 0 0 auto;
+        width: min(58%, 520px);
+        max-width: calc(100% - 96px);
+        height: auto;
+        max-height: none;
+        border-top: 0;
+        border-left: 1px solid #315f8c;
+        box-shadow: -12px 0 28px rgba(0,0,0,.34);
       }
 
       .workspace.mobile-presets-active .map {
-        grid-column: 1 / -1;
+        grid-column: 1;
         grid-row: 1;
       }
 
       .workspace.mobile-presets-active #mapScene {
-        width: var(--mobile-canvas-context-width);
+        width: auto;
         height: 100%;
-        border-right: 1px solid #315f8c;
+        border-right: 0;
         border-bottom: 0;
-        box-shadow: inset -1px 0 0 rgba(56,189,248,.12), 8px 0 22px rgba(0,0,0,.28);
+        box-shadow: none;
       }
 
       .workspace.mobile-presets-active .state-explorer,
       .workspace.mobile-presets-active .state-explorer.collapsed {
-        inset: 0 0 0 var(--mobile-canvas-context-width);
+        inset: 0 0 0 auto;
+        width: min(58%, 560px);
+        max-width: calc(100% - 96px);
+        height: auto;
+        max-height: none;
+        border-top: 0;
+        border-left: 1px solid #315f8c;
+        box-shadow: -12px 0 28px rgba(0,0,0,.34);
       }
 
       .workspace.mobile-app-active .map {
         grid-column: 1;
         grid-row: 1;
-        border-right: 1px solid #315f8c;
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        border-right: 0;
         border-bottom: 0;
-        box-shadow: inset -1px 0 0 rgba(56,189,248,.12), 8px 0 22px rgba(0,0,0,.28);
+        box-shadow: none;
       }
 
       .workspace.mobile-app-active .preview {
-        grid-column: 2;
-        grid-row: 1;
-      }
-
-      .workspace.mobile-presets-active .mobile-split-resizer,
-      .workspace.mobile-edit-active .mobile-split-resizer,
-      .workspace.mobile-app-active .mobile-split-resizer {
-        left: calc(var(--mobile-canvas-context-width) - 22px);
-        top: 50%;
-        width: 44px;
-        min-width: 44px;
-        height: 52px;
-        min-height: 52px;
-        transform: translateY(-50%);
-        cursor: col-resize;
-      }
-
-      .mobile-split-resizer::after {
-        left: 20px;
-        right: auto;
-        top: 14px;
-        bottom: 14px;
-        width: 4px;
+        inset: 0 0 0 auto;
+        width: min(58%, 560px);
+        max-width: calc(100% - 96px);
         height: auto;
+        max-height: none;
+        border-top: 0;
+        border-left: 1px solid #315f8c;
+        box-shadow: -12px 0 28px rgba(0,0,0,.34);
       }
 
       .workspace.mobile-presets-active .state-explorer-title {
@@ -5538,7 +5507,6 @@
         <div id="stateExplorerList" class="state-explorer-list"></div>
       </div>
     </main>
-    <button id="mobileSplitResizeHandle" class="mobile-split-resizer" type="button" title="Canvas und Panel skalieren" aria-label="Canvas und Panel skalieren"></button>
     <button id="previewResizeHandle" class="panel-resizer preview-resizer" type="button" title="App-Vorschau skalieren" aria-label="App-Vorschau skalieren"></button>
 
     <aside class="preview">
@@ -9041,7 +9009,6 @@
     const stateInspectorBodyEl = document.getElementById("stateInspectorBody");
     const btnToggleInspector = document.getElementById("btnToggleInspector");
     const inspectorResizeHandleEl = document.getElementById("inspectorResizeHandle");
-    const mobileSplitResizeHandleEl = document.getElementById("mobileSplitResizeHandle");
     const mapEl = document.getElementById("map");
     const mapSceneEl = document.getElementById("mapScene");
     const layerHudEl = document.getElementById("layerHud");
@@ -9210,10 +9177,6 @@
     let inspectorCollapsed = uiState.inspectorCollapsed;
     let inspectorCollapsedByUser = false;
     let mobileWorkspaceView = uiState.mobileWorkspaceView;
-    let mobileCanvasContextHeight = uiState.mobileCanvasContextHeight;
-    let mobileCanvasContextWidth = uiState.mobileCanvasContextWidth;
-    let mobilePanelCanvasCameraSnapshot = null;
-    let mobileCanvasNeedsRuntimeFocus = false;
     let stateExplorerCollapsed = uiState.stateExplorerCollapsed;
     let stateExplorerGroup = uiState.stateExplorerGroup;
     let stateExplorerSearch = "";
@@ -10493,10 +10456,7 @@
     }
 
     function cameraSnapshotForPersistence(value = null) {
-      const monitorSnapshot = isMobileWorkspaceLayout() && mobileWorkspaceView !== "canvas"
-        ? mobilePanelCanvasCameraSnapshot
-        : null;
-      const source = value || monitorSnapshot || camera;
+      const source = value || camera;
       return { x: source.x, y: source.y, scale: source.scale };
     }
 
@@ -10536,11 +10496,6 @@
       return Number.isFinite(number) ? clampNumber(Math.round(number), min, max) : fallback;
     }
 
-    function normalizeStoredMobileCanvasSize(value) {
-      const number = Number(value);
-      return Number.isFinite(number) && number > 0 ? Math.round(number) : null;
-    }
-
     function defaultPreviewCollapsed() {
       try {
       } catch (_) {}
@@ -10556,8 +10511,6 @@
         stateExplorerCollapsed: false,
         stateExplorerGroup: "website",
         mobileWorkspaceView: "canvas",
-        mobileCanvasContextHeight: null,
-        mobileCanvasContextWidth: null,
         inspectorWidth: INSPECTOR_PANEL_DEFAULT,
         previewWidth: mobilePreviewLayout ? PREVIEW_PANEL_MOBILE_DEFAULT : PREVIEW_PANEL_DEFAULT
       };
@@ -10570,8 +10523,6 @@
           stateExplorerCollapsed: typeof stored.stateExplorerCollapsed === "boolean" ? stored.stateExplorerCollapsed : fallback.stateExplorerCollapsed,
           stateExplorerGroup: normalizeStateExplorerGroup(stored.stateExplorerGroup),
           mobileWorkspaceView: normalizeMobileWorkspaceView(stored.mobileWorkspaceView),
-          mobileCanvasContextHeight: normalizeStoredMobileCanvasSize(stored.mobileCanvasContextHeight),
-          mobileCanvasContextWidth: normalizeStoredMobileCanvasSize(stored.mobileCanvasContextWidth),
           inspectorWidth: normalizeStoredPanelWidth(stored.inspectorWidth, INSPECTOR_PANEL_MIN, INSPECTOR_PANEL_MAX, fallback.inspectorWidth),
           previewWidth: normalizeStoredPanelWidth(stored.previewWidth, previewMin, PREVIEW_PANEL_MAX, fallback.previewWidth)
         };
@@ -10587,8 +10538,6 @@
         stateExplorerCollapsed: Boolean(stateExplorerCollapsed),
         stateExplorerGroup: normalizeStateExplorerGroup(stateExplorerGroup),
         mobileWorkspaceView: normalizeMobileWorkspaceView(mobileWorkspaceView),
-        mobileCanvasContextHeight: normalizeStoredMobileCanvasSize(mobileCanvasContextHeight),
-        mobileCanvasContextWidth: normalizeStoredMobileCanvasSize(mobileCanvasContextWidth),
         inspectorWidth: Math.round(inspectorPanelWidth),
         previewWidth: Math.round(previewPanelWidth)
       };
@@ -10652,60 +10601,10 @@
       inspectorPanelWidth = clampNumber(Math.round(inspectorPanelWidth), INSPECTOR_PANEL_MIN, maxInspectorPanelWidth());
     }
 
-    function mobileCanvasContextBounds(landscape) {
-      const rect = workspaceEl.getBoundingClientRect();
-      const axisSize = landscape ? rect.width : rect.height;
-      const min = landscape ? 250 : 176;
-      const panelMin = 360;
-      const preferredMax = landscape ? 420 : 360;
-      return {
-        min,
-        max: Math.max(min, Math.min(preferredMax, Math.max(min, axisSize - panelMin)))
-      };
-    }
-
-    function applyMobileCanvasContextSize() {
-      if (!isMobileWorkspaceLayout()) {
-        workspaceEl.style.removeProperty("--mobile-canvas-context-height");
-        workspaceEl.style.removeProperty("--mobile-canvas-context-width");
-        return;
-      }
-      const landscape = Boolean(window.matchMedia?.("(orientation: landscape)")?.matches);
-      if (mobileCanvasContextHeight) {
-        if (!landscape) {
-          const bounds = mobileCanvasContextBounds(false);
-          mobileCanvasContextHeight = clampNumber(Math.round(mobileCanvasContextHeight), bounds.min, bounds.max);
-        }
-        workspaceEl.style.setProperty("--mobile-canvas-context-height", mobileCanvasContextHeight + "px");
-      } else {
-        workspaceEl.style.removeProperty("--mobile-canvas-context-height");
-      }
-      if (mobileCanvasContextWidth) {
-        if (landscape) {
-          const bounds = mobileCanvasContextBounds(true);
-          mobileCanvasContextWidth = clampNumber(Math.round(mobileCanvasContextWidth), bounds.min, bounds.max);
-        }
-        workspaceEl.style.setProperty("--mobile-canvas-context-width", mobileCanvasContextWidth + "px");
-      } else {
-        workspaceEl.style.removeProperty("--mobile-canvas-context-width");
-      }
-    }
-
     function applyWorkspaceSplitStyle() {
       if (!isMobileWorkspaceLayout()) {
         workspaceEl.style.gridTemplateColumns = "";
         workspaceEl.style.gridTemplateRows = "";
-        return;
-      }
-      applyMobileCanvasContextSize();
-      if (mobileWorkspaceView !== "canvas") {
-        const landscape = Boolean(window.matchMedia?.("(orientation: landscape)")?.matches);
-        workspaceEl.style.gridTemplateColumns = landscape
-          ? "var(--mobile-canvas-context-width) minmax(0, 1fr)"
-          : "1fr";
-        workspaceEl.style.gridTemplateRows = landscape
-          ? "minmax(0, 1fr)"
-          : "var(--mobile-canvas-context-height) minmax(0, 1fr)";
         return;
       }
       workspaceEl.style.gridTemplateColumns = "1fr";
@@ -10746,49 +10645,20 @@
       try { evt.currentTarget.setPointerCapture(evt.pointerId); } catch (_) {}
     }
 
-    function startMobileSplitResize(evt) {
-      if (!isMobileWorkspaceLayout() || mobileWorkspaceView === "canvas") return;
-      evt.preventDefault();
-      evt.stopPropagation();
-      clearQuickRenameSession();
-      const landscape = Boolean(window.matchMedia?.("(orientation: landscape)")?.matches);
-      const sceneRect = mapSceneEl.getBoundingClientRect();
-      panelResize = {
-        kind: "mobile",
-        landscape,
-        pointerId: evt.pointerId,
-        startX: evt.clientX,
-        startY: evt.clientY,
-        startSize: landscape ? sceneRect.width : sceneRect.height
-      };
-      workspaceEl.classList.add("panel-resizing");
-      try { evt.currentTarget.setPointerCapture(evt.pointerId); } catch (_) {}
-    }
-
     function updatePanelResize(evt) {
       if (!panelResize || evt.pointerId !== panelResize.pointerId) return false;
       evt.preventDefault();
       evt.stopImmediatePropagation();
       const deltaX = evt.clientX - panelResize.startX;
       const deltaY = evt.clientY - panelResize.startY;
-      if (panelResize.kind === "mobile") {
-        const bounds = mobileCanvasContextBounds(panelResize.landscape);
-        const size = clampNumber(
-          Math.round(panelResize.startSize + (panelResize.landscape ? deltaX : deltaY)),
-          bounds.min,
-          bounds.max
-        );
-        if (panelResize.landscape) mobileCanvasContextWidth = size;
-        else mobileCanvasContextHeight = size;
-        applyMobileCanvasContextSize();
-      } else if (panelResize.mobilePreviewResize) {
+      if (panelResize.mobilePreviewResize) {
         previewPanelWidth = panelResize.previewWidth - (panelResize.mobileSideBySide ? deltaX : deltaY);
       } else if (panelResize.kind === "inspector") {
         inspectorPanelWidth = panelResize.inspectorWidth + deltaX;
       } else {
         previewPanelWidth = panelResize.previewWidth - deltaX;
       }
-      if (panelResize.kind !== "mobile") applyPanelWidths({ persist: false });
+      applyPanelWidths({ persist: false });
       return true;
     }
 
@@ -10797,18 +10667,9 @@
       evt.preventDefault();
       evt.stopImmediatePropagation();
       try { evt.target.releasePointerCapture?.(evt.pointerId); } catch (_) {}
-      const mobileResize = panelResize.kind === "mobile";
       panelResize = null;
       workspaceEl.classList.remove("panel-resizing");
-      if (mobileResize) {
-        saveUiState();
-        requestAnimationFrame(() => {
-          applyCamera();
-          draw();
-        });
-      } else {
-        applyPanelWidths();
-      }
+      applyPanelWidths();
       return true;
     }
 
@@ -10899,24 +10760,6 @@
 
     function applyMobileWorkspaceView() {
       mobileWorkspaceView = normalizeMobileWorkspaceView(mobileWorkspaceView);
-      const mobileLayout = isMobileWorkspaceLayout();
-      const wasPanelView = workspaceEl.classList.contains("mobile-presets-active") ||
-        workspaceEl.classList.contains("mobile-edit-active") ||
-        workspaceEl.classList.contains("mobile-app-active");
-      const enteringPanelView = mobileLayout && mobileWorkspaceView !== "canvas" && !wasPanelView;
-      const leavingPanelView = mobileLayout && mobileWorkspaceView === "canvas" && wasPanelView;
-      let cameraToRestore = null;
-      if (enteringPanelView && !mobileCanvasNeedsRuntimeFocus) {
-        mobilePanelCanvasCameraSnapshot = { ...camera, layerId: currentLayerId || null };
-      }
-      if (leavingPanelView) {
-        cameraToRestore = mobilePanelCanvasCameraSnapshot;
-        mobilePanelCanvasCameraSnapshot = null;
-        if (cameraToRestore && cameraToRestore.layerId !== (currentLayerId || null)) {
-          cameraToRestore = null;
-          mobileCanvasNeedsRuntimeFocus = true;
-        }
-      }
       workspaceEl.classList.toggle("mobile-canvas-active", mobileWorkspaceView === "canvas");
       workspaceEl.classList.toggle("mobile-presets-active", mobileWorkspaceView === "presets");
       workspaceEl.classList.toggle("mobile-edit-active", mobileWorkspaceView === "edit");
@@ -10929,20 +10772,7 @@
       });
       saveUiState();
       requestAnimationFrame(() => {
-        if (mobileLayout && mobileWorkspaceView === "app") {
-          focusMobileAppCanvas(lastAppTransitionId, hostRuntimeStateView() || model.initial);
-        } else if (mobileLayout && (mobileWorkspaceView === "presets" || mobileWorkspaceView === "edit")) {
-          focusMobileCanvasState({ allowPanelView: true });
-        } else if (cameraToRestore) {
-          camera = { x: cameraToRestore.x, y: cameraToRestore.y, scale: cameraToRestore.scale };
-          mobileCanvasNeedsRuntimeFocus = false;
-          applyCamera();
-        } else if (mobileLayout && mobileWorkspaceView === "canvas" && mobileCanvasNeedsRuntimeFocus) {
-          mobileCanvasNeedsRuntimeFocus = false;
-          focusMobileCanvasState();
-        } else {
-          applyCamera();
-        }
+        applyCamera();
         draw();
       });
     }
@@ -15942,53 +15772,6 @@
       camera.x = Math.round(rect.width / 2 - (target.x + width / 2) * camera.scale);
       camera.y = Math.round(rect.height * .38 - (target.y + height / 2) * camera.scale);
       applyCamera();
-    }
-
-    function focusMobileAppCanvas(transitionId = "", stateId = "") {
-      if (!isMobileWorkspaceLayout() || mobileWorkspaceView !== "app") return false;
-      const rect = mapEl.getBoundingClientRect();
-      if (rect.width < 1 || rect.height < 1) return false;
-      const visible = visibleStates();
-      if (!visible.length) return false;
-      const visibleById = new Map(visible.map(state => [state.id, state]));
-      let id = String(transitionId || "");
-      if (!id && activeRuntimeEdgePulses instanceof Map && activeRuntimeEdgePulses.size) {
-        id = [...activeRuntimeEdgePulses.entries()]
-          .sort((a, b) => (b[1]?.started || 0) - (a[1]?.started || 0))[0]?.[0] || "";
-      }
-      const transition = id ? visibleTransitions().find(item =>
-        item.id === id || svgEdgeConcreteId(item) === id
-      ) || edgeById(id) : null;
-      const monitorStates = [];
-      const addState = candidateId => {
-        const state = visibleById.get(String(candidateId || ""));
-        if (state && !monitorStates.some(item => item.id === state.id)) monitorStates.push(state);
-      };
-      if (transition) {
-        addState(transition.from);
-        addState(transition.to);
-      }
-      addState(stateId);
-      if (!monitorStates.length) addState(model.initial);
-      if (!monitorStates.length) monitorStates.push(visible[0]);
-
-      const minX = Math.min(...monitorStates.map(state => state.x));
-      const minY = Math.min(...monitorStates.map(state => state.y));
-      const maxX = Math.max(...monitorStates.map(state => state.x + nodeWidth(state)));
-      const maxY = Math.max(...monitorStates.map(state => state.y + nodeHeight(state)));
-      const width = Math.max(1, maxX - minX);
-      const height = Math.max(1, maxY - minY);
-      const horizontalPadding = Math.min(44, Math.max(24, rect.width * .1));
-      const verticalPadding = Math.min(24, Math.max(14, rect.height * .12));
-      camera.scale = clampScale(Math.min(
-        .92,
-        Math.max(1, rect.width - horizontalPadding * 2) / width,
-        Math.max(1, rect.height - verticalPadding * 2) / height
-      ));
-      camera.x = Math.round((rect.width - width * camera.scale) / 2 - minX * camera.scale);
-      camera.y = Math.round((rect.height - height * camera.scale) / 2 - minY * camera.scale);
-      applyCamera({ persist: false });
-      return true;
     }
 
     function fitView() {
@@ -27188,9 +26971,6 @@
         if (!selectionAlreadyRuntime) canvasNeedsDraw = true;
       }
       if (canvasNeedsDraw) draw();
-      if (isMobileWorkspaceLayout() && mobileWorkspaceView === "app") {
-        focusMobileAppCanvas(lastAppTransitionId, runtimeStateId);
-      }
       if (allowRuntimeLayerFollow && runtimeState && shouldFollowRuntimeState) {
         showNodeInspector(runtimeState, {
           focus: false,
@@ -27244,8 +27024,6 @@
       pendingAppStartStateId = null;
       pendingAppStartSuppressLayerFollow = false;
       lastAppTransitionId = null;
-      mobilePanelCanvasCameraSnapshot = null;
-      mobileCanvasNeedsRuntimeFocus = isMobileWorkspaceLayout() && mobileWorkspaceView !== "canvas";
       hoveredEdgeId = null;
       if (runtimeEdgePulseCleanupTimer) clearTimeout(runtimeEdgePulseCleanupTimer);
       runtimeEdgePulseCleanupTimer = 0;
@@ -27463,7 +27241,6 @@
     });
     inspectorResizeHandleEl.addEventListener("pointerdown", evt => startPanelResize("inspector", evt));
     previewResizeHandleEl.addEventListener("pointerdown", evt => startPanelResize("preview", evt));
-    mobileSplitResizeHandleEl.addEventListener("pointerdown", startMobileSplitResize);
     window.addEventListener("pointermove", evt => {
       updatePanelResize(evt);
     }, { capture: true, passive: false });
@@ -27475,11 +27252,6 @@
     }, { capture: true, passive: false });
     window.addEventListener("resize", () => {
       applyPanelWidths({ persist: false });
-      if (isMobileWorkspaceLayout() && mobileWorkspaceView === "app") {
-        requestAnimationFrame(() => focusMobileAppCanvas(lastAppTransitionId, hostRuntimeStateView() || model.initial));
-      } else if (isMobileWorkspaceLayout() && (mobileWorkspaceView === "presets" || mobileWorkspaceView === "edit")) {
-        requestAnimationFrame(() => focusMobileCanvasState({ allowPanelView: true }));
-      }
     });
     btnToggleStateExplorer.onclick = () => {
       stateExplorerCollapsed = !stateExplorerCollapsed;

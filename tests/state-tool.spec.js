@@ -10179,7 +10179,7 @@ test.describe("State Blueprint tool", () => {
     await context.close();
   });
 
-  test("keeps the canvas visible while switching mobile workspace panels", async ({ browser }) => {
+  test("keeps one full canvas while switching mobile workspace panels", async ({ browser }) => {
     const context = await browser.newContext({
       baseURL: "http://localhost:8124",
       viewport: { width: 390, height: 820 },
@@ -10202,63 +10202,59 @@ test.describe("State Blueprint tool", () => {
           rect.bottom <= tabsRect.top + 1;
       }, selector)).toBe(true);
     };
-    const expectSurfaceFillsWorkspace = async selector => {
-      await expect.poll(() => page.evaluate(sel => {
-        const surface = document.querySelector(sel)?.getBoundingClientRect();
+    const expectCanvasFillsWorkspace = async targetPage => {
+      await expect.poll(() => targetPage.evaluate(() => {
+        const map = document.querySelector("#map")?.getBoundingClientRect();
+        const scene = document.querySelector("#mapScene")?.getBoundingClientRect();
         const workspace = document.querySelector("#workspace")?.getBoundingClientRect();
-        if (!surface || !workspace) return false;
-        return Math.abs(surface.left - workspace.left) <= 1 &&
-          Math.abs(surface.top - workspace.top) <= 1 &&
-          Math.abs(surface.right - workspace.right) <= 1 &&
-          Math.abs(surface.bottom - workspace.bottom) <= 1;
-      }, selector)).toBe(true);
+        if (!map || !scene || !workspace) return false;
+        return Math.abs(map.left - workspace.left) <= 1 &&
+          Math.abs(map.top - workspace.top) <= 1 &&
+          Math.abs(map.right - workspace.right) <= 1 &&
+          Math.abs(map.bottom - workspace.bottom) <= 1 &&
+          Math.abs(scene.left - workspace.left) <= 1 &&
+          Math.abs(scene.top - workspace.top) <= 1 &&
+          Math.abs(scene.right - workspace.right) <= 1 &&
+          Math.abs(scene.bottom - workspace.bottom) <= 1;
+      })).toBe(true);
     };
-    const expectCanvasBesidePanel = async (panelSelector, orientation = "portrait") => {
-      await expect.poll(() => page.evaluate(({ panelSelector, orientation }) => {
-        const sceneElement = document.querySelector("#mapScene");
+    const expectPanelOverlay = async (targetPage, panelSelector, side = "bottom") => {
+      await expect.poll(() => targetPage.evaluate(({ panelSelector, side }) => {
+        const map = document.querySelector("#map")?.getBoundingClientRect();
         const panelElement = document.querySelector(panelSelector);
-        const workspaceElement = document.querySelector("#workspace");
-        if (!sceneElement || !panelElement || !workspaceElement) return null;
-        const scene = sceneElement.getBoundingClientRect();
-        const panel = panelElement.getBoundingClientRect();
-        const workspace = workspaceElement.getBoundingClientRect();
-        const sceneStyle = getComputedStyle(sceneElement);
+        const panel = panelElement?.getBoundingClientRect();
+        const workspace = document.querySelector("#workspace")?.getBoundingClientRect();
+        if (!map || !panel || !workspace || !panelElement) return null;
         const panelStyle = getComputedStyle(panelElement);
-        const common = {
-          canvasVisible: sceneStyle.display !== "none" && sceneStyle.visibility !== "hidden" && scene.width > 0 && scene.height > 0,
-          panelVisible: panelStyle.display !== "none" && panelStyle.visibility !== "hidden" && panel.width > 0 && panel.height > 0,
-          startsAtWorkspace: Math.abs(scene.left - workspace.left) <= 1 && Math.abs(scene.top - workspace.top) <= 1
-        };
-        if (orientation === "landscape") {
-          return {
-            ...common,
-            canvasUsable: scene.width >= 250,
-            panelUsable: panel.width >= 400,
-            adjacent: Math.abs(scene.right - panel.left) <= 1,
-            fillsWorkspace: Math.abs(panel.right - workspace.right) <= 1 &&
-              Math.abs(scene.bottom - workspace.bottom) <= 1 &&
-              Math.abs(panel.top - workspace.top) <= 1 &&
-              Math.abs(panel.bottom - workspace.bottom) <= 1
-          };
-        }
-        return {
-          ...common,
-          canvasUsable: scene.height >= 176,
-          panelUsable: panel.height >= 360,
-          adjacent: Math.abs(scene.bottom - panel.top) <= 1,
-          fillsWorkspace: Math.abs(panel.bottom - workspace.bottom) <= 1 &&
-            Math.abs(scene.right - workspace.right) <= 1 &&
-            Math.abs(panel.left - workspace.left) <= 1 &&
-            Math.abs(panel.right - workspace.right) <= 1
-        };
-      }, { panelSelector, orientation })).toEqual({
-        canvasVisible: true,
+        const panelVisible = panelStyle.display !== "none" && panelStyle.visibility !== "hidden" && panel.width > 0 && panel.height > 0;
+        const insideWorkspace = panel.left >= workspace.left - 1 &&
+          panel.top >= workspace.top - 1 &&
+          panel.right <= workspace.right + 1 &&
+          panel.bottom <= workspace.bottom + 1;
+        const overlapsCanvas = panel.left < map.right - 1 &&
+          panel.right > map.left + 1 &&
+          panel.top < map.bottom - 1 &&
+          panel.bottom > map.top + 1;
+        const anchored = side === "right"
+          ? panel.left > workspace.left + 80 && Math.abs(panel.right - workspace.right) <= 1
+          : panel.top > workspace.top + 80 && Math.abs(panel.bottom - workspace.bottom) <= 1;
+        return { panelVisible, insideWorkspace, overlapsCanvas, anchored };
+      }, { panelSelector, side })).toEqual({
         panelVisible: true,
-        startsAtWorkspace: true,
-        canvasUsable: true,
-        panelUsable: true,
-        adjacent: true,
-        fillsWorkspace: true
+        insideWorkspace: true,
+        overlapsCanvas: true,
+        anchored: true
+      });
+    };
+    const expectCamera = async (targetPage, expected) => {
+      await expect.poll(() => targetPage.evaluate(() => ({
+        x: Math.round(camera.x),
+        y: Math.round(camera.y),
+        scale: Number(camera.scale.toFixed(4))
+      }))).toEqual({
+        x: Math.round(expected.x),
+        y: Math.round(expected.y),
+        scale: Number(expected.scale.toFixed(4))
       });
     };
 
@@ -10268,12 +10264,12 @@ test.describe("State Blueprint tool", () => {
     await expect.poll(() => page.locator("#mobileTabs").evaluate(el => getComputedStyle(el).gridTemplateColumns.split(" ").filter(Boolean).length)).toBe(4);
     await expect(page.locator("#map")).toBeVisible();
     await expectElementAboveMobileTabs("#map");
-    await expectSurfaceFillsWorkspace("#map");
+    await expectCanvasFillsWorkspace(page);
     await expect(page.locator("#stateExplorer")).toBeHidden();
     await expect(page.locator("#stateInspector")).toBeHidden();
     await expect(page.locator(".preview")).toBeHidden();
     await expect(page.locator("#previewResizeHandle")).toBeHidden();
-    await expect(page.locator("#mobileSplitResizeHandle")).toBeHidden();
+    await expect(page.locator("#mobileSplitResizeHandle")).toHaveCount(0);
     await expect(page.locator("#mobileCommandBar")).toBeVisible();
     await expect(page.locator("#canvasHistoryActions")).toBeHidden();
     await expect.poll(async () => Math.round((await page.locator('[data-id="auth_start"]').boundingBox())?.width || 0)).toBeGreaterThanOrEqual(140);
@@ -10299,7 +10295,10 @@ test.describe("State Blueprint tool", () => {
     await expectElementAboveMobileTabs("#map");
     await expect(page.locator("#mapScene")).toBeVisible();
     await expect(page.locator("#stateExplorer")).toBeVisible();
-    await expect(page.locator("#mobileSplitResizeHandle")).toBeVisible();
+    await expect(page.locator("#mobileSplitResizeHandle")).toHaveCount(0);
+    await expectCanvasFillsWorkspace(page);
+    await expectPanelOverlay(page, "#stateExplorer");
+    await expectCamera(page, canvasCamera);
     await expect.poll(() => page.locator("#stateExplorer").evaluate(explorer => {
       const list = explorer.querySelector("#stateExplorerList");
       return {
@@ -10321,13 +10320,6 @@ test.describe("State Blueprint tool", () => {
         .filter(card => card.getBoundingClientRect().width > 40 && card.getBoundingClientRect().height > 40).length
     )).toBeGreaterThan(3);
     await expectElementAboveMobileTabs("#stateExplorer");
-    await expectCanvasBesidePanel("#stateExplorer");
-    await expect.poll(() => page.locator("#stateExplorer").evaluate(explorer => {
-      const leftEdges = [...explorer.querySelectorAll(".component-preset-card")]
-        .filter(card => card.getBoundingClientRect().width > 40 && card.getBoundingClientRect().height > 40)
-        .map(card => Math.round(card.getBoundingClientRect().left));
-      return new Set(leftEdges).size;
-    })).toBeGreaterThanOrEqual(2);
     await expect(page.locator("#selectionActions")).toBeHidden();
     await expect(page.locator("#canvasHistoryActions")).toBeHidden();
     await expect(page.locator("#mobileCommandBar")).toBeVisible();
@@ -10369,30 +10361,15 @@ test.describe("State Blueprint tool", () => {
     await componentPreset(page, "Textblock").locator(".template-title").tap();
     await expect(page.locator('[data-mobile-view="app"]')).toHaveClass(/active/);
     await expect(appFrame(page).locator("#screen")).toContainText("Textblock");
+    await expectCanvasFillsWorkspace(page);
+    await expectCamera(page, canvasCamera);
 
     await page.locator('[data-mobile-view="edit"]').tap();
     await expect(page.locator("#stateInspector")).toBeVisible();
     await expectElementAboveMobileTabs("#stateInspector");
-    await expectCanvasBesidePanel("#stateInspector");
-    const portraitSceneBeforeResize = await page.locator("#mapScene").boundingBox();
-    const portraitSplitHandle = await page.locator("#mobileSplitResizeHandle").boundingBox();
-    expect(portraitSceneBeforeResize).toBeTruthy();
-    expect(portraitSplitHandle).toBeTruthy();
-    await page.mouse.move(
-      portraitSplitHandle.x + portraitSplitHandle.width / 2,
-      portraitSplitHandle.y + portraitSplitHandle.height / 2
-    );
-    await page.mouse.down();
-    await page.mouse.move(
-      portraitSplitHandle.x + portraitSplitHandle.width / 2,
-      portraitSplitHandle.y + portraitSplitHandle.height / 2 + 80,
-      { steps: 4 }
-    );
-    await page.mouse.up();
-    await expect.poll(async () => Math.round((await page.locator("#mapScene").boundingBox())?.height || 0))
-      .toBeGreaterThan(Math.round(portraitSceneBeforeResize.height) + 60);
-    await expectCanvasBesidePanel("#stateInspector");
-    await expect.poll(async () => (await savedUiState(page)).mobileCanvasContextHeight).toBeGreaterThan(260);
+    await expectCanvasFillsWorkspace(page);
+    await expectPanelOverlay(page, "#stateInspector");
+    await expectCamera(page, canvasCamera);
     await expect(page.locator("#selectionActions")).toBeHidden();
     await expect(page.locator("#mobileCommandBar")).toBeVisible();
     await expect(page.locator("#map")).toBeVisible();
@@ -10406,42 +10383,22 @@ test.describe("State Blueprint tool", () => {
     await expectElementAboveMobileTabs("#appFrame");
     await expect(page.locator("#map")).toBeVisible();
     await expectElementAboveMobileTabs("#map");
-    await expectCanvasBesidePanel(".preview");
-    await expect.poll(() => page.evaluate(() => {
-      const workspace = document.querySelector("#workspace")?.getBoundingClientRect();
-      const map = document.querySelector("#map")?.getBoundingClientRect();
-      const preview = document.querySelector(".preview")?.getBoundingClientRect();
-      if (!workspace || !map || !preview) return null;
-      return {
-          monitorUsable: map.height >= 176,
-        previewUsable: preview.height >= 360,
-        stackedWithoutGap: Math.abs(map.bottom - preview.top) <= 1,
-        fillsWorkspace: Math.abs(map.top - workspace.top) <= 1 &&
-          Math.abs(preview.bottom - workspace.bottom) <= 1 &&
-          Math.abs(map.left - workspace.left) <= 1 &&
-          Math.abs(map.right - workspace.right) <= 1 &&
-          Math.abs(preview.left - workspace.left) <= 1 &&
-          Math.abs(preview.right - workspace.right) <= 1,
-        monitorReadOnly: getComputedStyle(document.querySelector("#map")).pointerEvents === "none"
-      };
-    })).toEqual({
-      monitorUsable: true,
-      previewUsable: true,
-      stackedWithoutGap: true,
-      fillsWorkspace: true,
-      monitorReadOnly: true
-    });
+    await expectCanvasFillsWorkspace(page);
+    await expectPanelOverlay(page, ".preview");
+    await expectCamera(page, canvasCamera);
+    await expect(page.locator("#map")).toHaveCSS("pointer-events", "none");
     await expect(page.locator("#selectionActions")).toBeHidden();
     await expect(page.locator("#mobileCommandBar")).toBeVisible();
     await expect(page.locator("#stateInspector")).toBeHidden();
     await expect(page.locator('[data-mobile-view="app"]')).toHaveClass(/active/);
 
     await page.locator('[data-mobile-view="canvas"]').tap();
-    await expect.poll(() => page.evaluate(() => ({ ...camera }))).toEqual(canvasCamera);
+    await expectCamera(page, canvasCamera);
     await page.locator('[data-id="login"] .node-edit').tap();
     await expect(page.locator("#stateInspector")).toBeVisible();
     await expect(page.locator("#pTitle")).toBeVisible();
     await expect(page.locator('[data-mobile-view="edit"]')).toHaveClass(/active/);
+    await expectCanvasFillsWorkspace(page);
     await page.evaluate(() => {
       const topbar = document.querySelector(".topbar");
       topbar.scrollLeft = topbar.scrollWidth;
@@ -10480,6 +10437,12 @@ test.describe("State Blueprint tool", () => {
     });
     const landscapePage = await landscapeContext.newPage();
     await openTool(landscapePage);
+    await landscapePage.evaluate(() => {
+      camera = { x: 41, y: 27, scale: 0.78 };
+      applyCamera({ persist: false });
+      draw();
+    });
+    const landscapeCamera = await landscapePage.evaluate(() => ({ ...camera }));
     await expect(landscapePage.locator("#mobileTabs")).toBeVisible();
     await expect(landscapePage.locator("#mobileTabs button:visible")).toHaveCount(4);
     await expect.poll(() => landscapePage.locator("#mobileTabs").evaluate(el => getComputedStyle(el).gridTemplateColumns.split(" ").filter(Boolean).length)).toBe(4);
@@ -10491,97 +10454,35 @@ test.describe("State Blueprint tool", () => {
     )).toBe(true);
     await expect(landscapePage.locator("#map")).toBeVisible();
     await expect(landscapePage.locator(".preview")).toBeHidden();
-    await expect.poll(() => landscapePage.evaluate(() => {
-      const map = document.querySelector("#map")?.getBoundingClientRect();
-      const workspace = document.querySelector("#workspace")?.getBoundingClientRect();
-      if (!map || !workspace) return false;
-      return Math.abs(map.left - workspace.left) <= 1 &&
-        Math.abs(map.top - workspace.top) <= 1 &&
-        Math.abs(map.right - workspace.right) <= 1 &&
-        Math.abs(map.bottom - workspace.bottom) <= 1;
-    })).toBe(true);
+    await expectCanvasFillsWorkspace(landscapePage);
+    await expect(landscapePage.locator("#mobileSplitResizeHandle")).toHaveCount(0);
 
     await landscapePage.locator('[data-mobile-view="presets"]').tap();
     await expect(landscapePage.locator("#stateExplorer")).toBeVisible();
     await expect(landscapePage.locator("#mapScene")).toBeVisible();
-    await expect(landscapePage.locator("#mobileSplitResizeHandle")).toBeVisible();
+    await expect(landscapePage.locator("#mobileSplitResizeHandle")).toHaveCount(0);
     await expect(landscapePage.locator("#stateInspector")).toBeHidden();
     await expect(landscapePage.locator(".preview")).toBeHidden();
-    await expect.poll(() => landscapePage.evaluate(() => {
-      const scene = document.querySelector("#mapScene")?.getBoundingClientRect();
-      const panel = document.querySelector("#stateExplorer")?.getBoundingClientRect();
-      const workspace = document.querySelector("#workspace")?.getBoundingClientRect();
-      if (!scene || !panel || !workspace) return false;
-      return scene.width >= 250 && panel.width >= 400 &&
-        Math.abs(scene.right - panel.left) <= 1 &&
-        Math.abs(scene.left - workspace.left) <= 1 &&
-        Math.abs(panel.right - workspace.right) <= 1 &&
-        Math.abs(scene.top - workspace.top) <= 1 &&
-        Math.abs(scene.bottom - workspace.bottom) <= 1;
-    })).toBe(true);
-    const landscapeSceneBeforeResize = await landscapePage.locator("#mapScene").boundingBox();
-    const landscapeSplitHandle = await landscapePage.locator("#mobileSplitResizeHandle").boundingBox();
-    expect(landscapeSceneBeforeResize).toBeTruthy();
-    expect(landscapeSplitHandle).toBeTruthy();
-    await landscapePage.mouse.move(
-      landscapeSplitHandle.x + landscapeSplitHandle.width / 2,
-      landscapeSplitHandle.y + landscapeSplitHandle.height / 2
-    );
-    await landscapePage.mouse.down();
-    await landscapePage.mouse.move(
-      landscapeSplitHandle.x + landscapeSplitHandle.width / 2 + 70,
-      landscapeSplitHandle.y + landscapeSplitHandle.height / 2,
-      { steps: 4 }
-    );
-    await landscapePage.mouse.up();
-    await expect.poll(async () => Math.round((await landscapePage.locator("#mapScene").boundingBox())?.width || 0))
-      .toBeGreaterThan(Math.round(landscapeSceneBeforeResize.width) + 50);
-    await expect.poll(async () => (await savedUiState(landscapePage)).mobileCanvasContextWidth).toBeGreaterThan(370);
+    await expectCanvasFillsWorkspace(landscapePage);
+    await expectPanelOverlay(landscapePage, "#stateExplorer", "right");
+    await expectCamera(landscapePage, landscapeCamera);
 
     await landscapePage.locator('[data-mobile-view="edit"]').tap();
     await expect(landscapePage.locator("#stateInspector")).toBeVisible();
     await expect(landscapePage.locator("#map")).toBeVisible();
     await expect(landscapePage.locator("#mapScene")).toBeVisible();
     await expect(landscapePage.locator(".preview")).toBeHidden();
-    await expect.poll(() => landscapePage.evaluate(() => {
-      const scene = document.querySelector("#mapScene")?.getBoundingClientRect();
-      const panel = document.querySelector("#stateInspector")?.getBoundingClientRect();
-      const workspace = document.querySelector("#workspace")?.getBoundingClientRect();
-      if (!scene || !panel || !workspace) return false;
-      return scene.width >= 250 && panel.width >= 400 &&
-        Math.abs(scene.right - panel.left) <= 1 &&
-        Math.abs(scene.left - workspace.left) <= 1 &&
-        Math.abs(panel.right - workspace.right) <= 1 &&
-        Math.abs(scene.top - workspace.top) <= 1 &&
-        Math.abs(scene.bottom - workspace.bottom) <= 1;
-    })).toBe(true);
+    await expectCanvasFillsWorkspace(landscapePage);
+    await expectPanelOverlay(landscapePage, "#stateInspector", "right");
+    await expectCamera(landscapePage, landscapeCamera);
 
     await landscapePage.locator('[data-mobile-view="app"]').tap();
     await expect(landscapePage.locator(".preview")).toBeVisible();
     await expect(landscapePage.locator("#map")).toBeVisible();
-    await expect.poll(() => landscapePage.locator(".preview").evaluate(el => {
-      const preview = el.getBoundingClientRect();
-      const map = document.querySelector("#map").getBoundingClientRect();
-      const workspace = document.querySelector("#workspace").getBoundingClientRect();
-      return {
-        monitorUsable: map.width >= 250,
-        previewUsable: preview.width >= 360,
-        sideBySideWithoutGap: Math.abs(map.right - preview.left) <= 1,
-        fillsWorkspace: Math.abs(map.left - workspace.left) <= 1 &&
-          Math.abs(preview.right - workspace.right) <= 1 &&
-          Math.abs(map.top - workspace.top) <= 1 &&
-          Math.abs(map.bottom - workspace.bottom) <= 1 &&
-          Math.abs(preview.top - workspace.top) <= 1 &&
-          Math.abs(preview.bottom - workspace.bottom) <= 1,
-        monitorReadOnly: getComputedStyle(document.querySelector("#map")).pointerEvents === "none"
-      };
-    })).toEqual({
-      monitorUsable: true,
-      previewUsable: true,
-      sideBySideWithoutGap: true,
-      fillsWorkspace: true,
-      monitorReadOnly: true
-    });
+    await expectCanvasFillsWorkspace(landscapePage);
+    await expectPanelOverlay(landscapePage, ".preview", "right");
+    await expect(landscapePage.locator("#map")).toHaveCSS("pointer-events", "none");
+    await expectCamera(landscapePage, landscapeCamera);
     await landscapeContext.close();
   });
 
@@ -10608,8 +10509,29 @@ test.describe("State Blueprint tool", () => {
         return { expected: JSON.stringify(canvasSnapshot), stored };
       }, STORAGE_KEY);
       expect(delayedSaveProbe.stored).toBe(delayedSaveProbe.expected);
+      await page.evaluate(() => {
+        const monitorStates = ["auth_start", "login"].map(id => byId(id)).filter(Boolean);
+        const rect = mapEl.getBoundingClientRect();
+        if (monitorStates.length && rect.width > 0 && rect.height > 0) {
+          const minX = Math.min(...monitorStates.map(state => state.x));
+          const minY = Math.min(...monitorStates.map(state => state.y));
+          const maxX = Math.max(...monitorStates.map(state => state.x + nodeWidth(state)));
+          const maxY = Math.max(...monitorStates.map(state => state.y + nodeHeight(state)));
+          const width = Math.max(1, maxX - minX);
+          const height = Math.max(1, maxY - minY);
+          camera.scale = clampScale(Math.min(1, Math.max(1, rect.width - 96) / width, Math.max(1, rect.height - 160) / height));
+          camera.x = Math.round((rect.width - width * camera.scale) / 2 - minX * camera.scale);
+          camera.y = Math.round((rect.height - height * camera.scale) / 2 - minY * camera.scale);
+          applyCamera({ persist: false });
+          draw();
+        }
+      });
       const cameraBefore = await worldTransform(page);
-      const storedCameraBefore = await page.evaluate(key => localStorage.getItem(`${key}.camera`), STORAGE_KEY);
+      const expectedStoredCamera = await page.evaluate(() => JSON.stringify({
+        x: camera.x,
+        y: camera.y,
+        scale: camera.scale
+      }));
 
       await page.locator('[data-mobile-view="app"]').tap();
       await expect(page.locator("#map")).toBeVisible();
@@ -10635,7 +10557,7 @@ test.describe("State Blueprint tool", () => {
 
       await page.waitForTimeout(180);
       await expect.poll(() => page.evaluate(key => localStorage.getItem(`${key}.camera`), STORAGE_KEY))
-        .toBe(storedCameraBefore);
+        .toBe(expectedStoredCamera);
       await page.locator('[data-mobile-view="canvas"]').tap();
       await expect(page.locator("#map")).toHaveCSS("pointer-events", "auto");
       await expect.poll(() => worldTransform(page)).toBe(cameraBefore);
@@ -10644,7 +10566,7 @@ test.describe("State Blueprint tool", () => {
     }
   });
 
-  test("keeps the canvas visible beside mid-size touch workspace panels @smoke", async ({ browser }) => {
+  test("keeps the full canvas behind mid-size touch workspace panels @smoke", async ({ browser }) => {
     const context = await browser.newContext({
       baseURL: "http://localhost:8124",
       viewport: { width: 820, height: 1180 },
@@ -10688,9 +10610,21 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#mapScene")).toBeVisible();
     await expect.poll(() => page.evaluate(() => {
       const scene = document.querySelector("#mapScene")?.getBoundingClientRect();
+      const map = document.querySelector("#map")?.getBoundingClientRect();
       const inspector = document.querySelector("#stateInspector")?.getBoundingClientRect();
-      if (!scene || !inspector) return false;
-      return scene.height >= 176 && inspector.height >= 360 && Math.abs(scene.bottom - inspector.top) <= 1;
+      const workspace = document.querySelector("#workspace")?.getBoundingClientRect();
+      if (!scene || !map || !inspector || !workspace) return false;
+      const bottomOverlay = inspector.top > workspace.top + 80 && Math.abs(inspector.bottom - workspace.bottom) <= 1;
+      const rightOverlay = inspector.left > workspace.left + 80 && Math.abs(inspector.right - workspace.right) <= 1;
+      return Math.abs(map.left - workspace.left) <= 1 &&
+        Math.abs(map.top - workspace.top) <= 1 &&
+        Math.abs(map.right - workspace.right) <= 1 &&
+        Math.abs(map.bottom - workspace.bottom) <= 1 &&
+        Math.abs(scene.left - workspace.left) <= 1 &&
+        Math.abs(scene.top - workspace.top) <= 1 &&
+        Math.abs(scene.right - workspace.right) <= 1 &&
+        Math.abs(scene.bottom - workspace.bottom) <= 1 &&
+        (bottomOverlay || rightOverlay);
     })).toBe(true);
     await page.locator('[data-mobile-view="canvas"]').tap();
     await expect(page.locator("#map")).toBeVisible();
@@ -10852,14 +10786,15 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator('[data-mobile-view="app"]').tap();
     await expect(page.locator(".preview")).toBeVisible();
-    expect(await savedUiState(page)).toMatchObject({
+    const uiState = await savedUiState(page);
+    expect(uiState).toMatchObject({
       mobileWorkspaceView: "app",
-      mobileCanvasContextHeight: 280,
-      mobileCanvasContextWidth: 390,
       previewCollapsed: false,
       inspectorWidth: 540,
       previewWidth: 520
     });
+    expect(uiState).not.toHaveProperty("mobileCanvasContextHeight");
+    expect(uiState).not.toHaveProperty("mobileCanvasContextWidth");
 
     const reopened = await context.newPage();
     await reopened.goto("/state.html");
@@ -10867,7 +10802,15 @@ test.describe("State Blueprint tool", () => {
     await expect(reopened.locator('[data-mobile-view="app"]')).toHaveClass(/active/);
     await expect(reopened.locator(".preview")).toBeVisible();
     await expect(reopened.locator("#map")).toBeVisible();
-    await expect.poll(async () => Math.abs(((await reopened.locator("#mapScene").boundingBox())?.height || 0) - 280) <= 1).toBe(true);
+    await expect.poll(() => reopened.evaluate(() => {
+      const scene = document.querySelector("#mapScene")?.getBoundingClientRect();
+      const workspace = document.querySelector("#workspace")?.getBoundingClientRect();
+      if (!scene || !workspace) return false;
+      return Math.abs(scene.left - workspace.left) <= 1 &&
+        Math.abs(scene.top - workspace.top) <= 1 &&
+        Math.abs(scene.right - workspace.right) <= 1 &&
+        Math.abs(scene.bottom - workspace.bottom) <= 1;
+    })).toBe(true);
     await expect(reopened.locator("#map")).toHaveCSS("pointer-events", "none");
     await expect(reopened.locator("#workspace")).toHaveClass(/mobile-app-active/);
     await expect(reopened.locator("#stateInspector")).toBeHidden();
