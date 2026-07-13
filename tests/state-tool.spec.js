@@ -2157,6 +2157,16 @@ test.describe("State Blueprint tool", () => {
     await page.goto("/state.html?demo=zustand");
     const app = appFrame(page);
     const parent = page.locator('[data-id="site_checkout_flow"]');
+    const expectImmediateChildSelection = async () => {
+      expect(await page.evaluate(() => ({
+        layerId: currentLayerId,
+        selectedNodes: selected?.nodes || []
+      }))).toEqual({
+        layerId: "site_checkout_flow",
+        selectedNodes: ["site_checkout"]
+      });
+      await expect(page.locator("#pTitle")).toHaveValue("Anfrage");
+    };
     const expectExclusiveChild = async () => {
       await expect(app.locator("#statePill")).toHaveText("site_checkout");
       await expect.poll(() => page.evaluate(() => ({
@@ -2175,10 +2185,12 @@ test.describe("State Blueprint tool", () => {
     };
 
     await parent.click();
+    await expectImmediateChildSelection();
     await expectExclusiveChild();
 
     await page.locator("#layerBack").click();
     await parent.click();
+    await expectImmediateChildSelection();
     await expectExclusiveChild();
 
     await page.locator("#layerBack").click();
@@ -2186,6 +2198,7 @@ test.describe("State Blueprint tool", () => {
     if (await page.locator("#layerBack").isVisible()) await page.locator("#layerBack").click();
     await expect(parent).toBeVisible();
     await parent.click();
+    await expectImmediateChildSelection();
     await expectExclusiveChild();
   });
 

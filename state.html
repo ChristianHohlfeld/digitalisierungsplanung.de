@@ -13749,6 +13749,34 @@
       navigateToLayer(stateId, "layer:enter", { fit: true });
     }
 
+    function autoEnterCompositeStateOnSelect(state, opts = {}) {
+      if (!state || state.virtualProxy) return false;
+      const children = statesInLayer(state.id);
+      if (!children.length) return false;
+      const boundary = normalizeBoundaryConfig(state.boundary);
+      const triggerType = normalizeTransitionTriggerType({ triggerType: boundary.entryTriggerType || "button" });
+      if (triggerType !== "auto") return false;
+      const entry = editorGroupEntryState(state.id, null) || children[0];
+      if (!entry) return false;
+      cancelPendingNodeRuntimeStart();
+      lastNodeClick = null;
+      lastTouchNodeTap = null;
+      lastEmptyCanvasClick = null;
+      lastEmptyCanvasTap = null;
+      navigateToLayer(state.id, "layer:auto-entry", { fit: true, persist: false, draw: false });
+      selected = selectionFromParts([entry.id], []);
+      saveSelection("layer:auto-entry:" + state.id + ":" + entry.id);
+      showNodeProperties(entry, {
+        focus: false,
+        forceOpen: opts.forceOpen ?? !inspectorCollapsedByUser,
+        manualOpen: opts.manualOpen ?? (!inspectorCollapsedByUser && !isMobileWorkspaceLayout()),
+        pulse: opts.pulse ?? inspectorCollapsedByUser
+      });
+      startAppAtState(state.id, { preserveFocus: true, allowLayerFollow: true });
+      draw();
+      return true;
+    }
+
     function blockLayerEntryAfterPointerAction(duration = 900) {
       const until = Date.now() + duration;
       suppressLayerEnterUntil = Math.max(suppressLayerEnterUntil, until);
@@ -13973,6 +14001,7 @@
       if (!state || state.virtualProxy) return false;
       suppressCanvasTextSelection();
       focusCanvasForSelection();
+      if (autoEnterCompositeStateOnSelect(state, { forceOpen: false, manualOpen: false, pulse: true })) return true;
       setSingleSelection("node", state.id);
       lastNodeClick = null;
       lastEmptyCanvasTap = null;
@@ -23098,12 +23127,14 @@
           control = document.createElement("input");
           control.type = "checkbox";
           control.checked = Boolean(value);
-          control.onchange = () => updateValue(control.checked);
+          const commitBoolean = () => updateValue(control.checked);
+          control.oninput = commitBoolean;
+          control.onchange = commitBoolean;
         } else if (type === "object" || type === "list") {
           control = document.createElement("textarea");
           control.spellcheck = false;
           control.value = JSON.stringify(value, null, 2);
-          control.oninput = () => {
+          const commitJson = () => {
             try {
               const parsed = JSON.parse(control.value || (type === "list" ? "[]" : "{}"));
               const valid = type === "list" ? Array.isArray(parsed) : isPlainObject(parsed);
@@ -23114,6 +23145,8 @@
               control.classList.add("invalid");
             }
           };
+          control.oninput = commitJson;
+          control.onchange = commitJson;
         } else {
           control = document.createElement("input");
           control.type = type === "password" ? "password" : type === "email" ? "email" : type === "url" || type === "image" ? "url" : "text";
@@ -23122,7 +23155,7 @@
             control.type = "text";
             control.inputMode = "decimal";
             control.value = String(value ?? 0);
-            control.oninput = () => {
+            const commitNumber = () => {
               const nextNumber = Number(control.value);
               if (!Number.isFinite(nextNumber)) {
                 control.classList.add("invalid");
@@ -23131,8 +23164,12 @@
               control.classList.remove("invalid");
               updateValue(nextNumber);
             };
+            control.oninput = commitNumber;
+            control.onchange = commitNumber;
           } else {
-            control.oninput = () => updateValue(control.value);
+            const commitText = () => updateValue(control.value);
+            control.oninput = commitText;
+            control.onchange = commitText;
           }
         }
         control.classList.add("state-variable-value-field");
@@ -25861,6 +25898,7 @@
             return;
           }
           focusCanvasForSelection();
+          if (autoEnterCompositeStateOnSelect(s)) return;
           setSingleSelection("node", s.id);
           lastTouchNodeTap = null;
           const now = Date.now();
