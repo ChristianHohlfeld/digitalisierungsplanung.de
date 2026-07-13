@@ -129,6 +129,7 @@ Der Browser-Ursprung ist produktiv auf `https://digitalisierungsplanung.de` begr
 ## Server-Veröffentlichung
 
 Der Echtzeit-Server läuft auf dem Droplet lokal unter `127.0.0.1:8788`. Nginx veröffentlicht ihn unter `realtime.digitalisierungsplanung.de`.
+`index.html`, `state.html`, Assets und `release-version.js` bleiben auf der Root-Domain `digitalisierungsplanung.de` und werden nicht vom Droplet ausgeliefert.
 
 Wichtige Dateien:
 
@@ -263,7 +264,7 @@ npm run test:state-render
 1. Änderungen auf `main` pushen.
 2. GitHub Actions führt alle Server- und Browserfälle in vier vollständigen Browser-Shards aus.
 3. Nach grünem Lauf wird die gemeinsame `release-N`-ID in `release-version.js` inkrementiert.
-4. Die kontrollierte statische Nginx-Grenze liefert HTML, Skripte und Assets mit `Cache-Control: no-store` aus.
-5. Der Droplet-Timer erkennt die neue ID, synchronisiert den Remote-Stand mit Force, deployt und verifiziert dieselbe ID über die API.
+4. GitHub Pages veröffentlicht die Root-Domain-Dateien.
+5. Der Droplet-Timer erkennt die neue ID, synchronisiert den Remote-Stand mit Force und deployt/verifiziert nur `realtime.digitalisierungsplanung.de`.
 
 Anspruch: ein schlanker Kern, ein Modell, ein Datenbus, eine ausführbare Oberfläche.

@@ -6,7 +6,6 @@ umask 027
 APP_DIR="${APP_DIR:-/var/www/digitalisierungsplanung.de}"
 BRANCH="${BRANCH:-main}"
 DOMAIN="${REALTIME_DOMAIN:-realtime.digitalisierungsplanung.de}"
-FRONTEND_DOMAIN="${FRONTEND_DOMAIN:-digitalisierungsplanung.de}"
 REPO_URL="${REPO_URL:-https://github.com/ChristianHohlfeld/digitalisierungsplanung.de.git}"
 ENV_FILE="${ENV_FILE:-/etc/digitalisierungsplanung-realtime.env}"
 PM2_APP="${PM2_APP:-digitalisierungsplanung-realtime}"
@@ -18,9 +17,6 @@ HEALTH_RETRY_DELAY="${HEALTH_RETRY_DELAY:-1}"
 NGINX_AVAILABLE="/etc/nginx/sites-available/${DOMAIN}"
 NGINX_ENABLED="/etc/nginx/sites-enabled/${DOMAIN}"
 NGINX_BOOTSTRAP_AVAILABLE="/etc/nginx/sites-available/${DOMAIN}.bootstrap"
-FRONTEND_NGINX_AVAILABLE="/etc/nginx/sites-available/${FRONTEND_DOMAIN}"
-FRONTEND_NGINX_ENABLED="/etc/nginx/sites-enabled/${FRONTEND_DOMAIN}"
-FRONTEND_NGINX_BOOTSTRAP_AVAILABLE="/etc/nginx/sites-available/${FRONTEND_DOMAIN}.bootstrap"
 
 export APP_DIR ENV_FILE PM2_APP
 
@@ -140,13 +136,10 @@ else
   install -m 644 server/nginx/realtime.digitalisierungsplanung.de.bootstrap.conf "$NGINX_BOOTSTRAP_AVAILABLE"
   ln -sfn "$NGINX_BOOTSTRAP_AVAILABLE" "$NGINX_ENABLED"
 fi
-if [[ -f "/etc/letsencrypt/live/${FRONTEND_DOMAIN}/fullchain.pem" ]]; then
-  install -m 644 server/nginx/digitalisierungsplanung.de.conf "$FRONTEND_NGINX_AVAILABLE"
-  ln -sfn "$FRONTEND_NGINX_AVAILABLE" "$FRONTEND_NGINX_ENABLED"
-else
-  install -m 644 server/nginx/digitalisierungsplanung.de.bootstrap.conf "$FRONTEND_NGINX_BOOTSTRAP_AVAILABLE"
-  ln -sfn "$FRONTEND_NGINX_BOOTSTRAP_AVAILABLE" "$FRONTEND_NGINX_ENABLED"
-fi
+rm -f /etc/nginx/sites-enabled/digitalisierungsplanung.de \
+  /etc/nginx/sites-enabled/digitalisierungsplanung.de.bootstrap \
+  /etc/nginx/sites-available/digitalisierungsplanung.de \
+  /etc/nginx/sites-available/digitalisierungsplanung.de.bootstrap
 nginx -t
 systemctl reload nginx || systemctl restart nginx
 
@@ -169,28 +162,11 @@ if [[ "$health_ok" != "1" ]]; then
   exit 1
 fi
 
-if [[ -f "/etc/letsencrypt/live/${FRONTEND_DOMAIN}/fullchain.pem" ]]; then
-  frontend_headers="$(curl -ksSI --resolve "${FRONTEND_DOMAIN}:443:127.0.0.1" "https://${FRONTEND_DOMAIN}/state.html")"
-  if ! grep -qi '^cache-control: no-store, max-age=0' <<<"$frontend_headers"; then
-    printf 'Static frontend did not report the required no-store header.\n' >&2
-    exit 1
-  fi
-  if ! curl -ksS --resolve "${FRONTEND_DOMAIN}:443:127.0.0.1" "https://${FRONTEND_DOMAIN}/release-version.js" | grep -Fq "ZUSTAND_RELEASE_ID = \"${ZUSTAND_RELEASE_ID}\""; then
-    printf 'Static frontend does not expose release %s.\n' "$ZUSTAND_RELEASE_ID" >&2
-    exit 1
-  fi
-fi
-
 if [[ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]]; then
   log "Release ${ZUSTAND_RELEASE_ID} is live at wss://${DOMAIN}/ws."
 else
   log "Release ${ZUSTAND_RELEASE_ID} is healthy locally. TLS is not installed yet."
   printf 'Create DNS, then run: certbot certonly --webroot -w /var/www/certbot -d %s\n' "$DOMAIN" >&2
-fi
-if [[ -f "/etc/letsencrypt/live/${FRONTEND_DOMAIN}/fullchain.pem" ]]; then
-  log "Static frontend ${ZUSTAND_RELEASE_ID} is live at https://${FRONTEND_DOMAIN} with no-store."
-else
-  log "Static no-store boundary is staged for ${FRONTEND_DOMAIN}; issue its certificate after DNS points here."
 fi
 
 if [[ "$DEPLOY_SKIP_GIT_SYNC" != "1" && "$DEPLOY_SKIP_AUTO_DEPLOY" != "1" && "$AUTO_DEPLOY_INSTALL" == "1" && -f "$APP_DIR/server/auto-deploy.sh" ]]; then

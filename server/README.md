@@ -1,6 +1,9 @@
 # Digitalisierungsplanung Realtime Server
 
 WebSocket relay for `state.html` realtime canvas/runtime events.
+The droplet owns only `realtime.digitalisierungsplanung.de`. The root app
+(`index.html`, `state.html`, assets, and `release-version.js`) is published by
+GitHub Pages, not by this server deploy.
 
 ## Runtime
 
@@ -130,7 +133,9 @@ inside `/var/www/digitalisierungsplanung.de`; `origin/main` intentionally wins.
 missing runtime packages, validates that the checkout contains only the green
 release source plus `release-version.js`, runs `npm ci --omit=dev`, starts or
 reloads PM2 with `--update-env`, saves PM2 for reboot, reloads Nginx, and
-installs or refreshes the watcher unless `DEPLOY_SKIP_AUTO_DEPLOY=1`.
+installs or refreshes the watcher unless `DEPLOY_SKIP_AUTO_DEPLOY=1`. It also
+removes obsolete root-domain Nginx config from older deployments so the droplet
+stays realtime-only.
 
 Manual recovery uses the same release-gated path:
 

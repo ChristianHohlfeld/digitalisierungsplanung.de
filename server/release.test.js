@@ -113,6 +113,8 @@ test("keeps automatic deployment locked, release-gated, force-synced, verified, 
   assert.match(deploy, /git diff --quiet "\$ZUSTAND_RELEASE_SOURCE" -- \. ':\(exclude\)release-version\.js'/);
   assert.match(deploy, /AUTO_DEPLOY_INSTALL/);
   assert.match(deploy, /auto-deploy\.sh" --install/);
+  assert.match(deploy, /rm -f \/etc\/nginx\/sites-enabled\/digitalisierungsplanung\.de/);
+  assert.doesNotMatch(deploy, /FRONTEND_DOMAIN|FRONTEND_NGINX|Static frontend|Static no-store/);
   assert.doesNotMatch(deploy, /legacyRollback|deploy-\d/);
   assert.doesNotMatch(autoDeploy, /legacyRollback|deploy-\d/);
   assert.match(ecosystem, /process\.env\.APP_DIR/);
