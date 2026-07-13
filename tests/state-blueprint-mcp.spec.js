@@ -132,6 +132,48 @@ test.describe("State Blueprint MCP", () => {
     expect(created.workspace.model.transitions[0].label).toBe("Weiter");
   });
 
+  test("rejects every unqualified runtime reference instead of rewriting it @smoke", () => {
+    const validation = validateModel({
+      version: 2,
+      name: "Strict runtime paths",
+      initial: "start",
+      states: [{
+        id: "start",
+        title: "Start",
+        data: { email: "" },
+        dataTypes: { email: "email" },
+        components: [{ id: "email", type: "text", text: "{{email}}", dataPath: "email" }],
+        dataSource: { url: "", target: "fetch", select: "", timeoutMs: 8000, retries: 2 },
+        repeat: { path: "items", as: "item", index: "i" },
+        dataWires: [{ id: "email_wire", sourcePath: "email", scopePath: "", itemPath: "", role: "field", componentType: "text" }],
+        subscriptions: ["email"]
+      }],
+      transitions: [{
+        id: "stay",
+        from: "start",
+        to: "start",
+        label: "Weiter",
+        condition: "email != ''",
+        triggerType: "change",
+        triggerEvent: "change.email",
+        set: { email: "sent" }
+      }]
+    });
+
+    expect(validation.ok).toBe(false);
+    expect(validation.issues.map(issue => issue.code)).toEqual(expect.arrayContaining([
+      "invalid_component_data_path",
+      "invalid_component_template_path",
+      "invalid_data_source_target",
+      "invalid_repeat_path",
+      "invalid_data_wire_source",
+      "invalid_subscription_path",
+      "invalid_transition_condition_path",
+      "invalid_change_trigger_path",
+      "invalid_transition_set_path"
+    ]));
+  });
+
   test("documents the public MCP tools and model actions @smoke", () => {
     const apiDoc = fs.readFileSync(path.join(process.cwd(), "docs", "state-blueprint-api.md"), "utf8");
     const mcpDoc = fs.readFileSync(path.join(process.cwd(), "docs", "state-blueprint-mcp.md"), "utf8");
@@ -285,7 +327,7 @@ test.describe("State Blueprint MCP", () => {
     ]);
   });
 
-  test("exposes standard MCP tools and applies dependency-ordered app actions without hidden state @smoke", async () => {
+  test("exposes standard MCP tools and applies dependency-ordered app actions without hidden state @smoke", async ({ page }) => {
     const tempDir = path.join(process.cwd(), "tmp", "mcp-tests");
     fs.mkdirSync(tempDir, { recursive: true });
     const modelPath = path.join(tempDir, `workspace-${Date.now()}.json`);
@@ -316,9 +358,10 @@ test.describe("State Blueprint MCP", () => {
             { type: "create_flow", name: "MCP Checkout" },
             { type: "upsert_state", id: "start", title: "Start", x: 96, y: 120 },
             { type: "upsert_state_variable", stateId: "start", path: "email", valueType: "email", value: "" },
-            { type: "upsert_data_wire", stateId: "start", id: "wire_email", sourcePath: "email", role: "field", componentType: "text", label: "Email" },
+            { type: "upsert_state_variable", stateId: "start", path: "submitted", valueType: "boolean", value: false },
+            { type: "upsert_data_wire", stateId: "start", id: "wire_email", sourcePath: "states.start.email", role: "field", componentType: "text", label: "Email" },
             { type: "add_component", stateId: "start", component: { id: "email_render", type: "dataWire", wireId: "wire_email" } },
-            { type: "upsert_transition", id: "submit", from: "start", to: "done", label: "Submit", condition: "email", set: { submitted: true } },
+            { type: "upsert_transition", id: "submit", from: "start", to: "done", label: "Submit", condition: "states.start.email", set: { "states.start.submitted": true } },
             { type: "upsert_state", id: "done", title: "Done", x: 360, y: 120, components: [{ id: "done_text", type: "text", text: "Thanks", url: "" }] },
             { type: "set_initial", stateId: "start" },
             { type: "upsert_state", id: "parent", title: "Parent", x: 96, y: 360 },
@@ -337,9 +380,9 @@ test.describe("State Blueprint MCP", () => {
       expect(model.states.map(state => state.id)).toEqual(["start", "done", "parent", "child"]);
       expect(model.states.some(state => "combinedRender" in state)).toBe(false);
       expect(model.states.flatMap(state => state.components || []).some(component => component.type === "childOutlet")).toBe(false);
-      expect(model.states.find(state => state.id === "start").dataTypes["states.start.email"]).toBe("email");
-      expect(model.states.find(state => state.id === "start").data["states.start"].email).toBe("");
-      expect(model.states.find(state => state.id === "start").data.email).toBeUndefined();
+      expect(model.states.find(state => state.id === "start").dataTypes.email).toBe("email");
+      expect(model.states.find(state => state.id === "start").data.email).toBe("");
+      expect(model.states.find(state => state.id === "start").data).not.toHaveProperty("states.start");
       expect(model.states.find(state => state.id === "start").dataWires).toEqual([
         expect.objectContaining({ id: "wire_email", sourcePath: "states.start.email", componentType: "text" })
       ]);
@@ -374,6 +417,20 @@ test.describe("State Blueprint MCP", () => {
       const exportedText = fs.readFileSync(exportPath, "utf8");
       expect(exportedText).toContain("EXPORTED_STATE_BLUEPRINT");
       expect(exportedText).toContain("MCP Checkout");
+      expect(exportedText).toContain("function normalizeStateDataObject(value)");
+      expect(exportedText).toContain("function applyActiveStateDataDefaults(state)");
+      expect(exportedText).toContain("function runtimeContextAfterModelUpdate(previousModel, nextModel, currentContext)");
+      expect(exportedText).toContain("function resetRuntimeContextInPlace(nextModel, currentContext)");
+      expect(exportedText).not.toContain("context = runtimeContextAfterModelUpdate");
+      expect(exportedText).not.toContain('type: "STATE_BLUEPRINT_RUNTIME_EVENT"');
+      expect(exportedText).not.toContain("window.opener");
+      expect(exportedText).not.toContain("localStorage");
+      expect(exportedText).not.toContain('window.addEventListener("storage"');
+      expect(exportedText).not.toContain("window.__stateBlueprintRealtime");
+      await page.setContent(exportedText, { waitUntil: "domcontentloaded" });
+      await expect(page.locator("#appName")).toHaveText("MCP Checkout");
+      await expect(page.locator("#statePill")).toHaveText("start");
+      await expect.poll(() => page.evaluate(() => context.states?.start?.email)).toBe("");
 
       const hiddenModel = await client.request("tools/call", {
         name: "state_blueprint_replace_model",
@@ -456,8 +513,7 @@ test.describe("State Blueprint MCP", () => {
             { command: "transition.create", id: "start_done", from: "start", to: "done", label: "Continue" },
             { command: "selection.set", stateIds: ["start"] },
             { command: "viewport.fit", viewportWidth: 900, viewportHeight: 600 },
-            { command: "graph.insert_state_on_transition", transitionId: "start_done", stateId: "review", title: "Review", x: 264, y: 120 },
-            { command: "preview.pause", value: true }
+            { command: "graph.insert_state_on_transition", transitionId: "start_done", stateId: "review", title: "Review", x: 264, y: 120 }
           ]
         }
       });
@@ -468,7 +524,7 @@ test.describe("State Blueprint MCP", () => {
         expect.objectContaining({ from: "review", to: "done" })
       ]));
       expect(applied.structuredContent.workspace.editor.selected.nodes).toEqual(["review"]);
-      expect(applied.structuredContent.workspace.editor.runtimePaused).toBe(true);
+      expect(applied.structuredContent.workspace.editor).not.toHaveProperty("runtimePaused");
 
       let stored = JSON.parse(fs.readFileSync(modelPath, "utf8"));
       expect(stored.kind).toBe("state-blueprint.workspace");
@@ -534,6 +590,7 @@ test.describe("State Blueprint MCP", () => {
             { type: "create_flow", name: "Realtime MCP Flow" },
             { type: "upsert_state", id: "waiting", title: "Waiting", x: 96, y: 120 },
             { type: "upsert_state", id: "live_call", title: "Live call", x: 360, y: 120 },
+            { type: "upsert_state_variable", stateId: "waiting", path: "handled", valueType: "boolean", value: false },
             { type: "upsert_data_wire", stateId: "waiting", id: "wire_realtime_status", sourcePath: "realtime.connected", role: "field", componentType: "text", label: "Realtime connected" },
             { type: "add_component", stateId: "waiting", component: { id: "realtime_status", type: "dataWire", wireId: "wire_realtime_status" } },
             {
@@ -546,9 +603,7 @@ test.describe("State Blueprint MCP", () => {
               triggerEvent: "realtime.sip.call.incoming",
               condition: "events.realtime.sip.call.incoming.count > 0 && realtime.connected == true",
               set: {
-                "realtime.lastHandledCall": "incoming",
-                "events.realtime.sip.call.incoming.ack": true,
-                handled: true
+                "states.waiting.handled": true
               }
             },
             { type: "set_initial", stateId: "waiting" }
@@ -567,8 +622,6 @@ test.describe("State Blueprint MCP", () => {
         triggerEvent: "realtime.sip.call.incoming",
         condition: "events.realtime.sip.call.incoming.count > 0 && realtime.connected == true",
         set: {
-          "realtime.lastHandledCall": "incoming",
-          "events.realtime.sip.call.incoming.ack": true,
           "states.waiting.handled": true
         }
       }));
@@ -665,8 +718,8 @@ test.describe("State Blueprint MCP", () => {
 
       const stored = JSON.parse(fs.readFileSync(modelPath, "utf8"));
       const start = stored.model.states.find(state => state.id === "start");
-      expect(start.data["states.start"].timer.duration).toBe(10);
-      expect(start.dataTypes["states.start.timer"]).toBe("object");
+      expect(start.data.timer.duration).toBe(10);
+      expect(start.dataTypes.timer).toBe("object");
       expect(start.components).toEqual([
         expect.objectContaining({
           type: "daisy",

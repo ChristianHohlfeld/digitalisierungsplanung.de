@@ -105,7 +105,7 @@ Wichtige Befehle:
 | `selection.set`, `selection.clear`, `selection.all` | Editor-Auswahl setzen. |
 | `layer.open`, `layer.back`, `layer.root` | Arbeitsebenen navigieren. |
 | `viewport.set_camera`, `viewport.reset`, `viewport.fit` | Pan/Zoom programmatisch setzen. |
-| `preview.set_collapsed`, `preview.pause`, `ui.set_panel` | Editor-UI-Zustand steuern. |
+| `preview.set_collapsed`, `ui.set_panel` | Editor-UI-Zustand steuern. |
 | `graph.copy_selection`, `graph.paste`, `graph.duplicate_selection`, `graph.delete_selection` | Graph-Auswahl kopieren, einfügen, duplizieren oder löschen. |
 | `graph.collapse_to_parent`, `graph.degroup_parent` | Zustände zu einem echten Parent-Zustand gruppieren oder wieder auflösen. |
 | `history.undo`, `history.redo` | Befehlsbasierte Editor-Änderungen rückgängig machen oder wiederholen. |
@@ -338,8 +338,11 @@ removed.
 
 Deklariert oder aktualisiert eine zustandsbezogene Variable im globalen Busbaum.
 
-Important: the API always scopes unqualified paths under `states.<stateId>`.
-That prevents collisions between states.
+`path` ist immer ein zustandsrelativer Feldpfad innerhalb der Modellkonfiguration
+`state.data`. Die API speichert
+keinen qualifizierten Schlüssel und ergänzt keinen Präfix. Die Runtime stellt
+die Deklaration beim State-Eintritt ausschließlich unter
+`states.<stateId>.<path>` bereit.
 
 ```json
 {
@@ -355,8 +358,8 @@ Stored result:
 
 ```json
 {
-  "data": { "states.form": { "email": "" } },
-  "dataTypes": { "states.form.email": "email" }
+  "data": { "email": "" },
+  "dataTypes": { "email": "email" }
 }
 ```
 
@@ -373,8 +376,8 @@ Entfernt einen deklarierten Bus-Pfad aus einem Zustand. Passende Datenverbindung
 
 ### `configure_fetch`
 
-Configure state-entry fetch. Fetch is an entry effect of the active state, never
-a render side effect.
+Konfiguriert Fetch als Eintrittseffekt des aktiven Zustands. Fetch ist niemals
+ein Render-Nebeneffekt.
 
 Fields:
 

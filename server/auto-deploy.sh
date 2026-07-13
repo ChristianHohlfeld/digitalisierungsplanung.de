@@ -79,23 +79,23 @@ marker_field() {
 }
 
 release_source_from_ref() {
-  git -C "$APP_DIR" show "$1:sw-version.js"
+  git -C "$APP_DIR" show "$1:release-version.js"
 }
 
 release_id_from_ref() {
-  release_source_from_ref "$1" | sed -n 's/^self\.ZUSTAND_SW_VERSION = "\([a-zA-Z0-9._-]*\)";$/\1/p' | head -n 1
+  release_source_from_ref "$1" | sed -n 's/^globalThis\.ZUSTAND_RELEASE_ID = "\([a-zA-Z0-9._-]*\)";$/\1/p' | head -n 1
 }
 
 release_sequence_from_ref() {
-  release_source_from_ref "$1" | sed -n 's/^self\.ZUSTAND_RELEASE_SEQUENCE = \([0-9][0-9]*\);$/\1/p' | head -n 1
+  release_source_from_ref "$1" | sed -n 's/^globalThis\.ZUSTAND_RELEASE_SEQUENCE = \([0-9][0-9]*\);$/\1/p' | head -n 1
 }
 
 release_built_at_from_ref() {
-  release_source_from_ref "$1" | sed -n 's/^self\.ZUSTAND_SW_BUILT_AT = "\([^"]*\)";$/\1/p' | head -n 1
+  release_source_from_ref "$1" | sed -n 's/^globalThis\.ZUSTAND_RELEASE_BUILT_AT = "\([^"]*\)";$/\1/p' | head -n 1
 }
 
 release_source_commit_from_ref() {
-  release_source_from_ref "$1" | sed -n 's/^self\.ZUSTAND_RELEASE_SOURCE = "\([a-fA-F0-9]*\)";$/\1/p' | head -n 1
+  release_source_from_ref "$1" | sed -n 's/^globalThis\.ZUSTAND_RELEASE_SOURCE = "\([a-fA-F0-9]*\)";$/\1/p' | head -n 1
 }
 
 write_marker() {
@@ -165,8 +165,7 @@ health_reports_release() {
     const fs = require("node:fs");
     const body = JSON.parse(fs.readFileSync(0, "utf8"));
     const expected = process.env.EXPECTED_RELEASE;
-    const legacyRollback = expected.startsWith("deploy-") && body.serviceWorkerId === undefined;
-    if (!body.ok || (body.serviceWorkerId !== expected && !legacyRollback)) process.exit(1);
+    if (!body.ok || body.releaseId !== expected) process.exit(1);
   ' <<<"$payload"
 }
 
@@ -176,8 +175,8 @@ running_release_id() {
   node -e '
     const fs = require("node:fs");
     const body = JSON.parse(fs.readFileSync(0, "utf8"));
-    if (!body.ok || typeof body.serviceWorkerId !== "string") process.exit(1);
-    process.stdout.write(body.serviceWorkerId);
+    if (!body.ok || typeof body.releaseId !== "string") process.exit(1);
+    process.stdout.write(body.releaseId);
   ' <<<"$payload"
 }
 
@@ -190,7 +189,7 @@ commit_for_release() {
       printf '%s' "$commit"
       return 0
     fi
-  done < <(git -C "$APP_DIR" rev-list --all --max-count=300 -- sw-version.js)
+  done < <(git -C "$APP_DIR" rev-list --all --max-count=300 -- release-version.js)
   return 1
 }
 
@@ -204,7 +203,7 @@ previous_release_commit() {
       printf '%s' "$commit"
       return 0
     fi
-  done < <(git -C "$APP_DIR" rev-list --max-count=300 "${target_commit}^" -- sw-version.js)
+  done < <(git -C "$APP_DIR" rev-list --max-count=300 "${target_commit}^" -- release-version.js)
   return 1
 }
 

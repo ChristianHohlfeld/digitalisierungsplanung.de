@@ -6,6 +6,7 @@ umask 027
 APP_DIR="${APP_DIR:-/var/www/digitalisierungsplanung.de}"
 BRANCH="${BRANCH:-main}"
 DOMAIN="${REALTIME_DOMAIN:-realtime.digitalisierungsplanung.de}"
+FRONTEND_DOMAIN="${FRONTEND_DOMAIN:-digitalisierungsplanung.de}"
 REPO_URL="${REPO_URL:-https://github.com/ChristianHohlfeld/digitalisierungsplanung.de.git}"
 ENV_FILE="${ENV_FILE:-/etc/digitalisierungsplanung-realtime.env}"
 PM2_APP="${PM2_APP:-digitalisierungsplanung-realtime}"
@@ -15,6 +16,9 @@ HEALTH_RETRY_DELAY="${HEALTH_RETRY_DELAY:-1}"
 NGINX_AVAILABLE="/etc/nginx/sites-available/${DOMAIN}"
 NGINX_ENABLED="/etc/nginx/sites-enabled/${DOMAIN}"
 NGINX_BOOTSTRAP_AVAILABLE="/etc/nginx/sites-available/${DOMAIN}.bootstrap"
+FRONTEND_NGINX_AVAILABLE="/etc/nginx/sites-available/${FRONTEND_DOMAIN}"
+FRONTEND_NGINX_ENABLED="/etc/nginx/sites-enabled/${FRONTEND_DOMAIN}"
+FRONTEND_NGINX_BOOTSTRAP_AVAILABLE="/etc/nginx/sites-available/${FRONTEND_DOMAIN}.bootstrap"
 
 export APP_DIR ENV_FILE PM2_APP
 
@@ -81,19 +85,19 @@ fi
 cd "$APP_DIR"
 retry 3 5 npm ci --omit=dev
 
-export ZUSTAND_RELEASE_FILE="$APP_DIR/sw-version.js"
+export ZUSTAND_RELEASE_FILE="$APP_DIR/release-version.js"
 export ZUSTAND_RELEASE_ID
 export ZUSTAND_RELEASE_SEQUENCE
 export ZUSTAND_RELEASE_BUILT_AT
 export ZUSTAND_RELEASE_SOURCE
 export ZUSTAND_DEPLOY_COMMIT="$(git rev-parse HEAD)"
-ZUSTAND_RELEASE_ID="$(sed -n 's/^self\.ZUSTAND_SW_VERSION = "\([a-zA-Z0-9._-]*\)";$/\1/p' sw-version.js | head -n 1)"
-ZUSTAND_RELEASE_SEQUENCE="$(sed -n 's/^self\.ZUSTAND_RELEASE_SEQUENCE = \([0-9][0-9]*\);$/\1/p' sw-version.js | head -n 1)"
-if [[ -z "$ZUSTAND_RELEASE_SEQUENCE" && "$ZUSTAND_RELEASE_ID" =~ ^(release|deploy)-([0-9]+) ]]; then
-  ZUSTAND_RELEASE_SEQUENCE="${BASH_REMATCH[2]}"
+ZUSTAND_RELEASE_ID="$(sed -n 's/^globalThis\.ZUSTAND_RELEASE_ID = "\([a-zA-Z0-9._-]*\)";$/\1/p' release-version.js | head -n 1)"
+ZUSTAND_RELEASE_SEQUENCE="$(sed -n 's/^globalThis\.ZUSTAND_RELEASE_SEQUENCE = \([0-9][0-9]*\);$/\1/p' release-version.js | head -n 1)"
+if [[ -z "$ZUSTAND_RELEASE_SEQUENCE" && "$ZUSTAND_RELEASE_ID" =~ ^release-([0-9]+)$ ]]; then
+  ZUSTAND_RELEASE_SEQUENCE="${BASH_REMATCH[1]}"
 fi
-ZUSTAND_RELEASE_BUILT_AT="$(sed -n 's/^self\.ZUSTAND_SW_BUILT_AT = "\([^"]*\)";$/\1/p' sw-version.js | head -n 1)"
-ZUSTAND_RELEASE_SOURCE="$(sed -n 's/^self\.ZUSTAND_RELEASE_SOURCE = "\([a-fA-F0-9]*\)";$/\1/p' sw-version.js | head -n 1)"
+ZUSTAND_RELEASE_BUILT_AT="$(sed -n 's/^globalThis\.ZUSTAND_RELEASE_BUILT_AT = "\([^"]*\)";$/\1/p' release-version.js | head -n 1)"
+ZUSTAND_RELEASE_SOURCE="$(sed -n 's/^globalThis\.ZUSTAND_RELEASE_SOURCE = "\([a-fA-F0-9]*\)";$/\1/p' release-version.js | head -n 1)"
 if [[ "$ZUSTAND_RELEASE_ID" == "dev-local" || ! "$ZUSTAND_RELEASE_ID" =~ ^[a-zA-Z0-9._-]+$ ]]; then
   printf 'Refusing a production deploy without a valid shared release ID.\n' >&2
   exit 1
@@ -126,6 +130,13 @@ else
   install -m 644 server/nginx/realtime.digitalisierungsplanung.de.bootstrap.conf "$NGINX_BOOTSTRAP_AVAILABLE"
   ln -sfn "$NGINX_BOOTSTRAP_AVAILABLE" "$NGINX_ENABLED"
 fi
+if [[ -f "/etc/letsencrypt/live/${FRONTEND_DOMAIN}/fullchain.pem" ]]; then
+  install -m 644 server/nginx/digitalisierungsplanung.de.conf "$FRONTEND_NGINX_AVAILABLE"
+  ln -sfn "$FRONTEND_NGINX_AVAILABLE" "$FRONTEND_NGINX_ENABLED"
+else
+  install -m 644 server/nginx/digitalisierungsplanung.de.bootstrap.conf "$FRONTEND_NGINX_BOOTSTRAP_AVAILABLE"
+  ln -sfn "$FRONTEND_NGINX_BOOTSTRAP_AVAILABLE" "$FRONTEND_NGINX_ENABLED"
+fi
 nginx -t
 systemctl reload nginx || systemctl restart nginx
 
@@ -136,8 +147,7 @@ for _ in $(seq 1 "$HEALTH_ATTEMPTS"); do
       const fs = require("node:fs");
       const body = JSON.parse(fs.readFileSync(0, "utf8"));
       const expected = process.env.EXPECTED_RELEASE;
-      const legacyRollback = expected.startsWith("deploy-") && body.serviceWorkerId === undefined;
-      if (!body.ok || (body.serviceWorkerId !== expected && !legacyRollback)) process.exit(1);
+      if (!body.ok || body.releaseId !== expected) process.exit(1);
     ' <<<"$payload"; then
     health_ok=1
     break
@@ -149,9 +159,26 @@ if [[ "$health_ok" != "1" ]]; then
   exit 1
 fi
 
+if [[ -f "/etc/letsencrypt/live/${FRONTEND_DOMAIN}/fullchain.pem" ]]; then
+  frontend_headers="$(curl -ksSI --resolve "${FRONTEND_DOMAIN}:443:127.0.0.1" "https://${FRONTEND_DOMAIN}/state.html")"
+  if ! grep -qi '^cache-control: no-store, max-age=0' <<<"$frontend_headers"; then
+    printf 'Static frontend did not report the required no-store header.\n' >&2
+    exit 1
+  fi
+  if ! curl -ksS --resolve "${FRONTEND_DOMAIN}:443:127.0.0.1" "https://${FRONTEND_DOMAIN}/release-version.js" | grep -Fq "ZUSTAND_RELEASE_ID = \"${ZUSTAND_RELEASE_ID}\""; then
+    printf 'Static frontend does not expose release %s.\n' "$ZUSTAND_RELEASE_ID" >&2
+    exit 1
+  fi
+fi
+
 if [[ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]]; then
   log "Release ${ZUSTAND_RELEASE_ID} is live at wss://${DOMAIN}/ws."
 else
   log "Release ${ZUSTAND_RELEASE_ID} is healthy locally. TLS is not installed yet."
   printf 'Create DNS, then run: certbot certonly --webroot -w /var/www/certbot -d %s\n' "$DOMAIN" >&2
+fi
+if [[ -f "/etc/letsencrypt/live/${FRONTEND_DOMAIN}/fullchain.pem" ]]; then
+  log "Static frontend ${ZUSTAND_RELEASE_ID} is live at https://${FRONTEND_DOMAIN} with no-store."
+else
+  log "Static no-store boundary is staged for ${FRONTEND_DOMAIN}; issue its certificate after DNS points here."
 fi

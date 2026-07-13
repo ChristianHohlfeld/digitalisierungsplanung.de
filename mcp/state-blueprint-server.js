@@ -88,13 +88,8 @@ function buildStandaloneAppHtml(appHtml, payload) {
   ].join("\n");
   const html = appHtml
     .replace(/<title>[\s\S]*?<\/title>/, `<title>${escapeHtml(payload.model.name || "Zustand")}</title>`)
-    .replace(/    let model = loadModel\(\) \|\| blankModel\(\);/, bootstrap)
-    .replace(/    function saveModel\(\) \{\n      try \{ localStorage\.setItem\(STORAGE_KEY, JSON\.stringify\(model\)\); \} catch \(_\) \{\}\n    \}/,
-      "    function saveModel() {}")
-    .replace(/      saveModel\(\);\n      const oldContext = context;/,
-      "      const oldContext = context;")
-    .replace(/    window\.addEventListener\("message", evt => \{/, "    if (!IS_STANDALONE_EXPORT) window.addEventListener(\"message\", evt => {")
-    .replace(/    window\.addEventListener\("storage", evt => \{/, "    if (!IS_STANDALONE_EXPORT) window.addEventListener(\"storage\", evt => {");
+    .replace(/    const IS_STANDALONE_EXPORT = false;\n    let model = blankModel\(\);/, bootstrap)
+    .replace(/    window\.addEventListener\("message", evt => \{/, "    if (!IS_STANDALONE_EXPORT) window.addEventListener(\"message\", evt => {");
   if (!html.includes("EXPORTED_STATE_BLUEPRINT")) throw new Error("Could not prepare standalone app export.");
   return html;
 }
@@ -102,23 +97,30 @@ function buildStandaloneAppHtml(appHtml, payload) {
 function loadWorkspace() {
   const stored = readJsonFile(modelPath, null);
   if (!stored) return normalizeWorkspace({ model: blankModel("State App"), stateTemplates: [] });
-  if (stored.kind === "state-blueprint-definition" || stored.kind === "state-blueprint.definition") {
+  const canonicalModel = input => {
+    const validation = validateModel(input);
+    if (validation.ok) return validation.model;
+    const error = new Error("Stored model violates the canonical model contract.");
+    error.validation = validation;
+    throw error;
+  };
+  if (stored.kind === "state-blueprint-definition") {
     return normalizeWorkspace({
-      model: normalizeModel(stored.model),
+      model: canonicalModel(stored.model),
       stateTemplates: Array.isArray(stored.stateTemplates) ? stored.stateTemplates : [],
       editor: { camera: stored.camera, previewCollapsed: stored.previewCollapsed }
     });
   }
   if (stored.model) {
     return normalizeWorkspace({
-      model: normalizeModel(stored.model),
+      model: canonicalModel(stored.model),
       stateTemplates: Array.isArray(stored.stateTemplates) ? stored.stateTemplates : [],
       editor: stored.editor,
       clipboard: stored.clipboard,
       history: stored.history
     });
   }
-  return normalizeWorkspace({ model: normalizeModel(stored), stateTemplates: [] });
+  return normalizeWorkspace({ model: canonicalModel(stored), stateTemplates: [] });
 }
 
 function saveWorkspace(workspace) {

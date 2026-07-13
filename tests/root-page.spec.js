@@ -2,23 +2,24 @@ const fs = require("node:fs");
 const { test, expect } = require("@playwright/test");
 
 test.describe("Root demo export", () => {
-  test("service worker always uses the network and removes every app cache @smoke", async ({ request }) => {
+  test("service workers stay disabled and every old app cache is removed @smoke", async ({ request }) => {
     const sw = await request.get("/sw.js");
-    const registration = await request.get("/register-sw.js");
+    const cleanup = await request.get("/disable-sw.js");
     expect(sw.ok()).toBe(true);
-    expect(registration.ok()).toBe(true);
+    expect(cleanup.ok()).toBe(true);
 
     const swSource = await sw.text();
-    const registrationSource = await registration.text();
+    const cleanupSource = await cleanup.text();
     expect(swSource).toContain("clearAllCaches");
     expect(swSource).toContain("names.map(name => caches.delete(name))");
-    expect(swSource).toContain("__zustand_nocache");
-    expect(swSource).toContain('cache: "no-store"');
+    expect(swSource).toContain("self.registration.unregister()");
+    expect(swSource).not.toContain('addEventListener("fetch"');
     expect(swSource).not.toContain("caches.open");
     expect(swSource).not.toContain("APP_SHELL");
     expect(swSource).not.toContain("staleWhileRevalidate");
-    expect(registrationSource).toContain('updateViaCache: "none"');
-    expect(registrationSource).toContain("/sw-version.js?__zustand_nocache=");
+    expect(cleanupSource).toContain("registration.unregister()");
+    expect(cleanupSource).toContain("names.map(name => caches.delete(name))");
+    expect(cleanupSource).not.toContain("serviceWorker.register");
   });
 
   test("serves the single Zustand demo at root @smoke", async ({ page }) => {
@@ -55,6 +56,8 @@ test.describe("Root demo export", () => {
     });
 
     await page.goto("/");
+    await expect.poll(() => page.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).length)).toBe(0);
+    await expect.poll(() => page.evaluate(async () => "caches" in window ? (await caches.keys()).length : 0)).toBe(0);
     await expect(page).toHaveTitle("Zustand-Beispiel");
     await expect(page.getByRole("button", { name: "Neu" })).toHaveCount(0);
     await expect(page.locator("#flowDebug")).toHaveCount(0);

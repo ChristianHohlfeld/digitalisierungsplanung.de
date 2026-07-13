@@ -41,10 +41,10 @@ function writeExecutable(file, source) {
 }
 
 function releaseSource(sequence) {
-  return `self.ZUSTAND_RELEASE_SEQUENCE = ${sequence};\n` +
-    `self.ZUSTAND_SW_VERSION = "release-${sequence}";\n` +
-    `self.ZUSTAND_SW_BUILT_AT = "2026-07-12T00:00:00Z";\n` +
-    `self.ZUSTAND_RELEASE_SOURCE = "${String(sequence).padStart(7, "0")}";\n`;
+  return `globalThis.ZUSTAND_RELEASE_SEQUENCE = ${sequence};\n` +
+    `globalThis.ZUSTAND_RELEASE_ID = "release-${sequence}";\n` +
+    `globalThis.ZUSTAND_RELEASE_BUILT_AT = "2026-07-12T00:00:00Z";\n` +
+    `globalThis.ZUSTAND_RELEASE_SOURCE = "${String(sequence).padStart(7, "0")}";\n`;
 }
 
 test("auto deploy advances only verified releases and restores the last release after failure", () => {
@@ -62,14 +62,14 @@ test("auto deploy advances only verified releases and restores the last release 
 
     const fakeDeploy = `#!/usr/bin/env bash
 set -euo pipefail
-release_id="$(sed -n 's/^self\\.ZUSTAND_SW_VERSION = "\\([a-zA-Z0-9._-]*\\)";$/\\1/p' "$APP_DIR/sw-version.js")"
+release_id="$(sed -n 's/^globalThis\\.ZUSTAND_RELEASE_ID = "\\([a-zA-Z0-9._-]*\\)";$/\\1/p' "$APP_DIR/release-version.js")"
 printf 'deploy %s app=%s fail=%s\n' "$release_id" "$APP_DIR" "\${FAKE_FAIL_RELEASE:-}" >> "$FAKE_LOG_FILE"
 if [[ "\${FAKE_FAIL_RELEASE:-}" == "$release_id" ]]; then
   exit 1
 fi
-printf '{"ok":true,"serviceWorkerId":"%s"}\n' "$release_id" > "$FAKE_HEALTH_FILE"
+printf '{"ok":true,"releaseId":"%s"}\n' "$release_id" > "$FAKE_HEALTH_FILE"
 `;
-    fs.writeFileSync(path.join(sourceRepo, "sw-version.js"), 'self.ZUSTAND_SW_VERSION = "deploy-58-1";\n');
+    fs.writeFileSync(path.join(sourceRepo, "release-version.js"), releaseSource(58));
     writeExecutable(path.join(sourceRepo, "server", "deploy.sh"), fakeDeploy);
     git(sourceRepo, "init", "--initial-branch=main");
     git(sourceRepo, "config", "user.name", "Deploy Test");
@@ -78,8 +78,8 @@ printf '{"ok":true,"serviceWorkerId":"%s"}\n' "$release_id" > "$FAKE_HEALTH_FILE
     git(sourceRepo, "commit", "-m", "release 58");
     const release58 = git(sourceRepo, "rev-parse", "HEAD");
 
-    fs.writeFileSync(path.join(sourceRepo, "sw-version.js"), releaseSource(59));
-    git(sourceRepo, "add", "sw-version.js");
+    fs.writeFileSync(path.join(sourceRepo, "release-version.js"), releaseSource(59));
+    git(sourceRepo, "add", "release-version.js");
     git(sourceRepo, "commit", "-m", "release 59");
     const release59 = git(sourceRepo, "rev-parse", "HEAD");
     run("git", ["clone", "--bare", sourceRepo, bareRepo]);
@@ -138,11 +138,11 @@ exec ${shellQuote(bashPath(process.execPath))} "$@"
     assert.match(first.stdout, /Deployment complete: release-59/);
     assert.equal(git(appDir, "rev-parse", "HEAD"), release59);
     assert.match(fs.readFileSync(path.join(stateDir, "deployed-release.env"), "utf8"), /RELEASE_ID=release-59/);
-    assert.equal(JSON.parse(fs.readFileSync(healthFile, "utf8")).serviceWorkerId, "release-59");
+    assert.equal(JSON.parse(fs.readFileSync(healthFile, "utf8")).releaseId, "release-59");
 
     git(sourceRepo, "remote", "add", "origin", bareRepo);
-    fs.writeFileSync(path.join(sourceRepo, "sw-version.js"), releaseSource(60));
-    git(sourceRepo, "add", "sw-version.js");
+    fs.writeFileSync(path.join(sourceRepo, "release-version.js"), releaseSource(60));
+    git(sourceRepo, "add", "release-version.js");
     git(sourceRepo, "commit", "-m", "release 60");
     git(sourceRepo, "push", "origin", "main");
 
@@ -154,7 +154,7 @@ exec ${shellQuote(bashPath(process.execPath))} "$@"
     assert.match(failed.stdout, /Rollback is healthy on release-59/);
     assert.equal(git(appDir, "rev-parse", "HEAD"), release59);
     assert.match(fs.readFileSync(path.join(stateDir, "deployed-release.env"), "utf8"), /RELEASE_ID=release-59/);
-    assert.equal(JSON.parse(fs.readFileSync(healthFile, "utf8")).serviceWorkerId, "release-59");
+    assert.equal(JSON.parse(fs.readFileSync(healthFile, "utf8")).releaseId, "release-59");
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

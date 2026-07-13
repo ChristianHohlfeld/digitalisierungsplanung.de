@@ -18,10 +18,10 @@ Full API reference: [`../docs/realtime-api.md`](../docs/realtime-api.md)
 ## Message Types
 
 - `join`: first client message, requires `roomId`, `clientId`, and signed `token` in production.
-- `presence.cursor`: transient cursor/drag presence, dropped for slow peers.
 - `runtime.event`: relayed event name and detail for state-machine runtime reactions. The server accepts only catalogued `realtime.*` names from `/events`.
 
 The server broadcasts to other clients in the same room only. It does not echo messages to the sender.
+It intentionally has no cursor presence and no peer join/leave broadcast.
 The server does not accept model patches or snapshots. Model writes stay in the canonical State Blueprint JSON/API layer.
 
 ## State Runtime Integration
@@ -32,26 +32,18 @@ Open the static app with a room id:
 https://digitalisierungsplanung.de/state.html?room=<room-id>
 ```
 
-The host page fetches a short-lived signed room token from `/token`, opens `wss://realtime.digitalisierungsplanung.de/ws`, and joins the room.
+The generated runtime fetches a short-lived signed room token from `/token`, opens `wss://realtime.digitalisierungsplanung.de/ws`, and joins the room. Preview and standalone own the same transport; the editor host does not relay events.
 
 Realtime is transport only. Runtime state still flows through the existing global JSON bus:
 
 ```text
-STATE_BLUEPRINT_REALTIME_EVENT -> emitRuntimeEvent(...) -> writeRuntimeState("events..." / "lastEvent")
+runtime.event -> emitRuntimeEvent(...) -> writeRuntimeState("events..." / "lastEvent")
 ```
 
 `/emit` accepts only offered `realtime.*` events from `/events`. Existing `button.*`, `change.*`, `timer.*`, and `auto.*` events remain local runtime events.
 Graph/model collaboration must go through the documented State Blueprint API, not through this WSS relay.
 
-Example:
-
-```js
-await window.__stateBlueprintRealtime.emit("realtime.sip.call.incoming", {
-  caller: "+491234",
-  callee: "100",
-  callId: "local-123"
-});
-```
+The browser bridge has no emitter. Offered events enter through the authenticated external `/emit` boundary or the stateless test console.
 
 Use a matching transition in the model:
 
@@ -111,14 +103,14 @@ sudo bash server/auto-deploy.sh --install
 ```
 
 The systemd timer checks `origin/main` every minute. It deploys only when CI has
-advanced the shared `release-N` ID in `sw-version.js`. It then locks against a
+advanced the shared `release-N` ID in `release-version.js`. It then locks against a
 second run, discards all local repository changes, checks out the exact remote
 commit, runs `deploy.sh`, updates the PM2 environment, validates Nginx and
 requires `/healthz` to report the same release ID. The success marker advances
 only after all checks pass. A failed update is retried and then rolled back to
 the last verified commit; the timer tries the new release again later.
-Only the one-time rollback to a pre-`release-N` deployment may accept its old
-health payload without an ID. Every new release requires an exact API match.
+Every deployment and rollback requires `/healthz.releaseId` to match the exact
+checked-out `release-N` file. There is no compatibility payload.
 
 Useful commands:
 

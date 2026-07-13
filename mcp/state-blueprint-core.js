@@ -85,50 +85,205 @@ function stateDataScopeForId(id) {
 }
 
 function stateVariableActualPath(state, value) {
+  const localPath = stateVariableLocalPath(state, value);
+  if (!localPath) return "";
+  const scope = stateDataScopeForId(state?.id);
+  return scope ? `${scope}.${localPath}` : localPath;
+}
+
+function stateVariableLocalPath(state, value) {
   const raw = normalizeBindingPath(value, "");
   if (!raw) return "";
   const scope = stateDataScopeForId(state?.id);
   if (!scope) return raw;
-  if (raw === scope || raw.startsWith(`${scope}.`)) return raw;
-  if (raw.startsWith("states.")) return "";
-  return `${scope}.${raw}`;
+  if (raw.startsWith(`${scope}.`)) return raw.slice(scope.length + 1);
+  if (raw === scope || raw.startsWith("states.")) return "";
+  return raw;
 }
 
 function stateScopedActionPath(state, value) {
   const raw = normalizeBindingPath(value, "");
   if (!raw) return "";
-  if (/^(states|state|events|runtime|realtime)(\.|$)/.test(raw)) return raw;
-  return stateVariableActualPath(state, raw) || raw;
+  return runtimeBusPathIsReadable(raw) ? raw : "";
+}
+
+function runtimeBusPathIsReadable(value) {
+  const path = normalizeBindingPath(value, "");
+  return /^states\.[a-zA-Z_][a-zA-Z0-9_]*\./.test(path)
+    || path === "state.current"
+    || path === "runtime.paused"
+    || /^events\./.test(path)
+    || /^realtime\./.test(path);
+}
+
+function runtimeBusPathIsWritable(value) {
+  return /^states\.[a-zA-Z_][a-zA-Z0-9_]*\./.test(normalizeBindingPath(value, ""));
+}
+
+function conditionRuntimePaths(condition) {
+  const withoutStrings = String(condition || "").replace(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/g, " ");
+  return withoutStrings.match(/[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*/g) || [];
+}
+
+function runtimeReferenceContractIssuesForState(state) {
+  const stateId = String(state?.id || "");
+  const issues = [];
+  const add = (code, path, message) => issues.push({ code, stateId, path, message });
+  for (const component of Array.isArray(state?.components) ? state.components : []) {
+    if (component?.dataPath && !runtimeBusPathIsWritable(component.dataPath)) {
+      add("invalid_component_data_path", String(component.dataPath), "Component dataPath must use states.<id>.<field>.");
+    }
+    for (const value of [component?.text, component?.url, ...(Array.isArray(component?.items) ? component.items.flatMap(item => [item?.text, item?.url]) : [])]) {
+      for (const match of String(value || "").matchAll(/\{\{\s*([^{}]+?)\s*\}\}/g)) {
+        const path = normalizeBindingPath(match[1], "");
+        if (!runtimeBusPathIsReadable(path) && !/^item(?:\.|$)/.test(path) && path !== "i") {
+          add("invalid_component_template_path", String(match[1]), "Component template references must use a fully qualified runtime bus path or the repeat aliases item/i.");
+        }
+      }
+    }
+  }
+  for (const wire of Array.isArray(state?.dataWires) ? state.dataWires : []) {
+    if (!runtimeBusPathIsReadable(wire?.sourcePath || wire?.path)) add("invalid_data_wire_source", String(wire?.sourcePath || wire?.path || ""), "Data-wire sourcePath must use a fully qualified runtime bus path.");
+    if (wire?.scopePath && !runtimeBusPathIsReadable(wire.scopePath)) add("invalid_data_wire_scope", String(wire.scopePath), "Data-wire scopePath must use a fully qualified runtime bus path.");
+  }
+  if (state?.dataSource?.target && !runtimeBusPathIsWritable(state.dataSource.target)) {
+    add("invalid_data_source_target", String(state.dataSource.target), "Fetch target must use states.<id>.<field>.");
+  }
+  if (state?.repeat?.path && !runtimeBusPathIsReadable(state.repeat.path)) {
+    add("invalid_repeat_path", String(state.repeat.path), "Repeat path must use a fully qualified runtime bus path.");
+  }
+  for (const subscription of Array.isArray(state?.subscriptions) ? state.subscriptions : []) {
+    if (subscription !== "*" && !runtimeBusPathIsReadable(subscription)) add("invalid_subscription_path", String(subscription), "Subscription must be * or a fully qualified runtime bus path.");
+  }
+  return issues;
+}
+
+function runtimeReferenceContractIssuesForTransition(transition) {
+  const transitionId = String(transition?.id || "");
+  const issues = [];
+  for (const path of Object.keys(isPlainObject(transition?.set) ? transition.set : {})) {
+    if (!runtimeBusPathIsWritable(path)) issues.push({ code: "invalid_transition_set_path", transitionId, path, message: "Transition set paths must use states.<id>.<field>." });
+  }
+  const literals = new Set(["true", "false", "null", "undefined"]);
+  for (const path of conditionRuntimePaths(transition?.condition)) {
+    if (!literals.has(path) && !runtimeBusPathIsReadable(path)) {
+      issues.push({ code: "invalid_transition_condition_path", transitionId, path, message: "Transition condition references must use fully qualified runtime bus paths." });
+    }
+  }
+  const triggerType = String(transition?.triggerType || "button").toLowerCase();
+  const triggerEvent = String(transition?.triggerEvent || "");
+  if (triggerType === "change" && triggerEvent) {
+    const path = triggerEvent.startsWith("change.") ? triggerEvent.slice("change.".length) : triggerEvent;
+    if (!runtimeBusPathIsReadable(path)) issues.push({ code: "invalid_change_trigger_path", transitionId, path, message: "Change triggers must reference a fully qualified runtime bus path." });
+  }
+  return issues;
+}
+
+function assertRuntimeReferenceContract(entity, kind) {
+  const issues = kind === "transition"
+    ? runtimeReferenceContractIssuesForTransition(entity)
+    : runtimeReferenceContractIssuesForState(entity);
+  if (!issues.length) return;
+  const error = new Error(issues.map(issue => issue.message).join("; "));
+  error.validation = { ok: false, issues };
+  throw error;
 }
 
 function escapeRegExp(text) {
   return String(text).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function ensureStateVariableScopeRoot(state, data = state?.data) {
-  const source = normalizeDataObject(data);
-  const scope = stateDataScopeForId(state?.id);
-  if (!scope) return source;
-  if (!isPlainObject(source[scope])) {
-    const existing = dataObjectValueAtPath(source, scope);
-    source[scope] = isPlainObject(existing) ? existing : {};
-  }
-  return source;
-}
-
 function normalizeDataObject(value) {
   return isPlainObject(value) ? clone(value) : {};
+}
+
+function normalizeStateDataValue(value) {
+  if (Array.isArray(value)) return value.filter(item => item !== undefined).map(normalizeStateDataValue);
+  if (!isPlainObject(value)) return value;
+  const out = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (child !== undefined && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key)) out[key] = normalizeStateDataValue(child);
+  }
+  return out;
+}
+
+function normalizeStateDataObject(value) {
+  return isPlainObject(value) ? normalizeStateDataValue(value) : {};
+}
+
+function stateDataContractIssues(value, stateId) {
+  const issues = [];
+  if (value === undefined) return issues;
+  if (!isPlainObject(value)) {
+    return [{
+      code: "invalid_state_data",
+      stateId,
+      message: "state.data must be an object with local identifier keys."
+    }];
+  }
+  const visit = (node, path) => {
+    if (Array.isArray(node)) {
+      node.forEach((item, index) => visit(item, `${path}[${index}]`));
+      return;
+    }
+    if (!isPlainObject(node)) return;
+    for (const [key, child] of Object.entries(node)) {
+      const childPath = path ? `${path}.${key}` : key;
+      if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key)) {
+        issues.push({
+          code: "invalid_state_data_key",
+          stateId,
+          path: childPath,
+          message: `state.data key "${childPath}" must be a local identifier without dots.`
+        });
+      }
+      visit(child, childPath);
+    }
+  };
+  visit(value, "");
+  return issues;
+}
+
+function stateDataTypeContractIssues(value, data, stateId) {
+  if (value === undefined) return [];
+  if (!isPlainObject(value)) {
+    return [{
+      code: "invalid_state_data_types",
+      stateId,
+      message: "state.dataTypes must be an object keyed by local state.data paths."
+    }];
+  }
+  const dataObject = isPlainObject(data) ? data : {};
+  const issues = [];
+  for (const path of Object.keys(value)) {
+    const cleanPath = normalizeDataTypePath(path, "");
+    if (!cleanPath || !dataObjectHasPath(dataObject, cleanPath)) {
+      issues.push({
+        code: "invalid_state_data_type_path",
+        stateId,
+        path,
+        message: `state.dataTypes path "${path}" must reference a local path declared in state.data.`
+      });
+    }
+  }
+  return issues;
+}
+
+function assertStateDataContract(value, dataTypes, stateId) {
+  const issues = [
+    ...stateDataContractIssues(value, stateId),
+    ...stateDataTypeContractIssues(dataTypes, value, stateId)
+  ];
+  if (!issues.length) return;
+  const error = new Error(issues.map(issue => issue.message).join("; "));
+  error.validation = { ok: false, issues };
+  throw error;
 }
 
 function dataObjectPathSegments(dataObject, path) {
   const key = String(path || "").trim();
   if (!key) return [];
-  const parts = key.split(".").filter(Boolean);
-  for (let index = parts.length; index >= 1; index -= 1) {
-    const prefix = parts.slice(0, index).join(".");
-    if (Object.prototype.hasOwnProperty.call(dataObject, prefix)) return [prefix, ...parts.slice(index)];
-  }
-  return parts;
+  return key.split(".").filter(Boolean);
 }
 
 function dataObjectValueAtPath(data, path) {
@@ -217,7 +372,7 @@ function normalizeDataTypes(value, data = {}) {
 
 function stateScopedVariablePaths(state) {
   const scope = stateDataScopeForId(state?.id);
-  const scopedRoot = dataObjectValueAtPath(state?.data, scope);
+  const scopedRoot = normalizeStateDataObject(state?.data);
   const rows = [];
   const walk = (path, value) => {
     if (!path) return;
@@ -227,28 +382,22 @@ function stateScopedVariablePaths(state) {
     }
     rows.push(path);
   };
-  if (isPlainObject(scopedRoot)) Object.entries(scopedRoot).forEach(([key, value]) => walk(`${scope}.${key}`, value));
+  if (scope && isPlainObject(scopedRoot)) Object.entries(scopedRoot).forEach(([key, value]) => walk(`${scope}.${key}`, value));
   return rows.sort((a, b) => b.length - a.length);
 }
 
 function rewriteStateScopedCondition(state, condition) {
-  let text = String(condition || "");
-  const scope = stateDataScopeForId(state?.id);
-  if (!scope) return text;
-  for (const fullPath of stateScopedVariablePaths(state)) {
-    const shortPath = fullPath.slice(scope.length + 1);
-    if (!shortPath || text.includes(fullPath)) continue;
-    const pattern = new RegExp(`(^|[^A-Za-z0-9_.$])${escapeRegExp(shortPath)}(?=$|[^A-Za-z0-9_])`, "g");
-    text = text.replace(pattern, (_, prefix) => prefix + fullPath);
-  }
+  const text = String(condition || "");
+  const issues = runtimeReferenceContractIssuesForTransition({ condition: text, set: {} });
+  if (issues.length) throw new Error(issues[0].message);
   return text;
 }
 
 function normalizeStateScopedPatch(state, patch) {
   const out = {};
   for (const [key, value] of Object.entries(normalizeDataObject(patch))) {
-    const path = stateScopedActionPath(state, key);
-    if (path) out[path] = clone(value);
+    if (!runtimeBusPathIsWritable(key)) throw new Error("Transition set paths must use states.<id>.<field>.");
+    out[key] = clone(value);
   }
   return out;
 }
@@ -256,8 +405,9 @@ function normalizeStateScopedPatch(state, patch) {
 function normalizeStateScopedTransitionEvent(state, eventName, fallback = "") {
   const event = normalizeTransitionEvent(eventName, fallback);
   if (!event.startsWith("change.")) return event;
-  const scopedPath = stateScopedActionPath(state, event.slice("change.".length));
-  return scopedPath ? `change.${scopedPath}` : event;
+  const path = event.slice("change.".length);
+  if (!runtimeBusPathIsReadable(path)) throw new Error("Change triggers must reference a fully qualified runtime bus path.");
+  return event;
 }
 
 function normalizeListItems(items, fallbackText = "") {
@@ -350,7 +500,7 @@ function normalizeDataWireComponentType(value, role = "field") {
   return "text";
 }
 
-function dataPathLabel(path, fallback = "Value") {
+function dataPathLabel(path, fallback = "Wert") {
   const parts = String(path || "").split(".").filter(Boolean).filter(part => !/^\d+$/.test(part));
   const raw = parts.pop() || fallback;
   const spaced = raw.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ").trim();
@@ -390,13 +540,13 @@ function normalizeDataWires(value) {
     .slice(0, 80);
 }
 
-function normalizeDataSource(value) {
+function normalizeDataSource(value, fallbackTarget = "") {
   const source = isPlainObject(value) ? value : {};
   const timeout = Number(source.timeoutMs);
   const retries = Number(source.retries);
   return {
     url: String(source.url || ""),
-    target: normalizeContextPath(source.target, "fetch"),
+    target: normalizeContextPath(source.target, fallbackTarget),
     select: normalizeContextPath(source.select, ""),
     timeoutMs: clamp(Number.isFinite(timeout) ? timeout : 8000, 1000, 30000),
     retries: clamp(Number.isFinite(retries) ? Math.round(retries) : 2, 0, 5)
@@ -576,9 +726,9 @@ function normalizeModel(input) {
     state.renderMode = normalizeStateRenderMode(state.renderMode);
     state.components = normalizeComponents(state.components);
     delete state.body;
-    state.data = normalizeDataObject(state.data);
+    state.data = normalizeStateDataObject(state.data);
     state.dataTypes = normalizeDataTypes(state.dataTypes, state.data);
-    state.dataSource = normalizeDataSource(state.dataSource);
+    state.dataSource = normalizeDataSource(state.dataSource, `${stateDataScopeForId(state.id)}.fetch`);
     state.repeat = normalizeRepeatConfig(state.repeat);
     state.dataWires = normalizeDataWires(state.dataWires);
     const wireIds = new Set(state.dataWires.map(wire => wire.id));
@@ -693,6 +843,9 @@ function validateModel(model) {
     }
   }
   for (const state of Array.isArray(model?.states) ? model.states : []) {
+    rawContractIssues.push(...stateDataContractIssues(state?.data, String(state?.id || "")));
+    rawContractIssues.push(...stateDataTypeContractIssues(state?.dataTypes, state?.data, String(state?.id || "")));
+    rawContractIssues.push(...runtimeReferenceContractIssuesForState(state));
     for (const component of Array.isArray(state?.components) ? state.components : []) {
       for (const forbidden of hiddenComponentStateKeys(component)) {
         rawContractIssues.push({
@@ -704,6 +857,9 @@ function validateModel(model) {
       }
     }
   }
+  for (const transition of Array.isArray(model?.transitions) ? model.transitions : []) {
+    rawContractIssues.push(...runtimeReferenceContractIssuesForTransition(transition));
+  }
   const normalized = normalizeModel(model);
   const issues = [...rawContractIssues];
   const warnings = [];
@@ -711,7 +867,7 @@ function validateModel(model) {
   if (normalized.states.length && !ids.has(normalized.initial)) issues.push({ code: "missing_initial", message: "Initial state must reference an existing state." });
 
   for (const state of normalized.states) {
-    const data = normalizeDataObject(state.data);
+    const data = normalizeStateDataObject(state.data);
     for (const [path] of Object.entries(normalizeDataTypes(state.dataTypes, data))) {
       if (!dataObjectHasPath(data, path)) warnings.push({ code: "orphan_data_type", stateId: state.id, path, message: "Data type path has no matching state.data value." });
     }
@@ -795,14 +951,16 @@ function createState(model, args) {
   const id = uniqueId(existingIds, args.id || args.title, "state");
   const parentId = args.parentId ? String(args.parentId) : null;
   if (parentId && !byModelId(model, parentId)) throw new Error(`Parent state not found: ${parentId}`);
+  assertStateDataContract(args.data, args.dataTypes, id);
+  assertRuntimeReferenceContract({ ...args, id }, "state");
   const state = {
     id,
     title: String(args.title || id),
     renderMode: normalizeStateRenderMode(args.renderMode),
     components: normalizeComponents(args.components),
-    data: normalizeDataObject(args.data),
-    dataTypes: normalizeDataTypes(args.dataTypes, args.data),
-    dataSource: normalizeDataSource(args.dataSource),
+    data: normalizeStateDataObject(args.data),
+    dataTypes: normalizeDataTypes(args.dataTypes, normalizeStateDataObject(args.data)),
+    dataSource: normalizeDataSource(args.dataSource, `${stateDataScopeForId(id)}.fetch`),
     repeat: normalizeRepeatConfig(args.repeat),
     dataWires: normalizeDataWires(args.dataWires),
     subscriptions: normalizeSubscriptions(args.subscriptions),
@@ -821,6 +979,14 @@ function upsertState(model, args) {
   const id = args.id ? String(args.id) : "";
   const existing = id ? byModelId(model, id) : null;
   if (!existing) return createState(model, args);
+  assertRuntimeReferenceContract({ ...existing, ...args, id: existing.id }, "state");
+  if ("data" in args || "dataTypes" in args) {
+    assertStateDataContract(
+      "data" in args ? args.data : existing.data,
+      "dataTypes" in args ? args.dataTypes : existing.dataTypes,
+      existing.id
+    );
+  }
   if ("title" in args) existing.title = String(args.title || existing.id);
   if ("renderMode" in args) existing.renderMode = normalizeStateRenderMode(args.renderMode);
   if ("parentId" in args) {
@@ -831,9 +997,9 @@ function upsertState(model, args) {
   if ("x" in args) existing.x = snapClampToGrid(Number(args.x), WORLD_MIN_X, WORLD_MAX_X - 168);
   if ("y" in args) existing.y = snapClampToGrid(Number(args.y), WORLD_MIN_Y, WORLD_MAX_Y - NODE_H);
   if ("components" in args) existing.components = normalizeComponents(args.components);
-  if ("data" in args) existing.data = normalizeDataObject(args.data);
+  if ("data" in args) existing.data = normalizeStateDataObject(args.data);
   if ("dataTypes" in args) existing.dataTypes = normalizeDataTypes(args.dataTypes, existing.data);
-  if ("dataSource" in args) existing.dataSource = normalizeDataSource(args.dataSource);
+  if ("dataSource" in args) existing.dataSource = normalizeDataSource(args.dataSource, `${stateDataScopeForId(existing.id)}.fetch`);
   if ("repeat" in args) existing.repeat = normalizeRepeatConfig(args.repeat);
   if ("dataWires" in args) existing.dataWires = normalizeDataWires(args.dataWires);
   if ("subscriptions" in args) existing.subscriptions = normalizeSubscriptions(args.subscriptions);
@@ -1084,7 +1250,7 @@ function upsertTransition(model, args) {
     ...model.states.map(state => state.id),
     ...model.transitions.map(transition => transition.id)
   ]);
-  const target = existing || { id: uniqueRawId(usedIds, args.id || uniqueId([], args.label, "t"), "t") };
+  const target = { ...(existing || { id: uniqueRawId(usedIds, args.id || uniqueId([], args.label, "t"), "t") }) };
   const sourceState = byModelId(model, from);
   target.from = from;
   target.to = to;
@@ -1096,8 +1262,10 @@ function upsertTransition(model, args) {
   target.timerMs = normalizeTransitionTimerMs(args.timerMs);
   target.groupEntryId = String(args.groupEntryId || "");
   target.groupExitId = String(args.groupExitId || "");
-  if (!existing) model.transitions.push(target);
-  return target;
+  assertRuntimeReferenceContract(target, "transition");
+  if (existing) Object.assign(existing, target);
+  else model.transitions.push(target);
+  return existing || target;
 }
 
 function applyAction(model, action) {
@@ -1111,6 +1279,12 @@ function applyAction(model, action) {
       return { type, name: model.name };
     case "replace_model": {
       assertNoHiddenComponentStateInModel(action.model);
+      const validation = validateModel(action.model);
+      if (!validation.ok) {
+        const error = new Error(validation.issues.map(issue => issue.message).join("; ") || "Model contract validation failed.");
+        error.validation = validation;
+        throw error;
+      }
       const next = normalizeModel(action.model);
       Object.keys(model).forEach(key => delete model[key]);
       Object.assign(model, next);
@@ -1144,19 +1318,22 @@ function applyAction(model, action) {
     }
     case "upsert_state_variable": {
       const state = findStateOrThrow(model, action.stateId);
-      const path = stateVariableActualPath(state, action.path);
-      if (!path) throw new Error("upsert_state_variable requires a valid path.");
-      const typeName = normalizeStateVariableType(action.valueType || action.type || inferStateVariableType(path, action.value));
+      const localPath = stateVariableLocalPath(state, action.path);
+      const path = stateVariableActualPath(state, localPath);
+      if (!localPath || !path) throw new Error("upsert_state_variable requires a local path or this state's fully qualified bus path.");
+      const typeName = normalizeStateVariableType(action.valueType || action.type || inferStateVariableType(localPath, action.value));
       const value = Object.prototype.hasOwnProperty.call(action, "value") ? action.value : defaultStateVariableValue(typeName);
-      state.data = setDataObjectPath(ensureStateVariableScopeRoot(state, state.data), path, value);
-      state.dataTypes = { ...normalizeDataTypes(state.dataTypes, state.data), [path]: typeName };
+      state.data = setDataObjectPath(normalizeStateDataObject(state.data), localPath, value);
+      state.dataTypes = { ...normalizeDataTypes(state.dataTypes, state.data), [localPath]: typeName };
       return { type, stateId: state.id, path, valueType: typeName };
     }
     case "delete_state_variable": {
       const state = findStateOrThrow(model, action.stateId);
-      const path = stateVariableActualPath(state, action.path);
-      state.data = deleteDataObjectPath(state.data, path);
-      state.dataTypes = Object.fromEntries(Object.entries(normalizeDataTypes(state.dataTypes, state.data)).filter(([key]) => key !== path && !key.startsWith(path + ".")));
+      const localPath = stateVariableLocalPath(state, action.path);
+      const path = stateVariableActualPath(state, localPath);
+      if (!localPath || !path) throw new Error("delete_state_variable requires a local path or this state's fully qualified bus path.");
+      state.data = deleteDataObjectPath(state.data, localPath);
+      state.dataTypes = Object.fromEntries(Object.entries(normalizeDataTypes(state.dataTypes, state.data)).filter(([key]) => key !== localPath && !key.startsWith(localPath + ".")));
       state.dataWires = normalizeDataWires(state.dataWires).filter(wire => wire.sourcePath !== path && !wire.sourcePath.startsWith(path + "."));
       return { type, stateId: state.id, path };
     }
@@ -1165,14 +1342,20 @@ function applyAction(model, action) {
       const requestedTarget = Object.prototype.hasOwnProperty.call(action, "target")
         ? normalizeContextPath(action.target, "")
         : "";
+      if (requestedTarget && !runtimeBusPathIsWritable(requestedTarget)) {
+        throw new Error("Fetch target must use states.<id>.<field>.");
+      }
       state.dataSource = normalizeDataSource({
         ...action,
         target: requestedTarget || `${stateDataScopeForId(state.id)}.fetch`
-      });
+      }, `${stateDataScopeForId(state.id)}.fetch`);
       return { type, stateId: state.id, dataSource: state.dataSource };
     }
     case "configure_repeat": {
       const state = findStateOrThrow(model, action.stateId);
+      if (action.path && !runtimeBusPathIsReadable(action.path)) {
+        throw new Error("Repeat path must use a fully qualified runtime bus path.");
+      }
       state.repeat = normalizeRepeatConfig(action);
       return { type, stateId: state.id, repeat: state.repeat };
     }
@@ -1197,6 +1380,9 @@ function applyAction(model, action) {
       const state = findStateOrThrow(model, action.stateId);
       const id = String(action.id || action.wireId || "");
       const sourcePath = normalizeBindingPath(action.sourcePath || "", "");
+      if (sourcePath && !runtimeBusPathIsReadable(sourcePath)) {
+        throw new Error("Data-wire sourcePath must use a fully qualified runtime bus path.");
+      }
       state.dataWires = normalizeDataWires(state.dataWires).filter(wire => wire.id !== id && (!sourcePath || wire.sourcePath !== sourcePath));
       state.components = normalizeComponents(state.components).filter(component => component.type !== "dataWire" || component.wireId !== id);
       return { type, stateId: state.id, id, sourcePath };
@@ -1205,6 +1391,7 @@ function applyAction(model, action) {
       const state = findStateOrThrow(model, action.stateId);
       const rawComponent = action.component || action;
       assertNoHiddenComponentState(rawComponent);
+      assertRuntimeReferenceContract({ id: state.id, components: [rawComponent] }, "state");
       const [component] = normalizeComponents([rawComponent]);
       if (!component) throw new Error("add_component requires a valid component.");
       const components = normalizeComponents(state.components);
@@ -1217,13 +1404,15 @@ function applyAction(model, action) {
       const state = findStateOrThrow(model, action.stateId);
       const componentId = String(action.componentId || action.id || "");
       assertNoHiddenComponentState(action.patch || action.component || {});
+      const currentComponent = normalizeComponents(state.components).find(component => component.id === componentId);
+      if (!currentComponent) throw new Error(`Component not found: ${componentId}`);
+      assertRuntimeReferenceContract({ id: state.id, components: [{ ...currentComponent, ...(action.patch || action.component || {}) }] }, "state");
       let updated = null;
       state.components = normalizeComponents(state.components).map(component => {
         if (component.id !== componentId) return component;
         [updated] = normalizeComponents([{ ...component, ...(action.patch || action.component || {}) }]);
         return updated || component;
       });
-      if (!updated) throw new Error(`Component not found: ${componentId}`);
       return { type, stateId: state.id, component: updated };
     }
     case "remove_component": {
@@ -1321,7 +1510,6 @@ function normalizeEditorSession(value, model) {
     currentLayerId,
     camera: normalizeCamera(source.camera),
     previewCollapsed: Boolean(source.previewCollapsed),
-    runtimePaused: Boolean(source.runtimePaused),
     panels
   };
 }
@@ -1396,7 +1584,6 @@ function commandIsHistoryNeutral(commandName) {
     "viewport.reset",
     "viewport.fit",
     "preview.set_collapsed",
-    "preview.pause",
     "ui.set_panel",
     "graph.copy_selection"
   ].includes(commandName);
@@ -1616,9 +1803,6 @@ function applyCommand(workspace, command = {}) {
     case "preview.set_collapsed":
       workspace.editor.previewCollapsed = Boolean(command.collapsed ?? command.value);
       return { command: name, previewCollapsed: workspace.editor.previewCollapsed };
-    case "preview.pause":
-      workspace.editor.runtimePaused = Boolean(command.paused ?? command.value);
-      return { command: name, runtimePaused: workspace.editor.runtimePaused };
     case "ui.set_panel":
       workspace.editor.panels[String(command.panel || command.id || "panel")] = {
         collapsed: Boolean(command.collapsed)
@@ -1753,7 +1937,6 @@ const commandCatalog = [
   ["viewport.reset", "Reset pan/zoom camera."],
   ["viewport.fit", "Fit the current layer into a viewport."],
   ["preview.set_collapsed", "Collapse or expand preview."],
-  ["preview.pause", "Pause or resume runtime preview."],
   ["ui.set_panel", "Set editor panel UI state."],
   ["graph.copy_selection", "Copy selected states and internal transitions."],
   ["graph.paste", "Paste copied graph selection with new ids."],

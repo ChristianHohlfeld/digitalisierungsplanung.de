@@ -1534,7 +1534,7 @@
   <meta name="twitter:title" content="Zustand-Beispiel">
   <meta name="twitter:description" content="Zustand macht Business-Prozesse als globales JSON-Zustandsmodell sichtbar, testbar und exportierbar.">
   <meta name="twitter:image" content="https://digitalisierungsplanung.de/assets/share-card.png">
-  <script defer src="/register-sw.js"></script>
+  <script defer src="/disable-sw.js"></script>
 </head>
 <body data-theme="night">
   <main class="app">
@@ -1546,12 +1546,11 @@
   </main>
 
   <script>
-    const STORAGE_KEY = "stateBlueprintHotLinked.model.v2";
     const DATA_WIRE_ROLES = ["image", "title", "price", "description", "field", "link", "note"];
 
     const IS_STANDALONE_EXPORT = true;
-    const EXPORTED_STATE_BLUEPRINT = {"version":2,"name":"Zustand-Beispiel","initial":"site_home","boundary":{"entryId":"site_home","exitId":"site_thanks","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"states":[{"id":"site_home","title":"Start","renderMode":"state","components":[{"id":"site_home_nav","type":"daisy","text":"","url":"","variant":"navbar","dataPath":"states.site_home.nav","dataRole":"widget","dataLabel":"Kopf-Navigation"},{"id":"home_hero","type":"daisy","text":"","url":"","variant":"hero","dataPath":"states.site_home.hero","dataRole":"widget","dataLabel":"Titelbereich"},{"id":"home_features","type":"daisy","text":"","url":"","variant":"feature-grid","dataPath":"states.site_home.features","dataRole":"widget","dataLabel":"Start-Highlights"},{"id":"home_footer","type":"daisy","text":"","url":"","variant":"footer","dataPath":"states.site_home.footer","dataRole":"widget","dataLabel":"Fußzeile"}],"data":{"states.site_home.nav":{"layout":"menu-submenu","brand":"Zustand","selected":"Start","items":[{"label":"Start","transitionId":"site_home_nav_home"},{"label":"Nutzen","transitionId":"site_home_nav_features"},{"label":"Angebot","transitionId":"site_home_nav_pricing"},{"label":"Kontakt","transitionId":"site_home_nav_contact"},{"label":"Konto","transitionId":"site_home_nav_login"}],"parent":"","submenu":[],"submenuOpen":false},"states.site_home.hero":{"layout":"overlay","title":"Erst Klarheit. Dann digitalisieren.","body":"Zustand zeigt, wo Prozesse haken, wer entscheiden muss und welche Daten fehlen, bevor Budget in Software, Agenturen oder Integrationen fließt.","actionLabel":"Erstgespräch anfragen","transitionId":"site_home_nav_contact","image":"https://images.unsplash.com/photo-1556761175-b413da4baf72?auto=format\u0026fit=crop\u0026w=1600\u0026q=82"},"states.site_home.features":{"eyebrow":"Für Geschäftsführer und Entscheider","heading":"Viele Digitalprojekte scheitern nicht an Technik","body":"Sie scheitern an unklaren Abläufen. Zustand macht den Prozess vor der Umsetzung sichtbar: Schritt für Schritt, Entscheidung für Entscheidung.","selected":"","items":[{"title":"Unklare Verantwortung kostet Geld","body":"Wenn niemand genau weiß, welcher Schritt wann passiert, entstehen Nacharbeit, Wartezeiten und falsche Software-Anforderungen.","image":"https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format\u0026fit=crop\u0026w=900\u0026q=82","imageAlt":"Geschäftliche Planung mit Zahlen und Risiken","features":["Verantwortung sichtbar","Budgetrisiken früh erkennen"],"actionLabel":"Nutzen","transitionId":"site_home_nav_features"},{"title":"Ein Ablauf, den alle prüfen können","body":"Statt langer Dokumente entsteht ein klickbarer Ablauf. Fachbereich, Leitung und Umsetzung sehen dasselbe Bild.","image":"https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format\u0026fit=crop\u0026w=900\u0026q=82","imageAlt":"Team klärt einen Geschäftsprozess am Tisch","features":["Gemeinsame Sprache","Prüfbare Entscheidungen"],"actionLabel":"Angebot","transitionId":"site_home_nav_pricing"},{"title":"Besser beauftragen und umsetzen","body":"Aus dem geklärten Ablauf wird ein Vertrag für Umsetzung: welche Daten gebraucht werden, welche Auslöser gelten, wann der Prozess weiter darf.","image":"https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format\u0026fit=crop\u0026w=900\u0026q=82","imageAlt":"Geschäftliche Übergabe zwischen Teams","features":["Klare Übergabe","Weniger Missverständnisse"],"actionLabel":"Kontakt","transitionId":"site_home_nav_contact"}]},"states.site_home.footer":{"brand":"Zustand GmbH","note":"Klare Prozesse, bevor Budget in Software fließt.","columns":[{"title":"Produkt","items":[{"label":"Nutzen","transitionId":"site_home_nav_features"},{"label":"Angebot","transitionId":"site_home_nav_pricing"},{"label":"Kontakt","transitionId":"site_home_nav_contact"}]},{"title":"Unternehmen","items":[{"label":"Start","transitionId":"site_home_nav_home"},{"label":"Konto","transitionId":"site_home_nav_login"}]},{"title":"Werkzeug","items":[{"label":"Editor öffnen","url":"state.html?demo=zustand"}]}]}},"dataTypes":{"states.site_home.nav":"object","states.site_home.hero":"object","states.site_home.features":"object","states.site_home.footer":"object"},"dataSource":{"url":"","target":"states.site_home.fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"boundary":{"entryId":"","exitId":"","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"parentId":null,"x":96,"y":288},{"id":"site_features","title":"Nutzen","renderMode":"state","components":[{"id":"site_features_nav","type":"daisy","text":"","url":"","variant":"navbar","dataPath":"states.site_features.nav","dataRole":"widget","dataLabel":"Kopf-Navigation"},{"id":"features_overview","type":"daisy","text":"","url":"","variant":"feature-grid","dataPath":"states.site_features.overview","dataRole":"widget","dataLabel":"Nutzen-Übersicht"},{"id":"features_steps","type":"daisy","text":"","url":"","variant":"steps","dataPath":"states.site_features.steps","dataRole":"widget","dataLabel":"Aufbauschritte"},{"id":"features_footer","type":"daisy","text":"","url":"","variant":"footer","dataPath":"states.site_features.footer","dataRole":"widget","dataLabel":"Fußzeile"}],"data":{"states.site_features.nav":{"layout":"menu-submenu","brand":"Zustand","selected":"Nutzen","items":[{"label":"Start","transitionId":"site_features_nav_home"},{"label":"Nutzen","transitionId":"site_features_nav_features"},{"label":"Angebot","transitionId":"site_features_nav_pricing"},{"label":"Kontakt","transitionId":"site_features_nav_contact"},{"label":"Konto","transitionId":"site_features_nav_login"}],"parent":"","submenu":[],"submenuOpen":false},"states.site_features.overview":{"eyebrow":"Nutzen","heading":"Was Sie danach konkret besser können","body":"Sie sehen nicht nur ein Diagramm. Sie sehen, welche Entscheidungen, Daten, Wartezeiten und Ausnahmen den Prozess wirklich steuern.","selected":"","items":[{"title":"Investitionen besser entscheiden","body":"Vor der Umsetzung wird klar, ob Automatisierung lohnt, wo zuerst angesetzt wird und welche Anforderungen wirklich relevant sind.","image":"https://images.unsplash.com/photo-1542744094-3a31f272c490?auto=format\u0026fit=crop\u0026w=900\u0026q=82","imageAlt":"Führungsteam trifft eine Projektentscheidung","features":["Prioritäten klären","Falsche Projekte vermeiden"],"actionLabel":"Angebot","transitionId":"site_features_nav_pricing"},{"title":"Workshops werden verwertbar","body":"Was im Gespräch entsteht, landet direkt im Modell: Zustände, Übergänge, Bedingungen und Verantwortlichkeiten.","image":"https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format\u0026fit=crop\u0026w=900\u0026q=82","imageAlt":"Workshop-Situation mit Prozessklärung","features":["Nicht nur Protokoll","Sofort testbar"],"actionLabel":"Kontakt","transitionId":"site_features_nav_contact"},{"title":"Umsetzung bekommt Leitplanken","body":"Entwickler, Integratoren oder interne Teams erhalten einen eindeutigen Ablauf statt Interpretationsspielraum.","image":"https://images.unsplash.com/photo-1556761175-4b46a572b786?auto=format\u0026fit=crop\u0026w=900\u0026q=82","imageAlt":"Team setzt einen geklärten Prozess um","features":["Saubere Übergabe","Weniger Schleifen"],"actionLabel":"Konto","transitionId":"site_features_nav_login"}]},"states.site_features.steps":{"current":"Modellieren","items":[{"label":"Klären","description":"Den echten Ablauf mit Verantwortlichen aufnehmen.","transitionId":"site_features_nav_home"},{"label":"Modellieren","description":"Zustände, Daten und Auslöser sichtbar verbinden.","transitionId":"site_features_nav_features"},{"label":"Entscheiden","description":"Budget, Umsetzung und nächste Schritte belastbar festlegen.","transitionId":"site_features_nav_pricing"}]},"states.site_features.footer":{"brand":"Zustand GmbH","note":"Klare Prozesse, bevor Budget in Software fließt.","columns":[{"title":"Produkt","items":[{"label":"Nutzen","transitionId":"site_features_nav_features"},{"label":"Angebot","transitionId":"site_features_nav_pricing"},{"label":"Kontakt","transitionId":"site_features_nav_contact"}]},{"title":"Unternehmen","items":[{"label":"Start","transitionId":"site_features_nav_home"},{"label":"Konto","transitionId":"site_features_nav_login"}]},{"title":"Werkzeug","items":[{"label":"Editor öffnen","url":"state.html?demo=zustand"}]}]}},"dataTypes":{"states.site_features.nav":"object","states.site_features.overview":"object","states.site_features.steps":"object","states.site_features.footer":"object"},"dataSource":{"url":"","target":"states.site_features.fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"boundary":{"entryId":"","exitId":"","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"parentId":null,"x":480,"y":96},{"id":"site_pricing","title":"Angebot","renderMode":"state","components":[{"id":"site_pricing_nav","type":"daisy","text":"","url":"","variant":"navbar","dataPath":"states.site_pricing.nav","dataRole":"widget","dataLabel":"Kopf-Navigation"},{"id":"pricing_intro","type":"daisy","text":"","url":"","variant":"alert","dataPath":"states.site_pricing.intro","dataRole":"widget","dataLabel":"Preishinweis"},{"id":"pricing_plans","type":"daisy","text":"","url":"","variant":"pricing","dataPath":"states.site_pricing.plans","dataRole":"widget","dataLabel":"Preispläne"},{"id":"pricing_footer","type":"daisy","text":"","url":"","variant":"footer","dataPath":"states.site_pricing.footer","dataRole":"widget","dataLabel":"Fußzeile"}],"data":{"states.site_pricing.nav":{"layout":"menu-submenu","brand":"Zustand","selected":"Angebot","items":[{"label":"Start","transitionId":"site_pricing_nav_home"},{"label":"Nutzen","transitionId":"site_pricing_nav_features"},{"label":"Angebot","transitionId":"site_pricing_nav_pricing"},{"label":"Kontakt","transitionId":"site_pricing_nav_contact"},{"label":"Konto","transitionId":"site_pricing_nav_login"}],"parent":"","submenu":[],"submenuOpen":false},"states.site_pricing.intro":{"tone":"info","message":"Starten Sie dort, wo das Risiko am größten ist: bei einem Ablauf, den heute alle anders verstehen."},"states.site_pricing.plans":{"selectedPlan":"","plans":[{"title":"Klarheits-Workshop","badge":"","price":"1.900 EUR","period":"einmalig","body":"Ein kritischer Ablauf wird sichtbar: Schritte, Entscheidungen, Daten und Verantwortliche.","features":["1 Prozess als Zustandsdiagramm","Blocker und Lücken sichtbar","Entscheidungsvorlage für Budget"],"highlight":false,"actionLabel":"Workshop anfragen","transitionId":"site_pricing_buy_workshop"},{"title":"Prozess-Blueprint","badge":"Beliebt","price":"4.900 EUR","period":"Projekt","body":"Aus einem unklaren Ablauf wird ein testbarer Plan für Umsetzung, Automatisierung und Übergabe.","features":["Mehrere Varianten und Fehlerpfade","Daten- und Auslöser-Vertrag","Klickbare Ablaufdemo"],"highlight":true,"actionLabel":"Blueprint anfragen","transitionId":"site_pricing_buy_blueprint"},{"title":"Umsetzungsbegleitung","badge":"Individuell","price":"auf Anfrage","period":"laufend","body":"Begleitung bis zur digitalen Umsetzung: klare Schnittstellen, saubere Abnahmen und weniger Reibung.","features":["Technische Übergabe vorbereiten","Automatisierung prüfen","Umsetzung priorisieren"],"highlight":false,"actionLabel":"Begleitung anfragen","transitionId":"site_pricing_buy_delivery"}]},"states.site_pricing.footer":{"brand":"Zustand GmbH","note":"Klare Prozesse, bevor Budget in Software fließt.","columns":[{"title":"Produkt","items":[{"label":"Nutzen","transitionId":"site_pricing_nav_features"},{"label":"Angebot","transitionId":"site_pricing_nav_pricing"},{"label":"Kontakt","transitionId":"site_pricing_nav_contact"}]},{"title":"Unternehmen","items":[{"label":"Start","transitionId":"site_pricing_nav_home"},{"label":"Konto","transitionId":"site_pricing_nav_login"}]},{"title":"Werkzeug","items":[{"label":"Editor öffnen","url":"state.html?demo=zustand"}]}]}},"dataTypes":{"states.site_pricing.nav":"object","states.site_pricing.intro":"object","states.site_pricing.plans":"object","states.site_pricing.footer":"object"},"dataSource":{"url":"","target":"states.site_pricing.fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"boundary":{"entryId":"","exitId":"","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"parentId":null,"x":480,"y":456},{"id":"site_checkout_flow","title":"Anfrage","renderMode":"state","components":[],"data":{},"dataTypes":{},"dataSource":{"url":"","target":"states.site_checkout_flow.fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"boundary":{"entryId":"site_checkout","exitId":"site_checkout","entryDisabled":false,"exitDisabled":false,"title":"","note":"","entryTriggerType":"auto","entryTriggerEvent":"auto.site.checkout","entryTimerMs":3000,"entryCondition":""},"parentId":null,"x":888,"y":456},{"id":"site_checkout","title":"Anfrage","renderMode":"state","components":[{"id":"site_checkout_nav","type":"daisy","text":"","url":"","variant":"navbar","dataPath":"states.site_checkout.nav","dataRole":"widget","dataLabel":"Kopf-Navigation"},{"id":"checkout_summary","type":"daisy","text":"","url":"","variant":"card","dataPath":"states.site_checkout.summary","dataRole":"widget","dataLabel":"Anfrageübersicht"},{"id":"checkout_email","type":"daisy","text":"","url":"","variant":"input","dataPath":"states.site_checkout.emailField","dataRole":"widget","dataLabel":"Rechnungs-E-Mail"},{"id":"checkout_submit","type":"daisy","text":"","url":"","variant":"button","dataPath":"states.site_checkout.submit","dataRole":"widget","dataLabel":"Anfrage senden"},{"id":"checkout_footer","type":"daisy","text":"","url":"","variant":"footer","dataPath":"states.site_checkout.footer","dataRole":"widget","dataLabel":"Fußzeile"}],"data":{"states.site_checkout.nav":{"layout":"menu-submenu","brand":"Zustand","selected":"Angebot","items":[{"label":"Start","transitionId":"site_checkout_nav_home"},{"label":"Nutzen","transitionId":"site_checkout_nav_features"},{"label":"Angebot","transitionId":"site_checkout_nav_pricing"},{"label":"Kontakt","transitionId":"site_checkout_nav_contact"},{"label":"Konto","transitionId":"site_checkout_nav_login"}],"parent":"","submenu":[],"submenuOpen":false},"states.site_checkout.summary":{"title":"Klarheits-Workshop","badge":"Anfrage","price":"1.900 EUR","period":"einmalig","body":"Prüfen Sie das gewählte Angebot und senden Sie die Anfrage. Danach klären wir Ziel, Prozess und nächsten Termin.","features":["1 Prozess als Zustandsdiagramm","Blocker und Lücken sichtbar","Entscheidungsvorlage für Budget"],"actionLabel":""},"states.site_checkout.emailField":{"label":"Rechnungs-E-Mail","value":""},"states.site_checkout.submit":{"label":"Anfrage senden","clicked":false,"transitionId":"site_checkout_complete"},"states.site_checkout.order":{"plan":"Klarheits-Workshop","price":"1.900 EUR","completed":false},"states.site_checkout.footer":{"brand":"Zustand GmbH","note":"Klare Prozesse, bevor Budget in Software fließt.","columns":[{"title":"Produkt","items":[{"label":"Nutzen","transitionId":"site_checkout_nav_features"},{"label":"Angebot","transitionId":"site_checkout_nav_pricing"},{"label":"Kontakt","transitionId":"site_checkout_nav_contact"}]},{"title":"Unternehmen","items":[{"label":"Start","transitionId":"site_checkout_nav_home"},{"label":"Konto","transitionId":"site_checkout_nav_login"}]},{"title":"Werkzeug","items":[{"label":"Editor öffnen","url":"state.html?demo=zustand"}]}]}},"dataTypes":{"states.site_checkout.nav":"object","states.site_checkout.summary":"object","states.site_checkout.emailField":"object","states.site_checkout.submit":"object","states.site_checkout.order":"object","states.site_checkout.footer":"object"},"dataSource":{"url":"","target":"states.site_checkout.fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"boundary":{"entryId":"","exitId":"","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"parentId":"site_checkout_flow","x":216,"y":192},{"id":"site_contact","title":"Kontakt","renderMode":"state","components":[{"id":"site_contact_nav","type":"daisy","text":"","url":"","variant":"navbar","dataPath":"states.site_contact.nav","dataRole":"widget","dataLabel":"Kopf-Navigation"},{"id":"contact_alert","type":"daisy","text":"","url":"","variant":"alert","dataPath":"states.site_contact.alert","dataRole":"widget","dataLabel":"Kontakthinweis"},{"id":"contact_name","type":"daisy","text":"","url":"","variant":"input","dataPath":"states.site_contact.nameField","dataRole":"widget","dataLabel":"Name"},{"id":"contact_email","type":"daisy","text":"","url":"","variant":"input","dataPath":"states.site_contact.emailField","dataRole":"widget","dataLabel":"E-Mail"},{"id":"contact_message","type":"daisy","text":"","url":"","variant":"textarea","dataPath":"states.site_contact.messageField","dataRole":"widget","dataLabel":"Nachricht"},{"id":"contact_submit","type":"daisy","text":"","url":"","variant":"button","dataPath":"states.site_contact.submit","dataRole":"widget","dataLabel":"Anfrage senden"},{"id":"contact_footer","type":"daisy","text":"","url":"","variant":"footer","dataPath":"states.site_contact.footer","dataRole":"widget","dataLabel":"Fußzeile"}],"data":{"states.site_contact.nav":{"layout":"menu-submenu","brand":"Zustand","selected":"Kontakt","items":[{"label":"Start","transitionId":"site_contact_nav_home"},{"label":"Nutzen","transitionId":"site_contact_nav_features"},{"label":"Angebot","transitionId":"site_contact_nav_pricing"},{"label":"Kontakt","transitionId":"site_contact_nav_contact"},{"label":"Konto","transitionId":"site_contact_nav_login"}],"parent":"","submenu":[],"submenuOpen":false},"states.site_contact.alert":{"tone":"success","message":"Beschreiben Sie kurz den Ablauf, der unklar ist, Geld kostet oder die Digitalisierung blockiert."},"states.site_contact.nameField":{"label":"Name","value":""},"states.site_contact.emailField":{"label":"E-Mail","value":""},"states.site_contact.messageField":{"label":"Welcher Prozess soll klar werden?","value":""},"states.site_contact.submit":{"label":"Anfrage senden","clicked":false,"transitionId":"site_contact_send"},"states.site_contact.form":{"submitted":false},"states.site_contact.footer":{"brand":"Zustand GmbH","note":"Klare Prozesse, bevor Budget in Software fließt.","columns":[{"title":"Produkt","items":[{"label":"Nutzen","transitionId":"site_contact_nav_features"},{"label":"Angebot","transitionId":"site_contact_nav_pricing"},{"label":"Kontakt","transitionId":"site_contact_nav_contact"}]},{"title":"Unternehmen","items":[{"label":"Start","transitionId":"site_contact_nav_home"},{"label":"Konto","transitionId":"site_contact_nav_login"}]},{"title":"Werkzeug","items":[{"label":"Editor öffnen","url":"state.html?demo=zustand"}]}]}},"dataTypes":{"states.site_contact.nav":"object","states.site_contact.alert":"object","states.site_contact.nameField":"object","states.site_contact.emailField":"object","states.site_contact.messageField":"object","states.site_contact.submit":"object","states.site_contact.form":"object","states.site_contact.footer":"object"},"dataSource":{"url":"","target":"states.site_contact.fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"boundary":{"entryId":"","exitId":"","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"parentId":null,"x":888,"y":96},{"id":"site_login","title":"Konto","renderMode":"state","components":[{"id":"site_login_nav","type":"daisy","text":"","url":"","variant":"navbar","dataPath":"states.site_login.nav","dataRole":"widget","dataLabel":"Kopf-Navigation"},{"id":"login_hero","type":"daisy","text":"","url":"","variant":"hero","dataPath":"states.site_login.hero","dataRole":"widget","dataLabel":"Anmeldeformular"},{"id":"login_footer","type":"daisy","text":"","url":"","variant":"footer","dataPath":"states.site_login.footer","dataRole":"widget","dataLabel":"Fußzeile"}],"data":{"states.site_login.nav":{"layout":"menu-submenu","brand":"Zustand","selected":"Konto","items":[{"label":"Start","transitionId":"site_login_nav_home"},{"label":"Nutzen","transitionId":"site_login_nav_features"},{"label":"Angebot","transitionId":"site_login_nav_pricing"},{"label":"Kontakt","transitionId":"site_login_nav_contact"},{"label":"Konto","transitionId":"site_login_nav_login"}],"parent":"","submenu":[],"submenuOpen":false},"states.site_login.hero":{"layout":"form","title":"Anmelden und fortfahren","body":"Beispiel für einen geschützten Kundenbereich. In echten Projekten können Rollen, Freigaben und Prozessschritte sichtbar werden.","emailLabel":"E-Mail","passwordLabel":"Passwort","email":"","password":"","actionLabel":"Anmelden","transitionId":"site_login_submit","loggedIn":false},"states.site_login.footer":{"brand":"Zustand GmbH","note":"Klare Prozesse, bevor Budget in Software fließt.","columns":[{"title":"Produkt","items":[{"label":"Nutzen","transitionId":"site_login_nav_features"},{"label":"Angebot","transitionId":"site_login_nav_pricing"},{"label":"Kontakt","transitionId":"site_login_nav_contact"}]},{"title":"Unternehmen","items":[{"label":"Start","transitionId":"site_login_nav_home"},{"label":"Konto","transitionId":"site_login_nav_login"}]},{"title":"Werkzeug","items":[{"label":"Editor öffnen","url":"state.html?demo=zustand"}]}]}},"dataTypes":{"states.site_login.nav":"object","states.site_login.hero":"object","states.site_login.footer":"object"},"dataSource":{"url":"","target":"states.site_login.fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"boundary":{"entryId":"","exitId":"","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"parentId":null,"x":1296,"y":96},{"id":"site_profile","title":"Profil","renderMode":"state","components":[{"id":"site_profile_nav","type":"daisy","text":"","url":"","variant":"navbar","dataPath":"states.site_profile.nav","dataRole":"widget","dataLabel":"Kopf-Navigation"},{"id":"profile_avatar","type":"daisy","text":"","url":"","variant":"avatar","dataPath":"states.site_profile.avatar","dataRole":"widget","dataLabel":"Benutzer-Avatar"},{"id":"profile_alert","type":"daisy","text":"","url":"","variant":"alert","dataPath":"states.site_profile.alert","dataRole":"widget","dataLabel":"Sitzungsstatus"},{"id":"profile_stat","type":"daisy","text":"","url":"","variant":"stat","dataPath":"states.site_profile.stat","dataRole":"widget","dataLabel":"Paket"},{"id":"profile_logout","type":"daisy","text":"","url":"","variant":"button","dataPath":"states.site_profile.logout","dataRole":"widget","dataLabel":"Abmelden"},{"id":"profile_footer","type":"daisy","text":"","url":"","variant":"footer","dataPath":"states.site_profile.footer","dataRole":"widget","dataLabel":"Fußzeile"}],"data":{"states.site_profile.nav":{"layout":"menu-submenu","brand":"Zustand","selected":"Konto","items":[{"label":"Start","transitionId":"site_profile_nav_home"},{"label":"Nutzen","transitionId":"site_profile_nav_features"},{"label":"Angebot","transitionId":"site_profile_nav_pricing"},{"label":"Kontakt","transitionId":"site_profile_nav_contact"},{"label":"Konto","transitionId":"site_profile_nav_profile"}],"parent":"","submenu":[],"submenuOpen":false},"states.site_profile.avatar":{"name":"Mira Keller","image":"https://img.daisyui.com/images/profile/demo/2@94.webp","status":"online","size":"w-16","shape":"rounded-full","ring":true},"states.site_profile.alert":{"tone":"success","message":"Willkommen zurück. Hier könnten Prozessstände, Verantwortliche und nächste Entscheidungen liegen."},"states.site_profile.stat":{"title":"Paket","value":"Team","description":"Beispielhafter Projektstatus"},"states.site_profile.account":{"loggedIn":true},"states.site_profile.logout":{"label":"Abmelden","clicked":false,"transitionId":"site_profile_logout"},"states.site_profile.footer":{"brand":"Zustand GmbH","note":"Klare Prozesse, bevor Budget in Software fließt.","columns":[{"title":"Produkt","items":[{"label":"Nutzen","transitionId":"site_profile_nav_features"},{"label":"Angebot","transitionId":"site_profile_nav_pricing"},{"label":"Kontakt","transitionId":"site_profile_nav_contact"}]},{"title":"Unternehmen","items":[{"label":"Start","transitionId":"site_profile_nav_home"},{"label":"Konto","transitionId":"site_profile_nav_profile"}]},{"title":"Werkzeug","items":[{"label":"Editor öffnen","url":"state.html?demo=zustand"}]}]}},"dataTypes":{"states.site_profile.nav":"object","states.site_profile.avatar":"object","states.site_profile.alert":"object","states.site_profile.stat":"object","states.site_profile.account":"object","states.site_profile.logout":"object","states.site_profile.footer":"object"},"dataSource":{"url":"","target":"states.site_profile.fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"boundary":{"entryId":"","exitId":"","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"parentId":null,"x":1656,"y":288},{"id":"site_thanks","title":"Danke","renderMode":"state","components":[{"id":"site_thanks_nav","type":"daisy","text":"","url":"","variant":"navbar","dataPath":"states.site_thanks.nav","dataRole":"widget","dataLabel":"Kopf-Navigation"},{"id":"thanks_alert","type":"daisy","text":"","url":"","variant":"alert","dataPath":"states.site_thanks.alert","dataRole":"widget","dataLabel":"Erfolgsmeldung"},{"id":"thanks_stat","type":"daisy","text":"","url":"","variant":"stat","dataPath":"states.site_thanks.stat","dataRole":"widget","dataLabel":"Antwortzeit"},{"id":"thanks_footer","type":"daisy","text":"","url":"","variant":"footer","dataPath":"states.site_thanks.footer","dataRole":"widget","dataLabel":"Fußzeile"}],"data":{"states.site_thanks.nav":{"layout":"menu-submenu","brand":"Zustand","selected":"Kontakt","items":[{"label":"Start","transitionId":"site_thanks_nav_home"},{"label":"Nutzen","transitionId":"site_thanks_nav_features"},{"label":"Angebot","transitionId":"site_thanks_nav_pricing"},{"label":"Kontakt","transitionId":"site_thanks_nav_contact"},{"label":"Konto","transitionId":"site_thanks_nav_login"}],"parent":"","submenu":[],"submenuOpen":false},"states.site_thanks.alert":{"tone":"success","message":"Anfrage erhalten. Der nächste Schritt ist ein kurzes Klärungsgespräch."},"states.site_thanks.stat":{"title":"Nächster Schritt","value":"24h","description":"Antwortzeit für Erstkontakt"},"states.site_thanks.order":{"plan":"","price":"","completed":false},"states.site_thanks.footer":{"brand":"Zustand GmbH","note":"Klare Prozesse, bevor Budget in Software fließt.","columns":[{"title":"Produkt","items":[{"label":"Nutzen","transitionId":"site_thanks_nav_features"},{"label":"Angebot","transitionId":"site_thanks_nav_pricing"},{"label":"Kontakt","transitionId":"site_thanks_nav_contact"}]},{"title":"Unternehmen","items":[{"label":"Start","transitionId":"site_thanks_nav_home"},{"label":"Konto","transitionId":"site_thanks_nav_login"}]},{"title":"Werkzeug","items":[{"label":"Editor öffnen","url":"state.html?demo=zustand"}]}]}},"dataTypes":{"states.site_thanks.nav":"object","states.site_thanks.alert":"object","states.site_thanks.stat":"object","states.site_thanks.order":"object","states.site_thanks.footer":"object"},"dataSource":{"url":"","target":"states.site_thanks.fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"boundary":{"entryId":"","exitId":"","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"parentId":null,"x":1296,"y":456}],"transitions":[{"id":"site_home_nav_home","from":"site_home","to":"site_home","label":"Start","condition":"","triggerType":"button","triggerEvent":"button.site_home_nav_home.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_home_nav_features","from":"site_home","to":"site_features","label":"Nutzen","condition":"","triggerType":"button","triggerEvent":"button.site_home_nav_features.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_home_nav_pricing","from":"site_home","to":"site_pricing","label":"Angebot","condition":"","triggerType":"button","triggerEvent":"button.site_home_nav_pricing.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_home_nav_contact","from":"site_home","to":"site_contact","label":"Kontakt","condition":"","triggerType":"button","triggerEvent":"button.site_home_nav_contact.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_home_nav_login","from":"site_home","to":"site_login","label":"Konto","condition":"","triggerType":"button","triggerEvent":"button.site_home_nav_login.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_features_nav_home","from":"site_features","to":"site_home","label":"Start","condition":"","triggerType":"button","triggerEvent":"button.site_features_nav_home.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_features_nav_features","from":"site_features","to":"site_features","label":"Nutzen","condition":"","triggerType":"button","triggerEvent":"button.site_features_nav_features.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_features_nav_pricing","from":"site_features","to":"site_pricing","label":"Angebot","condition":"","triggerType":"button","triggerEvent":"button.site_features_nav_pricing.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_features_nav_contact","from":"site_features","to":"site_contact","label":"Kontakt","condition":"","triggerType":"button","triggerEvent":"button.site_features_nav_contact.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_features_nav_login","from":"site_features","to":"site_login","label":"Konto","condition":"","triggerType":"button","triggerEvent":"button.site_features_nav_login.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_pricing_nav_home","from":"site_pricing","to":"site_home","label":"Start","condition":"","triggerType":"button","triggerEvent":"button.site_pricing_nav_home.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_pricing_nav_features","from":"site_pricing","to":"site_features","label":"Nutzen","condition":"","triggerType":"button","triggerEvent":"button.site_pricing_nav_features.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_pricing_nav_pricing","from":"site_pricing","to":"site_pricing","label":"Angebot","condition":"","triggerType":"button","triggerEvent":"button.site_pricing_nav_pricing.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_pricing_nav_contact","from":"site_pricing","to":"site_contact","label":"Kontakt","condition":"","triggerType":"button","triggerEvent":"button.site_pricing_nav_contact.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_pricing_nav_login","from":"site_pricing","to":"site_login","label":"Konto","condition":"","triggerType":"button","triggerEvent":"button.site_pricing_nav_login.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_checkout_nav_home","from":"site_checkout_flow","to":"site_home","label":"Start","condition":"","triggerType":"button","triggerEvent":"button.site_checkout_nav_home.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_checkout_nav_features","from":"site_checkout_flow","to":"site_features","label":"Nutzen","condition":"","triggerType":"button","triggerEvent":"button.site_checkout_nav_features.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_checkout_nav_pricing","from":"site_checkout_flow","to":"site_pricing","label":"Angebot","condition":"","triggerType":"button","triggerEvent":"button.site_checkout_nav_pricing.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_checkout_nav_contact","from":"site_checkout_flow","to":"site_contact","label":"Kontakt","condition":"","triggerType":"button","triggerEvent":"button.site_checkout_nav_contact.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_checkout_nav_login","from":"site_checkout_flow","to":"site_login","label":"Konto","condition":"","triggerType":"button","triggerEvent":"button.site_checkout_nav_login.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_contact_nav_home","from":"site_contact","to":"site_home","label":"Start","condition":"","triggerType":"button","triggerEvent":"button.site_contact_nav_home.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_contact_nav_features","from":"site_contact","to":"site_features","label":"Nutzen","condition":"","triggerType":"button","triggerEvent":"button.site_contact_nav_features.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_contact_nav_pricing","from":"site_contact","to":"site_pricing","label":"Angebot","condition":"","triggerType":"button","triggerEvent":"button.site_contact_nav_pricing.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_contact_nav_contact","from":"site_contact","to":"site_contact","label":"Kontakt","condition":"","triggerType":"button","triggerEvent":"button.site_contact_nav_contact.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_contact_nav_login","from":"site_contact","to":"site_login","label":"Konto","condition":"","triggerType":"button","triggerEvent":"button.site_contact_nav_login.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_login_nav_home","from":"site_login","to":"site_home","label":"Start","condition":"","triggerType":"button","triggerEvent":"button.site_login_nav_home.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_login_nav_features","from":"site_login","to":"site_features","label":"Nutzen","condition":"","triggerType":"button","triggerEvent":"button.site_login_nav_features.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_login_nav_pricing","from":"site_login","to":"site_pricing","label":"Angebot","condition":"","triggerType":"button","triggerEvent":"button.site_login_nav_pricing.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_login_nav_contact","from":"site_login","to":"site_contact","label":"Kontakt","condition":"","triggerType":"button","triggerEvent":"button.site_login_nav_contact.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_login_nav_login","from":"site_login","to":"site_login","label":"Konto","condition":"","triggerType":"button","triggerEvent":"button.site_login_nav_login.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_profile_nav_home","from":"site_profile","to":"site_home","label":"Start","condition":"","triggerType":"button","triggerEvent":"button.site_profile_nav_home.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_profile_nav_features","from":"site_profile","to":"site_features","label":"Nutzen","condition":"","triggerType":"button","triggerEvent":"button.site_profile_nav_features.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_profile_nav_pricing","from":"site_profile","to":"site_pricing","label":"Angebot","condition":"","triggerType":"button","triggerEvent":"button.site_profile_nav_pricing.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_profile_nav_contact","from":"site_profile","to":"site_contact","label":"Kontakt","condition":"","triggerType":"button","triggerEvent":"button.site_profile_nav_contact.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_profile_nav_profile","from":"site_profile","to":"site_profile","label":"Konto","condition":"","triggerType":"button","triggerEvent":"button.site_profile_nav_profile.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_thanks_nav_home","from":"site_thanks","to":"site_home","label":"Start","condition":"","triggerType":"button","triggerEvent":"button.site_thanks_nav_home.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_thanks_nav_features","from":"site_thanks","to":"site_features","label":"Nutzen","condition":"","triggerType":"button","triggerEvent":"button.site_thanks_nav_features.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_thanks_nav_pricing","from":"site_thanks","to":"site_pricing","label":"Angebot","condition":"","triggerType":"button","triggerEvent":"button.site_thanks_nav_pricing.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_thanks_nav_contact","from":"site_thanks","to":"site_contact","label":"Kontakt","condition":"","triggerType":"button","triggerEvent":"button.site_thanks_nav_contact.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_thanks_nav_login","from":"site_thanks","to":"site_login","label":"Konto","condition":"","triggerType":"button","triggerEvent":"button.site_thanks_nav_login.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_pricing_buy_workshop","from":"site_pricing","to":"site_checkout_flow","label":"Workshop anfragen","condition":"","triggerType":"button","triggerEvent":"button.site_pricing_buy_workshop.clicked","timerMs":3000,"set":{"states.site_pricing.plans.selectedPlan":"Klarheits-Workshop","states.site_checkout.summary.title":"Klarheits-Workshop","states.site_checkout.summary.badge":"Anfrage","states.site_checkout.summary.price":"1.900 EUR","states.site_checkout.summary.period":"einmalig","states.site_checkout.summary.body":"Prüfen Sie das gewählte Angebot und senden Sie die Anfrage. Danach klären wir Ziel, Prozess und nächsten Termin.","states.site_checkout.summary.features":["1 Prozess als Zustandsdiagramm","Blocker und Lücken sichtbar","Entscheidungsvorlage für Budget"],"states.site_checkout.order.plan":"Klarheits-Workshop","states.site_checkout.order.price":"1.900 EUR","states.site_checkout.order.completed":false,"states.site_thanks.order.plan":"Klarheits-Workshop","states.site_thanks.order.price":"1.900 EUR","states.site_thanks.order.completed":false},"groupEntryId":"","groupExitId":""},{"id":"site_pricing_buy_blueprint","from":"site_pricing","to":"site_checkout_flow","label":"Blueprint anfragen","condition":"","triggerType":"button","triggerEvent":"button.site_pricing_buy_blueprint.clicked","timerMs":3000,"set":{"states.site_pricing.plans.selectedPlan":"Prozess-Blueprint","states.site_checkout.summary.title":"Prozess-Blueprint","states.site_checkout.summary.badge":"Beliebt","states.site_checkout.summary.price":"4.900 EUR","states.site_checkout.summary.period":"Projekt","states.site_checkout.summary.body":"Prüfen Sie das gewählte Angebot und senden Sie die Anfrage. Danach klären wir Ziel, Prozess und nächsten Termin.","states.site_checkout.summary.features":["Mehrere Varianten und Fehlerpfade","Daten- und Auslöser-Vertrag","Klickbare Ablaufdemo"],"states.site_checkout.order.plan":"Prozess-Blueprint","states.site_checkout.order.price":"4.900 EUR","states.site_checkout.order.completed":false,"states.site_thanks.order.plan":"Prozess-Blueprint","states.site_thanks.order.price":"4.900 EUR","states.site_thanks.order.completed":false},"groupEntryId":"","groupExitId":""},{"id":"site_pricing_buy_delivery","from":"site_pricing","to":"site_checkout_flow","label":"Begleitung anfragen","condition":"","triggerType":"button","triggerEvent":"button.site_pricing_buy_delivery.clicked","timerMs":3000,"set":{"states.site_pricing.plans.selectedPlan":"Umsetzungsbegleitung","states.site_checkout.summary.title":"Umsetzungsbegleitung","states.site_checkout.summary.badge":"Individuell","states.site_checkout.summary.price":"auf Anfrage","states.site_checkout.summary.period":"laufend","states.site_checkout.summary.body":"Prüfen Sie das gewählte Angebot und senden Sie die Anfrage. Danach klären wir Ziel, Prozess und nächsten Termin.","states.site_checkout.summary.features":["Technische Übergabe vorbereiten","Automatisierung prüfen","Umsetzung priorisieren"],"states.site_checkout.order.plan":"Umsetzungsbegleitung","states.site_checkout.order.price":"auf Anfrage","states.site_checkout.order.completed":false,"states.site_thanks.order.plan":"Umsetzungsbegleitung","states.site_thanks.order.price":"auf Anfrage","states.site_thanks.order.completed":false},"groupEntryId":"","groupExitId":""},{"id":"site_checkout_complete","from":"site_checkout_flow","to":"site_thanks","label":"Anfrage senden","condition":"","triggerType":"button","triggerEvent":"button.site_checkout_complete.clicked","timerMs":3000,"set":{"states.site_checkout.submit.clicked":true,"states.site_checkout.order.completed":true,"states.site_thanks.order.completed":true},"groupEntryId":"","groupExitId":""},{"id":"site_contact_send","from":"site_contact","to":"site_thanks","label":"Anfrage senden","condition":"","triggerType":"button","triggerEvent":"button.site_contact_send.clicked","timerMs":3000,"set":{"states.site_contact.submit.clicked":true,"states.site_contact.form.submitted":true},"groupEntryId":"","groupExitId":""},{"id":"site_login_submit","from":"site_login","to":"site_profile","label":"Anmelden","condition":"","triggerType":"button","triggerEvent":"button.site_login_submit.clicked","timerMs":3000,"set":{"states.site_login.hero.loggedIn":true,"states.site_profile.account.loggedIn":true},"groupEntryId":"","groupExitId":""},{"id":"site_profile_logout","from":"site_profile","to":"site_login","label":"Abmelden","condition":"","triggerType":"button","triggerEvent":"button.site_profile_logout.clicked","timerMs":3000,"set":{"states.site_profile.logout.clicked":true,"states.site_profile.account.loggedIn":false},"groupEntryId":"","groupExitId":""}]};
-    const EXPORTED_STATE_BLUEPRINT_SAVED_AT = "2026-07-12T11:05:20.025Z";
+    const EXPORTED_STATE_BLUEPRINT = {"version":2,"name":"Zustand-Beispiel","initial":"site_home","boundary":{"entryId":"site_home","exitId":"site_thanks","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"states":[{"id":"site_home","title":"Start","renderMode":"state","components":[{"id":"site_home_nav","type":"daisy","text":"","url":"","variant":"navbar","dataPath":"states.site_home.nav","dataRole":"widget","dataLabel":"Kopf-Navigation"},{"id":"home_hero","type":"daisy","text":"","url":"","variant":"hero","dataPath":"states.site_home.hero","dataRole":"widget","dataLabel":"Titelbereich"},{"id":"home_features","type":"daisy","text":"","url":"","variant":"feature-grid","dataPath":"states.site_home.features","dataRole":"widget","dataLabel":"Start-Highlights"},{"id":"home_footer","type":"daisy","text":"","url":"","variant":"footer","dataPath":"states.site_home.footer","dataRole":"widget","dataLabel":"Fußzeile"}],"data":{"nav":{"layout":"menu-submenu","brand":"Zustand","selected":"Start","items":[{"label":"Start","transitionId":"site_home_nav_home"},{"label":"Nutzen","transitionId":"site_home_nav_features"},{"label":"Angebot","transitionId":"site_home_nav_pricing"},{"label":"Kontakt","transitionId":"site_home_nav_contact"},{"label":"Konto","transitionId":"site_home_nav_login"}],"parent":"","submenu":[],"submenuOpen":false},"hero":{"layout":"overlay","title":"Erst Klarheit. Dann digitalisieren.","body":"Zustand zeigt, wo Prozesse haken, wer entscheiden muss und welche Daten fehlen, bevor Budget in Software, Agenturen oder Integrationen fließt.","actionLabel":"Erstgespräch anfragen","transitionId":"site_home_nav_contact","image":"https://images.unsplash.com/photo-1556761175-b413da4baf72?auto=format\u0026fit=crop\u0026w=1600\u0026q=82"},"features":{"eyebrow":"Für Geschäftsführer und Entscheider","heading":"Viele Digitalprojekte scheitern nicht an Technik","body":"Sie scheitern an unklaren Abläufen. Zustand macht den Prozess vor der Umsetzung sichtbar: Schritt für Schritt, Entscheidung für Entscheidung.","selected":"","items":[{"title":"Unklare Verantwortung kostet Geld","body":"Wenn niemand genau weiß, welcher Schritt wann passiert, entstehen Nacharbeit, Wartezeiten und falsche Software-Anforderungen.","image":"https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format\u0026fit=crop\u0026w=900\u0026q=82","imageAlt":"Geschäftliche Planung mit Zahlen und Risiken","features":["Verantwortung sichtbar","Budgetrisiken früh erkennen"],"actionLabel":"Nutzen","transitionId":"site_home_nav_features"},{"title":"Ein Ablauf, den alle prüfen können","body":"Statt langer Dokumente entsteht ein klickbarer Ablauf. Fachbereich, Leitung und Umsetzung sehen dasselbe Bild.","image":"https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format\u0026fit=crop\u0026w=900\u0026q=82","imageAlt":"Team klärt einen Geschäftsprozess am Tisch","features":["Gemeinsame Sprache","Prüfbare Entscheidungen"],"actionLabel":"Angebot","transitionId":"site_home_nav_pricing"},{"title":"Besser beauftragen und umsetzen","body":"Aus dem geklärten Ablauf wird ein Vertrag für Umsetzung: welche Daten gebraucht werden, welche Auslöser gelten, wann der Prozess weiter darf.","image":"https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format\u0026fit=crop\u0026w=900\u0026q=82","imageAlt":"Geschäftliche Übergabe zwischen Teams","features":["Klare Übergabe","Weniger Missverständnisse"],"actionLabel":"Kontakt","transitionId":"site_home_nav_contact"}]},"footer":{"brand":"Zustand GmbH","note":"Klare Prozesse, bevor Budget in Software fließt.","columns":[{"title":"Produkt","items":[{"label":"Nutzen","transitionId":"site_home_nav_features"},{"label":"Angebot","transitionId":"site_home_nav_pricing"},{"label":"Kontakt","transitionId":"site_home_nav_contact"}]},{"title":"Unternehmen","items":[{"label":"Start","transitionId":"site_home_nav_home"},{"label":"Konto","transitionId":"site_home_nav_login"}]},{"title":"Werkzeug","items":[{"label":"Editor öffnen","url":"state.html?demo=zustand"}]}]}},"dataTypes":{"nav":"object","hero":"object","features":"object","footer":"object"},"dataSource":{"url":"","target":"states.site_home.fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"subscriptions":[],"boundary":{"entryId":"","exitId":"","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"parentId":null,"x":96,"y":288},{"id":"site_features","title":"Nutzen","renderMode":"state","components":[{"id":"site_features_nav","type":"daisy","text":"","url":"","variant":"navbar","dataPath":"states.site_features.nav","dataRole":"widget","dataLabel":"Kopf-Navigation"},{"id":"features_overview","type":"daisy","text":"","url":"","variant":"feature-grid","dataPath":"states.site_features.overview","dataRole":"widget","dataLabel":"Nutzen-Übersicht"},{"id":"features_steps","type":"daisy","text":"","url":"","variant":"steps","dataPath":"states.site_features.steps","dataRole":"widget","dataLabel":"Aufbauschritte"},{"id":"features_footer","type":"daisy","text":"","url":"","variant":"footer","dataPath":"states.site_features.footer","dataRole":"widget","dataLabel":"Fußzeile"}],"data":{"nav":{"layout":"menu-submenu","brand":"Zustand","selected":"Nutzen","items":[{"label":"Start","transitionId":"site_features_nav_home"},{"label":"Nutzen","transitionId":"site_features_nav_features"},{"label":"Angebot","transitionId":"site_features_nav_pricing"},{"label":"Kontakt","transitionId":"site_features_nav_contact"},{"label":"Konto","transitionId":"site_features_nav_login"}],"parent":"","submenu":[],"submenuOpen":false},"overview":{"eyebrow":"Nutzen","heading":"Was Sie danach konkret besser können","body":"Sie sehen nicht nur ein Diagramm. Sie sehen, welche Entscheidungen, Daten, Wartezeiten und Ausnahmen den Prozess wirklich steuern.","selected":"","items":[{"title":"Investitionen besser entscheiden","body":"Vor der Umsetzung wird klar, ob Automatisierung lohnt, wo zuerst angesetzt wird und welche Anforderungen wirklich relevant sind.","image":"https://images.unsplash.com/photo-1542744094-3a31f272c490?auto=format\u0026fit=crop\u0026w=900\u0026q=82","imageAlt":"Führungsteam trifft eine Projektentscheidung","features":["Prioritäten klären","Falsche Projekte vermeiden"],"actionLabel":"Angebot","transitionId":"site_features_nav_pricing"},{"title":"Workshops werden verwertbar","body":"Was im Gespräch entsteht, landet direkt im Modell: Zustände, Übergänge, Bedingungen und Verantwortlichkeiten.","image":"https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format\u0026fit=crop\u0026w=900\u0026q=82","imageAlt":"Workshop-Situation mit Prozessklärung","features":["Nicht nur Protokoll","Sofort testbar"],"actionLabel":"Kontakt","transitionId":"site_features_nav_contact"},{"title":"Umsetzung bekommt Leitplanken","body":"Entwickler, Integratoren oder interne Teams erhalten einen eindeutigen Ablauf statt Interpretationsspielraum.","image":"https://images.unsplash.com/photo-1556761175-4b46a572b786?auto=format\u0026fit=crop\u0026w=900\u0026q=82","imageAlt":"Team setzt einen geklärten Prozess um","features":["Saubere Übergabe","Weniger Schleifen"],"actionLabel":"Konto","transitionId":"site_features_nav_login"}]},"steps":{"current":"Modellieren","items":[{"label":"Klären","description":"Den echten Ablauf mit Verantwortlichen aufnehmen.","transitionId":"site_features_nav_home"},{"label":"Modellieren","description":"Zustände, Daten und Auslöser sichtbar verbinden.","transitionId":"site_features_nav_features"},{"label":"Entscheiden","description":"Budget, Umsetzung und nächste Schritte belastbar festlegen.","transitionId":"site_features_nav_pricing"}]},"footer":{"brand":"Zustand GmbH","note":"Klare Prozesse, bevor Budget in Software fließt.","columns":[{"title":"Produkt","items":[{"label":"Nutzen","transitionId":"site_features_nav_features"},{"label":"Angebot","transitionId":"site_features_nav_pricing"},{"label":"Kontakt","transitionId":"site_features_nav_contact"}]},{"title":"Unternehmen","items":[{"label":"Start","transitionId":"site_features_nav_home"},{"label":"Konto","transitionId":"site_features_nav_login"}]},{"title":"Werkzeug","items":[{"label":"Editor öffnen","url":"state.html?demo=zustand"}]}]}},"dataTypes":{"nav":"object","overview":"object","steps":"object","footer":"object"},"dataSource":{"url":"","target":"states.site_features.fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"subscriptions":[],"boundary":{"entryId":"","exitId":"","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"parentId":null,"x":480,"y":96},{"id":"site_pricing","title":"Angebot","renderMode":"state","components":[{"id":"site_pricing_nav","type":"daisy","text":"","url":"","variant":"navbar","dataPath":"states.site_pricing.nav","dataRole":"widget","dataLabel":"Kopf-Navigation"},{"id":"pricing_intro","type":"daisy","text":"","url":"","variant":"alert","dataPath":"states.site_pricing.intro","dataRole":"widget","dataLabel":"Preishinweis"},{"id":"pricing_plans","type":"daisy","text":"","url":"","variant":"pricing","dataPath":"states.site_pricing.plans","dataRole":"widget","dataLabel":"Preispläne"},{"id":"pricing_footer","type":"daisy","text":"","url":"","variant":"footer","dataPath":"states.site_pricing.footer","dataRole":"widget","dataLabel":"Fußzeile"}],"data":{"nav":{"layout":"menu-submenu","brand":"Zustand","selected":"Angebot","items":[{"label":"Start","transitionId":"site_pricing_nav_home"},{"label":"Nutzen","transitionId":"site_pricing_nav_features"},{"label":"Angebot","transitionId":"site_pricing_nav_pricing"},{"label":"Kontakt","transitionId":"site_pricing_nav_contact"},{"label":"Konto","transitionId":"site_pricing_nav_login"}],"parent":"","submenu":[],"submenuOpen":false},"intro":{"tone":"info","message":"Starten Sie dort, wo das Risiko am größten ist: bei einem Ablauf, den heute alle anders verstehen."},"plans":{"selectedPlan":"","plans":[{"title":"Klarheits-Workshop","badge":"","price":"1.900 EUR","period":"einmalig","body":"Ein kritischer Ablauf wird sichtbar: Schritte, Entscheidungen, Daten und Verantwortliche.","features":["1 Prozess als Zustandsdiagramm","Blocker und Lücken sichtbar","Entscheidungsvorlage für Budget"],"highlight":false,"actionLabel":"Workshop anfragen","transitionId":"site_pricing_buy_workshop"},{"title":"Prozess-Blueprint","badge":"Beliebt","price":"4.900 EUR","period":"Projekt","body":"Aus einem unklaren Ablauf wird ein testbarer Plan für Umsetzung, Automatisierung und Übergabe.","features":["Mehrere Varianten und Fehlerpfade","Daten- und Auslöser-Vertrag","Klickbare Ablaufdemo"],"highlight":true,"actionLabel":"Blueprint anfragen","transitionId":"site_pricing_buy_blueprint"},{"title":"Umsetzungsbegleitung","badge":"Individuell","price":"auf Anfrage","period":"laufend","body":"Begleitung bis zur digitalen Umsetzung: klare Schnittstellen, saubere Abnahmen und weniger Reibung.","features":["Technische Übergabe vorbereiten","Automatisierung prüfen","Umsetzung priorisieren"],"highlight":false,"actionLabel":"Begleitung anfragen","transitionId":"site_pricing_buy_delivery"}]},"footer":{"brand":"Zustand GmbH","note":"Klare Prozesse, bevor Budget in Software fließt.","columns":[{"title":"Produkt","items":[{"label":"Nutzen","transitionId":"site_pricing_nav_features"},{"label":"Angebot","transitionId":"site_pricing_nav_pricing"},{"label":"Kontakt","transitionId":"site_pricing_nav_contact"}]},{"title":"Unternehmen","items":[{"label":"Start","transitionId":"site_pricing_nav_home"},{"label":"Konto","transitionId":"site_pricing_nav_login"}]},{"title":"Werkzeug","items":[{"label":"Editor öffnen","url":"state.html?demo=zustand"}]}]}},"dataTypes":{"nav":"object","intro":"object","plans":"object","footer":"object"},"dataSource":{"url":"","target":"states.site_pricing.fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"subscriptions":[],"boundary":{"entryId":"","exitId":"","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"parentId":null,"x":480,"y":456},{"id":"site_checkout_flow","title":"Anfrage","renderMode":"state","components":[],"data":{},"dataTypes":{},"dataSource":{"url":"","target":"states.site_checkout_flow.fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"subscriptions":[],"boundary":{"entryId":"site_checkout","exitId":"site_checkout","entryDisabled":false,"exitDisabled":false,"title":"","note":"","entryTriggerType":"auto","entryTriggerEvent":"auto.site.checkout","entryTimerMs":3000,"entryCondition":""},"parentId":null,"x":888,"y":456},{"id":"site_checkout","title":"Anfrage","renderMode":"state","components":[{"id":"site_checkout_nav","type":"daisy","text":"","url":"","variant":"navbar","dataPath":"states.site_checkout.nav","dataRole":"widget","dataLabel":"Kopf-Navigation"},{"id":"checkout_summary","type":"daisy","text":"","url":"","variant":"card","dataPath":"states.site_checkout.summary","dataRole":"widget","dataLabel":"Anfrageübersicht"},{"id":"checkout_email","type":"daisy","text":"","url":"","variant":"input","dataPath":"states.site_checkout.emailField","dataRole":"widget","dataLabel":"Rechnungs-E-Mail"},{"id":"checkout_submit","type":"daisy","text":"","url":"","variant":"button","dataPath":"states.site_checkout.submit","dataRole":"widget","dataLabel":"Anfrage senden"},{"id":"checkout_footer","type":"daisy","text":"","url":"","variant":"footer","dataPath":"states.site_checkout.footer","dataRole":"widget","dataLabel":"Fußzeile"}],"data":{"nav":{"layout":"menu-submenu","brand":"Zustand","selected":"Angebot","items":[{"label":"Start","transitionId":"site_checkout_nav_home"},{"label":"Nutzen","transitionId":"site_checkout_nav_features"},{"label":"Angebot","transitionId":"site_checkout_nav_pricing"},{"label":"Kontakt","transitionId":"site_checkout_nav_contact"},{"label":"Konto","transitionId":"site_checkout_nav_login"}],"parent":"","submenu":[],"submenuOpen":false},"summary":{"title":"Klarheits-Workshop","badge":"Anfrage","price":"1.900 EUR","period":"einmalig","body":"Prüfen Sie das gewählte Angebot und senden Sie die Anfrage. Danach klären wir Ziel, Prozess und nächsten Termin.","features":["1 Prozess als Zustandsdiagramm","Blocker und Lücken sichtbar","Entscheidungsvorlage für Budget"],"actionLabel":""},"emailField":{"label":"Rechnungs-E-Mail","value":""},"submit":{"label":"Anfrage senden","clicked":false,"transitionId":"site_checkout_complete"},"order":{"plan":"Klarheits-Workshop","price":"1.900 EUR","completed":false},"footer":{"brand":"Zustand GmbH","note":"Klare Prozesse, bevor Budget in Software fließt.","columns":[{"title":"Produkt","items":[{"label":"Nutzen","transitionId":"site_checkout_nav_features"},{"label":"Angebot","transitionId":"site_checkout_nav_pricing"},{"label":"Kontakt","transitionId":"site_checkout_nav_contact"}]},{"title":"Unternehmen","items":[{"label":"Start","transitionId":"site_checkout_nav_home"},{"label":"Konto","transitionId":"site_checkout_nav_login"}]},{"title":"Werkzeug","items":[{"label":"Editor öffnen","url":"state.html?demo=zustand"}]}]}},"dataTypes":{"nav":"object","summary":"object","emailField":"object","submit":"object","order":"object","footer":"object"},"dataSource":{"url":"","target":"states.site_checkout.fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"subscriptions":[],"boundary":{"entryId":"","exitId":"","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"parentId":"site_checkout_flow","x":216,"y":192},{"id":"site_contact","title":"Kontakt","renderMode":"state","components":[{"id":"site_contact_nav","type":"daisy","text":"","url":"","variant":"navbar","dataPath":"states.site_contact.nav","dataRole":"widget","dataLabel":"Kopf-Navigation"},{"id":"contact_alert","type":"daisy","text":"","url":"","variant":"alert","dataPath":"states.site_contact.alert","dataRole":"widget","dataLabel":"Kontakthinweis"},{"id":"contact_name","type":"daisy","text":"","url":"","variant":"input","dataPath":"states.site_contact.nameField","dataRole":"widget","dataLabel":"Name"},{"id":"contact_email","type":"daisy","text":"","url":"","variant":"input","dataPath":"states.site_contact.emailField","dataRole":"widget","dataLabel":"E-Mail"},{"id":"contact_message","type":"daisy","text":"","url":"","variant":"textarea","dataPath":"states.site_contact.messageField","dataRole":"widget","dataLabel":"Nachricht"},{"id":"contact_submit","type":"daisy","text":"","url":"","variant":"button","dataPath":"states.site_contact.submit","dataRole":"widget","dataLabel":"Anfrage senden"},{"id":"contact_footer","type":"daisy","text":"","url":"","variant":"footer","dataPath":"states.site_contact.footer","dataRole":"widget","dataLabel":"Fußzeile"}],"data":{"nav":{"layout":"menu-submenu","brand":"Zustand","selected":"Kontakt","items":[{"label":"Start","transitionId":"site_contact_nav_home"},{"label":"Nutzen","transitionId":"site_contact_nav_features"},{"label":"Angebot","transitionId":"site_contact_nav_pricing"},{"label":"Kontakt","transitionId":"site_contact_nav_contact"},{"label":"Konto","transitionId":"site_contact_nav_login"}],"parent":"","submenu":[],"submenuOpen":false},"alert":{"tone":"success","message":"Beschreiben Sie kurz den Ablauf, der unklar ist, Geld kostet oder die Digitalisierung blockiert."},"nameField":{"label":"Name","value":""},"emailField":{"label":"E-Mail","value":""},"messageField":{"label":"Welcher Prozess soll klar werden?","value":""},"submit":{"label":"Anfrage senden","clicked":false,"transitionId":"site_contact_send"},"form":{"submitted":false},"footer":{"brand":"Zustand GmbH","note":"Klare Prozesse, bevor Budget in Software fließt.","columns":[{"title":"Produkt","items":[{"label":"Nutzen","transitionId":"site_contact_nav_features"},{"label":"Angebot","transitionId":"site_contact_nav_pricing"},{"label":"Kontakt","transitionId":"site_contact_nav_contact"}]},{"title":"Unternehmen","items":[{"label":"Start","transitionId":"site_contact_nav_home"},{"label":"Konto","transitionId":"site_contact_nav_login"}]},{"title":"Werkzeug","items":[{"label":"Editor öffnen","url":"state.html?demo=zustand"}]}]}},"dataTypes":{"nav":"object","alert":"object","nameField":"object","emailField":"object","messageField":"object","submit":"object","form":"object","footer":"object"},"dataSource":{"url":"","target":"states.site_contact.fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"subscriptions":[],"boundary":{"entryId":"","exitId":"","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"parentId":null,"x":888,"y":96},{"id":"site_login","title":"Konto","renderMode":"state","components":[{"id":"site_login_nav","type":"daisy","text":"","url":"","variant":"navbar","dataPath":"states.site_login.nav","dataRole":"widget","dataLabel":"Kopf-Navigation"},{"id":"login_hero","type":"daisy","text":"","url":"","variant":"hero","dataPath":"states.site_login.hero","dataRole":"widget","dataLabel":"Anmeldeformular"},{"id":"login_footer","type":"daisy","text":"","url":"","variant":"footer","dataPath":"states.site_login.footer","dataRole":"widget","dataLabel":"Fußzeile"}],"data":{"nav":{"layout":"menu-submenu","brand":"Zustand","selected":"Konto","items":[{"label":"Start","transitionId":"site_login_nav_home"},{"label":"Nutzen","transitionId":"site_login_nav_features"},{"label":"Angebot","transitionId":"site_login_nav_pricing"},{"label":"Kontakt","transitionId":"site_login_nav_contact"},{"label":"Konto","transitionId":"site_login_nav_login"}],"parent":"","submenu":[],"submenuOpen":false},"hero":{"layout":"form","title":"Anmelden und fortfahren","body":"Beispiel für einen geschützten Kundenbereich. In echten Projekten können Rollen, Freigaben und Prozessschritte sichtbar werden.","emailLabel":"E-Mail","passwordLabel":"Passwort","email":"","password":"","actionLabel":"Anmelden","transitionId":"site_login_submit","loggedIn":false},"footer":{"brand":"Zustand GmbH","note":"Klare Prozesse, bevor Budget in Software fließt.","columns":[{"title":"Produkt","items":[{"label":"Nutzen","transitionId":"site_login_nav_features"},{"label":"Angebot","transitionId":"site_login_nav_pricing"},{"label":"Kontakt","transitionId":"site_login_nav_contact"}]},{"title":"Unternehmen","items":[{"label":"Start","transitionId":"site_login_nav_home"},{"label":"Konto","transitionId":"site_login_nav_login"}]},{"title":"Werkzeug","items":[{"label":"Editor öffnen","url":"state.html?demo=zustand"}]}]}},"dataTypes":{"nav":"object","hero":"object","footer":"object"},"dataSource":{"url":"","target":"states.site_login.fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"subscriptions":[],"boundary":{"entryId":"","exitId":"","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"parentId":null,"x":1296,"y":96},{"id":"site_profile","title":"Profil","renderMode":"state","components":[{"id":"site_profile_nav","type":"daisy","text":"","url":"","variant":"navbar","dataPath":"states.site_profile.nav","dataRole":"widget","dataLabel":"Kopf-Navigation"},{"id":"profile_avatar","type":"daisy","text":"","url":"","variant":"avatar","dataPath":"states.site_profile.avatar","dataRole":"widget","dataLabel":"Benutzer-Avatar"},{"id":"profile_alert","type":"daisy","text":"","url":"","variant":"alert","dataPath":"states.site_profile.alert","dataRole":"widget","dataLabel":"Sitzungsstatus"},{"id":"profile_stat","type":"daisy","text":"","url":"","variant":"stat","dataPath":"states.site_profile.stat","dataRole":"widget","dataLabel":"Paket"},{"id":"profile_logout","type":"daisy","text":"","url":"","variant":"button","dataPath":"states.site_profile.logout","dataRole":"widget","dataLabel":"Abmelden"},{"id":"profile_footer","type":"daisy","text":"","url":"","variant":"footer","dataPath":"states.site_profile.footer","dataRole":"widget","dataLabel":"Fußzeile"}],"data":{"nav":{"layout":"menu-submenu","brand":"Zustand","selected":"Konto","items":[{"label":"Start","transitionId":"site_profile_nav_home"},{"label":"Nutzen","transitionId":"site_profile_nav_features"},{"label":"Angebot","transitionId":"site_profile_nav_pricing"},{"label":"Kontakt","transitionId":"site_profile_nav_contact"},{"label":"Konto","transitionId":"site_profile_nav_profile"}],"parent":"","submenu":[],"submenuOpen":false},"avatar":{"name":"Mira Keller","image":"https://img.daisyui.com/images/profile/demo/2@94.webp","status":"online","size":"w-16","shape":"rounded-full","ring":true},"alert":{"tone":"success","message":"Willkommen zurück. Hier könnten Prozessstände, Verantwortliche und nächste Entscheidungen liegen."},"stat":{"title":"Paket","value":"Team","description":"Beispielhafter Projektstatus"},"account":{"loggedIn":true},"logout":{"label":"Abmelden","clicked":false,"transitionId":"site_profile_logout"},"footer":{"brand":"Zustand GmbH","note":"Klare Prozesse, bevor Budget in Software fließt.","columns":[{"title":"Produkt","items":[{"label":"Nutzen","transitionId":"site_profile_nav_features"},{"label":"Angebot","transitionId":"site_profile_nav_pricing"},{"label":"Kontakt","transitionId":"site_profile_nav_contact"}]},{"title":"Unternehmen","items":[{"label":"Start","transitionId":"site_profile_nav_home"},{"label":"Konto","transitionId":"site_profile_nav_profile"}]},{"title":"Werkzeug","items":[{"label":"Editor öffnen","url":"state.html?demo=zustand"}]}]}},"dataTypes":{"nav":"object","avatar":"object","alert":"object","stat":"object","account":"object","logout":"object","footer":"object"},"dataSource":{"url":"","target":"states.site_profile.fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"subscriptions":[],"boundary":{"entryId":"","exitId":"","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"parentId":null,"x":1656,"y":288},{"id":"site_thanks","title":"Danke","renderMode":"state","components":[{"id":"site_thanks_nav","type":"daisy","text":"","url":"","variant":"navbar","dataPath":"states.site_thanks.nav","dataRole":"widget","dataLabel":"Kopf-Navigation"},{"id":"thanks_alert","type":"daisy","text":"","url":"","variant":"alert","dataPath":"states.site_thanks.alert","dataRole":"widget","dataLabel":"Erfolgsmeldung"},{"id":"thanks_stat","type":"daisy","text":"","url":"","variant":"stat","dataPath":"states.site_thanks.stat","dataRole":"widget","dataLabel":"Antwortzeit"},{"id":"thanks_footer","type":"daisy","text":"","url":"","variant":"footer","dataPath":"states.site_thanks.footer","dataRole":"widget","dataLabel":"Fußzeile"}],"data":{"nav":{"layout":"menu-submenu","brand":"Zustand","selected":"Kontakt","items":[{"label":"Start","transitionId":"site_thanks_nav_home"},{"label":"Nutzen","transitionId":"site_thanks_nav_features"},{"label":"Angebot","transitionId":"site_thanks_nav_pricing"},{"label":"Kontakt","transitionId":"site_thanks_nav_contact"},{"label":"Konto","transitionId":"site_thanks_nav_login"}],"parent":"","submenu":[],"submenuOpen":false},"alert":{"tone":"success","message":"Anfrage erhalten. Der nächste Schritt ist ein kurzes Klärungsgespräch."},"stat":{"title":"Nächster Schritt","value":"24h","description":"Antwortzeit für Erstkontakt"},"order":{"plan":"","price":"","completed":false},"footer":{"brand":"Zustand GmbH","note":"Klare Prozesse, bevor Budget in Software fließt.","columns":[{"title":"Produkt","items":[{"label":"Nutzen","transitionId":"site_thanks_nav_features"},{"label":"Angebot","transitionId":"site_thanks_nav_pricing"},{"label":"Kontakt","transitionId":"site_thanks_nav_contact"}]},{"title":"Unternehmen","items":[{"label":"Start","transitionId":"site_thanks_nav_home"},{"label":"Konto","transitionId":"site_thanks_nav_login"}]},{"title":"Werkzeug","items":[{"label":"Editor öffnen","url":"state.html?demo=zustand"}]}]}},"dataTypes":{"nav":"object","alert":"object","stat":"object","order":"object","footer":"object"},"dataSource":{"url":"","target":"states.site_thanks.fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"subscriptions":[],"boundary":{"entryId":"","exitId":"","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"parentId":null,"x":1296,"y":456}],"transitions":[{"id":"site_home_nav_home","from":"site_home","to":"site_home","label":"Start","condition":"","triggerType":"button","triggerEvent":"button.site_home_nav_home.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_home_nav_features","from":"site_home","to":"site_features","label":"Nutzen","condition":"","triggerType":"button","triggerEvent":"button.site_home_nav_features.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_home_nav_pricing","from":"site_home","to":"site_pricing","label":"Angebot","condition":"","triggerType":"button","triggerEvent":"button.site_home_nav_pricing.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_home_nav_contact","from":"site_home","to":"site_contact","label":"Kontakt","condition":"","triggerType":"button","triggerEvent":"button.site_home_nav_contact.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_home_nav_login","from":"site_home","to":"site_login","label":"Konto","condition":"","triggerType":"button","triggerEvent":"button.site_home_nav_login.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_features_nav_home","from":"site_features","to":"site_home","label":"Start","condition":"","triggerType":"button","triggerEvent":"button.site_features_nav_home.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_features_nav_features","from":"site_features","to":"site_features","label":"Nutzen","condition":"","triggerType":"button","triggerEvent":"button.site_features_nav_features.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_features_nav_pricing","from":"site_features","to":"site_pricing","label":"Angebot","condition":"","triggerType":"button","triggerEvent":"button.site_features_nav_pricing.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_features_nav_contact","from":"site_features","to":"site_contact","label":"Kontakt","condition":"","triggerType":"button","triggerEvent":"button.site_features_nav_contact.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_features_nav_login","from":"site_features","to":"site_login","label":"Konto","condition":"","triggerType":"button","triggerEvent":"button.site_features_nav_login.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_pricing_nav_home","from":"site_pricing","to":"site_home","label":"Start","condition":"","triggerType":"button","triggerEvent":"button.site_pricing_nav_home.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_pricing_nav_features","from":"site_pricing","to":"site_features","label":"Nutzen","condition":"","triggerType":"button","triggerEvent":"button.site_pricing_nav_features.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_pricing_nav_pricing","from":"site_pricing","to":"site_pricing","label":"Angebot","condition":"","triggerType":"button","triggerEvent":"button.site_pricing_nav_pricing.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_pricing_nav_contact","from":"site_pricing","to":"site_contact","label":"Kontakt","condition":"","triggerType":"button","triggerEvent":"button.site_pricing_nav_contact.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_pricing_nav_login","from":"site_pricing","to":"site_login","label":"Konto","condition":"","triggerType":"button","triggerEvent":"button.site_pricing_nav_login.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_checkout_nav_home","from":"site_checkout_flow","to":"site_home","label":"Start","condition":"","triggerType":"button","triggerEvent":"button.site_checkout_nav_home.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_checkout_nav_features","from":"site_checkout_flow","to":"site_features","label":"Nutzen","condition":"","triggerType":"button","triggerEvent":"button.site_checkout_nav_features.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_checkout_nav_pricing","from":"site_checkout_flow","to":"site_pricing","label":"Angebot","condition":"","triggerType":"button","triggerEvent":"button.site_checkout_nav_pricing.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_checkout_nav_contact","from":"site_checkout_flow","to":"site_contact","label":"Kontakt","condition":"","triggerType":"button","triggerEvent":"button.site_checkout_nav_contact.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_checkout_nav_login","from":"site_checkout_flow","to":"site_login","label":"Konto","condition":"","triggerType":"button","triggerEvent":"button.site_checkout_nav_login.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_contact_nav_home","from":"site_contact","to":"site_home","label":"Start","condition":"","triggerType":"button","triggerEvent":"button.site_contact_nav_home.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_contact_nav_features","from":"site_contact","to":"site_features","label":"Nutzen","condition":"","triggerType":"button","triggerEvent":"button.site_contact_nav_features.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_contact_nav_pricing","from":"site_contact","to":"site_pricing","label":"Angebot","condition":"","triggerType":"button","triggerEvent":"button.site_contact_nav_pricing.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_contact_nav_contact","from":"site_contact","to":"site_contact","label":"Kontakt","condition":"","triggerType":"button","triggerEvent":"button.site_contact_nav_contact.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_contact_nav_login","from":"site_contact","to":"site_login","label":"Konto","condition":"","triggerType":"button","triggerEvent":"button.site_contact_nav_login.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_login_nav_home","from":"site_login","to":"site_home","label":"Start","condition":"","triggerType":"button","triggerEvent":"button.site_login_nav_home.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_login_nav_features","from":"site_login","to":"site_features","label":"Nutzen","condition":"","triggerType":"button","triggerEvent":"button.site_login_nav_features.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_login_nav_pricing","from":"site_login","to":"site_pricing","label":"Angebot","condition":"","triggerType":"button","triggerEvent":"button.site_login_nav_pricing.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_login_nav_contact","from":"site_login","to":"site_contact","label":"Kontakt","condition":"","triggerType":"button","triggerEvent":"button.site_login_nav_contact.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_login_nav_login","from":"site_login","to":"site_login","label":"Konto","condition":"","triggerType":"button","triggerEvent":"button.site_login_nav_login.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_profile_nav_home","from":"site_profile","to":"site_home","label":"Start","condition":"","triggerType":"button","triggerEvent":"button.site_profile_nav_home.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_profile_nav_features","from":"site_profile","to":"site_features","label":"Nutzen","condition":"","triggerType":"button","triggerEvent":"button.site_profile_nav_features.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_profile_nav_pricing","from":"site_profile","to":"site_pricing","label":"Angebot","condition":"","triggerType":"button","triggerEvent":"button.site_profile_nav_pricing.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_profile_nav_contact","from":"site_profile","to":"site_contact","label":"Kontakt","condition":"","triggerType":"button","triggerEvent":"button.site_profile_nav_contact.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_profile_nav_profile","from":"site_profile","to":"site_profile","label":"Konto","condition":"","triggerType":"button","triggerEvent":"button.site_profile_nav_profile.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_thanks_nav_home","from":"site_thanks","to":"site_home","label":"Start","condition":"","triggerType":"button","triggerEvent":"button.site_thanks_nav_home.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_thanks_nav_features","from":"site_thanks","to":"site_features","label":"Nutzen","condition":"","triggerType":"button","triggerEvent":"button.site_thanks_nav_features.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_thanks_nav_pricing","from":"site_thanks","to":"site_pricing","label":"Angebot","condition":"","triggerType":"button","triggerEvent":"button.site_thanks_nav_pricing.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_thanks_nav_contact","from":"site_thanks","to":"site_contact","label":"Kontakt","condition":"","triggerType":"button","triggerEvent":"button.site_thanks_nav_contact.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_thanks_nav_login","from":"site_thanks","to":"site_login","label":"Konto","condition":"","triggerType":"button","triggerEvent":"button.site_thanks_nav_login.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_pricing_buy_workshop","from":"site_pricing","to":"site_checkout_flow","label":"Workshop anfragen","condition":"","triggerType":"button","triggerEvent":"button.site_pricing_buy_workshop.clicked","timerMs":3000,"set":{"states.site_pricing.plans.selectedPlan":"Klarheits-Workshop","states.site_checkout.summary.title":"Klarheits-Workshop","states.site_checkout.summary.badge":"Anfrage","states.site_checkout.summary.price":"1.900 EUR","states.site_checkout.summary.period":"einmalig","states.site_checkout.summary.body":"Prüfen Sie das gewählte Angebot und senden Sie die Anfrage. Danach klären wir Ziel, Prozess und nächsten Termin.","states.site_checkout.summary.features":["1 Prozess als Zustandsdiagramm","Blocker und Lücken sichtbar","Entscheidungsvorlage für Budget"],"states.site_checkout.order.plan":"Klarheits-Workshop","states.site_checkout.order.price":"1.900 EUR","states.site_checkout.order.completed":false,"states.site_thanks.order.plan":"Klarheits-Workshop","states.site_thanks.order.price":"1.900 EUR","states.site_thanks.order.completed":false},"groupEntryId":"","groupExitId":""},{"id":"site_pricing_buy_blueprint","from":"site_pricing","to":"site_checkout_flow","label":"Blueprint anfragen","condition":"","triggerType":"button","triggerEvent":"button.site_pricing_buy_blueprint.clicked","timerMs":3000,"set":{"states.site_pricing.plans.selectedPlan":"Prozess-Blueprint","states.site_checkout.summary.title":"Prozess-Blueprint","states.site_checkout.summary.badge":"Beliebt","states.site_checkout.summary.price":"4.900 EUR","states.site_checkout.summary.period":"Projekt","states.site_checkout.summary.body":"Prüfen Sie das gewählte Angebot und senden Sie die Anfrage. Danach klären wir Ziel, Prozess und nächsten Termin.","states.site_checkout.summary.features":["Mehrere Varianten und Fehlerpfade","Daten- und Auslöser-Vertrag","Klickbare Ablaufdemo"],"states.site_checkout.order.plan":"Prozess-Blueprint","states.site_checkout.order.price":"4.900 EUR","states.site_checkout.order.completed":false,"states.site_thanks.order.plan":"Prozess-Blueprint","states.site_thanks.order.price":"4.900 EUR","states.site_thanks.order.completed":false},"groupEntryId":"","groupExitId":""},{"id":"site_pricing_buy_delivery","from":"site_pricing","to":"site_checkout_flow","label":"Begleitung anfragen","condition":"","triggerType":"button","triggerEvent":"button.site_pricing_buy_delivery.clicked","timerMs":3000,"set":{"states.site_pricing.plans.selectedPlan":"Umsetzungsbegleitung","states.site_checkout.summary.title":"Umsetzungsbegleitung","states.site_checkout.summary.badge":"Individuell","states.site_checkout.summary.price":"auf Anfrage","states.site_checkout.summary.period":"laufend","states.site_checkout.summary.body":"Prüfen Sie das gewählte Angebot und senden Sie die Anfrage. Danach klären wir Ziel, Prozess und nächsten Termin.","states.site_checkout.summary.features":["Technische Übergabe vorbereiten","Automatisierung prüfen","Umsetzung priorisieren"],"states.site_checkout.order.plan":"Umsetzungsbegleitung","states.site_checkout.order.price":"auf Anfrage","states.site_checkout.order.completed":false,"states.site_thanks.order.plan":"Umsetzungsbegleitung","states.site_thanks.order.price":"auf Anfrage","states.site_thanks.order.completed":false},"groupEntryId":"","groupExitId":""},{"id":"site_checkout_complete","from":"site_checkout_flow","to":"site_thanks","label":"Anfrage senden","condition":"","triggerType":"button","triggerEvent":"button.site_checkout_complete.clicked","timerMs":3000,"set":{"states.site_checkout.submit.clicked":true,"states.site_checkout.order.completed":true,"states.site_thanks.order.completed":true},"groupEntryId":"","groupExitId":""},{"id":"site_contact_send","from":"site_contact","to":"site_thanks","label":"Anfrage senden","condition":"","triggerType":"button","triggerEvent":"button.site_contact_send.clicked","timerMs":3000,"set":{"states.site_contact.submit.clicked":true,"states.site_contact.form.submitted":true},"groupEntryId":"","groupExitId":""},{"id":"site_login_submit","from":"site_login","to":"site_profile","label":"Anmelden","condition":"","triggerType":"button","triggerEvent":"button.site_login_submit.clicked","timerMs":3000,"set":{"states.site_login.hero.loggedIn":true,"states.site_profile.account.loggedIn":true},"groupEntryId":"","groupExitId":""},{"id":"site_profile_logout","from":"site_profile","to":"site_login","label":"Abmelden","condition":"","triggerType":"button","triggerEvent":"button.site_profile_logout.clicked","timerMs":3000,"set":{"states.site_profile.logout.clicked":true,"states.site_profile.account.loggedIn":false},"groupEntryId":"","groupExitId":""}]};
+    const EXPORTED_STATE_BLUEPRINT_SAVED_AT = "2026-07-13T00:08:30.104Z";
 
     let model = normalizeModel(JSON.parse(JSON.stringify(EXPORTED_STATE_BLUEPRINT)));
     let current = model.initial;
@@ -1568,19 +1567,32 @@
     const shownToastKeys = new Set();
     const daisyCountdownTimers = new Map();
 
+    const RUNTIME_SESSION_FRAGMENT_KEY = "state-blueprint-session";
+    const RUNTIME_SESSION_ID = new URLSearchParams(location.hash.slice(1)).get(RUNTIME_SESSION_FRAGMENT_KEY) || "";
+    const RUNTIME_HOST_ORIGIN = location.origin;
+    const RUNTIME_HOST_WINDOW = RUNTIME_SESSION_ID && /^[a-f0-9]{32}$/.test(RUNTIME_SESSION_ID)
+      ? (window.parent && window.parent !== window ? window.parent : null)
+      : null;
+
     function hasHostWindow() {
-      try {
-        return (window.parent && window.parent !== window) || (window.opener && !window.opener.closed);
-      } catch (_) { return true; }
+      return Boolean(!IS_STANDALONE_EXPORT && RUNTIME_HOST_WINDOW && RUNTIME_HOST_ORIGIN && RUNTIME_HOST_ORIGIN !== "null");
+    }
+
+    function runtimeAcceptsHostMessage(evt, data) {
+      return Boolean(
+        hasHostWindow() &&
+        evt.source === RUNTIME_HOST_WINDOW &&
+        evt.origin === RUNTIME_HOST_ORIGIN &&
+        data &&
+        typeof data === "object" &&
+        data.sessionId === RUNTIME_SESSION_ID
+      );
     }
 
     function postHostMessage(payload) {
-      try {
-        if (window.parent && window.parent !== window) window.parent.postMessage(payload, "*");
-      } catch (_) {}
-      try {
-        if (window.opener && !window.opener.closed) window.opener.postMessage(payload, "*");
-      } catch (_) {}
+      if (!hasHostWindow() || !payload || typeof payload !== "object") return false;
+      RUNTIME_HOST_WINDOW.postMessage({ ...payload, sessionId: RUNTIME_SESSION_ID }, RUNTIME_HOST_ORIGIN);
+      return true;
     }
 
     function blankModel() {
@@ -1593,16 +1605,6 @@
         transitions: []
       };
     }
-
-    function loadModel() {
-      try {
-        const text = localStorage.getItem(STORAGE_KEY);
-        return text ? normalizeModel(JSON.parse(text)) : null;
-      } catch (_) { return null; }
-    }
-
-    function saveModel() {}
-
 
     function normalizeStateRenderMode(value) {
       return String(value || "").trim() === "component" ? "component" : "state";
@@ -1619,7 +1621,7 @@
         s.components = normalizeComponents(s.components);
         s.renderMode = normalizeStateRenderMode(s.renderMode);
         delete s.body;
-        s.data = normalizeDataObject(s.data);
+        s.data = normalizeStateDataObject(s.data);
         s.dataSource = normalizeDataSource(s.dataSource, "states." + s.id + ".fetch");
         s.repeat = normalizeRepeatConfig(s.repeat);
         s.dataWires = normalizeDataWires(s.dataWires);
@@ -1647,7 +1649,7 @@
       });
       for (const t of m.transitions) {
         t.id = t.id || Math.random().toString(36).slice(2, 9);
-        t.label = t.label || "Next";
+        t.label = t.label || "Weiter";
         t.condition = t.condition || "";
         t.set = normalizeDataObject(t.set);
         t.triggerType = normalizeTransitionTriggerType(t);
@@ -1837,7 +1839,7 @@
 
     function runtimeComponentFromDataWire(wire, alias = "item") {
       const value = runtimeDataWireValue(wire, alias);
-      const label = wire.label || runtimeDataLabel(wire.itemPath || wire.sourcePath, wire.role || "Field");
+      const label = wire.label || runtimeDataLabel(wire.itemPath || wire.sourcePath, wire.role || "Feld");
       const text = runtimeDataWireDisplayValue(value);
       const url = runtimeDataWireUrlValue(value);
       const base = { id: wire.id + "_component", type: normalizeDataWireComponentType(wire.componentType, wire.role), text: "", url: "", variant: "", generatedFromDataWire: true, wireId: wire.id };
@@ -1920,6 +1922,20 @@
       };
     }
 
+    function normalizeStateDataValue(value) {
+      if (Array.isArray(value)) return value.filter(item => item !== undefined).map(normalizeStateDataValue);
+      if (!isPlainDataObject(value)) return value;
+      const out = {};
+      for (const [key, child] of Object.entries(value)) {
+        if (child !== undefined && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key)) out[key] = normalizeStateDataValue(child);
+      }
+      return out;
+    }
+
+    function normalizeStateDataObject(value) {
+      return isPlainDataObject(value) ? normalizeStateDataValue(value) : {};
+    }
+
     function hasDataSource(value) {
       return Boolean(normalizeDataSource(value).url.trim());
     }
@@ -1993,82 +2009,79 @@
       return paths;
     }
 
-    function runtimeJsonEqual(a, b) {
-      return JSON.stringify(a) === JSON.stringify(b);
-    }
-
-    function cloneRuntimeJsonValue(value) {
-      return JSON.parse(JSON.stringify(value));
-    }
-
-    function modelStateDataContractMap(m) {
-      const entries = new Map();
-      for (const state of Array.isArray(m?.states) ? m.states : []) {
-        for (const [key, value] of Object.entries(normalizeDataObject(state.data))) {
-          const targetPath = normalizeContextPath(key, "");
-          if (targetPath) entries.set(targetPath, value);
+    function declaredStateDataPaths(state) {
+      const paths = new Set();
+      const visit = (value, prefix) => {
+        if (!value || typeof value !== "object" || Array.isArray(value)) return;
+        for (const [key, child] of Object.entries(value)) {
+          const path = prefix ? prefix + "." + key : key;
+          paths.add(path);
+          visit(child, path);
         }
-      }
-      return entries;
-    }
-
-    function modelRealtimeDataContractPaths(m) {
-      const paths = new Set(["realtime"]);
-      (Array.isArray(m?.transitions) ? m.transitions : []).forEach(transition => {
-        if (normalizeTransitionTriggerType(transition) !== "realtime") return;
-        const name = normalizeTransitionEvent(transition.triggerEvent || "");
-        if (name.startsWith("realtime.")) paths.add("events." + name);
-      });
+      };
+      visit(normalizeStateDataObject(state?.data), "");
       return paths;
     }
 
-    function pruneRemovedRealtimeData(previousModel, nextModel, target) {
-      const previous = modelRealtimeDataContractPaths(previousModel);
-      const next = modelRealtimeDataContractPaths(nextModel);
-      for (const path of previous) {
-        if (!next.has(path)) deleteValueAtPath(target, path);
-      }
-    }
-
-    function pruneRemovedStateDataDefaults(previousModel, nextModel, target) {
-      const previous = modelStateDataDefaultPaths(previousModel);
-      if (!previous.size) return;
-      const next = modelStateDataDefaultPaths(nextModel);
-      for (const path of previous) {
-        if (!next.has(path)) deleteValueAtPath(target, path);
-      }
-    }
-
-    function applyChangedStateDataContractValue(target, path, previousValue, nextValue) {
-      if (runtimeJsonEqual(previousValue, nextValue)) return;
-      const previousIsObject = isPlainDataObject(previousValue);
-      const nextIsObject = isPlainDataObject(nextValue);
-      if (previousIsObject && nextIsObject) {
-        const keys = new Set([...Object.keys(previousValue), ...Object.keys(nextValue)]);
-        for (const key of keys) {
-          const childPath = path + "." + key;
-          if (!Object.prototype.hasOwnProperty.call(nextValue, key)) {
-            deleteValueAtPath(target, childPath);
-            continue;
-          }
-          applyChangedStateDataContractValue(target, childPath, previousValue[key], nextValue[key]);
-        }
-        return;
-      }
-      setValueAtPath(target, path, cloneRuntimeJsonValue(nextValue));
-    }
-
-    function applyChangedStateDataContract(previousModel, nextModel, target) {
-      const previous = modelStateDataContractMap(previousModel);
-      const next = modelStateDataContractMap(nextModel);
-      for (const [path, nextValue] of next.entries()) {
-        if (!previous.has(path)) {
-          setValueAtPath(target, path, cloneRuntimeJsonValue(nextValue));
+    function runtimeContextAfterModelUpdate(previousModel, nextModel, currentContext) {
+      const previousStates = new Map((previousModel?.states || []).map(state => [String(state.id || ""), state]));
+      const nextStates = new Map((nextModel?.states || []).map(state => [String(state.id || ""), state]));
+      for (const [stateId, previousState] of previousStates) {
+        if (!stateId) continue;
+        const scope = "states." + stateId;
+        const nextState = nextStates.get(stateId);
+        if (!nextState) {
+          deleteValueAtPath(currentContext, scope);
           continue;
         }
-        applyChangedStateDataContractValue(target, path, previous.get(path), nextValue);
+        const nextPaths = declaredStateDataPaths(nextState);
+        const removedPaths = [...declaredStateDataPaths(previousState)]
+          .filter(path => !nextPaths.has(path))
+          .sort((a, b) => a.split(".").length - b.split(".").length);
+        for (const path of removedPaths) deleteValueAtPath(currentContext, scope + "." + path);
       }
-      pruneRemovedRealtimeData(previousModel, nextModel, target);
+      if (!currentContext.state || typeof currentContext.state !== "object" || Array.isArray(currentContext.state)) currentContext.state = {};
+      if (currentContext.state.current === undefined) currentContext.state.current = nextModel?.initial || "";
+      if (currentContext.state.previous === undefined) currentContext.state.previous = "";
+      if (currentContext.state.lastTransition === undefined) currentContext.state.lastTransition = "";
+      if (!currentContext.runtime || typeof currentContext.runtime !== "object" || Array.isArray(currentContext.runtime)) currentContext.runtime = {};
+      if (currentContext.runtime.paused === undefined) currentContext.runtime.paused = false;
+      if (!currentContext.realtime || typeof currentContext.realtime !== "object" || Array.isArray(currentContext.realtime)) currentContext.realtime = {};
+      const realtimeDefaults = {
+        roomId: "",
+        clientId: "",
+        status: "idle",
+        connected: false,
+        joined: false,
+        connecting: false,
+        reconnectAttempt: 0,
+        error: ""
+      };
+      for (const [key, value] of Object.entries(realtimeDefaults)) {
+        if (currentContext.realtime[key] === undefined) currentContext.realtime[key] = value;
+      }
+      return currentContext;
+    }
+
+    function resetRuntimeContextInPlace(nextModel, currentContext) {
+      for (const key of Object.keys(currentContext)) delete currentContext[key];
+      currentContext.state = {
+        current: nextModel?.initial || "",
+        previous: "",
+        lastTransition: ""
+      };
+      currentContext.runtime = { paused: false };
+      currentContext.realtime = {
+        roomId: "",
+        clientId: "",
+        status: "idle",
+        connected: false,
+        joined: false,
+        connecting: false,
+        reconnectAttempt: 0,
+        error: ""
+      };
+      return currentContext;
     }
 
     function eventSegment(text) {
@@ -2139,7 +2152,7 @@
       "button", "daisy", "daisy-countdown", "event", "fetch", "flow", "input",
       "input-default", "model-sync", "state-default", "transition", "runtime",
       "runtime-empty", "runtime-control", "reset", "host", "storage", "initial",
-      "realtime", "realtime-local"
+      "realtime"
     ]);
 
     function runtimeWriteSource(opts = {}) {
@@ -2154,31 +2167,29 @@
       const targetPath = normalizeContextPath(path, "");
       if (!targetPath) return false;
       for (const state of Array.isArray(model?.states) ? model.states : []) {
-        for (const key of Object.keys(normalizeDataObject(state.data))) {
-          const contractPath = normalizeContextPath(key, "");
-          if (contractPath && (targetPath === contractPath || targetPath.startsWith(contractPath + "."))) return true;
+        const scope = "states." + state.id;
+        if (!targetPath.startsWith(scope + ".")) continue;
+        const parts = targetPath.slice(scope.length + 1).split(".").filter(Boolean);
+        let cursor = normalizeStateDataObject(state.data);
+        let declared = parts.length > 0;
+        for (const part of parts) {
+          if (Array.isArray(cursor) && /^d+$/.test(part) && Number(part) < cursor.length) {
+            cursor = cursor[Number(part)];
+            continue;
+          }
+          if (!isPlainDataObject(cursor) || !Object.prototype.hasOwnProperty.call(cursor, part)) {
+            declared = false;
+            break;
+          }
+          cursor = cursor[part];
         }
+        if (declared) return true;
       }
       return false;
     }
 
-    function runtimeBookkeepingPathIsAuthorized(path) {
-      const targetPath = normalizeContextPath(path, "");
-      return targetPath === "lastEvent"
-        || targetPath === "lastEventAt"
-        || targetPath === "lastChangedPath"
-        || targetPath === "lastChangedAt"
-        || targetPath === "state.current"
-        || targetPath === "state.previous"
-        || targetPath === "state.lastTransition"
-        || targetPath === "runtime.paused"
-        || targetPath === "realtime"
-        || targetPath.startsWith("events.");
-    }
-
     function runtimeExternalWritePathIsAuthorized(path) {
-      const targetPath = normalizeContextPath(path, "");
-      return runtimeStateDataPathIsDeclared(targetPath) || runtimeBookkeepingPathIsAuthorized(targetPath);
+      return runtimeStateDataPathIsDeclared(path);
     }
 
     let runtimeTrustedUiEventActive = false;
@@ -2275,7 +2286,7 @@
         if (!isPlainDataObject(binding)) return null;
         const from = runtimeNormalizeBindingPath(binding.from || "", "");
         const to = runtimeNormalizeBindingPath(binding.to || "", "");
-        if (!from || !to) return null;
+        if (!from || !/^states.[a-zA-Z_][a-zA-Z0-9_]*./.test(to)) return null;
         return { from, to, type: normalizeRealtimeValueType(binding.type) };
       }).filter(Boolean);
     }
@@ -2333,6 +2344,150 @@
       runtimeSet("realtime", next, { source: "realtime", eventName: "change.realtime" });
     }
 
+    const RUNTIME_REALTIME_WSS_URL = "wss://realtime.digitalisierungsplanung.de/ws";
+    const RUNTIME_REALTIME_TOKEN_URL = "https://realtime.digitalisierungsplanung.de/token";
+    const runtimeRealtimeTransport = {
+      roomId: "",
+      clientId: "",
+      socket: null,
+      joined: false,
+      started: false,
+      connecting: false,
+      status: "idle",
+      error: "",
+      reconnectAttempt: 0,
+      reconnectTimer: 0
+    };
+
+    function sanitizeRuntimeRealtimeId(value) {
+      const text = String(value || "").trim();
+      return /^[a-zA-Z0-9_.:-]{1,128}$/.test(text) ? text : "";
+    }
+
+    function runtimeRealtimeRoomId() {
+      const query = new URLSearchParams(location.search || "");
+      const fragment = new URLSearchParams(location.hash.slice(1));
+      return sanitizeRuntimeRealtimeId(query.get("room") || fragment.get("room") || "");
+    }
+
+    function runtimeRealtimeClientId() {
+      const random = window.crypto?.randomUUID?.()
+        || Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
+      return sanitizeRuntimeRealtimeId("runtime-" + random);
+    }
+
+    function runtimeRealtimeSnapshot(status = runtimeRealtimeTransport.status) {
+      return {
+        roomId: runtimeRealtimeTransport.roomId,
+        clientId: runtimeRealtimeTransport.clientId,
+        status: status || "idle",
+        connected: Boolean(runtimeRealtimeTransport.socket && runtimeRealtimeTransport.socket.readyState === WebSocket.OPEN),
+        joined: Boolean(runtimeRealtimeTransport.joined),
+        connecting: Boolean(runtimeRealtimeTransport.connecting),
+        reconnectAttempt: Math.max(0, Number(runtimeRealtimeTransport.reconnectAttempt) || 0),
+        error: runtimeRealtimeTransport.error || ""
+      };
+    }
+
+    function updateRuntimeRealtimeStatus(status = "") {
+      if (status) runtimeRealtimeTransport.status = status;
+      applyRealtimeStatus(runtimeRealtimeSnapshot(runtimeRealtimeTransport.status));
+    }
+
+    async function fetchRuntimeRealtimeToken() {
+      const url = new URL(RUNTIME_REALTIME_TOKEN_URL);
+      url.searchParams.set("roomId", runtimeRealtimeTransport.roomId);
+      url.searchParams.set("clientId", runtimeRealtimeTransport.clientId);
+      const response = await fetch(url.toString(), { method: "GET", cache: "no-store", credentials: "omit" });
+      if (!response.ok) throw new Error("Realtime token failed");
+      const payload = await response.json();
+      return String(payload.token || "");
+    }
+
+    function scheduleRuntimeRealtimeReconnect() {
+      if (!runtimeRealtimeTransport.started || runtimeRealtimeTransport.reconnectTimer) return;
+      updateRuntimeRealtimeStatus("reconnecting");
+      const delay = Math.min(10000, 500 * Math.pow(2, runtimeRealtimeTransport.reconnectAttempt++));
+      runtimeRealtimeTransport.reconnectTimer = setTimeout(() => {
+        runtimeRealtimeTransport.reconnectTimer = 0;
+        connectRuntimeRealtimeTransport();
+      }, delay);
+    }
+
+    async function connectRuntimeRealtimeTransport() {
+      if (!runtimeRealtimeTransport.started || runtimeRealtimeTransport.connecting || !window.WebSocket || !window.fetch) return;
+      runtimeRealtimeTransport.connecting = true;
+      runtimeRealtimeTransport.error = "";
+      updateRuntimeRealtimeStatus("connecting");
+      try {
+        const token = await fetchRuntimeRealtimeToken();
+        const socket = new WebSocket(RUNTIME_REALTIME_WSS_URL);
+        runtimeRealtimeTransport.socket = socket;
+        runtimeRealtimeTransport.joined = false;
+        socket.addEventListener("open", () => {
+          updateRuntimeRealtimeStatus("joining");
+          socket.send(JSON.stringify({
+            type: "join",
+            roomId: runtimeRealtimeTransport.roomId,
+            clientId: runtimeRealtimeTransport.clientId,
+            token
+          }));
+        });
+        socket.addEventListener("message", evt => {
+          let message = null;
+          try { message = JSON.parse(String(evt.data || "")); } catch (_) {}
+          if (!message || typeof message !== "object") return;
+          if (message.type === "joined") {
+            runtimeRealtimeTransport.joined = true;
+            runtimeRealtimeTransport.reconnectAttempt = 0;
+            runtimeRealtimeTransport.error = "";
+            updateRuntimeRealtimeStatus("joined");
+            return;
+          }
+          if (message.type !== "runtime.event" || message.clientId === runtimeRealtimeTransport.clientId) return;
+          const name = normalizeTransitionEvent(message.name || "");
+          const event = normalizeRealtimeEventConfig(message.event);
+          if (!name || !name.startsWith("realtime.") || !event || event.name !== name) return;
+          const sourceDetail = isPlainDataObject(message.detail) ? JSON.parse(JSON.stringify(message.detail)) : {};
+          emitRuntimeEvent(name, {
+            ...sourceDetail,
+            source: "realtime",
+            __realtimeRemote: true,
+            roomId: sanitizeRuntimeRealtimeId(message.roomId || runtimeRealtimeTransport.roomId),
+            remoteClientId: sanitizeRuntimeRealtimeId(message.clientId || ""),
+            serverTime: Number(message.serverTime) || Date.now()
+          }, event);
+        });
+        socket.addEventListener("close", () => {
+          runtimeRealtimeTransport.joined = false;
+          runtimeRealtimeTransport.socket = null;
+          updateRuntimeRealtimeStatus("reconnecting");
+          scheduleRuntimeRealtimeReconnect();
+        });
+        socket.addEventListener("error", () => {
+          runtimeRealtimeTransport.error = "socket_error";
+          updateRuntimeRealtimeStatus("error");
+        });
+      } catch (_) {
+        runtimeRealtimeTransport.error = "connect_failed";
+        updateRuntimeRealtimeStatus("error");
+        scheduleRuntimeRealtimeReconnect();
+      } finally {
+        runtimeRealtimeTransport.connecting = false;
+        updateRuntimeRealtimeStatus();
+      }
+    }
+
+    function startRuntimeRealtimeTransport() {
+      if (runtimeRealtimeTransport.started) return;
+      const roomId = runtimeRealtimeRoomId();
+      if (!roomId) return;
+      runtimeRealtimeTransport.roomId = roomId;
+      runtimeRealtimeTransport.clientId = runtimeRealtimeClientId();
+      runtimeRealtimeTransport.started = true;
+      connectRuntimeRealtimeTransport();
+    }
+
     function pathMatchesSubscription(path, subscription) {
       const p = normalizeContextPath(path, "");
       const s = normalizeSubscriptionPath(subscription);
@@ -2362,9 +2517,6 @@
       if (detail?.transitionId && transition?.id !== detail.transitionId) return false;
       const type = transitionTriggerType(transition);
       const configured = transitionEventName(transition);
-      if (detail && detail.type === "fetch" && detail.dataSource && conditionMentionsDataSource(transition.condition, detail.dataSource)) {
-        return true;
-      }
       if (type === "button" || type === "event" || type === "realtime" || type === "timer" || type === "auto") return configured === eventName;
       if (type === "change") {
         const path = normalizeContextPath(detail.path || "", "");
@@ -2396,14 +2548,23 @@
           if (transitionMatchesRuntimeEvent(transition, name, detail)) candidates.push({ state, transition });
         });
       });
-      for (const item of candidates) {
-        const transition = item.transition;
-        const stateId = item.state.id;
-        if (conditionOk(transition.condition)) {
-          followTransition(transition, stateId, name);
-          requestRuntimeRender();
-          return true;
-        }
+      const eligible = candidates.filter(item => conditionOk(item.transition.condition));
+      if (eligible.length === 1) {
+        followTransition(eligible[0].transition, eligible[0].state.id, name);
+        requestRuntimeRender();
+        return true;
+      }
+      if (eligible.length > 1) {
+        runtimeValidation = {
+          type: "ambiguous-transition",
+          stateId: current,
+          eventName: name,
+          transitionIds: eligible.map(item => item.transition.id),
+          message: "Mehrere Übergänge passen auf dasselbe Ereignis."
+        };
+        blockedTransitionId = null;
+        requestRuntimeRender();
+        return false;
       }
       const shouldRenderBlock = candidates.some(item => ["button", "event"].includes(transitionTriggerType(item.transition)));
       if (shouldRenderBlock && candidates[0]) {
@@ -2413,7 +2574,7 @@
           transitionId: transition.id,
           message: transition.condition
             ? "Bedingung nicht erfüllt: " + transition.condition
-            : "No matching transition is currently available."
+            : "Kein passender Übergang ist verfügbar."
         };
         blockedTransitionId = transition.id;
         requestRuntimeRender();
@@ -2442,17 +2603,6 @@
       }
       const name = recordRuntimeEvent(eventName, detail);
       if (!name) return false;
-      if (name.startsWith("realtime.") && hasHostWindow()) {
-        postHostMessage({
-          type: "STATE_BLUEPRINT_RUNTIME_EVENT",
-          name,
-          detail: detail && typeof detail === "object" && !Array.isArray(detail)
-            ? JSON.parse(JSON.stringify(detail))
-            : {},
-          count: Number(readValueAtPath(context, "events." + name + ".count") || 0),
-          lastAt: Number(readValueAtPath(context, "events." + name + ".lastAt") || 0)
-        });
-      }
       if (name.startsWith("realtime.")) applyRealtimeEventBindings(name, detail, realtimeEventConfig);
       runtimeEventQueue.push({ name, detail: { ...detail, eventName: name } });
       if (runtimeEventProcessing) return true;
@@ -2623,20 +2773,32 @@
       return target.id;
     }
 
+    function applyMissingStateDefault(path, value) {
+      const existing = readValueAtPath(context, path);
+      if (existing === undefined) {
+        runtimeSet(path, JSON.parse(JSON.stringify(value)), { source: "state-default", notify: false, eventName: "change." + path });
+        return;
+      }
+      if (!isPlainDataObject(existing) || !isPlainDataObject(value)) return;
+      for (const [key, child] of Object.entries(value)) applyMissingStateDefault(path + "." + key, child);
+    }
+
     function applyStateDataDefaults(state) {
-      for (const [key, value] of Object.entries(normalizeDataObject(state.data))) {
-        const targetPath = normalizeContextPath(key, "");
-        if (targetPath && readValueAtPath(context, targetPath) === undefined) {
-          runtimeSet(targetPath, value, { source: "state-default", notify: false, eventName: "change." + targetPath });
-        }
+      const scope = "states." + state.id;
+      for (const [key, value] of Object.entries(normalizeStateDataObject(state.data))) {
+        applyMissingStateDefault(scope + "." + key, value);
       }
     }
 
-    function applyNestedStateDataDefaults(state, seen = new Set()) {
-      if (!state || seen.has(state.id)) return;
-      seen.add(state.id);
-      applyStateDataDefaults(state);
-      for (const child of childComponentStates(state.id)) applyNestedStateDataDefaults(child, seen);
+    function applyActiveStateDataDefaults(state) {
+      const seen = new Set();
+      const applyRenderedDefaults = renderedState => {
+        if (!renderedState || seen.has(renderedState.id)) return;
+        seen.add(renderedState.id);
+        applyStateDataDefaults(renderedState);
+        for (const child of childComponentStates(renderedState.id)) applyRenderedDefaults(child);
+      };
+      for (const activeState of activeStateChain(state)) applyRenderedDefaults(activeState);
     }
 
     function applyTransitionSet(transition) {
@@ -2746,14 +2908,28 @@
       if (!state) return null;
       const entry = groupEntryState(state.id, null);
       if (!entry) return null;
+      const id = `__runtime_enter_child:${state.id}:${entry.id}`;
+      const label = entry.title || "Weiter";
+      const boundary = boundaryConfigFor(state);
+      const triggerType = normalizeTransitionTriggerType({ triggerType: boundary.entryTriggerType || "button" });
+      const triggerEvent = normalizeTransitionTriggerEvent({
+        id,
+        label,
+        triggerType,
+        triggerEvent: boundary.entryTriggerEvent || ""
+      });
       return {
-        id: `__runtime_enter_child:${state.id}:${entry.id}`,
+        id,
         from: state.id,
         to: entry.id,
-        label: entry.title || "Next",
-        condition: "",
+        label,
+        condition: String(boundary.entryCondition || ""),
         set: {},
-        runtimeGenerated: true
+        triggerType,
+        triggerEvent,
+        timerMs: normalizeTransitionTimerMs(boundary.entryTimerMs),
+        runtimeGenerated: true,
+        runtimeBoundaryEntry: true
       };
     }
 
@@ -2804,36 +2980,31 @@
       return readValueAtPath(context, "runtime.paused") === true;
     }
 
-    function inferVariables(m) {
-      const map = new Map();
-      const upsert = (name, patch) => {
-        if (String(name).includes(".")) return;
-        if (["true", "false", "and", "or", "null", "undefined", "always"].includes(String(name).toLowerCase())) return;
-        const prev = map.get(name) || { name, type: "boolean" };
-        map.set(name, { ...prev, ...patch });
+    function declaredBusVariables() {
+      const variables = [];
+      const visit = (state, value, localPath = "") => {
+        if (isPlainDataObject(value)) {
+          for (const [key, child] of Object.entries(value)) visit(state, child, localPath ? localPath + "." + key : key);
+          return;
+        }
+        if (!localPath || Array.isArray(value)) return;
+        const declaredType = String(state.dataTypes?.[localPath] || "").toLowerCase();
+        const type = declaredType === "boolean" || typeof value === "boolean"
+          ? "boolean"
+          : ["number", "int", "float"].includes(declaredType) || typeof value === "number"
+          ? "number"
+          : "text";
+        variables.push({
+          name: "states." + state.id + "." + localPath,
+          type,
+          kind: declaredType === "float" ? "float" : "int",
+          decimalPlaces: declaredType === "float" ? 2 : 0
+        });
       };
-      for (const t of m.transitions || []) {
-        const c = String(t.condition || "");
-        const searchable = c.replace(/(["'])(?:\\.|(?!\1)[\s\S])*?\1/g, "");
-        const names = searchable.match(/[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*/g) || [];
-        for (const name of names) {
-          upsert(name, {});
-        }
-        for (const numeric of searchable.matchAll(/([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\s*(==|!=|>=|<=|>|<)\s*(-?\d+(?:\.\d+)?)/g)) {
-          const raw = numeric[3];
-          const decimalPlaces = raw.includes(".") ? raw.split(".")[1].length : 0;
-          const nextDecimalPlaces = Math.max(map.get(numeric[1])?.decimalPlaces || 0, decimalPlaces);
-          upsert(numeric[1], {
-            type: "number",
-            kind: nextDecimalPlaces ? "float" : "int",
-            decimalPlaces: nextDecimalPlaces
-          });
-        }
-        for (const quoted of c.matchAll(/([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\s*(==|!=)\s*(['"])(.*?)\3/g)) {
-          upsert(quoted[1], { type: "text" });
-        }
+      for (const state of Array.isArray(model?.states) ? model.states : []) {
+        visit(state, normalizeStateDataObject(state.data));
       }
-      return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+      return variables.sort((a, b) => a.name.localeCompare(b.name));
     }
 
     function defaultValueFor(v) {
@@ -2843,10 +3014,10 @@
     }
 
     function variableMap() {
-      return new Map(inferVariables(model).map(v => [v.name, v]));
+      return new Map(declaredBusVariables().map(v => [v.name, v]));
     }
 
-    function sanitizeContext(vars = inferVariables(model)) {
+    function sanitizeContext(vars = declaredBusVariables()) {
       for (const v of vars) {
         runtimeSet(v.name, sanitizeValue(readContextPathRaw(v.name), v), { source: "input-default", eventName: "change." + normalizeContextPath(v.name, "") });
       }
@@ -2957,15 +3128,6 @@
       const c = String(condition || "").trim();
       if (!c || c.toLowerCase() === "always") return true;
       return c.split("||").some(orPart => orPart.split("&&").every(testAtom));
-    }
-
-    function conditionMentionsDataSource(condition, source) {
-      const c = String(condition || "").trim();
-      if (!c || c.toLowerCase() === "always") return false;
-      const target = normalizeContextPath(source.target, "fetch");
-      const searchable = c.replace(/(["'])(?:\\.|(?!\1)[\s\S])*?\1/g, "");
-      const names = searchable.match(/[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*/g) || [];
-      return names.some(name => name === "fetched" || name === target || name.startsWith(`${target}.`));
     }
 
     function followTransition(transition, fromStateId, reason = "next") {
@@ -3129,7 +3291,7 @@
       const requestUrl = safeFetchUrl(meta?.url || renderLiteralText(source.url));
       if (!requestUrl) {
         if (!dataSourceEventBelongsToCurrentState(state, source, activationId, meta)) return;
-        const write = writeDataSourceResult(source, dataSourceResult({ ...meta, status: "error", loading: false, done: true, error: "Invalid endpoint URL" }));
+        const write = writeDataSourceResult(source, dataSourceResult({ ...meta, status: "error", loading: false, done: true, error: "Ungültige Endpunkt-URL" }));
         emitDataSourceEvent(state, source, write, activationId, meta);
         return;
       }
@@ -3155,7 +3317,7 @@
           emitDataSourceEvent(state, source, write, activationId, meta);
           return;
         } catch (err) {
-          lastError = err?.name === "AbortError" ? "Timeout" : (err?.message || "Fetch failed");
+          lastError = err?.name === "AbortError" ? "Zeitüberschreitung" : (err?.message || "Abruf fehlgeschlagen");
           if (attempt < source.retries) await new Promise(resolve => setTimeout(resolve, 200 * Math.pow(2, attempt)));
         }
       }
@@ -3165,7 +3327,7 @@
         status: "error",
         loading: false,
         done: true,
-        error: lastError || "Fetch failed",
+        error: lastError || "Abruf fehlgeschlagen",
         url: requestUrl
       }));
       emitDataSourceEvent(state, source, write, activationId, meta);
@@ -3203,10 +3365,10 @@
       return targets.some(item => normalizeContextPath(item, "") === target);
     }
 
-    function runCurrentStateEntryEffects({ fetch = false } = {}) {
+    function runCurrentStateEntryEffects({ fetch = false, defaults = true } = {}) {
       const state = stateById(current);
       if (!state) return;
-      applyNestedStateDataDefaults(state);
+      if (defaults) applyActiveStateDataDefaults(state);
       if (fetch) void ensureStateDataSource(state);
     }
 
@@ -3815,13 +3977,13 @@
       const variant = runtimeDaisyVariantName(component);
       if (!runtimeSupportedDaisyComponent(component)) return null;
       const lines = daisyLines(component);
-      const title = daisyDataText(component, "title", lines[0] || component.dataLabel || "Section");
+      const title = daisyDataText(component, "title", lines[0] || component.dataLabel || "Abschnitt");
       const body = daisyDataText(component, "body", lines.slice(1).join(" "));
       let el = document.createElement("div");
       el.className = daisyClass("daisy-widget", "daisy-" + variant);
 
       const itemLabels = (key = "items") => daisyDataArray(component, key, lines.length ? lines : [title]).map(item => {
-        if (item && typeof item === "object") return String(item.label || item.title || item.name || item.value || "Item");
+        if (item && typeof item === "object") return String(item.label || item.title || item.name || item.value || "Eintrag");
         return String(item);
       }).filter(Boolean);
       const selected = (key = "selected") => daisyDataText(component, key, "");
@@ -3988,7 +4150,7 @@
             const details = document.createElement("details");
             details.open = daisyDataBool(component, "submenuOpen", true);
             details.ontoggle = () => daisyWrite(component, "submenuOpen", details.open, { render: true });
-            appendDaisyText(details, "summary", "", daisyDataText(component, "parent", "Parent"));
+            appendDaisyText(details, "summary", "", daisyDataText(component, "parent", "Übergeordnet"));
             const submenu = makeMenu("bg-base-100 rounded-t-none p-2");
             if (!appendDaisyTransitionButtons(submenu, ownerState, renderOptions, "navbar-submenu", { component, listItem: true, labels: submenuItemValues })) appendMenuItems(submenu, "selected", submenuItems, selected());
             details.appendChild(submenu);
@@ -4125,12 +4287,12 @@
         const open = daisyDataText(component, "open", "");
         const items = daisyDataArray(component, "items", []).filter(item => item && typeof item === "object");
         const sections = items.length ? items : [{ label: title, body }];
-        const firstLabel = String(sections[0]?.label || sections[0]?.title || "Section");
+        const firstLabel = String(sections[0]?.label || sections[0]?.title || "Abschnitt");
         const selectedLabel = open || firstLabel;
         const groupName = "accordion-" + String(component.id || daisyScopePath(component) || "default").replace(/[^a-zA-Z0-9_-]/g, "_");
         el.className = daisyClass(el.className, "daisy-accordion");
         sections.forEach((item, index) => {
-          const label = String(item.label || item.title || "Section " + (index + 1));
+          const label = String(item.label || item.title || "Abschnitt " + (index + 1));
           const checked = String(label) === String(selectedLabel);
           const section = document.createElement("div");
           section.className = daisyClass("collapse collapse-arrow bg-base-100 border border-base-300", checked ? "collapse-open" : "");
@@ -4211,7 +4373,7 @@
         const key = "checked";
         const fieldset = document.createElement("fieldset");
         fieldset.className = "fieldset bg-base-100 border-base-300 rounded-box w-64 border p-4";
-        appendDaisyText(fieldset, "legend", "fieldset-legend", daisyDataText(component, "legend", "Login options"));
+        appendDaisyText(fieldset, "legend", "fieldset-legend", daisyDataText(component, "legend", "Anmeldeoptionen"));
         const choiceItems = variant === "checkbox"
           ? daisyDataArray(component, "items", []).map((item, index) => {
             const source = item && typeof item === "object" && !Array.isArray(item) ? { ...item } : {};
@@ -4242,7 +4404,7 @@
             }, "checkbox checkbox-primary");
           });
         } else {
-          appendCheck(daisyDataText(component, "label", "Remember me"), daisyDataBool(component, key, false), checked => daisyWrite(component, key, checked, { render: true }), variant === "toggle" ? "toggle toggle-primary" : "checkbox checkbox-primary");
+          appendCheck(daisyDataText(component, "label", "Angemeldet bleiben"), daisyDataBool(component, key, false), checked => daisyWrite(component, key, checked, { render: true }), variant === "toggle" ? "toggle toggle-primary" : "checkbox checkbox-primary");
         }
         const actions = document.createElement("div");
         actions.className = "card-actions justify-end";
@@ -4253,6 +4415,7 @@
         const input = document.createElement(variant === "textarea" ? "textarea" : "input");
         input.className = variant === "textarea" ? "textarea textarea-bordered" : "input input-bordered";
         input.value = daisyDataText(component, "value", "");
+        input.onkeydown = submitOnEnter;
         input.oninput = () => daisyWrite(component, "value", input.value);
         el.appendChild(input);
       } else if (variant === "file-input") {
@@ -4261,7 +4424,7 @@
         input.type = "file";
         input.className = "file-input file-input-bordered";
         input.onchange = () => daisyWrite(component, "filename", input.files?.[0]?.name || "", { render: true });
-        el.append(input, appendDaisyText(document.createElement("div"), "span", "daisy-mini", daisyDataText(component, "filename", "No file selected")));
+        el.append(input, appendDaisyText(document.createElement("div"), "span", "daisy-mini", daisyDataText(component, "filename", "Keine Datei ausgewählt")));
       } else if (variant === "select") {
         appendDaisyText(el, "label", "label daisy-mini", daisyDataText(component, "label", title));
         const select = document.createElement("select");
@@ -4355,8 +4518,8 @@
         el.appendChild(carousel);
         const actions = document.createElement("div");
         actions.className = "daisy-actions";
-        actions.appendChild(createDaisyButton("Prev", () => daisyWrite(component, "index", images.length ? (index + images.length - 1) % images.length : 0, { render: true }), "btn-ghost"));
-        actions.appendChild(createDaisyButton("Next", () => daisyWrite(component, "index", images.length ? (index + 1) % images.length : 0, { render: true }), "btn-ghost"));
+        actions.appendChild(createDaisyButton("Zurück", () => daisyWrite(component, "index", images.length ? (index + images.length - 1) % images.length : 0, { render: true }), "btn-ghost"));
+        actions.appendChild(createDaisyButton("Weiter", () => daisyWrite(component, "index", images.length ? (index + 1) % images.length : 0, { render: true }), "btn-ghost"));
         el.appendChild(actions);
       } else if (variant === "table") {
         const table = document.createElement("table");
@@ -4439,18 +4602,18 @@
             bodyEl.className = "card-body";
             const fieldset = document.createElement("fieldset");
             fieldset.className = "fieldset";
-            appendDaisyText(fieldset, "label", "label", daisyDataText(component, "emailLabel", "Email"));
+            appendDaisyText(fieldset, "label", "label", daisyDataText(component, "emailLabel", "E-Mail"));
             const email = document.createElement("input");
             email.type = "email";
             email.className = "input";
-            email.placeholder = daisyDataText(component, "emailLabel", "Email");
+            email.placeholder = daisyDataText(component, "emailLabel", "E-Mail");
             email.value = daisyDataText(component, "email", "");
             email.oninput = () => daisyWrite(component, "email", email.value);
-            appendDaisyText(fieldset, "label", "label", daisyDataText(component, "passwordLabel", "Password"));
+            appendDaisyText(fieldset, "label", "label", daisyDataText(component, "passwordLabel", "Passwort"));
             const password = document.createElement("input");
             password.type = "password";
             password.className = "input";
-            password.placeholder = daisyDataText(component, "passwordLabel", "Password");
+            password.placeholder = daisyDataText(component, "passwordLabel", "Passwort");
             password.value = daisyDataText(component, "password", "");
             password.oninput = () => daisyWrite(component, "password", password.value);
             const forgot = document.createElement("div");
@@ -4514,7 +4677,7 @@
             box.className = "card-body";
             const itemBadge = String(item.badge || "").trim();
             if (itemBadge) appendDaisyText(box, "span", "badge badge-primary", itemBadge);
-            const itemTitle = String(item.title || item.label || item.name || "Feature").trim();
+            const itemTitle = String(item.title || item.label || item.name || "Funktion").trim();
             const image = safeComponentUrl(item.image || item.cover || item.url || "");
             if (image) {
               const img = document.createElement("img");
@@ -4869,7 +5032,7 @@
         items.forEach(item => {
           const row = document.createElement("div");
           row.className = "timeline-box daisy-surface";
-          appendDaisyText(row, "div", "daisy-title", String(item?.title || item || "Step"));
+          appendDaisyText(row, "div", "daisy-title", String(item?.title || item || "Schritt"));
           if (item?.body) appendDaisyText(row, "p", "daisy-copy", String(item.body));
           el.appendChild(row);
         });
@@ -4927,7 +5090,7 @@
       } else if (component.type === "heading") {
         el = document.createElement("h2");
         el.className = "component-heading";
-        el.textContent = renderLiteralText(component.text || "Section");
+        el.textContent = renderLiteralText(component.text || "Abschnitt");
       } else if (component.type === "image") {
         const src = safeComponentUrl(renderLiteralText(component.url));
         if (!src) return null;
@@ -5151,10 +5314,10 @@
       const components = [];
       if (image) components.push({ type: "image", text: title ? runtimeDataWireDisplayValue(title.value) : "", url: runtimeDataWireUrlValue(image.value) });
       if (title) components.push({ type: "heading", text: runtimeDataWireDisplayValue(title.value), url: "" });
-      if (price) components.push({ type: "text", text: runtimeDataLabel(price.path, "Price") + ": " + runtimeDataWireDisplayValue(price.value), variant: "field", url: "" });
+      if (price) components.push({ type: "text", text: runtimeDataLabel(price.path, "Preis") + ": " + runtimeDataWireDisplayValue(price.value), variant: "field", url: "" });
       if (description) components.push({ type: "text", text: runtimeDataWireDisplayValue(description.value), url: "" });
       for (const extra of extras) components.push({ type: "text", text: runtimeDataLabel(extra.path) + ": " + runtimeDataWireDisplayValue(extra.value), variant: "field", url: "" });
-      if (!components.length) components.push({ type: "text", text: runtimeDataWireDisplayValue(item) || "Item", variant: "field", url: "" });
+      if (!components.length) components.push({ type: "text", text: runtimeDataWireDisplayValue(item) || "Eintrag", variant: "field", url: "" });
       return components;
     }
     function isStatic(stateId) {
@@ -5365,12 +5528,8 @@
       return action;
     }
 
-    function isNegativeTransition(t) {
-      return /\b(error|fail|fehler|zurück|back|cancel|abbruch)\b/i.test(String(t.label || ""));
-    }
-
     function defaultTransitionId(transitions) {
-      return (transitions.find(t => !isNegativeTransition(t)) || transitions[0])?.id || "";
+      return transitions[0]?.id || "";
     }
 
     function transitionIsButtonAction(t) {
@@ -5535,9 +5694,6 @@
       scheduleAutomaticContinuation(s.id, stateFetchIsLoading(s) ? [] : automaticTransitions);
       const defaultActionId = defaultTransitionId(actionTransitions);
       if (blockedTransitionId && !guardTransitions.some(t => t.id === blockedTransitionId)) blockedTransitionId = null;
-      const vars = inferVariables({ transitions: guardTransitions });
-      ensureContext(vars);
-
       syncRuntimeAppName();
       const statePill = document.getElementById("statePill");
       if (statePill) statePill.textContent = current;
@@ -5577,74 +5733,6 @@
       });
 
 
-      if (vars.length) {
-        const controls = document.createElement("div");
-        controls.className = "controls";
-        controls.innerHTML = `<h2>Eingaben</h2>`;
-        for (const v of vars) {
-          if (readValueAtPath(context, v.name) === undefined) {
-            runtimeSet(v.name, defaultValueFor(v), { source: "input-default", notify: false, eventName: "change." + normalizeContextPath(v.name, "") });
-          }
-          const row = document.createElement("div");
-          row.className = "field";
-          const label = document.createElement("label");
-          label.className = "field-label";
-          label.textContent = v.name;
-          const input = document.createElement("input");
-          let control = input;
-          if (v.type === "number") {
-            input.type = "text";
-            input.className = "typed-input";
-            input.inputMode = v.kind === "int" ? "numeric" : "decimal";
-            input.value = context[v.name];
-            input.onkeydown = submitOnEnter;
-            input.oninput = () => {
-              const nextValue = sanitizeNumericInput(input.value, v);
-              runtimeSet(v.name, nextValue, { source: "input" });
-              input.value = context[v.name];
-              input.classList.toggle("invalid", !isValidValue(context[v.name], v));
-              updateActionButtons();
-              refreshBlockedValidation();
-              notifyRuntime();
-            };
-          } else if (v.type === "text") {
-            input.type = "text";
-            input.className = "typed-input";
-            input.value = context[v.name];
-            input.onkeydown = submitOnEnter;
-            input.oninput = () => {
-              runtimeSet(v.name, String(input.value ?? ""), { source: "input" });
-              updateActionButtons();
-              refreshBlockedValidation();
-              notifyRuntime();
-            };
-          } else {
-            input.type = "checkbox";
-            input.checked = Boolean(context[v.name]);
-            const toggle = document.createElement("label");
-            toggle.className = "switch";
-            const track = document.createElement("span");
-            track.className = "switch-track";
-            const value = document.createElement("span");
-            value.className = "switch-value";
-            const updateValue = () => { value.textContent = input.checked ? "An" : "Aus"; };
-            input.onchange = () => {
-              runtimeSet(v.name, input.checked, { source: "input" });
-              updateValue();
-              updateActionButtons();
-              refreshBlockedValidation();
-              notifyRuntime();
-            };
-            updateValue();
-            toggle.append(input, track, value);
-            control = toggle;
-          }
-          row.append(label, control);
-          controls.appendChild(row);
-        }
-        screen.appendChild(controls);
-      }
-
       const actions = document.createElement("div");
       actions.className = "actions";
       for (const t of actionTransitions) {
@@ -5670,23 +5758,13 @@
 
     if (!IS_STANDALONE_EXPORT) window.addEventListener("message", evt => {
       const data = evt.data || {};
+      if (!runtimeAcceptsHostMessage(evt, data)) return;
       if (data.type === "STATE_BLUEPRINT_RUNTIME_CONTROL") {
         setRuntimePaused(Boolean(data.paused));
         return;
       }
-      if (data.type === "STATE_BLUEPRINT_REALTIME_STATUS") {
-        applyRealtimeStatus(data.status || {});
-        return;
-      }
-      if (data.type === "STATE_BLUEPRINT_REALTIME_EVENT") {
-        const name = normalizeTransitionEvent(data.name || "");
-        const detail = data.detail && typeof data.detail === "object" && !Array.isArray(data.detail)
-          ? JSON.parse(JSON.stringify(data.detail))
-          : {};
-        const eventConfig = data.event && typeof data.event === "object" && !Array.isArray(data.event)
-          ? JSON.parse(JSON.stringify(data.event))
-          : null;
-        if (name) emitRuntimeEvent(name, detail, eventConfig);
+      if (data.type === "STATE_BLUEPRINT_RUNTIME_REPORT") {
+        notifyRuntime();
         return;
       }
       if (data.type !== "STATE_BLUEPRINT_MODEL") return;
@@ -5695,14 +5773,9 @@
       const changedTargets = changedDataSourceTargets(previousModel, nextModel);
       model = nextModel;
       suppressNextFocus = Boolean(data.preserveFocus);
-      const hasHost = hasHostWindow();
-      if (!hasHost) saveModel();
-      const oldContext = context;
-      pruneRemovedStateDataDefaults(previousModel, nextModel, oldContext);
-      context = { ...defaultContext(model), ...oldContext };
+      if (data.reset) resetRuntimeContextInPlace(model, context);
+      else runtimeContextAfterModelUpdate(previousModel, model, context);
       if (changedTargets.length) resetDataSourceContextTargets(changedTargets);
-      if (data.reset) context = defaultContext(model);
-      else applyChangedStateDataContract(previousModel, nextModel, context);
       setRuntimePaused(Boolean(data.paused), { render: false, notify: false });
       const requestedStart = typeof data.startStateId === "string" && findState(data.startStateId) ? data.startStateId : null;
       const entered = Boolean(requestedStart || data.reset || !findState(current));
@@ -5714,33 +5787,10 @@
         blockedTransitionId = null;
         runtimeValidation = null;
       }
-      runCurrentStateEntryEffects({ fetch: entered || currentDataSourceTargetChanged(changedTargets) });
+      runCurrentStateEntryEffects({ fetch: entered || currentDataSourceTargetChanged(changedTargets), defaults: entered });
       render();
+      startRuntimeRealtimeTransport();
     });
-
-    if (!IS_STANDALONE_EXPORT) window.addEventListener("storage", evt => {
-      if (evt.key !== STORAGE_KEY || !evt.newValue) return;
-      try {
-        const previousModel = model;
-        const nextModel = normalizeModel(JSON.parse(evt.newValue));
-        const changedTargets = changedDataSourceTargets(previousModel, nextModel);
-        pruneRemovedStateDataDefaults(previousModel, nextModel, context);
-        model = nextModel;
-        context = { ...defaultContext(model), ...context };
-        applyChangedStateDataContract(previousModel, nextModel, context);
-        if (changedTargets.length) resetDataSourceContextTargets(changedTargets);
-        suppressNextFocus = true;
-        const entered = !findState(current);
-        if (entered) {
-          setRuntimeCurrent(model.initial, "storage", true);
-          stateActivationId += 1;
-        }
-        runCurrentStateEntryEffects({ fetch: entered || currentDataSourceTargetChanged(changedTargets) });
-        render();
-      } catch (_) {}
-    });
-
-
 
     document.addEventListener("keydown", evt => {
       const mod = evt.ctrlKey || evt.metaKey;
@@ -5771,6 +5821,7 @@
       syncRuntimeCurrent("initial", true);
       runCurrentStateEntryEffects({ fetch: true });
       render();
+      startRuntimeRealtimeTransport();
     }
   </script>
 </body>

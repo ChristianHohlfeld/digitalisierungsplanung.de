@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths-ignore:
-      - sw-version.js
+      - release-version.js
   workflow_dispatch:
 
 concurrency:
@@ -56,17 +56,17 @@ jobs:
       - name: Advance shared frontend/backend release
         if: github.ref == 'refs/heads/main'
         env:
-          SW_INCREMENT: "1"
-          SW_SOURCE_COMMIT: ${{ github.sha }}
+          RELEASE_INCREMENT: "1"
+          RELEASE_SOURCE_COMMIT: ${{ github.sha }}
         run: |
-          SW_BUILT_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")" node scripts/write-sw-version.mjs
-          if git diff --quiet -- sw-version.js; then
-            echo "Service worker deploy stamp is current."
+          RELEASE_BUILT_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")" node scripts/write-release-version.mjs
+          if git diff --quiet -- release-version.js; then
+            echo "Release stamp is current."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add sw-version.js
-          RELEASE_ID="$(sed -n 's/^self\.ZUSTAND_SW_VERSION = "\([^"]*\)";$/\1/p' sw-version.js)"
+          git add release-version.js
+          RELEASE_ID="$(sed -n 's/^globalThis\.ZUSTAND_RELEASE_ID = "\([^"]*\)";$/\1/p' release-version.js)"
           git commit -m "Advance shared release to ${RELEASE_ID}"
           git push origin HEAD:main

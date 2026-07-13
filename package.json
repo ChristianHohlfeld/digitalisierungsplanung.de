@@ -5,7 +5,7 @@
   "scripts": {
     "build:index": "node scripts/build-index.mjs",
     "build:pwa-assets": "node scripts/build-pwa-assets.mjs",
-    "build:sw-version": "node scripts/write-sw-version.mjs --increment",
+    "build:release-version": "node scripts/write-release-version.mjs --increment",
     "server:start": "node server/server.js",
     "server:smoke:wss": "node server/wss-smoke.js",
     "server:smoke:wss:prod": "node server/wss-smoke.js --force-ip=198.199.83.43",

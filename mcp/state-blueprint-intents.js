@@ -18,7 +18,7 @@ function lower(text) {
   return compactText(text).toLowerCase();
 }
 
-function titleCase(text, fallback = "Next") {
+function titleCase(text, fallback = "Weiter") {
   const raw = compactText(text).replace(/^["']|["']$/g, "");
   if (!raw) return fallback;
   return raw.replace(/\b\w/g, ch => ch.toUpperCase());
@@ -70,7 +70,7 @@ function quotedText(prompt) {
   return match ? match[1].trim() : "";
 }
 
-function targetTitleFromPrompt(prompt, fallback = "Next") {
+function targetTitleFromPrompt(prompt, fallback = "Weiter") {
   const text = compactText(prompt);
   const quoted = quotedText(text);
   if (quoted) return quoted;
@@ -81,7 +81,7 @@ function targetTitleFromPrompt(prompt, fallback = "Next") {
     .trim() || fallback;
 }
 
-function childTitleFromPrompt(prompt, fallback = "Step") {
+function childTitleFromPrompt(prompt, fallback = "Schritt") {
   const quoted = quotedText(prompt);
   if (quoted) return quoted;
   const match = compactText(prompt).match(/\b(?:inner state|child state|unterstate|unter state|kindstate|kind state|nested state)\s+([A-Za-z0-9äöüÄÖÜß _-]{1,80})/i);
@@ -138,14 +138,14 @@ function planTimer(model, prompt, args) {
     }
   });
 
-  const targetTitle = targetTitleFromPrompt(prompt, "Next");
+  const targetTitle = targetTitleFromPrompt(prompt, "Weiter");
   target = findState(model, targetTitle);
   const targetId = target?.id || normalizeId(targetTitle);
   if (!target) {
     const x = Number(state?.x || 96) + 288;
     const y = Number(state?.y || 120);
-    actions.push({ type: "upsert_state", id: targetId, title: titleCase(targetTitle, "Next"), parentId: state?.parentId || null, x, y });
-    assumptions.push(`Timer completion creates target state "${titleCase(targetTitle, "Next")}".`);
+    actions.push({ type: "upsert_state", id: targetId, title: titleCase(targetTitle, "Weiter"), parentId: state?.parentId || null, x, y });
+    assumptions.push(`Timer completion creates target state "${titleCase(targetTitle, "Weiter")}".`);
   }
   actions.push({
     type: "upsert_transition",
@@ -180,12 +180,12 @@ function planInnerState(model, prompt, args) {
     assumptions.push("No state existed, so a Parent state is created.");
   }
   const parentId = parent?.id || "parent";
-  const title = childTitleFromPrompt(prompt, "Step");
+  const title = childTitleFromPrompt(prompt, "Schritt");
   const childId = normalizeId(title);
   actions.push({
     type: "upsert_state",
     id: childId,
-    title: titleCase(title, "Step"),
+    title: titleCase(title, "Schritt"),
     parentId,
     x: 120,
     y: 120
@@ -213,19 +213,19 @@ function planTransition(model, prompt, args) {
     assumptions.push("No source state existed, so a Start state is created.");
   }
   const sourceId = source?.id || "start";
-  const title = targetTitleFromPrompt(prompt, "Next");
+  const title = targetTitleFromPrompt(prompt, "Weiter");
   const target = findState(model, title);
   const targetId = target?.id || normalizeId(title);
   if (!target) {
     actions.push({
       type: "upsert_state",
       id: targetId,
-      title: titleCase(title, "Next"),
+      title: titleCase(title, "Weiter"),
       parentId: source?.parentId || null,
       x: Number(source?.x || 96) + 288,
       y: Number(source?.y || 120)
     });
-    assumptions.push(`Target state "${titleCase(title, "Next")}" is created because it did not exist.`);
+    assumptions.push(`Target state "${titleCase(title, "Weiter")}" is created because it did not exist.`);
   }
   const timer = /timer|zeit|delay|auto|automatisch|after|nach \d+/i.test(prompt);
   actions.push({
@@ -417,7 +417,7 @@ function planWorkflow(model, prompt, args) {
       parentId,
       x: 96 + index * 288,
       y: 120,
-      components: [{ id: componentId(id, "summary"), type: "text", text: `${title} step`, url: "" }]
+      components: [{ id: componentId(id, "summary"), type: "text", text: `${title} Schritt`, url: "" }]
     };
     actions.push({ type: "upsert_state", ...state });
     return state;
@@ -504,7 +504,7 @@ function planFetch(model, prompt, args) {
   actions.push({ type: "configure_fetch", stateId, url, target, select: "" });
   if (/list|liste|repeat|wiederhol/.test(lower(prompt))) {
     actions.push({ type: "configure_repeat", stateId, path: repeatPath, as: "item", index: "i", manual: true });
-    actions.push({ type: "upsert_data_wire", stateId, id: `${normalizeId(stateId)}_fetch_title`, sourcePath: `${repeatPath}.title`, scopePath: repeatPath, itemPath: "title", role: "title", componentType: "heading", label: "Title" });
+    actions.push({ type: "upsert_data_wire", stateId, id: `${normalizeId(stateId)}_fetch_title`, sourcePath: `${repeatPath}.title`, scopePath: repeatPath, itemPath: "title", role: "title", componentType: "heading", label: "Titel" });
     actions.push({ type: "add_component", stateId, component: { id: `${normalizeId(stateId)}_fetch_title_render`, type: "dataWire", wireId: `${normalizeId(stateId)}_fetch_title` } });
     assumptions.push(`The state is configured to repeat over ${repeatPath}.`);
   }
@@ -528,7 +528,7 @@ function planPrompt(model, args = {}) {
   if (/timer|countdown|warte|delay|sekunde|second/.test(text)) return planTimer(model, prompt, args);
   if (/inner state|child state|unterstate|unter state|kindstate|kind state|nested state|verschachtel|inside state|state.*inside/.test(text)) return planInnerState(model, prompt, args);
   if (/api|fetch|endpoint|daten laden|lade daten|json/.test(text)) return planFetch(model, prompt, args);
-  if (/transition|übergang|uebergang|verbinde|connect|wire|route|gehe zu|go to|nach .*state|zu .*state/.test(text)) return planTransition(model, prompt, args);
+  if (/transition|übergang|verbinde|connect|wire|route|gehe zu|go to|nach .*state|zu .*state/.test(text)) return planTransition(model, prompt, args);
   if (/variable|statevar|state var|feld|email|password|passwort|typ/.test(text) && !/input|formular|form|component|komponente|preset/.test(text)) return planVariable(model, prompt, args);
   if (/preset|component|komponente|daisy|card|karte|hero|modal|navbar|button|knopf|input|formular|form|image|bild|liste|list|table|tabelle|checkbox|toggle/.test(text)) return planComponent(model, prompt, args);
   return fallbackPlan("No supported intent matched the prompt.");

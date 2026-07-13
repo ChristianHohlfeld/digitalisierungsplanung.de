@@ -26,7 +26,7 @@ module.exports = {
         REALTIME_RATE_LIMIT: "360",
         REALTIME_RATE_WINDOW_MS: "10000",
         REALTIME_HEARTBEAT_MS: "30000",
-        ZUSTAND_RELEASE_FILE: process.env.ZUSTAND_RELEASE_FILE || `${appDir}/sw-version.js`,
+        ZUSTAND_RELEASE_FILE: process.env.ZUSTAND_RELEASE_FILE || `${appDir}/release-version.js`,
         ZUSTAND_RELEASE_ID: process.env.ZUSTAND_RELEASE_ID || "",
         ZUSTAND_RELEASE_SEQUENCE: process.env.ZUSTAND_RELEASE_SEQUENCE || "0",
         ZUSTAND_RELEASE_BUILT_AT: process.env.ZUSTAND_RELEASE_BUILT_AT || "",

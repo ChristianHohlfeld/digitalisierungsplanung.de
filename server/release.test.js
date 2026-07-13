@@ -11,10 +11,10 @@ const ROOT = path.resolve(__dirname, "..");
 
 test("parses the canonical release file and supports matching process metadata", () => {
   const parsed = parseReleaseSource(`
-self.ZUSTAND_RELEASE_SEQUENCE = 59;
-self.ZUSTAND_SW_VERSION = "release-59";
-self.ZUSTAND_SW_BUILT_AT = "2026-07-12T00:00:00Z";
-self.ZUSTAND_RELEASE_SOURCE = "1234567890abcdef";
+globalThis.ZUSTAND_RELEASE_SEQUENCE = 59;
+globalThis.ZUSTAND_RELEASE_ID = "release-59";
+globalThis.ZUSTAND_RELEASE_BUILT_AT = "2026-07-12T00:00:00Z";
+globalThis.ZUSTAND_RELEASE_SOURCE = "1234567890abcdef";
 `);
   assert.deepEqual(parsed, {
     id: "release-59",
@@ -23,7 +23,8 @@ self.ZUSTAND_RELEASE_SOURCE = "1234567890abcdef";
     sourceCommit: "1234567890abcdef",
     deployedCommit: ""
   });
-  assert.equal(parseReleaseSource('self.ZUSTAND_SW_VERSION = "deploy-58-1";').sequence, 58);
+  assert.equal(parseReleaseSource('globalThis.ZUSTAND_RELEASE_ID = "release-58";').sequence, 58);
+  assert.equal(parseReleaseSource('globalThis.ZUSTAND_RELEASE_ID = "deploy-58-1";').sequence, 0);
 
   const fromEnvironment = loadReleaseInfo({
     path: path.join(ROOT, "missing-release.js"),
@@ -50,7 +51,7 @@ test("keeps automatic deployment locked, release-gated, force-synced, verified, 
   const ecosystem = fs.readFileSync(path.join(__dirname, "ecosystem.config.cjs"), "utf8");
   const runScript = fs.readFileSync(path.join(__dirname, "run.sh"), "utf8");
   const workflow = fs.readFileSync(path.join(ROOT, ".github", "workflows", "deploy.yml"), "utf8");
-  const writer = fs.readFileSync(path.join(ROOT, "scripts", "write-sw-version.mjs"), "utf8");
+  const writer = fs.readFileSync(path.join(ROOT, "scripts", "write-release-version.mjs"), "utf8");
   const bash = process.platform === "win32" ? "C:\\Program Files\\Git\\bin\\bash.exe" : "bash";
 
   for (const script of ["auto-deploy.sh", "deploy.sh", "run.sh"]) {
@@ -78,14 +79,15 @@ test("keeps automatic deployment locked, release-gated, force-synced, verified, 
 
   assert.match(deploy, /pm2 startOrReload .* --update-env/);
   assert.match(deploy, /nginx -t/);
-  assert.match(deploy, /serviceWorkerId !== expected/);
-  assert.match(deploy, /legacyRollback/);
+  assert.match(deploy, /releaseId !== expected/);
+  assert.doesNotMatch(deploy, /legacyRollback|deploy-\d/);
+  assert.doesNotMatch(autoDeploy, /legacyRollback|deploy-\d/);
   assert.match(ecosystem, /process\.env\.APP_DIR/);
   assert.match(ecosystem, /REALTIME_ENV_FILE: envFile/);
   assert.match(runScript, /REALTIME_ENV_FILE/);
   assert.match(workflow, /needs: contract-tests/);
-  assert.match(workflow, /paths-ignore:\s*\n\s*- sw-version\.js/);
-  assert.match(workflow, /SW_INCREMENT: "1"/);
+  assert.match(workflow, /paths-ignore:\s*\n\s*- release-version\.js/);
+  assert.match(workflow, /RELEASE_INCREMENT: "1"/);
   assert.doesNotMatch(workflow, /\[skip ci\]/);
   assert.match(writer, /previousSequence \+ 1/);
   assert.match(writer, /ZUSTAND_RELEASE_SEQUENCE/);

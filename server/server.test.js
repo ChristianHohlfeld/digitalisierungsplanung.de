@@ -184,9 +184,9 @@ test("serves event definitions only to allowed origins", async () => {
     assert.equal(payload.state, undefined);
     assert.equal(payload.transport, undefined);
     assert.ok(payload.events.some(event => event.name === "realtime.sip.call.incoming"));
-    assert.ok(payload.events
+    assert.deepEqual(payload.events
       .find(event => event.name === "realtime.sip.call.incoming")
-      .bindings.some(binding => binding.to === "realtime.sip.call.incoming.caller"));
+      .bindings, []);
 
     const rejected = await fetch(httpUrl(realtime, "/events"), {
       headers: { Origin: "https://evil.example" }
@@ -212,7 +212,7 @@ test("exposes one shared frontend and backend release without caching it", async
     assert.equal(versionResponse.headers.get("access-control-allow-origin"), ORIGIN);
     assert.deepEqual(await versionResponse.json(), {
       ok: true,
-      serviceWorkerId: "release-59",
+      releaseId: "release-59",
       releaseSequence: 59,
       builtAt: release.builtAt,
       sourceCommit: release.sourceCommit,
@@ -223,7 +223,7 @@ test("exposes one shared frontend and backend release without caching it", async
     assert.equal(healthResponse.status, 200);
     assert.deepEqual(await healthResponse.json(), {
       ok: true,
-      serviceWorkerId: "release-59",
+      releaseId: "release-59",
       releaseSequence: 59,
       builtAt: release.builtAt,
       sourceCommit: release.sourceCommit,
@@ -449,11 +449,25 @@ test("rate limits noisy realtime clients", async () => {
   }, async realtime => {
     const socket = await connectClient(realtime, { clientId: "noisy" });
 
-    socket.send(JSON.stringify({ type: "presence.cursor", seq: 1, cursor: { x: 1, y: 1 } }));
-    socket.send(JSON.stringify({ type: "presence.cursor", seq: 2, cursor: { x: 2, y: 2 } }));
-    socket.send(JSON.stringify({ type: "presence.cursor", seq: 3, cursor: { x: 3, y: 3 } }));
+    socket.send(JSON.stringify({ type: "runtime.event", seq: 1, name: "realtime.sip.call.incoming", detail: { callId: "1" } }));
+    socket.send(JSON.stringify({ type: "runtime.event", seq: 2, name: "realtime.sip.call.incoming", detail: { callId: "2" } }));
+    socket.send(JSON.stringify({ type: "runtime.event", seq: 3, name: "realtime.sip.call.incoming", detail: { callId: "3" } }));
 
     const error = await nextMessage(socket, message => message.type === "error");
     assert.equal(error.code, "rate_limited");
+  });
+});
+
+test("rejects removed presence and never broadcasts peer lifecycle messages", async () => {
+  await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
+    const alice = await connectClient(realtime, { clientId: "alice" });
+    const bob = await connectClient(realtime, { clientId: "bob" });
+
+    await assertNoMessage(alice, message => message.type === "peer.join");
+    bob.send(JSON.stringify({ type: "presence.cursor", seq: 1, cursor: { x: 1, y: 1 } }));
+    const error = await nextMessage(bob, message => message.type === "error");
+    assert.equal(error.code, "invalid_type");
+    bob.close();
+    await assertNoMessage(alice, message => message.type === "peer.leave");
   });
 });

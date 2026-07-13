@@ -46,39 +46,25 @@ const DEFAULT_EVENT_CATALOG = {
       label: "Incoming call",
       description: "SIP phone call started",
       detail: { caller: "text", callee: "text", callId: "text" },
-      bindings: [
-        { from: "detail.caller", to: "realtime.sip.call.incoming.caller", type: "text" },
-        { from: "detail.callee", to: "realtime.sip.call.incoming.callee", type: "text" },
-        { from: "detail.callId", to: "realtime.sip.call.incoming.callId", type: "text" }
-      ]
+      bindings: []
     },
     {
       name: "realtime.sip.call.answered",
       label: "Call answered",
       description: "SIP phone call was answered",
       detail: { callId: "text", agent: "text" },
-      bindings: [
-        { from: "detail.callId", to: "realtime.sip.call.answered.callId", type: "text" },
-        { from: "detail.agent", to: "realtime.sip.call.answered.agent", type: "text" }
-      ]
+      bindings: []
     },
     {
       name: "realtime.sip.call.ended",
       label: "Call ended",
       description: "SIP phone call ended",
       detail: { callId: "text", duration: "number" },
-      bindings: [
-        { from: "detail.callId", to: "realtime.sip.call.ended.callId", type: "text" },
-        { from: "detail.duration", to: "realtime.sip.call.ended.duration", type: "number" }
-      ]
+      bindings: []
     }
   ]
 };
-const MESSAGE_TYPES = new Set([
-  "presence.cursor",
-  "runtime.event"
-]);
-const TRANSIENT_TYPES = new Set(["presence.cursor"]);
+const MESSAGE_TYPES = new Set(["runtime.event"]);
 const CONSOLE_HTML = `<!doctype html>
 <html lang="en">
 <head>
@@ -312,11 +298,6 @@ function loadConfig(options = {}) {
     rateLimitWindowMs: parseInteger(options.rateLimitWindowMs ?? env.REALTIME_RATE_WINDOW_MS, 10000, 1000),
     rateLimitMax: parseInteger(options.rateLimitMax ?? env.REALTIME_RATE_LIMIT, 360, 1),
     tokenTtlMs: parseInteger(options.tokenTtlMs ?? env.REALTIME_ROOM_TOKEN_TTL_MS, 60 * 60 * 1000, 1000),
-    transientHighWaterMark: parseInteger(
-      options.transientHighWaterMark ?? env.REALTIME_TRANSIENT_HIGH_WATER_BYTES,
-      512 * 1024,
-      1024
-    ),
     roomSecret,
     emitSecret,
     release: options.release || loadReleaseInfo({ env, path: options.releaseFile }),
@@ -369,7 +350,7 @@ function normalizeEventBindings(value) {
     if (!isPlainObject(binding)) return null;
     const from = sanitizeStatePath(binding.from || "");
     const to = sanitizeStatePath(binding.to || "");
-    if (!from || !to) return null;
+    if (!from || !/^states\.[a-zA-Z_][a-zA-Z0-9_]*\./.test(to)) return null;
     return { from, to, type: normalizeValueType(binding.type) };
   }).filter(Boolean);
 }
@@ -406,10 +387,6 @@ function normalizeEventCatalog(value) {
     },
     events
   };
-}
-
-function isFiniteNumber(value) {
-  return typeof value === "number" && Number.isFinite(value);
 }
 
 function toBase64UrlJson(value) {
@@ -546,7 +523,7 @@ function eventCatalogResponse(config) {
 function releaseResponse(config) {
   return {
     ok: true,
-    serviceWorkerId: config.release.id,
+    releaseId: config.release.id,
     releaseSequence: config.release.sequence,
     builtAt: config.release.builtAt,
     sourceCommit: config.release.sourceCommit,
@@ -558,7 +535,6 @@ function createRoom(roomId) {
   return {
     id: roomId,
     clients: new Set(),
-    rev: 0,
     seenSeq: new Map()
   };
 }
@@ -571,19 +547,6 @@ function serializeForBroadcast(message, state, room) {
     serverTime: Date.now()
   };
   if (Number.isSafeInteger(message.seq)) base.seq = message.seq;
-
-  if (message.type === "presence.cursor") {
-    return {
-      ...base,
-      cursor: {
-        x: message.cursor.x,
-        y: message.cursor.y,
-        worldX: isFiniteNumber(message.cursor.worldX) ? message.cursor.worldX : undefined,
-        worldY: isFiniteNumber(message.cursor.worldY) ? message.cursor.worldY : undefined,
-        stateId: sanitizeId(message.cursor.stateId) || undefined
-      }
-    };
-  }
 
   if (message.type === "runtime.event") {
     return {
@@ -618,13 +581,6 @@ function validateJoinMessage(message) {
 function validateRealtimeMessage(message, offeredEventNames = new Set()) {
   if (!message || !MESSAGE_TYPES.has(message.type)) return { ok: false, code: "invalid_type" };
   if (message.seq !== undefined && !Number.isSafeInteger(message.seq)) return { ok: false, code: "invalid_seq" };
-
-  if (message.type === "presence.cursor") {
-    if (!isPlainObject(message.cursor)) return { ok: false, code: "invalid_cursor" };
-    if (!isFiniteNumber(message.cursor.x) || !isFiniteNumber(message.cursor.y)) {
-      return { ok: false, code: "invalid_cursor" };
-    }
-  }
 
   if (message.type === "runtime.event") {
     const name = sanitizeEventName(message.name);
@@ -758,12 +714,11 @@ function createRealtimeServer(options = {}) {
     return room;
   }
 
-  function broadcast(room, sourceSocket, payload, transient = false) {
+  function broadcast(room, sourceSocket, payload) {
     const body = JSON.stringify(payload);
     let delivered = 0;
     for (const peer of room.clients) {
       if (peer === sourceSocket || peer.readyState !== WebSocket.OPEN) continue;
-      if (transient && peer.bufferedAmount > config.transientHighWaterMark) continue;
       peer.send(body);
       delivered += 1;
     }
@@ -843,21 +798,13 @@ function createRealtimeServer(options = {}) {
     }, headers);
   }
 
-  function removeFromRoom(socket, notify = true) {
+  function removeFromRoom(socket) {
     const state = socket.realtimeState;
     if (!state?.joined) return;
     const room = rooms.get(state.roomId);
     state.joined = false;
     if (!room) return;
     room.clients.delete(socket);
-    if (notify) {
-      broadcast(room, socket, {
-        type: "peer.leave",
-        roomId: state.roomId,
-        clientId: state.clientId,
-        serverTime: Date.now()
-      });
-    }
     if (!room.clients.size) rooms.delete(state.roomId);
   }
 
@@ -865,7 +812,7 @@ function createRealtimeServer(options = {}) {
     for (const peer of room.clients) {
       if (peer.realtimeState?.clientId !== clientId) continue;
       sendError(peer, "client_replaced", true);
-      removeFromRoom(peer, false);
+      removeFromRoom(peer);
       peer.close(4008, "client_replaced");
     }
   }
@@ -915,13 +862,6 @@ function createRealtimeServer(options = {}) {
       type: "joined",
       roomId: join.roomId,
       clientId: join.clientId,
-      rev: room.rev,
-      serverTime: Date.now()
-    });
-    broadcast(room, socket, {
-      type: "peer.join",
-      roomId: join.roomId,
-      clientId: join.clientId,
       serverTime: Date.now()
     });
   }
@@ -968,7 +908,7 @@ function createRealtimeServer(options = {}) {
       return;
     }
     if (payload.type === "runtime.event") payload.event = offeredEventsByName.get(payload.name);
-    broadcast(room, socket, payload, TRANSIENT_TYPES.has(message.type));
+    broadcast(room, socket, payload);
   }
 
   server.on("upgrade", (request, socket, head) => {

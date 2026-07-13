@@ -84,7 +84,7 @@ Antwort:
 ```json
 {
   "ok": true,
-  "serviceWorkerId": "release-59",
+  "releaseId": "release-59",
   "releaseSequence": 59,
   "builtAt": "2026-07-12T00:00:00Z",
   "sourceCommit": "1234567890abcdef",
@@ -96,14 +96,15 @@ Antwort:
 
 ### `GET /version`
 
-Liefert mit `Cache-Control: no-store` dieselbe kanonische Release-ID, die der
-statische Service Worker aus `sw-version.js` verwendet und mit der der
-Backend-Prozess gestartet wurde.
+Liefert mit `Cache-Control: no-store` dieselbe kanonische Release-ID, die das
+statische Frontend aus `release-version.js` veröffentlicht und mit der der
+Backend-Prozess gestartet wurde. Es gibt keinen Service Worker und keinen
+Browser-, Proxy- oder Servercache für diese Antwort.
 
 ```json
 {
   "ok": true,
-  "serviceWorkerId": "release-59",
+  "releaseId": "release-59",
   "releaseSequence": 59,
   "builtAt": "2026-07-12T00:00:00Z",
   "sourceCommit": "1234567890abcdef",
@@ -137,13 +138,7 @@ Antwort:
         "callee": "text",
         "callId": "text"
       },
-      "bindings": [
-        {
-          "from": "detail.caller",
-          "to": "realtime.sip.call.incoming.caller",
-          "type": "text"
-        }
-      ]
+      "bindings": []
     }
   ]
 }
@@ -155,7 +150,9 @@ Felder:
 - `label`: Anzeige im Editor.
 - `description`: optionale Beschreibung.
 - `detail`: erwartete Payload-Felder und Typen.
-- `bindings`: Mapping von `detail.*` in den globalen JSON-Zustand.
+- `bindings`: Optionales Mapping von `detail.*` auf einen vollständig
+  qualifizierten, im Modell deklarierten Pfad `states.<id>.<feld>`. Andere
+  Ziele werden verworfen. Die Standardereignisse besitzen keine Bindings.
 
 Unterstützte Typen:
 
@@ -269,32 +266,12 @@ Server antwortet:
   "type": "joined",
   "roomId": "smoke",
   "clientId": "browser-1",
-  "rev": 0,
   "serverTime": 1780000000000
 }
 ```
 
-Andere Clients im selben Raum bekommen:
-
-```json
-{
-  "type": "peer.join",
-  "roomId": "smoke",
-  "clientId": "browser-1",
-  "serverTime": 1780000000000
-}
-```
-
-Beim Trennen der Verbindung:
-
-```json
-{
-  "type": "peer.leave",
-  "roomId": "smoke",
-  "clientId": "browser-1",
-  "serverTime": 1780000000000
-}
-```
+Join und Verbindungsende werden nicht als Peer-Präsenz an andere Clients
+gesendet. Der Transport besitzt keine Presence-Oberfläche.
 
 ### Runtime-Ereignis
 
@@ -321,28 +298,6 @@ auslösen, ohne beim Empfang nochmals von einem erfolgreichen `/events`-Abruf
 abhängig zu sein.
 
 `seq` ist optional. Wenn vorhanden, verwirft der Server alte oder doppelte Sequenzen pro `clientId` und Raum.
-
-### Präsenz-Cursor
-
-Flüchtiger Cursor-/Drag-Frame. Der Server darf ihn für langsame Empfänger verwerfen.
-
-Client sendet:
-
-```json
-{
-  "type": "presence.cursor",
-  "seq": 2,
-  "cursor": {
-    "x": 120,
-    "y": 80,
-    "worldX": 920,
-    "worldY": 460,
-    "stateId": "start"
-  }
-}
-```
-
-Andere Clients bekommen denselben Frame mit `roomId`, `clientId` und `serverTime`.
 
 ### WebSocket Fehler
 
@@ -389,17 +344,19 @@ https://digitalisierungsplanung.de/state.html?room=<room-id>
 Ablauf:
 
 ```text
-state.html
+generierte Runtime in Preview oder Standalone
   -> GET /token
   -> WSS /ws
   -> join(roomId, clientId, token)
   -> runtime.event
-  -> STATE_BLUEPRINT_REALTIME_EVENT
   -> globaler JSON-Bus
   -> Übergänge prüfen triggerType=realtime + triggerEvent=<name>
 ```
 
-Der Runtime-Kontext bleibt für den Host nur lesend. Fachliche Daten werden erst in der generierten Runtime in den JSON-Bus geschrieben.
+Die Runtime besitzt den Transport direkt. Der Editor-Host leitet keine
+Realtime-Ereignisse weiter und verarbeitet Runtime-Meldungen ausschließlich
+als UI-Ereignisse, ohne Businhalt zu speichern.
+Standalone verwendet denselben Transport ohne Host-Brücke.
 
 ## Aktuelle Standard-Ereignisse
 

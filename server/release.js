@@ -37,14 +37,14 @@ function cleanCommit(value) {
 }
 
 function parseReleaseSource(source) {
-  const id = cleanReleaseId(assignmentString(source, "ZUSTAND_SW_VERSION"));
+  const id = cleanReleaseId(assignmentString(source, "ZUSTAND_RELEASE_ID"));
   const explicitSequence = assignmentInteger(source, "ZUSTAND_RELEASE_SEQUENCE");
-  const legacySequence = Number.parseInt(id.match(/^(?:release|deploy)-(\d+)/)?.[1] || "0", 10);
-  const sequence = explicitSequence || legacySequence;
+  const releaseSequence = Number.parseInt(id.match(/^release-(\d+)$/)?.[1] || "0", 10);
+  const sequence = explicitSequence || releaseSequence;
   return {
     id: id || DEFAULT_RELEASE.id,
     sequence: Number.isSafeInteger(sequence) ? sequence : 0,
-    builtAt: assignmentString(source, "ZUSTAND_SW_BUILT_AT"),
+    builtAt: assignmentString(source, "ZUSTAND_RELEASE_BUILT_AT"),
     sourceCommit: cleanCommit(assignmentString(source, "ZUSTAND_RELEASE_SOURCE")),
     deployedCommit: ""
   };
@@ -52,7 +52,7 @@ function parseReleaseSource(source) {
 
 function loadReleaseInfo(options = {}) {
   const env = options.env || process.env;
-  const releasePath = options.path || env.ZUSTAND_RELEASE_FILE || path.resolve(process.cwd(), "sw-version.js");
+  const releasePath = options.path || env.ZUSTAND_RELEASE_FILE || path.resolve(process.cwd(), "release-version.js");
   let fileRelease = DEFAULT_RELEASE;
   try {
     fileRelease = parseReleaseSource(fs.readFileSync(releasePath, "utf8"));

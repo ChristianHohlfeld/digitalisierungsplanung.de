@@ -11,18 +11,18 @@ function defaultTestModel() {
     initial: "auth_start",
     states: [
       { id: "auth_start", title: "Auth start", body: "", components: [{ id: "c_auth_start", type: "text", text: "User chooses login or registration.", url: "" }], x: 90, y: 210 },
-      { id: "login", title: "Login", body: "", components: [{ id: "c_login", type: "text", text: "Email and password are entered.", url: "" }], x: 360, y: 100 },
-      { id: "register", title: "Register", body: "", components: [{ id: "c_register", type: "text", text: "Create a new account with email and accepted terms.", url: "" }], x: 360, y: 320 },
+      { id: "login", title: "Login", body: "", components: [{ id: "c_login", type: "text", text: "Email and password are entered.", url: "" }], data: { email: "", password: "" }, dataTypes: { email: "email", password: "password" }, x: 360, y: 100 },
+      { id: "register", title: "Register", body: "", components: [{ id: "c_register", type: "text", text: "Create a new account with email and accepted terms.", url: "" }], data: { email: "", accepted_terms: false }, dataTypes: { email: "email", accepted_terms: "boolean" }, x: 360, y: 320 },
       { id: "error", title: "Error", body: "", components: [{ id: "c_error", type: "text", text: "Invalid credentials or registration data.", url: "" }], x: 630, y: 320 },
-      { id: "logged_in", title: "Logged in", body: "", components: [{ id: "c_logged_in", type: "text", text: "Authenticated app area.", url: "" }], x: 900, y: 100 },
+      { id: "logged_in", title: "Logged in", body: "", components: [{ id: "c_logged_in", type: "text", text: "Authenticated app area.", url: "" }], data: { role: "" }, dataTypes: { role: "text" }, x: 900, y: 100 },
       { id: "logged_out", title: "Logged out", body: "", components: [{ id: "c_logged_out", type: "text", text: "Session ended. User can return to login.", url: "" }], x: 900, y: 320 }
     ],
     transitions: [
       { id: "t_auth_login", from: "auth_start", to: "login", label: "Login", condition: "", set: {} },
       { id: "t_auth_register", from: "auth_start", to: "register", label: "Registrieren", condition: "", set: {} },
-      { id: "t_login_success", from: "login", to: "logged_in", label: "Einloggen", condition: "email == \"user@example.com\" && password == \"secret123\"", set: {} },
+      { id: "t_login_success", from: "login", to: "logged_in", label: "Einloggen", condition: "states.login.email == \"user@example.com\" && states.login.password == \"secret123\"", set: {} },
       { id: "t_login_error", from: "login", to: "error", label: "Fehler", condition: "", set: {} },
-      { id: "t_register_success", from: "register", to: "logged_in", label: "Account erstellen", condition: "email == \"new@example.com\" && accepted_terms", set: {} },
+      { id: "t_register_success", from: "register", to: "logged_in", label: "Account erstellen", condition: "states.register.email == \"new@example.com\" && states.register.accepted_terms", set: {} },
       { id: "t_register_error", from: "register", to: "error", label: "Fehler", condition: "", set: {} },
       { id: "t_logout", from: "logged_in", to: "logged_out", label: "Logout", condition: "", set: {} },
       { id: "t_relogin", from: "logged_out", to: "login", label: "Wieder einloggen", condition: "", set: {} },
@@ -94,7 +94,7 @@ async function openStateInspector(page, id) {
   const node = page.locator('[data-id="' + id + '"]');
   await expect(node).toBeVisible();
   await node.hover();
-  await node.locator(".node-edit").click({ force: true });
+  await node.locator(".node-edit").click();
   await expect(page.locator("#pTitle")).toBeVisible();
 }
 
@@ -193,6 +193,24 @@ async function installFakeRealtimeTransport(page, options = {}) {
   return event;
 }
 
+async function waitForRuntimeRealtimeJoin(page) {
+  await expect.poll(async () => (await runtimeContext(page)).realtime?.joined).toBe(true);
+}
+
+async function receiveRuntimeRealtimeEvent(page, event, detail = {}, roomId = "contract-room") {
+  await appFrame(page).locator("html").evaluate((_, payload) => {
+    window.__fakeRealtimeSockets[0].receive(payload);
+  }, {
+    type: "runtime.event",
+    roomId,
+    clientId: "console",
+    serverTime: Date.now(),
+    name: event.name,
+    detail,
+    event
+  });
+}
+
 async function savedModel(page) {
   return page.evaluate(key => {
     const stored = JSON.parse(localStorage.getItem(`${key}.editor`) || localStorage.getItem(key) || "null");
@@ -201,9 +219,11 @@ async function savedModel(page) {
 }
 
 async function runtimeContext(page) {
-  return page.evaluate(() => JSON.parse(JSON.stringify(
-    typeof latestRuntimeContext !== "undefined" && latestRuntimeContext ? latestRuntimeContext : {}
-  )));
+  return appFrame(page).locator("html").evaluate(() => JSON.parse(JSON.stringify(eval("context"))));
+}
+
+async function sendRuntimePayload(page, payload) {
+  await page.evaluate(message => postRuntimePayload(message), payload);
 }
 
 function collectUndefinedPaths(value, root = "$") {
@@ -217,7 +237,7 @@ function collectUndefinedPaths(value, root = "$") {
 
 async function openLayer(page, parentId, visibleChildId) {
   await page.evaluate(id => {
-    enterStateLayer(id, { source: "inspector", explicit: true, force: true });
+    enterStateLayer(id, { source: "inspector", explicit: true });
   }, parentId);
   await expect(page.locator(`[data-id="${visibleChildId}"]`)).toBeVisible();
 }
@@ -270,6 +290,37 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("Schließen");
     expect(html).toContain("flushRuntimeEvents");
     expect(html).not.toContain("flushRuntimeEreignisse");
+  });
+
+  test("generated runtime uses only German product defaults @smoke", async ({ page }) => {
+    await page.goto("/state.html");
+    const appHtml = await generatedPreviewHtml(page);
+
+    for (const forbidden of [
+      't.label = t.label || "Next"',
+      'entry.title || "Next"',
+      'createDaisyButton("Next"',
+      'createDaisyButton("Prev"',
+      '"No matching transition is currently available."',
+      '"No file selected"',
+      '"Fetch failed"',
+      '"Invalid endpoint URL"',
+      '"Remember me"',
+      '"Login options"'
+    ]) {
+      expect(appHtml, `runtime must not contain product fallback ${forbidden}`).not.toContain(forbidden);
+    }
+    for (const expected of [
+      't.label = t.label || "Weiter"',
+      'entry.title || "Weiter"',
+      'createDaisyButton("Weiter"',
+      'createDaisyButton("Zurück"',
+      '"Kein passender Übergang ist verfügbar."',
+      '"Keine Datei ausgewählt"',
+      '"Abruf fehlgeschlagen"'
+    ]) {
+      expect(appHtml).toContain(expected);
+    }
   });
 
   test("grouping is represented by real parent states, not editorGroups metadata @smoke", () => {
@@ -348,6 +399,13 @@ test.describe("Core source contracts", () => {
 
     for (const marker of [
       "function runtimeTouchFeedbackTarget(target)",
+      "const IS_STANDALONE_EXPORT = false;",
+      'const RUNTIME_SESSION_FRAGMENT_KEY = "state-blueprint-session";',
+      "function runtimeAcceptsHostMessage(evt, data)",
+      "evt.source === RUNTIME_HOST_WINDOW",
+      "evt.origin === RUNTIME_HOST_ORIGIN",
+      "data.sessionId === RUNTIME_SESSION_ID",
+      "RUNTIME_HOST_WINDOW.postMessage({ ...payload, sessionId: RUNTIME_SESSION_ID }, RUNTIME_HOST_ORIGIN);",
       'function normalizeDataSource(value, fallbackTarget = "fetch")',
       's.dataSource = normalizeDataSource(s.dataSource, "states." + s.id + ".fetch");',
       ".navbar .flex-none { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex: 0 1 auto; max-width: 100%; min-width: 0; }",
@@ -357,6 +415,7 @@ test.describe("Core source contracts", () => {
       "const runtimeViewStateChanged = lastRenderedStateId !== s.id;",
       "scrollRoot.scrollTop = 0;",
       'screen.className = widgetScreen ? "screen widget-screen" : "screen";',
+      "runtimeBoundaryEntry: true",
       "function daisyOwnerCanWrite(component)",
       "function appendDaisyLocalActionButton(parent, component, label, onClick, className = \"\")",
       "if (detail?.transitionId && transition?.id !== detail.transitionId) return false;",
@@ -387,6 +446,16 @@ test.describe("Core source contracts", () => {
       expect(appHtml, `production runtime should not contain ${debugMarker}`).not.toContain(debugMarker);
     }
     await expect(appFrame(page).locator("#flowDebug")).toHaveCount(0);
+    expect(appHtml).not.toContain('postMessage(payload, "*")');
+    for (const forbidden of [
+      "window.opener",
+      "localStorage",
+      'window.addEventListener("storage"',
+      "function loadModel()",
+      "function saveModel()"
+    ]) {
+      expect(appHtml, `preview runtime must not contain ${forbidden}`).not.toContain(forbidden);
+    }
 
     for (const marker of [
       "function normalizeDataSource(value) {",
@@ -432,7 +501,7 @@ test.describe("Core source contracts", () => {
             dataLabel: "Hero"
           }],
           data: {
-            "states.start.hero": {
+            hero: {
               layout: "centered",
               title: "Start",
               body: "This action must not infer a transition from transition.set.",
@@ -493,7 +562,7 @@ test.describe("Core source contracts", () => {
             dataLabel: "Menu"
           }],
           data: {
-            "states.start.menu": {
+            menu: {
               selected: "",
               items: ["Next"]
             }
@@ -668,7 +737,7 @@ test.describe("Core source contracts", () => {
             dataRole: "widget",
             dataLabel: spec.name
           }],
-          data: { "states.start.widget": data }
+          data: { widget: data }
         },
         {
           id: "next",
@@ -813,6 +882,63 @@ test.describe("Core source contracts", () => {
     });
 
     expect(message).toContain("must not collide with a state id");
+  });
+
+  test("formal definitions reject dotted state data keys and qualified data type keys @smoke", async ({ page }) => {
+    await page.goto("/state.html");
+
+    const messages = await page.evaluate(() => {
+      const boundary = { entryId: "", exitId: "", entryDisabled: false, exitDisabled: false, title: "", note: "" };
+      const baseDefinition = () => ({
+        kind: "state-blueprint-definition",
+        schemaVersion: 2,
+        app: "Zustand",
+        savedAt: new Date().toISOString(),
+        model: {
+          version: 2,
+          name: "Canonical data",
+          initial: "start",
+          boundary,
+          states: [{
+            id: "start",
+            title: "Start",
+            renderMode: "state",
+            components: [],
+            data: { email: "" },
+            dataTypes: { email: "email" },
+            dataSource: { url: "", target: "states.start.fetch", select: "", timeoutMs: 8000, retries: 2 },
+            repeat: { path: "", as: "item", index: "i" },
+            dataWires: [],
+            subscriptions: [],
+            boundary,
+            parentId: null,
+            x: 96,
+            y: 120
+          }],
+          transitions: []
+        },
+        stateTemplates: [],
+        camera: { x: 32, y: 32, scale: 1 },
+        previewCollapsed: false
+      });
+      const validate = definition => {
+        try {
+          validateBlueprintDefinition(definition);
+          return "";
+        } catch (error) {
+          return String(error?.message || error);
+        }
+      };
+      const dottedData = baseDefinition();
+      dottedData.model.states[0].data = { "states.start.email": "" };
+      dottedData.model.states[0].dataTypes = {};
+      const qualifiedType = baseDefinition();
+      qualifiedType.model.states[0].dataTypes = { "states.start.email": "email" };
+      return [validate(dottedData), validate(qualifiedType)];
+    });
+
+    expect(messages[0]).toContain("must use a local identifier without dots");
+    expect(messages[1]).toContain("must reference a local path declared in state.data");
   });
 
   test("formal definitions reserve runtime ids for derived FSM actions @smoke", async ({ page }) => {
@@ -969,9 +1095,10 @@ test.describe("Core source contracts", () => {
     expect(actionHandler?.[0] || "").not.toContain("followTransition");
   });
 
-  test("generated runtime keeps normal Next transitions visible as buttons @smoke", () => {
+  test("generated runtime keeps normal named transitions visible as buttons @smoke", async ({ page }) => {
     const html = stateHtml();
-    const appHtml = generatedAppHtml();
+    await page.goto("/state.html");
+    const appHtml = await generatedPreviewHtml(page);
 
     expect(appHtml).toContain("function transitionIsButtonAction");
     expect(appHtml).toContain("function normalizeTransitionTriggerEvent");
@@ -1003,6 +1130,8 @@ test.describe("Core source contracts", () => {
     expect(appHtml).toContain("function runtimeTransitionLabel");
     expect(appHtml).toContain("button.textContent = runtimeTransitionLabel(t)");
     expect(appHtml).toContain('return String(t?.label || "").trim() || "Weiter";');
+    expect(appHtml).toContain('return transitions[0]?.id || "";');
+    expect(appHtml).not.toContain("function isNegativeTransition");
     expect(appHtml).toContain("function runtimeTransitionHue");
     expect(appHtml).toContain("function runtimeTransitionColor");
     expect(appHtml).not.toContain("const globalIndex = model.transitions.findIndex");
@@ -1155,9 +1284,10 @@ test.describe("Core source contracts", () => {
     expect(appHtml).toContain("dataSourceResultBelongsToEntry(currentResult, meta)");
     expect(appHtml).toContain("activationId === stateActivationId");
     expect(appHtml).not.toContain("await ensureStateDataSource(s)");
-    expect(html).toContain("function resetEditorDataSourceContext");
+    expect(html).not.toContain("function resetEditorDataSourceContext");
+    expect(html).not.toContain("applyEditorDataSourceResult");
     expect(html).toContain("sourceChanged = dataSourceSignature(previous) !== dataSourceSignature(next)");
-    expect(html).toContain("resetEditorDataSourceContext(previous.target)");
+    expect(html).toContain("function renderJsonInspect");
     expect(html).toContain("data: null");
     expect(html).toContain("count: 0");
     expect(html).toContain("error: \"\"");
@@ -1169,6 +1299,20 @@ test.describe("Core source contracts", () => {
     expect(html).not.toContain("dataSourceRuns.");
     expect(appHtml).not.toContain("let dataSourceRunSerial = 0");
     expect(appHtml).not.toContain("let activeDataSourceRun = null");
+  });
+
+  test("generated runtime never infers triggers or controls from condition text @smoke", async ({ page }) => {
+    await page.goto("/state.html");
+    const appHtml = await generatedPreviewHtml(page);
+
+    expect(appHtml).not.toContain("conditionMentionsDataSource");
+    expect(appHtml).not.toContain("function inferVariables");
+    expect(appHtml).not.toContain("const vars = inferVariables");
+    expect(appHtml).not.toContain('controls.innerHTML = `<h2>Eingaben</h2>`');
+    expect(appHtml).toContain("function declaredBusVariables");
+    expect(appHtml).toContain("visit(state, normalizeStateDataObject(state.data))");
+    expect(appHtml).toContain("function transitionMatchesRuntimeEvent");
+    expect(appHtml).toContain('if (type === "button" || type === "event" || type === "realtime" || type === "timer" || type === "auto") return configured === eventName;');
   });
 
   test("data wires drive rendered content through global state @smoke", () => {
@@ -1290,6 +1434,8 @@ test.describe("Core source contracts", () => {
     expect(appHtml).toContain('const RUNTIME_WRITE_TOKEN = Symbol("runtime-write")');
     expect(appHtml).toContain("function runtimeWriteSourceIsAuthorized");
     expect(appHtml).toContain("function runtimeExternalWritePathIsAuthorized");
+    expect(appHtml).toContain("return runtimeStateDataPathIsDeclared(path);");
+    expect(appHtml).not.toContain("function runtimeBookkeepingPathIsAuthorized");
     expect(appHtml).toContain('throw new Error("Unauthorized runtime bus write: " + targetPath)');
     expect(appHtml).toContain('throw new Error("Unauthorized runtime bus write source: " + runtimeWriteSource(opts))');
     expect(appHtml).toContain("const write = writeRuntimeState(path, value, { ...opts, token: RUNTIME_WRITE_TOKEN });");
@@ -1327,12 +1473,8 @@ test.describe("Core source contracts", () => {
           body: "",
           x: 120,
           y: 160,
-          data: {
-            "states.start.form": { value: "" }
-          },
-          dataTypes: {
-            "states.start.form": "object"
-          },
+          data: { form: { value: "" } },
+          dataTypes: { form: "object" },
           components: [{
             id: "form_input",
             type: "daisy",
@@ -1342,7 +1484,7 @@ test.describe("Core source contracts", () => {
             dataLabel: "Form input"
           }]
         },
-        { id: "done", title: "Done", body: "", x: 420, y: 160, components: [] }
+        { id: "done", title: "Done", body: "", x: 420, y: 160, components: [], data: { visited: false }, dataTypes: { visited: "boolean" } }
       ],
       transitions: [
         { id: "to_done", from: "start", to: "done", label: "Next", condition: "", triggerType: "button", set: {} }
@@ -1369,6 +1511,11 @@ test.describe("Core source contracts", () => {
   });
 
   test("external realtime bindings only write declared state data @smoke", async ({ page }) => {
+    const event = await installFakeRealtimeTransport(page);
+    event.bindings = [
+      { from: "detail.caller", to: "states.start.remote.caller", type: "text" },
+      { from: "detail.callId", to: "realtime.sip.call.incoming.callId", type: "text" }
+    ];
     await openWithModel(page, {
       version: 2,
       name: "Realtime write guard",
@@ -1379,30 +1526,14 @@ test.describe("Core source contracts", () => {
         x: 120,
         y: 140,
         components: [{ id: "c_start", type: "text", text: "Start", url: "" }],
-        data: {
-          "states.start.remote": { caller: "" }
-        },
-        dataTypes: {
-          "states.start.remote": "object"
-        }
+        data: { remote: { caller: "" } },
+        dataTypes: { remote: "object" }
       }],
       transitions: []
-    });
+    }, "/state.html?room=binding-contract");
 
-    await page.locator("#appFrame").evaluate((iframe, payload) => {
-      iframe.contentWindow.postMessage(payload, "*");
-    }, {
-      type: "STATE_BLUEPRINT_REALTIME_EVENT",
-      name: "realtime.sip.call.incoming",
-      detail: { caller: "+491234", callId: "call-123" },
-      event: {
-        name: "realtime.sip.call.incoming",
-        bindings: [
-          { from: "detail.caller", to: "states.start.remote.caller", type: "text" },
-          { from: "detail.callId", to: "realtime.sip.call.incoming.callId", type: "text" }
-        ]
-      }
-    });
+    await waitForRuntimeRealtimeJoin(page);
+    await receiveRuntimeRealtimeEvent(page, event, { caller: "+491234", callId: "call-123" }, "binding-contract");
 
     await expect.poll(async () => runtimeContext(page).then(context => context.states?.start?.remote?.caller))
       .toBe("+491234");
@@ -1413,6 +1544,7 @@ test.describe("Core source contracts", () => {
   });
 
   test("realtime events can leave an active parent before its manual boundary entry @smoke", async ({ page }) => {
+    const event = await installFakeRealtimeTransport(page);
     await openWithModel(page, {
       version: 2,
       name: "Parent realtime transition",
@@ -1443,24 +1575,18 @@ test.describe("Core source contracts", () => {
         triggerEvent: "realtime.sip.call.incoming",
         set: {}
       }]
-    });
+    }, "/state.html?room=parent-contract");
 
     const app = appFrame(page);
     await expect(app.getByRole("button", { name: "Child", exact: true })).toBeVisible();
-    await page.locator("#appFrame").evaluate((iframe, payload) => {
-      iframe.contentWindow.postMessage(payload, "*");
-    }, {
-      type: "STATE_BLUEPRINT_REALTIME_EVENT",
-      name: "realtime.sip.call.incoming",
-      detail: { caller: "+491234", source: "realtime", __realtimeRemote: true },
-      event: { name: "realtime.sip.call.incoming", bindings: [] }
-    });
+    await waitForRuntimeRealtimeJoin(page);
+    await receiveRuntimeRealtimeEvent(page, event, { caller: "+491234" }, "parent-contract");
 
     await expect(app.locator("#statePill")).toHaveText("done");
     await expect.poll(async () => (await runtimeContext(page)).state?.lastTransition).toBe("incoming_call");
   });
 
-  test("local realtime events are relayed once even when they transition immediately @smoke", async ({ page }) => {
+  test("browser runtime has no local realtime emitter or outbound event path @smoke", async ({ page }) => {
     await installFakeRealtimeTransport(page);
     await openWithModel(page, {
       version: 2,
@@ -1482,23 +1608,14 @@ test.describe("Core source contracts", () => {
       }]
     }, "/state.html?room=outbound-contract");
 
-    await expect.poll(() => page.evaluate(() => window.__stateBlueprintRealtime.status().joined)).toBe(true);
-    await expect(page.evaluate(() => window.__stateBlueprintRealtime.emit("realtime.sip.call.incoming", {
-      caller: "+491234",
-      callee: "100",
-      callId: "local-123"
-    }))).resolves.toBe(true);
-    await expect(appFrame(page).locator("#statePill")).toHaveText("done");
-    await expect.poll(() => page.evaluate(() => window.__fakeRealtimeSent.filter(message => message.type === "runtime.event")))
-      .toEqual([expect.objectContaining({
-        name: "realtime.sip.call.incoming",
-        detail: expect.objectContaining({ callId: "local-123" })
-      })]);
+    await waitForRuntimeRealtimeJoin(page);
+    expect(await page.evaluate(() => window.__stateBlueprintRealtime)).toBeUndefined();
     await page.waitForTimeout(100);
-    expect(await page.evaluate(() => window.__fakeRealtimeSent.filter(message => message.type === "runtime.event").length)).toBe(1);
+    expect(await appFrame(page).locator("html").evaluate(() => window.__fakeRealtimeSent.filter(message => message.type === "runtime.event"))).toEqual([]);
+    await expect(appFrame(page).locator("#statePill")).toHaveText("start");
   });
 
-  test("incoming realtime events survive frame unavailability without a catalog refetch @smoke", async ({ page }) => {
+  test("runtime consumes the server-supplied realtime definition without a catalog refetch @smoke", async ({ page }) => {
     const event = await installFakeRealtimeTransport(page, { catalogFailure: true });
     await openWithModel(page, {
       version: 2,
@@ -1530,30 +1647,13 @@ test.describe("Core source contracts", () => {
       }]
     }, "/state.html?room=inbound-contract");
 
-    await expect.poll(() => page.evaluate(() => window.__stateBlueprintRealtime.status().joined)).toBe(true);
-    await page.evaluate(eventConfig => {
-      appFrameReady = false;
-      window.__fakeRealtimeSockets[0].receive({
-        type: "runtime.event",
-        roomId: "inbound-contract",
-        clientId: "console",
-        serverTime: Date.now(),
-        name: "realtime.sip.call.incoming",
-        detail: { caller: "+491234", callee: "100", callId: "remote-123" },
-        event: eventConfig
-      });
-      postRealtimeStatus("joined");
-    }, event);
-
-    await expect.poll(() => page.evaluate(() => pendingFramePayloads.map(payload => payload.type)))
-      .toContain("STATE_BLUEPRINT_REALTIME_EVENT");
-    await expect(appFrame(page).locator("#statePill")).toHaveText("start");
-    await page.evaluate(() => {
-      appFrameReady = true;
-      flushPendingRuntimePayloads();
-    });
+    await waitForRuntimeRealtimeJoin(page);
+    await receiveRuntimeRealtimeEvent(page, event, {
+      caller: "+491234",
+      callee: "100",
+      callId: "remote-123"
+    }, "inbound-contract");
     await expect(appFrame(page).locator("#statePill")).toHaveText("done");
-    await expect.poll(() => page.evaluate(() => pendingFramePayloads.length)).toBe(0);
   });
 
   test("daisy widgets cannot create undeclared bus data @smoke", async ({ page }) => {
@@ -1587,48 +1687,24 @@ test.describe("Core source contracts", () => {
       .toBeUndefined();
   });
 
-  test("host runtime context snapshot remains a read-side view @smoke", () => {
+  test("host consumes runtime state only as an event and keeps no bus mirror @smoke", () => {
     const html = stateHtml();
     const hostHtml = html.replace(/const APP_HTML = "((?:\\.|[^"\\])*)";/, 'const APP_HTML = "";');
-    const allowedWrites = [
-      "let latestRuntimeContext = {};",
-      "latestRuntimeContext = {};",
-      "if (!isPlainObject(latestRuntimeContext)) latestRuntimeContext = {};",
-      "setEditorContextPath(latestRuntimeContext, target, emptyDataSourceResult(patch));",
-      "setEditorContextPath(latestRuntimeContext, target, {",
-      "latestRuntimeContext = isPlainObject(data.context) ? JSON.parse(JSON.stringify(data.context)) : {};"
-    ];
-    const snapshotWrites = hostHtml
-      .split(/\r?\n/)
-      .map((line, index) => ({ index: index + 1, line: line.trim() }))
-      .filter(({ line }) =>
-        /latestRuntimeContext\s*=/.test(line) ||
-        /setEditorContextPath\(latestRuntimeContext,/.test(line)
-      );
-    const unexpectedWrites = snapshotWrites.filter(({ line }) => !allowedWrites.includes(line));
-    const forbiddenModelUses = hostHtml
-      .split(/\r?\n/)
-      .map((line, index) => ({ index: index + 1, line: line.trim() }))
-      .filter(({ line }) => line.includes("latestRuntimeContext"))
-      .filter(({ line }) =>
-        /localStorage\.setItem|pushHistory|saveModel|syncToApp\(|commitModel|recordHistory/.test(line) ||
-        /\b(model|currentAppState|selectedId|activeLayerId)\s*=.*latestRuntimeContext/.test(line)
-      );
-
-    expect(unexpectedWrites).toEqual([]);
-    expect(forbiddenModelUses).toEqual([]);
-    expect(hostHtml).toContain("const preview = isPlainObject(latestRuntimeContext) ? JSON.parse(JSON.stringify(latestRuntimeContext)) : {};");
-    expect(hostHtml).toContain("latestRuntimeContext = isPlainObject(data.context) ? JSON.parse(JSON.stringify(data.context)) : {};");
-    expect(hostHtml).toContain("applyRuntimePaused(Boolean(data.paused ?? latestRuntimeContext?.runtime?.paused), { send: false });");
-    expect(hostHtml).not.toMatch(/localStorage\.setItem\([^)]*latestRuntimeContext/);
-    expect(hostHtml).not.toMatch(/syncToApp\([^)]*latestRuntimeContext/);
+    expect(hostHtml).not.toContain("latestRuntimeContext");
+    expect(hostHtml).not.toContain("let currentAppState");
+    expect(hostHtml).not.toContain("let runtimePaused");
+    expect(hostHtml).not.toContain("setEditorContextPath");
+    expect(hostHtml).toContain('const runtimeEventContext = isPlainObject(data.context) ? data.context : {};');
+    expect(hostHtml).toContain('refreshInspectorGlobalStateTree(runtimeEventContext);');
+    expect(hostHtml).toContain('postRuntimePayload({ type: "STATE_BLUEPRINT_RUNTIME_REPORT" });');
+    expect(hostHtml).not.toMatch(/JSON\.parse\(JSON\.stringify\(data\.context\)\)/);
   });
 
-  test("host runtime snapshot does not persist bus writes into state defaults @smoke", async ({ page }) => {
+  test("host runtime events do not persist bus writes into state defaults @smoke", async ({ page }) => {
     const scopePath = "states.action_state";
     await openWithModel(page, {
       version: 2,
-      name: "Runtime Snapshot Guard",
+      name: "Runtime Event Guard",
       initial: "action_state",
       states: [
         {
@@ -1638,15 +1714,11 @@ test.describe("Core source contracts", () => {
           x: 120,
           y: 120,
           data: {
-            [scopePath]: {
-              label: "Continue",
-              clicked: false,
-              clickedAt: 0
-            }
+            label: "Continue",
+            clicked: false,
+            clickedAt: 0
           },
-          dataTypes: {
-            [scopePath]: "object"
-          },
+          dataTypes: { label: "text", clicked: "boolean", clickedAt: "number" },
           components: [
             {
               id: "action_button",
@@ -1672,7 +1744,7 @@ test.describe("Core source contracts", () => {
       });
     await expect.poll(async () => runtimeContext(page).then(context => Number(context.states?.action_state?.clickedAt) > 0))
       .toBe(true);
-    await expect.poll(async () => savedModel(page).then(model => model.states.find(state => state.id === "action_state")?.data?.[scopePath]))
+    await expect.poll(async () => savedModel(page).then(model => model.states.find(state => state.id === "action_state")?.data))
       .toEqual({
         label: "Continue",
         clicked: false,
@@ -1701,11 +1773,14 @@ test.describe("Core source contracts", () => {
     await page.goto("/state.html");
     const appHtml = await generatedPreviewHtml(page);
 
-    expect(appHtml).toContain('data.type === "STATE_BLUEPRINT_REALTIME_EVENT"');
-    expect(appHtml).toContain('data.type === "STATE_BLUEPRINT_REALTIME_STATUS"');
-    expect(appHtml).toContain('type: "STATE_BLUEPRINT_RUNTIME_EVENT"');
-    expect(appHtml).toContain('count: Number(readValueAtPath(context, "events." + name + ".count") || 0)');
-    expect(appHtml).toContain("if (name) emitRuntimeEvent(name, detail, eventConfig);");
+    expect(appHtml).toContain('const RUNTIME_REALTIME_WSS_URL = "wss://realtime.digitalisierungsplanung.de/ws";');
+    expect(appHtml).toContain('const RUNTIME_REALTIME_TOKEN_URL = "https://realtime.digitalisierungsplanung.de/token";');
+    expect(appHtml).toContain('message.type !== "runtime.event"');
+    expect(appHtml).not.toContain("STATE_BLUEPRINT_REALTIME_EVENT");
+    expect(appHtml).not.toContain("STATE_BLUEPRINT_REALTIME_STATUS");
+    expect(appHtml).not.toContain('type: "STATE_BLUEPRINT_RUNTIME_EVENT"');
+    expect(appHtml).toContain('const count = Number(readValueAtPath(context, countPath) || 0) + 1;');
+    expect(appHtml).toContain("emitRuntimeEvent(name, {");
     expect(appHtml).toContain('writeRuntimeState("events." + name + ".detail", detail');
     expect(appHtml).toContain("function applyRealtimeEventBindings");
     expect(appHtml).toContain('runtimeSet("realtime", next');
@@ -1715,28 +1790,29 @@ test.describe("Core source contracts", () => {
     expect(appHtml).not.toContain("STATE_BLUEPRINT_REALTIME_EVENT\") {\n        context");
   });
 
-  test("host realtime transport keeps the runtime context as a read-side bus snapshot @smoke", () => {
+  test("generated runtime owns realtime while the editor host stores no bus data @smoke", async ({ page }) => {
     const html = stateHtml();
     const hostHtml = html.replace(/const APP_HTML = "((?:\\.|[^"\\])*)";/, 'const APP_HTML = "";');
+    await page.goto("/state.html");
+    const appHtml = await generatedPreviewHtml(page);
 
-    expect(hostHtml).toContain('const REALTIME_WSS_URL = "wss://realtime.digitalisierungsplanung.de/ws";');
-    expect(hostHtml).toContain('const REALTIME_TOKEN_URL = "https://realtime.digitalisierungsplanung.de/token";');
+    expect(appHtml).toContain('const RUNTIME_REALTIME_WSS_URL = "wss://realtime.digitalisierungsplanung.de/ws";');
+    expect(appHtml).toContain("function startRuntimeRealtimeTransport()");
     expect(hostHtml).toContain('const REALTIME_EVENTS_URL = "https://realtime.digitalisierungsplanung.de/events";');
-    expect(hostHtml).toContain("async function fetchRealtimeEventConfig(name)");
-    expect(hostHtml).toContain("function relayRuntimeBusEventToRealtime()");
-    expect(hostHtml).toContain("function relayRuntimeEventMessageToRealtime(message)");
+    expect(hostHtml).not.toContain("const realtimeTransport =");
+    expect(hostHtml).not.toContain("async function fetchRealtimeEventConfig(name)");
+    expect(hostHtml).not.toContain("function relayRuntimeBusEventToRealtime()");
+    expect(hostHtml).not.toContain("function relayRuntimeEventMessageToRealtime(message)");
     expect(hostHtml).toContain("function flushPendingRuntimePayloads()");
     expect(hostHtml).toContain("let pendingFramePayloads = [];");
     expect(hostHtml).not.toContain("let pendingFramePayload = null;");
-    expect(hostHtml).toContain("function postRealtimeStatus");
-    expect(hostHtml).toContain('const name = normalizeTransitionEvent(latestRuntimeContext?.lastEvent || "");');
-    expect(hostHtml).toContain('if (!name || !name.startsWith("realtime.")) return;');
-    expect(hostHtml).toContain('if (detail.source === "realtime" || detail.__realtimeRemote === true) return;');
-    expect(hostHtml).toContain('type: "STATE_BLUEPRINT_REALTIME_EVENT"');
-    expect(hostHtml).toContain('type: "STATE_BLUEPRINT_REALTIME_STATUS"');
-    expect(hostHtml).not.toMatch(/latestRuntimeContext\s*=.*realtime/i);
-    expect(hostHtml).not.toMatch(/setEditorContextPath\(latestRuntimeContext,[^)]*realtime/i);
+    expect(hostHtml).not.toContain("function postRealtimeStatus");
+    expect(hostHtml).not.toContain('type: "STATE_BLUEPRINT_REALTIME_EVENT"');
+    expect(hostHtml).not.toContain('type: "STATE_BLUEPRINT_REALTIME_STATUS"');
+    expect(hostHtml).not.toContain("latestRuntimeContext");
+    expect(hostHtml).not.toContain("setEditorContextPath");
     expect(hostHtml).not.toContain('localStorage.setItem("stateBlueprint.realtime');
+    expect(hostHtml).not.toContain("window.__stateBlueprintRealtime");
   });
 
   test("canonical JSON and runtime contracts do not keep removed aliases @smoke", () => {
@@ -1841,6 +1917,290 @@ test.describe("Core source contracts", () => {
 });
 
 test.describe("Core browser contracts", () => {
+  test("only the current app frame owns host and runtime messaging @smoke", async ({ page }) => {
+    const model = {
+      version: 2,
+      name: "Owned runtime",
+      initial: "start",
+      states: [
+        {
+          id: "start",
+          title: "Start",
+          components: [],
+          data: { remote: { caller: "" } },
+          dataTypes: { remote: "object" },
+          x: 120,
+          y: 140
+        },
+        { id: "done", title: "Done", components: [], data: {}, dataTypes: {}, x: 420, y: 140 }
+      ],
+      transitions: [{
+        id: "incoming_call",
+        from: "start",
+        to: "done",
+        label: "Incoming call",
+        condition: "",
+        triggerType: "realtime",
+        triggerEvent: "realtime.sip.call.incoming",
+        set: {}
+      }]
+    };
+    await openWithModel(page, model);
+    await expect.poll(() => page.evaluate(() => appFrameReady)).toBe(true);
+    const originalSession = await page.evaluate(() => appFrameSessionId);
+
+    await page.evaluate(() => new Promise((resolve, reject) => {
+      window.__hostileOpenCalls = 0;
+      window.open = () => {
+        window.__hostileOpenCalls += 1;
+        return null;
+      };
+      const foreign = document.createElement("iframe");
+      foreign.id = "foreignRuntimeFrame";
+      foreign.onload = () => resolve();
+      foreign.onerror = () => reject(new Error("Foreign frame failed to load."));
+      foreign.src = document.querySelector("#appFrame").src;
+      document.body.appendChild(foreign);
+    }));
+    await expect.poll(() => page.evaluate(() => typeof document.querySelector("#foreignRuntimeFrame")?.contentWindow?.postHostMessage))
+      .toBe("function");
+
+    await page.evaluate(() => {
+      const foreign = document.querySelector("#foreignRuntimeFrame").contentWindow;
+      foreign.postHostMessage({
+        type: "STATE_BLUEPRINT_RUNTIME_STATE",
+        current: "done",
+        context: { state: { current: "done" }, attacked: true }
+      });
+      foreign.postHostMessage({ type: "STATE_BLUEPRINT_SHORTCUT", action: "new" });
+      foreign.postHostMessage({ type: "STATE_BLUEPRINT_OPEN_URL", url: "https://example.test/attack" });
+      foreign.eval(`
+        const target = parent.document.querySelector("#appFrame").contentWindow;
+        const send = payload => target.postMessage({ ...payload, sessionId: RUNTIME_SESSION_ID }, location.origin);
+        send({ type: "STATE_BLUEPRINT_RUNTIME_CONTROL", paused: true });
+        send({
+          type: "STATE_BLUEPRINT_MODEL",
+          reset: true,
+          model: {
+            version: 2,
+            name: "Foreign model",
+            initial: "done",
+            states: [{ id: "done", title: "Compromised", components: [], data: {}, dataTypes: {} }],
+            transitions: []
+          }
+        });
+        send({
+          type: "STATE_BLUEPRINT_REALTIME_EVENT",
+          name: "realtime.sip.call.incoming",
+          detail: { caller: "foreign" },
+          event: { name: "realtime.sip.call.incoming", bindings: [] }
+        });
+      `);
+    });
+
+    await page.waitForTimeout(100);
+    expect((await savedModel(page)).name).toBe("Owned runtime");
+    expect(await page.evaluate(() => ({ activeState: hostRuntimeStateView(), opens: window.__hostileOpenCalls })))
+      .toMatchObject({ activeState: "start", opens: 0 });
+    expect((await runtimeContext(page)).attacked).toBeUndefined();
+    expect((await runtimeContext(page)).runtime?.paused).toBe(false);
+    await expect(appFrame(page).locator("#appName")).toHaveText("Owned runtime");
+    await expect(appFrame(page).locator("#statePill")).toHaveText("start");
+    await expect(appFrame(page).locator("h1")).toHaveText("Start");
+    await expect(page.locator("#modalBackdrop")).toBeHidden();
+
+    await page.evaluate(() => reloadAppFrame(null, { preserveCurrent: true }));
+    await expect.poll(() => page.evaluate(() => appFrameReady)).toBe(true);
+    const reloadedSession = await page.evaluate(() => appFrameSessionId);
+    expect(reloadedSession).not.toBe(originalSession);
+    await appFrame(page).locator("html").evaluate((_, staleSession) => {
+      window.parent.postMessage({
+        type: "STATE_BLUEPRINT_RUNTIME_STATE",
+        sessionId: staleSession,
+        current: "done",
+        context: { state: { current: "done" }, stale: true }
+      }, location.origin);
+    }, originalSession);
+    await page.waitForTimeout(50);
+    expect(await page.evaluate(() => hostRuntimeStateView())).toBe("start");
+    expect((await runtimeContext(page)).stale).toBeUndefined();
+
+    await sendRuntimePayload(page, {
+      type: "STATE_BLUEPRINT_MODEL",
+      model,
+      reset: true,
+      startStateId: "done",
+      paused: false
+    });
+    await expect(appFrame(page).locator("#statePill")).toHaveText("done");
+    await expect.poll(() => page.evaluate(() => hostRuntimeStateView())).toBe("done");
+  });
+
+  test("standalone export receives realtime without an editor host @smoke", async ({ page, context: browserContext }) => {
+    const event = await installFakeRealtimeTransport(page);
+    await openWithModel(page, {
+      version: 2,
+      name: "Standalone realtime",
+      initial: "start",
+      states: [
+        { id: "start", title: "Start", components: [], data: {}, dataTypes: {}, x: 120, y: 140 },
+        { id: "done", title: "Done", components: [], data: {}, dataTypes: {}, x: 420, y: 140 }
+      ],
+      transitions: [{
+        id: "incoming_call",
+        from: "start",
+        to: "done",
+        label: "Incoming call",
+        condition: "",
+        triggerType: "realtime",
+        triggerEvent: event.name,
+        set: {}
+      }]
+    });
+    const exportedHtml = await page.evaluate(() => buildStandaloneAppHtml(GENERATED_APP_HTML, definitionPayload()));
+    const standalone = await browserContext.newPage();
+    try {
+      await installFakeRealtimeTransport(standalone);
+      await standalone.goto("/__standalone__#room=standalone-contract");
+      await standalone.setContent(exportedHtml, { waitUntil: "domcontentloaded" });
+      await expect(standalone.locator("#statePill")).toHaveText("start");
+      await expect.poll(() => standalone.evaluate(() => context.realtime?.joined)).toBe(true);
+      expect(await standalone.evaluate(() => hasHostWindow())).toBe(false);
+      await standalone.locator("html").evaluate((_, payload) => {
+        window.__fakeRealtimeSockets[0].receive(payload);
+      }, {
+        type: "runtime.event",
+        roomId: "standalone-contract",
+        clientId: "console",
+        serverTime: Date.now(),
+        name: event.name,
+        detail: { caller: "+491234" },
+        event
+      });
+      await expect(standalone.locator("#statePill")).toHaveText("done");
+    } finally {
+      await standalone.close();
+    }
+  });
+
+  test("same-event transitions require exactly one true condition @smoke", async ({ page }) => {
+    const realtimeEvent = await installFakeRealtimeTransport(page);
+    await openWithModel(page, {
+      version: 2,
+      name: "Deterministic same event",
+      initial: "waiting",
+      states: [
+        { id: "waiting", title: "Waiting", components: [], data: { routeA: true, routeB: false }, dataTypes: { routeA: "boolean", routeB: "boolean" }, x: 120, y: 180 },
+        { id: "route_a", title: "Route A", components: [], data: {}, dataTypes: {}, x: 420, y: 100 },
+        { id: "route_b", title: "Route B", components: [], data: {}, dataTypes: {}, x: 420, y: 280 }
+      ],
+      transitions: [
+        { id: "to_a", from: "waiting", to: "route_a", label: "A", condition: "states.waiting.routeA == true", triggerType: "realtime", triggerEvent: realtimeEvent.name, set: {} },
+        { id: "to_b", from: "waiting", to: "route_b", label: "B", condition: "states.waiting.routeB == true", triggerType: "realtime", triggerEvent: realtimeEvent.name, set: {} },
+        { id: "enable_b", from: "waiting", to: "waiting", label: "B aktivieren", condition: "", triggerType: "button", set: { "states.waiting.routeB": true } },
+        { id: "back", from: "route_a", to: "waiting", label: "Zurück", condition: "", triggerType: "button", set: {} }
+      ]
+    }, "/state.html?room=deterministic-room");
+
+    await waitForRuntimeRealtimeJoin(page);
+    await receiveRuntimeRealtimeEvent(page, realtimeEvent, {});
+    await expect(appFrame(page).locator("#statePill")).toHaveText("route_a");
+
+    await appFrame(page).getByRole("button", { name: "Zurück" }).click();
+    await appFrame(page).getByRole("button", { name: "B aktivieren" }).click();
+    await expect(appFrame(page).locator("#statePill")).toHaveText("waiting");
+    await receiveRuntimeRealtimeEvent(page, realtimeEvent, {});
+
+    await expect(appFrame(page).locator("#statePill")).toHaveText("waiting");
+    await expect.poll(() => appFrame(page).locator("html").evaluate(() => eval("runtimeValidation"))).toMatchObject({
+      type: "ambiguous-transition",
+      stateId: "waiting",
+      eventName: realtimeEvent.name,
+      transitionIds: ["to_a", "to_b"]
+    });
+  });
+
+  test("canvas deletion removes the complete enriched state branch from the same runtime bus @smoke", async ({ page }) => {
+    const realtimeEvent = await installFakeRealtimeTransport(page);
+    realtimeEvent.bindings = [
+      { from: "detail.caller", to: "states.owner.profile.caller", type: "text" }
+    ];
+    await openWithModel(page, {
+      version: 2,
+      name: "State branch cleanup",
+      initial: "owner",
+      states: [
+        {
+          id: "owner",
+          title: "Owner",
+          body: "",
+          components: [],
+          data: { profile: { caller: "", live: "" } },
+          dataTypes: { "profile.caller": "text", "profile.live": "text" },
+          x: 120,
+          y: 180
+        },
+        {
+          id: "survivor",
+          title: "Survivor",
+          body: "",
+          components: [],
+          data: { keep: false },
+          dataTypes: { keep: "boolean" },
+          x: 420,
+          y: 180
+        }
+      ],
+      transitions: [
+        {
+          id: "owner_realtime",
+          from: "owner",
+          to: "owner",
+          label: "Realtime owner",
+          condition: "",
+          triggerType: "realtime",
+          triggerEvent: realtimeEvent.name,
+          set: { "states.owner.profile.live": "realtime" }
+        },
+        {
+          id: "owner_done",
+          from: "owner",
+          to: "survivor",
+          label: "Weiter",
+          condition: "",
+          triggerType: "button",
+          set: { "states.survivor.keep": true }
+        }
+      ]
+    }, "/state.html?room=contract-room");
+
+    await waitForRuntimeRealtimeJoin(page);
+    await receiveRuntimeRealtimeEvent(page, realtimeEvent, { caller: "+491234" });
+    await expect.poll(async () => (await runtimeContext(page)).states?.owner).toMatchObject({
+      profile: { caller: "+491234", live: "realtime" }
+    });
+
+    await appFrame(page).getByRole("button", { name: "Weiter" }).click();
+    await expect.poll(async () => (await runtimeContext(page)).states?.survivor?.keep).toBe(true);
+    await appFrame(page).locator("html").evaluate(() => {
+      window.__contractRuntimeBus = eval("context");
+    });
+
+    await page.locator('[data-id="owner"]').click();
+    await page.keyboard.press("Delete");
+    await expect(page.locator('[data-id="owner"]')).toHaveCount(0);
+    await expect.poll(async () => runtimeContext(page)).toMatchObject({
+      states: { survivor: { keep: true } }
+    });
+    await expect.poll(async () => Object.prototype.hasOwnProperty.call((await runtimeContext(page)).states || {}, "owner")).toBe(false);
+    expect((await runtimeContext(page)).states).not.toHaveProperty("owner");
+    expect(await appFrame(page).locator("html").evaluate(() => eval("context") === window.__contractRuntimeBus)).toBe(true);
+
+    await page.evaluate(() => eval("syncToApp(true)"));
+    await expect.poll(async () => (await runtimeContext(page)).states?.survivor?.keep).toBe(false);
+    expect(await appFrame(page).locator("html").evaluate(() => eval("context") === window.__contractRuntimeBus)).toBe(true);
+  });
+
   test("runtime orders placed and unplaced data wires with transition buttons through events @smoke", async ({ page }) => {
     await openWithModel(page, {
       version: 2,
@@ -1855,8 +2215,8 @@ test.describe("Core browser contracts", () => {
           y: 160,
           data: { catalog: { item: { badge: "Featured", title: "Ada Chair" } } },
           dataWires: [
-            { id: "wire_badge", sourcePath: "catalog.item.badge", role: "field", componentType: "text", label: "Badge" },
-            { id: "wire_title", sourcePath: "catalog.item.title", role: "title", componentType: "heading", label: "Title" }
+            { id: "wire_badge", sourcePath: "states.start.catalog.item.badge", role: "field", componentType: "text", label: "Badge" },
+            { id: "wire_title", sourcePath: "states.start.catalog.item.title", role: "title", componentType: "heading", label: "Title" }
           ],
           components: [
             { id: "manual_note", type: "note", text: "Manual note", url: "" },
@@ -1867,7 +2227,7 @@ test.describe("Core browser contracts", () => {
         { id: "done", title: "Done", body: "", x: 420, y: 160, components: [] }
       ],
       transitions: [
-        { id: "to_done", from: "start", to: "done", label: "Continue", condition: "", triggerType: "button", set: { visited: true } }
+        { id: "to_done", from: "start", to: "done", label: "Continue", condition: "", triggerType: "button", set: { "states.done.visited": true } }
       ]
     });
 
@@ -1906,10 +2266,10 @@ test.describe("Core browser contracts", () => {
               ]
             }
           },
-          repeat: { path: "catalog.items", as: "item", index: "i" },
+          repeat: { path: "states.products.catalog.items", as: "item", index: "i" },
           dataWires: [
-            { id: "wire_image", sourcePath: "catalog.items.images.0", scopePath: "catalog.items", itemPath: "images.0", role: "image", componentType: "image", label: "Image" },
-            { id: "wire_title", sourcePath: "catalog.items.title", scopePath: "catalog.items", itemPath: "title", role: "title", componentType: "heading", label: "Title" }
+            { id: "wire_image", sourcePath: "states.products.catalog.items.images.0", scopePath: "states.products.catalog.items", itemPath: "images.0", role: "image", componentType: "image", label: "Image" },
+            { id: "wire_title", sourcePath: "states.products.catalog.items.title", scopePath: "states.products.catalog.items", itemPath: "title", role: "title", componentType: "heading", label: "Title" }
           ],
           components: []
         }
@@ -2244,24 +2604,22 @@ test.describe("Core browser contracts", () => {
           y: 120,
           components: [{ id: "navbar", type: "daisy", variant: "navbar", dataPath: "states.navbar_shop_cart", dataRole: "widget", dataLabel: "Kopfleiste Shop/Warenkorb" }],
           data: {
-            "states.navbar_shop_cart": {
-              layout: "cart-profile",
-              brand: "Acme Store",
-              cartOpen: false,
-              profileOpen: false,
-              cartCount: 8,
-              cartLabel: "Items",
-              subtotal: "$248",
-              transitionId: "t_view_cart",
-              actionLabel: "View cart",
-              avatar: "https://img.daisyui.com/images/stock/photo-1534528741775-53994a69daeb.webp",
-              menuItems: [
-                { label: "Profile", transitionId: "t_profile" },
-                { label: "Settings", transitionId: "t_settings" },
-                { label: "Logout", transitionId: "t_logout" }
-              ],
-              badge: "New"
-            }
+            layout: "cart-profile",
+            brand: "Acme Store",
+            cartOpen: false,
+            profileOpen: false,
+            cartCount: 8,
+            cartLabel: "Items",
+            subtotal: "$248",
+            transitionId: "t_view_cart",
+            actionLabel: "View cart",
+            avatar: "https://img.daisyui.com/images/stock/photo-1534528741775-53994a69daeb.webp",
+            menuItems: [
+              { label: "Profile", transitionId: "t_profile" },
+              { label: "Settings", transitionId: "t_settings" },
+              { label: "Logout", transitionId: "t_logout" }
+            ],
+            badge: "New"
           }
         },
         { id: "view_cart", title: "View cart", body: "", components: [], data: {}, parentId: "start", x: 360, y: 120 },
@@ -2403,17 +2761,12 @@ test.describe("Core browser contracts", () => {
             body: "",
             components: [{ id: "c_start", type: "text", text: "Start", url: "" }],
             data: {
-              "states.start": {
-                keep: "ok",
-                drop: undefined,
-                nested: { keep: 1, drop: undefined }
-              },
-              "states.start.direct_drop": undefined
+              keep: "ok",
+              drop: undefined,
+              nested: { keep: 1, drop: undefined },
+              direct_drop: undefined
             },
-            dataTypes: {
-              "states.start": "object",
-              "states.start.drop": "text"
-            },
+            dataTypes: { keep: "text", nested: "object", drop: "text" },
             x: 100,
             y: 100
           },
@@ -2458,16 +2811,16 @@ test.describe("Core browser contracts", () => {
       const stored = JSON.parse(localStorage.getItem(`${key}.editor`) || localStorage.getItem(key) || "null");
       const exportedModel = definitionPayload().model;
       walk(model, "model");
-      walk(latestRuntimeContext, "runtime");
       walk(exportedModel, "definition.model");
       walk(stored, "storage");
       return { paths, exportedModel, stored };
     }, STORAGE_KEY);
 
     expect(snapshot.paths).toEqual([]);
+    expect(collectUndefinedPaths(await runtimeContext(page), "runtime")).toEqual([]);
     expect(collectUndefinedPaths(snapshot.exportedModel)).toEqual([]);
     expect(collectUndefinedPaths(snapshot.stored)).toEqual([]);
-    const startData = snapshot.exportedModel.states.find(state => state.id === "start").data["states.start"];
+    const startData = snapshot.exportedModel.states.find(state => state.id === "start").data;
     expect(startData).toEqual({ keep: "ok", nested: { keep: 1 } });
     expect(snapshot.exportedModel.transitions.find(transition => transition.id === "t_done").set).toEqual({ "states.start.finished": true });
   });

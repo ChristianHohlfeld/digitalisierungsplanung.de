@@ -83,16 +83,16 @@ npm run build:pwa-assets
 Gemeinsame Frontend-/Backend-Release-ID lokal um eins erhöhen:
 
 ```bash
-npm run build:sw-version
+npm run build:release-version
 ```
 
 CI führt denselben Schritt erst nach allen Verträgen aus. Die Datei enthält
 danach beispielsweise `release-59`; `/version` und `/healthz` melden exakt
 dieselbe ID für den Backend-Prozess.
 
-Der Service Worker hält bewusst keinen App- oder Asset-Cache. Er entfernt
-vorhandene Cache-Storage-Bestände und lädt gleich-originige Ressourcen mit
-Cache-Buster und `no-store` aus dem Netz.
+Die App registriert keinen Service Worker. `disable-sw.js` und der
+`sw.js`-Tombstone melden noch vorhandene alte Worker ab und löschen ausschließlich
+alte Cache-Storage-Bestände; es gibt keinen Fetch-Interceptor und keinen Cache.
 
 ## Echtzeit
 
@@ -231,7 +231,7 @@ npm run test:state-explorer
 npm run test:state-render
 ```
 
-`npm test` führt die Server-Tests und die wichtigsten Playwright-Abläufe aus. `npm run test:full` führt den vollständigen Bestand lokal in einem Lauf aus. GitHub Actions verteilt dieselben 328 Browserfälle vollständig auf vier parallele Shards, führt die 18 Serverfälle einmal aus und erhöht erst nach dem Gesamterfolg aller 346 Fälle die gemeinsame Release-Sequenz in `sw-version.js`.
+`npm test` führt die Server-Tests und die wichtigsten Playwright-Abläufe aus. `npm run test:full` führt den vollständigen Bestand lokal aus. GitHub Actions verteilt dieselben Browserfälle vollständig auf vier parallele Shards, führt die Serverfälle einmal aus und erhöht erst nach dem Gesamterfolg die gemeinsame Release-Sequenz in `release-version.js`.
 
 ## Ordner
 
@@ -240,9 +240,9 @@ npm run test:state-render
 |-- index.html
 |-- state.html
 |-- manifest.webmanifest
-|-- register-sw.js
+|-- disable-sw.js
 |-- sw.js
-|-- sw-version.js
+|-- release-version.js
 |-- package.json
 |-- playwright.config.js
 |-- statereadme.md
@@ -261,8 +261,8 @@ npm run test:state-render
 
 1. Änderungen auf `main` pushen.
 2. GitHub Actions führt alle Server- und Browserfälle in vier vollständigen Browser-Shards aus.
-3. Nach grünem Lauf wird die gemeinsame `release-N`-ID in `sw-version.js` inkrementiert.
-4. GitHub Pages veröffentlicht die statische Seite.
+3. Nach grünem Lauf wird die gemeinsame `release-N`-ID in `release-version.js` inkrementiert.
+4. Die kontrollierte statische Nginx-Grenze liefert HTML, Skripte und Assets mit `Cache-Control: no-store` aus.
 5. Der Droplet-Timer erkennt die neue ID, synchronisiert den Remote-Stand mit Force, deployt und verifiziert dieselbe ID über die API.
 
 Anspruch: ein schlanker Kern, ein Modell, ein Datenbus, eine ausführbare Oberfläche.
