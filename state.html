@@ -3635,6 +3635,10 @@
       display: none;
     }
 
+    .mobile-command-bar {
+      display: none;
+    }
+
     .mobile-split-resizer {
       display: none;
     }
@@ -4113,6 +4117,73 @@
         box-shadow: 0 0 0 3px rgba(56,189,248,.16);
       }
 
+      .mobile-command-bar {
+        display: grid;
+        flex: 0 0 auto;
+        grid-template-columns: auto minmax(0, 1fr);
+        align-items: center;
+        gap: 6px;
+        width: 100%;
+        min-height: 46px;
+        padding: 4px max(6px, env(safe-area-inset-right)) 4px max(6px, env(safe-area-inset-left));
+        border-top: 1px solid #18314d;
+        background: rgba(5,11,20,.96);
+        position: relative;
+        z-index: 81;
+      }
+
+      .mobile-command-history,
+      .mobile-command-selection {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        min-width: 0;
+      }
+
+      .mobile-command-selection {
+        justify-content: flex-end;
+      }
+
+      .mobile-command-bar button {
+        display: grid;
+        place-items: center;
+        width: 36px;
+        min-width: 36px;
+        height: 36px;
+        min-height: 36px;
+        padding: 0;
+        border-radius: 8px;
+      }
+
+      .mobile-command-bar button:disabled {
+        opacity: .42;
+        filter: saturate(.8);
+      }
+
+      .mobile-command-bar button.danger:not(:disabled) {
+        border-color: rgba(251,113,133,.55);
+        color: #fecdd3;
+        background: rgba(127,29,29,.35);
+      }
+
+      .mobile-action-icon {
+        width: 18px;
+        height: 18px;
+      }
+
+      .mobile-selection-count {
+        min-width: 0;
+        max-width: 112px;
+        padding: 0 6px;
+        color: #dbeafe;
+        font-size: 11px;
+        font-weight: 850;
+        text-align: right;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
       .node {
         border-radius: 12px;
       }
@@ -4352,56 +4423,15 @@
         gap: 10px;
       }
 
-      .selection-actions {
-        left: max(10px, env(safe-area-inset-left));
-        right: max(10px, env(safe-area-inset-right));
-        bottom: calc(max(12px, env(safe-area-inset-bottom)) + 58px) !important;
-        justify-content: center;
-        transform: none;
-      }
-
+      .selection-actions,
       .canvas-history-actions {
-        top: max(10px, env(safe-area-inset-top));
-        right: max(10px, env(safe-area-inset-right));
-        bottom: auto !important;
-        gap: 4px;
-        padding: 4px;
-        border-radius: 8px;
-      }
-
-      .workspace.mobile-canvas-active .canvas-history-actions {
-        display: flex;
-      }
-
-      .workspace.mobile-canvas-active .canvas-history-actions button {
-        width: 44px;
-        min-width: 44px;
-        height: 44px;
-        min-height: 44px;
-        padding: 0;
+        display: none !important;
       }
 
       .process-recording-control { display: none !important; }
 
-      .workspace.mobile-canvas-active .history-action-icon {
-        width: 22px;
-        height: 22px;
-      }
-
-      .workspace.mobile-canvas-active .selection-actions {
-        bottom: max(10px, env(safe-area-inset-bottom)) !important;
-      }
-
-      .workspace.mobile-presets-active .selection-actions.visible,
-      .workspace.mobile-edit-active .selection-actions.visible,
-      .workspace.mobile-app-active .selection-actions.visible {
-        display: none;
-      }
-
-      .workspace.mobile-presets-active .canvas-history-actions,
-      .workspace.mobile-edit-active .canvas-history-actions,
-      .workspace.mobile-app-active .canvas-history-actions {
-        display: none;
+      .mobile-selection-count {
+        max-width: min(112px, 28vw);
       }
 
       .modal-backdrop {
@@ -5481,6 +5511,28 @@
       </div>
       <iframe id="appFrame" title="Generierte App"></iframe>
     </aside>
+  </div>
+  <div id="mobileCommandBar" class="mobile-command-bar" aria-label="Mobile Aktionen">
+    <div class="mobile-command-history" aria-label="Arbeitsflächen-Verlauf">
+      <button id="btnMobileActionUndo" type="button" title="Rückgängig" aria-label="Rückgängig" disabled="">
+        <svg class="mobile-action-icon" data-lucide="undo-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"></path><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5A5.5 5.5 0 0 1 14.5 20H11"></path></svg>
+      </button>
+      <button id="btnMobileActionRedo" type="button" title="Wiederholen" aria-label="Wiederholen" disabled="">
+        <svg class="mobile-action-icon" data-lucide="redo-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5"></path><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5 5.5 5.5 0 0 0 9.5 20H13"></path></svg>
+      </button>
+    </div>
+    <div class="mobile-command-selection" aria-label="Auswahlaktionen">
+      <span id="mobileSelectionCount" class="mobile-selection-count">Keine Auswahl</span>
+      <button id="btnMobileActionCopy" type="button" title="Kopieren" aria-label="Kopieren" disabled="">
+        <svg class="mobile-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>
+      </button>
+      <button id="btnMobileActionCollapse" type="button" title="Gruppieren" aria-label="Gruppieren" disabled="">
+        <svg class="mobile-action-icon mobile-action-group-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect></svg>
+      </button>
+      <button id="btnMobileActionDelete" type="button" class="danger" title="Löschen" aria-label="Löschen" disabled="">
+        <svg class="mobile-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v5"></path><path d="M14 11v5"></path></svg>
+      </button>
+    </div>
   </div>
   <nav id="mobileTabs" class="mobile-tabs" aria-label="Mobile Arbeitsansichten">
     <button type="button" data-mobile-view="canvas" class="active" aria-pressed="true"><span class="mobile-tab-icon" aria-hidden="true"></span><span>Canvas</span></button>
@@ -8961,6 +9013,13 @@
     const btnSelectionCopy = document.getElementById("btnSelectionCopy");
     const btnSelectionCollapse = document.getElementById("btnSelectionCollapse");
     const btnSelectionDelete = document.getElementById("btnSelectionDelete");
+    const mobileCommandBarEl = document.getElementById("mobileCommandBar");
+    const mobileSelectionCountEl = document.getElementById("mobileSelectionCount");
+    const btnMobileActionUndo = document.getElementById("btnMobileActionUndo");
+    const btnMobileActionRedo = document.getElementById("btnMobileActionRedo");
+    const btnMobileActionCopy = document.getElementById("btnMobileActionCopy");
+    const btnMobileActionCollapse = document.getElementById("btnMobileActionCollapse");
+    const btnMobileActionDelete = document.getElementById("btnMobileActionDelete");
     const frameEl = document.getElementById("appFrame");
     const presetComposerEl = document.getElementById("presetComposer");
     const previewTitleTextEl = document.querySelector(".preview-title-text");
@@ -10690,6 +10749,8 @@
       const canRedo = !processRecording && Boolean(redoStack.length);
       if (btnCanvasUndo) btnCanvasUndo.disabled = !canUndo;
       if (btnCanvasRedo) btnCanvasRedo.disabled = !canRedo;
+      if (btnMobileActionUndo) btnMobileActionUndo.disabled = !canUndo;
+      if (btnMobileActionRedo) btnMobileActionRedo.disabled = !canRedo;
     }
 
     function historyTextEditTarget(target) {
@@ -14697,18 +14758,27 @@
       const edges = selectedEdgeIdList();
       const visible = ids.length > 0 || edges.length > 0;
       const compositeState = selectedCompositeStateForDegroup();
+      const collapseLabel = compositeState ? "Gruppe auflösen" : "Gruppieren";
+      const parts = [];
+      const realStateCount = selectedRealStateIdList().length;
+      if (realStateCount) parts.push(realStateCount === 1 ? "1 Zustand" : `${realStateCount} Zustände`);
+      if (edges.length) parts.push(edges.length === 1 ? "1 Übergang" : `${edges.length} Übergänge`);
+      const summary = visible ? parts.join(" + ") : "Keine Auswahl";
       selectionActionsEl.hidden = !visible;
       selectionActionsEl.classList.toggle("visible", visible);
       btnSelectionCopy.disabled = !(ids.length || edges.length);
       btnSelectionCollapse.disabled = !ids.length && !edges.length;
-      btnSelectionCollapse.textContent = compositeState ? "Gruppe auflösen" : "Gruppieren";
-      if (visible) {
-        const parts = [];
-        const realStateCount = selectedRealStateIdList().length;
-        if (realStateCount) parts.push(realStateCount === 1 ? "1 Zustand" : `${realStateCount} Zustände`);
-        if (edges.length) parts.push(edges.length === 1 ? "1 Übergang" : `${edges.length} Übergänge`);
-        selectionCountEl.textContent = parts.join(" + ");
+      btnSelectionCollapse.textContent = collapseLabel;
+      btnSelectionDelete.disabled = !visible;
+      if (visible) selectionCountEl.textContent = summary;
+      if (mobileSelectionCountEl) mobileSelectionCountEl.textContent = summary;
+      if (btnMobileActionCopy) btnMobileActionCopy.disabled = !visible;
+      if (btnMobileActionCollapse) {
+        btnMobileActionCollapse.disabled = !visible;
+        btnMobileActionCollapse.title = collapseLabel;
+        btnMobileActionCollapse.setAttribute("aria-label", collapseLabel);
       }
+      if (btnMobileActionDelete) btnMobileActionDelete.disabled = !visible;
     }
 
     function clipboardSelectionPayload() {
@@ -26983,11 +27053,16 @@
     fileLoadEl.onchange = () => loadBlueprintFile(fileLoadEl.files?.[0]);
     btnCanvasUndo.onclick = undoModel;
     btnCanvasRedo.onclick = redoModel;
+    btnMobileActionUndo.onclick = undoModel;
+    btnMobileActionRedo.onclick = redoModel;
     btnProcessRecord.onclick = () => processRecording ? void stopProcessRecording() : void startProcessRecording();
     canvasHistoryActionsEl.addEventListener("pointerdown", evt => evt.stopPropagation());
     btnSelectionCopy.onclick = copySelectedNodes;
     btnSelectionCollapse.onclick = groupOrDegroupSelected;
     btnSelectionDelete.onclick = deleteSelectedItems;
+    btnMobileActionCopy.onclick = copySelectedNodes;
+    btnMobileActionCollapse.onclick = groupOrDegroupSelected;
+    btnMobileActionDelete.onclick = deleteSelectedItems;
     const rememberSelectionActionTarget = () => {
       selectionActionDegroupTargetId = manualDegroupTargetId || selectedCompositeStateForDegroup()?.id || "";
       cancelPendingNodeRuntimeStart();
@@ -26995,6 +27070,8 @@
     };
     selectionActionsEl.addEventListener("pointerdown", rememberSelectionActionTarget, { capture: true });
     selectionActionsEl.addEventListener("focusin", rememberSelectionActionTarget, { capture: true });
+    mobileCommandBarEl.addEventListener("pointerdown", rememberSelectionActionTarget, { capture: true });
+    mobileCommandBarEl.addEventListener("focusin", rememberSelectionActionTarget, { capture: true });
     btnToggleInspector.onclick = () => {
       inspectorCollapsed = !inspectorCollapsed;
       inspectorCollapsedByUser = inspectorCollapsed;

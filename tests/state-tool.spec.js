@@ -5734,7 +5734,7 @@ test.describe("State Blueprint tool", () => {
     await expect(redo).toBeDisabled();
   });
 
-  test("keeps correctly oriented mobile history icons on canvas without crowding bottom navigation @smoke", async ({ browser }) => {
+  test("keeps compact mobile actions available across workspace tabs without covering the canvas @smoke", async ({ browser }) => {
     const context = await browser.newContext({
       baseURL: "http://localhost:8124",
       viewport: { width: 390, height: 820 },
@@ -5744,14 +5744,16 @@ test.describe("State Blueprint tool", () => {
     const page = await context.newPage();
     try {
       await openTool(page);
-      await expect(page.locator("#canvasHistoryActions")).toBeVisible();
-      await assertVisibleInViewport(page, "#canvasHistoryActions");
+      await expect(page.locator("#mobileCommandBar")).toBeVisible();
+      await assertVisibleInViewport(page, "#mobileCommandBar");
+      await expect(page.locator("#canvasHistoryActions")).toBeHidden();
+      await expect(page.locator("#selectionActions")).toBeHidden();
       await expect(page.locator("#btnUndo, #btnRedo, #btnMobileUndo, #btnMobileRedo")).toHaveCount(0);
-      await expect(page.locator('#btnCanvasUndo svg[data-lucide="undo-2"]')).toHaveCount(1);
-      await expect(page.locator('#btnCanvasRedo svg[data-lucide="redo-2"]')).toHaveCount(1);
+      await expect(page.locator('#btnMobileActionUndo svg[data-lucide="undo-2"]')).toHaveCount(1);
+      await expect(page.locator('#btnMobileActionRedo svg[data-lucide="redo-2"]')).toHaveCount(1);
       await expect.poll(() => page.evaluate(() => {
-        const undo = document.querySelector('#btnCanvasUndo svg[data-lucide="undo-2"]');
-        const redo = document.querySelector('#btnCanvasRedo svg[data-lucide="redo-2"]');
+        const undo = document.querySelector('#btnMobileActionUndo svg[data-lucide="undo-2"]');
+        const redo = document.querySelector('#btnMobileActionRedo svg[data-lucide="redo-2"]');
         return {
           undoArrow: undo?.querySelector("path")?.getAttribute("d") || "",
           redoArrow: redo?.querySelector("path")?.getAttribute("d") || "",
@@ -5766,23 +5768,31 @@ test.describe("State Blueprint tool", () => {
       });
       await expect(page.locator("#mobileTabs button:visible")).toHaveCount(4);
       await page.locator('[data-id="login"]').tap();
-      await expect(page.locator("#selectionActions")).toBeVisible();
-      await assertVisibleInViewport(page, "#selectionActions");
+      await expect(page.locator("#mobileSelectionCount")).toHaveText("1 Zustand");
+      await expect(page.locator("#btnMobileActionCopy")).toBeEnabled();
+      await expect(page.locator("#btnMobileActionCollapse")).toBeEnabled();
+      await expect(page.locator("#btnMobileActionDelete")).toBeEnabled();
       await expect.poll(async () => page.evaluate(() => {
         const map = document.querySelector("#map")?.getBoundingClientRect();
-        const selection = document.querySelector("#selectionActions")?.getBoundingClientRect();
+        const command = document.querySelector("#mobileCommandBar")?.getBoundingClientRect();
         const mobileTabs = document.querySelector("#mobileTabs")?.getBoundingClientRect();
-        const history = document.querySelector("#canvasHistoryActions")?.getBoundingClientRect();
-        if (!map || !selection || !mobileTabs || !history) {
-          return { inCanvas: false, nearCanvasBottom: false, aboveTabs: false, separateFromHistory: false };
+        if (!map || !command || !mobileTabs) {
+          return { outsideCanvas: false, directlyAboveTabs: false, insideViewport: false };
         }
         return {
-          inCanvas: selection.top >= map.top && selection.bottom <= map.bottom + 1,
-          nearCanvasBottom: map.bottom - selection.bottom <= 28,
-          aboveTabs: selection.bottom <= mobileTabs.top,
-          separateFromHistory: selection.bottom <= history.top || selection.top >= history.bottom
+          outsideCanvas: command.top >= map.bottom - 1,
+          directlyAboveTabs: Math.abs(command.bottom - mobileTabs.top) <= 1,
+          insideViewport: command.left >= 0 && command.right <= window.innerWidth + 1
         };
-      })).toEqual({ inCanvas: true, nearCanvasBottom: true, aboveTabs: true, separateFromHistory: true });
+      })).toEqual({ outsideCanvas: true, directlyAboveTabs: true, insideViewport: true });
+
+      for (const mobileView of ["presets", "edit", "app", "canvas"]) {
+        await page.locator(`[data-mobile-view="${mobileView}"]`).tap();
+        await expect(page.locator("#mobileCommandBar")).toBeVisible();
+        await expect(page.locator("#mobileSelectionCount")).toHaveText("1 Zustand");
+        await expect(page.locator("#btnMobileActionCopy")).toBeEnabled();
+        await expect(page.locator("#btnMobileActionDelete")).toBeEnabled();
+      }
 
       await page.evaluate(() => {
         const state = model.states.find(item => item.id === "login");
@@ -5791,11 +5801,11 @@ test.describe("State Blueprint tool", () => {
         draw();
       });
       await expect(page.locator('[data-id="login"] .title')).toHaveText("Sign in");
-      await expect(page.locator("#btnCanvasUndo")).toBeEnabled();
+      await expect(page.locator("#btnMobileActionUndo")).toBeEnabled();
 
-      await page.locator("#btnCanvasUndo").tap();
+      await page.locator("#btnMobileActionUndo").tap();
       await expect(page.locator('[data-id="login"] .title')).toHaveText("Login");
-      await expect(page.locator("#btnCanvasRedo")).toBeEnabled();
+      await expect(page.locator("#btnMobileActionRedo")).toBeEnabled();
     } finally {
       await context.close();
     }
@@ -10260,7 +10270,8 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator(".preview")).toBeHidden();
     await expect(page.locator("#previewResizeHandle")).toBeHidden();
     await expect(page.locator("#mobileSplitResizeHandle")).toBeHidden();
-    await expect(page.locator("#canvasHistoryActions")).toBeVisible();
+    await expect(page.locator("#mobileCommandBar")).toBeVisible();
+    await expect(page.locator("#canvasHistoryActions")).toBeHidden();
     await expect.poll(async () => Math.round((await page.locator('[data-id="auth_start"]').boundingBox())?.width || 0)).toBeGreaterThanOrEqual(140);
     await expect(page.locator("#stateInspectorBody")).not.toContainText("Click a state");
     await expect(page.locator("#stateInspectorBody")).not.toContainText("Drag a state");
@@ -10271,7 +10282,10 @@ test.describe("State Blueprint tool", () => {
       draw();
     });
     const canvasCamera = await page.evaluate(() => ({ ...camera }));
-    await expect(page.locator("#selectionActions")).toBeVisible();
+    await expect(page.locator("#selectionActions")).toBeHidden();
+    await expect(page.locator("#mobileSelectionCount")).toHaveText("1 Zustand");
+    await expect(page.locator("#btnMobileActionCopy")).toBeEnabled();
+    await expect(page.locator("#btnMobileActionDelete")).toBeEnabled();
     await page.evaluate(() => {
       document.getElementById("stateExplorer")?.classList.add("collapsed");
     });
@@ -10312,6 +10326,7 @@ test.describe("State Blueprint tool", () => {
     })).toBeGreaterThanOrEqual(2);
     await expect(page.locator("#selectionActions")).toBeHidden();
     await expect(page.locator("#canvasHistoryActions")).toBeHidden();
+    await expect(page.locator("#mobileCommandBar")).toBeVisible();
     await expect(page.locator("#stateInspector")).toBeHidden();
     await expect(page.locator(".preview")).toBeHidden();
     await expect(page.locator('[data-mobile-view="presets"]')).toHaveClass(/active/);
@@ -10375,6 +10390,7 @@ test.describe("State Blueprint tool", () => {
     await expectCanvasBesidePanel("#stateInspector");
     await expect.poll(async () => (await savedUiState(page)).mobileCanvasContextHeight).toBeGreaterThan(260);
     await expect(page.locator("#selectionActions")).toBeHidden();
+    await expect(page.locator("#mobileCommandBar")).toBeVisible();
     await expect(page.locator("#map")).toBeVisible();
     await expect(page.locator("#mapScene")).toBeVisible();
     await expect(page.locator(".preview")).toBeHidden();
@@ -10412,6 +10428,7 @@ test.describe("State Blueprint tool", () => {
       monitorReadOnly: true
     });
     await expect(page.locator("#selectionActions")).toBeHidden();
+    await expect(page.locator("#mobileCommandBar")).toBeVisible();
     await expect(page.locator("#stateInspector")).toBeHidden();
     await expect(page.locator('[data-mobile-view="app"]')).toHaveClass(/active/);
 
