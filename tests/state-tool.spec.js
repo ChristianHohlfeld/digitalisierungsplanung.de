@@ -623,10 +623,27 @@ async function emptyCanvasPoint(page) {
         height: box.height
       };
     }).filter(box => box.width && box.height);
+    const blockedGeometryBoxes = [...document.querySelectorAll(".edge, .edge-arrow, .edge-label, .edge-tip-hit, .edge-pin, .hit, .svg-port")].map(element => {
+      const box = element.getBoundingClientRect();
+      return {
+        left: box.left,
+        right: box.right,
+        top: box.top,
+        bottom: box.bottom,
+        width: box.width,
+        height: box.height
+      };
+    }).filter(box => box.width && box.height);
     const referenceBox = nodeBoxes.find(box => box.width > 90 && box.height > 50);
     const candidateWidth = referenceBox?.width || 168;
     const candidateHeight = referenceBox?.height || 96;
     const margin = 24;
+    const overlapsBoxes = (x, y, boxes, padding) => boxes.some(box =>
+      x >= box.left - padding &&
+      x <= box.right + padding &&
+      y >= box.top - padding &&
+      y <= box.bottom + padding
+    );
     const overlapsExistingNode = (x, y) => {
       const candidate = {
         left: x - candidateWidth / 2 - margin,
@@ -648,6 +665,7 @@ async function emptyCanvasPoint(page) {
           const el = document.elementFromPoint(x, y);
           if (!el || !map.contains(el)) continue;
           if (el.closest(blockedCanvasTarget)) continue;
+          if (overlapsBoxes(x, y, blockedGeometryBoxes, 14)) continue;
           try {
             if (typeof isEmptyCanvasTarget === "function" && !isEmptyCanvasTarget(el)) continue;
           } catch (_) {}
