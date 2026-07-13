@@ -317,7 +317,7 @@ function componentEditor(page, title) {
   const resolvedTitle = localizedComponentTitle(title);
   return page.locator(".component-editor").filter({
     has: page.locator(".component-editor-head span").filter({ hasText: new RegExp(`^${escapeRegExp(resolvedTitle)}$`) })
-  });
+  }).last();
 }
 
 async function expandComponentEditor(page, title) {
@@ -440,6 +440,16 @@ const CORE_PRESET_ALIASES = {
   Divider: "Abschnittstrenner"
 };
 
+const CORE_PRESET_TYPES = {
+  Heading: "heading",
+  Text: "text",
+  Image: "image",
+  List: "list",
+  Link: "link",
+  Note: "note",
+  Divider: "divider"
+};
+
 function cssAttributeValue(value) {
   return String(value).replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
 }
@@ -452,12 +462,37 @@ function nodeByTitle(page, title) {
 
 async function addComponentState(page, title, options = {}) {
   const presetTitle = CORE_PRESET_ALIASES[title] || PRESET_TITLE_ALIASES[title] || title;
-  const beforeIds = new Set((await savedModel(page)).states.map(state => state.id));
+  const beforeModel = await savedModel(page);
+  const beforeIds = new Set(beforeModel.states.map(state => state.id));
+  const contentOwnerId = CORE_PRESET_TYPES[title]
+    ? await page.evaluate(() => currentLayerId || "")
+    : "";
+  const beforeComponentIds = new Set(
+    beforeModel.states.find(state => state.id === contentOwnerId)?.components?.map(component => component.id) || []
+  );
   await page.evaluate(templateTitle => {
     const template = builtinStateTemplates().find(item => item.title === templateTitle);
     if (!template) throw new Error("Missing built-in template: " + templateTitle);
     addTemplateToCurrentLayer(template);
   }, presetTitle);
+  if (contentOwnerId) {
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      const owner = model.states.find(state => state.id === contentOwnerId);
+      const component = owner?.components?.find(item =>
+        !beforeComponentIds.has(item.id) && item.type === CORE_PRESET_TYPES[title]
+      );
+      return {
+        componentAdded: Boolean(component?.id),
+        stateCount: model.states.length
+      };
+    }).toEqual({
+      componentAdded: true,
+      stateCount: beforeModel.states.length
+    });
+    if (options.expandEditor !== false) await expandComponentEditorIfPresent(page, title);
+    return contentOwnerId;
+  }
   let createdId = "";
   await expect.poll(async () => {
     const model = await savedModel(page);
@@ -478,6 +513,33 @@ async function addComponentState(page, title, options = {}) {
     await expandComponentEditorIfPresent(page, title);
   }
   return createdId;
+}
+
+async function addContentPresetToState(page, stateId, title) {
+  const presetTitle = CORE_PRESET_ALIASES[title] || title;
+  const componentType = CORE_PRESET_TYPES[title];
+  if (!componentType) throw new Error("Not a simple content preset: " + title);
+  const beforeIds = new Set(
+    (await savedModel(page)).states.find(state => state.id === stateId)?.components?.map(component => component.id) || []
+  );
+  await page.evaluate(({ stateId, presetTitle }) => {
+    const template = builtinStateTemplates().find(item => item.title === presetTitle);
+    if (!template) throw new Error("Missing built-in template: " + presetTitle);
+    addTemplateInside(template.id, stateId);
+  }, { stateId, presetTitle });
+  let componentId = "";
+  await expect.poll(async () => {
+    const state = (await savedModel(page)).states.find(item => item.id === stateId);
+    const component = state?.components?.find(item => !beforeIds.has(item.id) && item.type === componentType);
+    componentId = component?.id || "";
+    return Boolean(componentId);
+  }).toBe(true);
+  await page.evaluate(id => {
+    const state = byId(id);
+    if (state) showNodeInspector(state, { focus: false });
+  }, stateId);
+  await expandComponentEditorIfPresent(page, title);
+  return componentId;
 }
 
 async function worldTransform(page) {
@@ -680,6 +742,30 @@ async function clickTransitionById(page, transitionId) {
   }, transitionId);
   expect(point, `transition ${transitionId} has no unobstructed first-click point`).not.toBeNull();
   await page.mouse.click(point.x, point.y);
+}
+
+async function transitionLinePoint(page, transitionId) {
+  const escaped = transitionId.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  const hit = page.locator(`.hit[data-edge-id="${escaped}"]`);
+  await expect(hit).toHaveCount(1);
+  const point = await hit.evaluate((path, id) => {
+    if (typeof path.getTotalLength !== "function") return null;
+    const matrix = path.getScreenCTM();
+    if (!matrix) return null;
+    const total = path.getTotalLength();
+    for (let step = 1; step < 24; step += 1) {
+      const local = path.getPointAtLength(total * step / 24);
+      const screen = new DOMPoint(local.x, local.y).matrixTransform(matrix);
+      const target = document.elementFromPoint(screen.x, screen.y)?.closest?.("[data-edge-key]");
+      if (!target || target.getAttribute("data-edge-id") !== id) continue;
+      if (target.classList.contains("hit") || target.classList.contains("edge")) {
+        return { x: screen.x, y: screen.y };
+      }
+    }
+    return null;
+  }, transitionId);
+  expect(point, `transition ${transitionId} has no directly hittable line-body point`).not.toBeNull();
+  return point;
 }
 
 async function gridGeometryReport(page) {
@@ -968,8 +1054,8 @@ test.describe("State Blueprint tool", () => {
     await componentEditor(page, "Link").locator("input").nth(1).fill("https://example.com/docs");
     await expect.poll(async () => {
       const model = await savedModel(page);
-      const linkState = model.states.find(state => state.parentId === "start" && state.title === "Link");
-      return linkState?.components.find(component => component.type === "link")?.url;
+      const start = model.states.find(state => state.id === "start");
+      return start?.components.find(component => component.type === "link")?.url;
     }).toBe("https://example.com/docs");
     await addComponentState(page, "Note");
     await componentEditor(page, "Note").locator("textarea").fill("Stored from state.data: {{states.start.userName}}");
@@ -1017,7 +1103,7 @@ test.describe("State Blueprint tool", () => {
     await componentEditor(page, "Note").locator("textarea").fill(readyNoteTemplate);
     await expect.poll(async () => {
       const model = await savedModel(page);
-      return model.states.find(state => state.parentId === createdStateId && state.title === "Note")?.components[0]?.text || "";
+      return model.states.find(state => state.id === createdStateId)?.components.find(component => component.type === "note")?.text || "";
     }).toBe(readyNoteTemplate);
     await page.keyboard.press("Alt+ArrowLeft");
 
@@ -1052,8 +1138,8 @@ test.describe("State Blueprint tool", () => {
     const transition = model.transitions.find(item => item.from === "start" && item.to === createdStateId);
     expect(start.data.userName).toBe("Ada");
     expect(start.data.profile.tier).toBe("starter");
-    expect(model.states.filter(state => state.parentId === "start").map(state => state.components[0]?.type)).toEqual(["heading", "text", "list", "link", "note"]);
-    expect(model.states.find(state => state.parentId === done.id && state.title === "Note").components[0].text).toBe(readyNoteTemplate);
+    expect(start.components.map(component => component.type)).toEqual(["heading", "text", "list", "link", "note"]);
+    expect(done.components.find(component => component.type === "note").text).toBe(readyNoteTemplate);
     expect(transition.label).toBe("Submit");
     expect(transition.condition).toBe(submitCondition);
     expect(transition.set).toEqual({ "states.start.userName": "Grace", "states.start.role": "member" });
@@ -1444,7 +1530,7 @@ test.describe("State Blueprint tool", () => {
     }).toBe("from-preset-template");
   });
 
-  test("child states render as closed flow steps unless explicitly marked as parent components @smoke", async ({ page }) => {
+  test("child states are closed flow steps and never render together with their parent @smoke", async ({ page }) => {
     const model = {
       version: 2,
       name: "Closed Child Render Contract",
@@ -1464,7 +1550,6 @@ test.describe("State Blueprint tool", () => {
           parentId: "shell",
           title: "Inline component",
           body: "",
-          renderMode: "component",
           x: 120,
           y: 120,
           data: { inlineOnly: "inline-default" },
@@ -1496,9 +1581,10 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator('[data-id="shell"]')).toBeVisible();
     await expect(app.locator("#statePill")).toHaveText("shell");
     await expect(app.getByText("Parent shell shell-default")).toBeVisible();
-    await expect(app.getByText("Inline block inline-default")).toBeVisible();
+    await expect(app.getByText("Inline block inline-default")).toHaveCount(0);
     await expect(app.getByText("Child step body child-default")).toHaveCount(0);
-    await expect(app.getByRole("button", { name: "Child step" })).toBeVisible();
+    await expect(app.getByRole("button", { name: "Inline component" })).toBeVisible();
+    await expect(app.getByRole("button", { name: "Child step" })).toHaveCount(0);
     await expect.poll(async () => {
       const context = await runtimeContext(page);
       return {
@@ -1508,16 +1594,16 @@ test.describe("State Blueprint tool", () => {
       };
     }).toEqual({
       shellOnly: "shell-default",
-      inlineOnly: "inline-default",
+      inlineOnly: undefined,
       childOnly: undefined
     });
 
-    await app.getByRole("button", { name: "Child step" }).click();
-    await expect(app.locator("#statePill")).toHaveText("child_step");
-    await expect(app.getByText("Child step body child-default")).toBeVisible();
+    await app.getByRole("button", { name: "Inline component" }).click();
+    await expect(app.locator("#statePill")).toHaveText("inline_component");
+    await expect(app.getByText("Inline block inline-default")).toBeVisible();
     await expect(app.getByText("Parent shell shell-default")).toHaveCount(0);
-    await expect(app.getByText("Inline block inline-default")).toHaveCount(0);
-    await expect.poll(async () => (await runtimeContext(page)).states?.child_step?.childOnly).toBe("child-default");
+    await expect(app.getByText("Child step body child-default")).toHaveCount(0);
+    await expect.poll(async () => (await runtimeContext(page)).states?.inline_component?.inlineOnly).toBe("inline-default");
   });
 
   test("transition bus key cards set change triggers and filters without mutating subscriptions @smoke", async ({ page }) => {
@@ -2023,6 +2109,49 @@ test.describe("State Blueprint tool", () => {
       initial: "site_home",
       loginHeroTransitionId: "site_login_submit"
     });
+  });
+
+  test("opens the demo Anfrage auto parent as its exclusive child on every real click @smoke", async ({ page }) => {
+    await page.addInitScript(key => {
+      if (sessionStorage.getItem("demo-parent-test-ready")) return;
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      sessionStorage.setItem("demo-parent-test-ready", "1");
+    }, STORAGE_KEY);
+    await page.goto("/state.html?demo=zustand");
+    const app = appFrame(page);
+    const parent = page.locator('[data-id="site_checkout_flow"]');
+    const expectExclusiveChild = async () => {
+      await expect(app.locator("#statePill")).toHaveText("site_checkout");
+      await expect.poll(() => page.evaluate(() => ({
+        layerId: currentLayerId,
+        selectedNodes: selected?.nodes || [],
+        runtimeStateId: hostRuntimeStateView()
+      }))).toEqual({
+        layerId: "site_checkout_flow",
+        selectedNodes: ["site_checkout"],
+        runtimeStateId: "site_checkout"
+      });
+      await expect(page.locator('[data-id="site_checkout"]')).toHaveClass(/selected/);
+      await expect(page.locator("#pTitle")).toHaveValue("Anfrage");
+      await expect(app.getByRole("heading", { name: "Anfrage", exact: true })).toHaveCount(1);
+      await expect(app.locator(".navbar")).toHaveCount(1);
+    };
+
+    await parent.click();
+    await expectExclusiveChild();
+
+    await page.locator("#layerBack").click();
+    await parent.click();
+    await expectExclusiveChild();
+
+    await page.locator("#layerBack").click();
+    await page.reload();
+    if (await page.locator("#layerBack").isVisible()) await page.locator("#layerBack").click();
+    await expect(parent).toBeVisible();
+    await parent.click();
+    await expectExclusiveChild();
   });
 
   test("asks before replacing stored work from the demo entry URL @smoke", async ({ page }) => {
@@ -2592,7 +2721,6 @@ test.describe("State Blueprint tool", () => {
             {
               id: "start",
               title: "Start",
-              renderMode: "components",
               components: [],
               data: {},
               dataTypes: {},
@@ -2657,7 +2785,7 @@ test.describe("State Blueprint tool", () => {
     }).toEqual({ hasChild: false, linkedToChild: false, currentLayer: 0 });
   });
 
-  test("projects parent wiring through child states in the opened state canvas @smoke", async ({ page }) => {
+  test("shows one canonical boundary route per side despite multiple parent wiring @smoke", async ({ page }) => {
     await openTool(page);
 
     const wiringModel = await savedModel(page);
@@ -2670,16 +2798,20 @@ test.describe("State Blueprint tool", () => {
 
     await openStateLayer(page, "login");
     const childId = await addChildByDoubleClick(page, "login");
+    const boundaryInputId = "boundary-flow:login:input";
+    const boundaryOutputId = "boundary-flow:login:output";
 
     await expect(page.locator(".node")).toHaveCount(3);
-    await expect(page.locator(".edge[data-edge-id]")).toHaveCount(4);
+    await expect(page.locator(".edge[data-edge-id]")).toHaveCount(2);
+    await expect(page.locator(`.edge[data-edge-id="${boundaryInputId}"]`)).toHaveCount(1);
+    await expect(page.locator(`.edge[data-edge-id="${boundaryOutputId}"]`)).toHaveCount(1);
     for (const id of [...wiring.inputIds, ...wiring.outputIds]) {
-      await expect(page.locator(`.edge[data-edge-id="${id}"]`)).toHaveCount(1);
+      await expect(page.locator(`.edge[data-edge-id="${id}"]`)).toHaveCount(0);
     }
-    const directFlow = await gridGeometryReport(page);
-    expect(directFlow.paths).toHaveLength(4);
-    expect(directFlow.paths.every(path => path.points.length >= 2)).toBe(true);
-    const projectionPorts = await page.evaluate(({ inputIds, outputIds }) => {
+    const boundaryFlow = await gridGeometryReport(page);
+    expect(boundaryFlow.paths).toHaveLength(2);
+    expect(boundaryFlow.paths.every(path => path.points.length >= 2)).toBe(true);
+    const boundaryPorts = await page.evaluate(({ boundaryInputId, boundaryOutputId, childId }) => {
       const nums = value => (value.match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
       const pathPoints = value => {
         const values = nums(value);
@@ -2694,31 +2826,29 @@ test.describe("State Blueprint tool", () => {
       };
       const inputProxyId = document.querySelector('.node.boundary-input')?.dataset.id || "";
       const outputProxyId = document.querySelector('.node.boundary-output')?.dataset.id || "";
-      const inputPort = portPoint(`svg#ports .svg-port[data-state-id="${CSS.escape(inputProxyId)}"][data-port-side="out"]`);
-      const outputPort = portPoint(`svg#ports .svg-port[data-state-id="${CSS.escape(outputProxyId)}"][data-port-side="in"]`);
-      const edgePoints = id => pathPoints(document.querySelector(`.edge[data-edge-id="${CSS.escape(id)}"]`)?.getAttribute("d") || "");
+      const inputRoute = pathPoints(document.querySelector(`.edge[data-edge-id="${CSS.escape(boundaryInputId)}"]`)?.getAttribute("d") || "");
+      const outputRoute = pathPoints(document.querySelector(`.edge[data-edge-id="${CSS.escape(boundaryOutputId)}"]`)?.getAttribute("d") || "");
       return {
         inputProxyId,
         outputProxyId,
-        inputPort,
-        outputPort,
-        inputStarts: inputIds.map(id => edgePoints(id)[0]),
-        outputEnds: outputIds.map(id => {
-          const points = edgePoints(id);
-          return points[points.length - 1];
-        }),
-        inputStrokes: inputIds.map(id => getComputedStyle(document.querySelector(`.edge[data-edge-id="${CSS.escape(id)}"]`)).stroke),
-        outputStrokes: outputIds.map(id => getComputedStyle(document.querySelector(`.edge[data-edge-id="${CSS.escape(id)}"]`)).stroke)
+        inputStart: inputRoute[0],
+        inputEnd: inputRoute[inputRoute.length - 1],
+        outputStart: outputRoute[0],
+        outputEnd: outputRoute[outputRoute.length - 1],
+        inputProxyOut: portPoint(`svg#ports .svg-port[data-state-id="${CSS.escape(inputProxyId)}"][data-port-side="out"]`),
+        outputProxyIn: portPoint(`svg#ports .svg-port[data-state-id="${CSS.escape(outputProxyId)}"][data-port-side="in"]`),
+        childIn: portPoint(`svg#ports .svg-port[data-state-id="${CSS.escape(childId)}"][data-port-side="in"]`),
+        childOut: portPoint(`svg#ports .svg-port[data-state-id="${CSS.escape(childId)}"][data-port-side="out"]`)
       };
-    }, wiring);
-    expect(projectionPorts.inputProxyId).toBeTruthy();
-    expect(projectionPorts.outputProxyId).toBeTruthy();
-    for (const point of projectionPorts.inputStarts) expect(point.x).toBe(projectionPorts.inputPort.x);
-    for (const point of projectionPorts.outputEnds) expect(point.x).toBe(projectionPorts.outputPort.x);
-    expect(new Set(projectionPorts.inputStarts.map(point => point.y)).size).toBe(projectionPorts.inputStarts.length);
-    expect(new Set(projectionPorts.outputEnds.map(point => point.y)).size).toBe(projectionPorts.outputEnds.length);
-    expect(new Set(projectionPorts.inputStrokes).size).toBe(projectionPorts.inputStrokes.length);
-    expect(new Set(projectionPorts.outputStrokes).size).toBe(projectionPorts.outputStrokes.length);
+    }, { boundaryInputId, boundaryOutputId, childId });
+    expect(boundaryPorts.inputProxyId).toBeTruthy();
+    expect(boundaryPorts.outputProxyId).toBeTruthy();
+    expect(boundaryPorts.inputStart).toMatchObject(boundaryPorts.inputProxyOut);
+    expect(boundaryPorts.inputEnd.x).toBe(boundaryPorts.childIn.x);
+    expect(Math.abs(boundaryPorts.inputEnd.y - boundaryPorts.childIn.y)).toBeLessThanOrEqual(GRID_SIZE);
+    expect(boundaryPorts.outputStart.x).toBe(boundaryPorts.childOut.x);
+    expect(Math.abs(boundaryPorts.outputStart.y - boundaryPorts.childOut.y)).toBeLessThanOrEqual(GRID_SIZE);
+    expect(boundaryPorts.outputEnd).toMatchObject(boundaryPorts.outputProxyIn);
     await expect(page.locator(`svg#ports .svg-port[data-state-id="${childId}"][data-port-side="in"]`)).toHaveCount(1);
     await expect(page.locator(`svg#ports .svg-port[data-state-id="${childId}"][data-port-side="out"]`)).toHaveCount(1);
 
@@ -2728,7 +2858,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#layerHud")).toBeVisible();
   });
 
-  test("keeps unprojected boundary proxy edges when only one parent side has wiring @smoke", async ({ page }) => {
+  test("keeps canonical boundary routes when parent wiring is asymmetric @smoke", async ({ page }) => {
     await openTool(page);
     await page.evaluate(() => {
       model.transitions = model.transitions.filter(transition => transition.to !== "login");
@@ -2753,8 +2883,10 @@ test.describe("State Blueprint tool", () => {
     }).toEqual({ entryId: childId, exitId: childId, inputFlow: true, outputFlow: true });
 
     await expect(page.locator(`.edge[data-edge-id="${boundaryInputId}"]`)).toHaveCount(1);
-    await expect(page.locator(`.edge[data-edge-id="t_login_success"]`)).toHaveCount(1);
-    await expect(page.locator(`.edge[data-edge-id="t_login_error"]`)).toHaveCount(1);
+    await expect(page.locator(`.edge[data-edge-id="${boundaryOutputId}"]`)).toHaveCount(1);
+    await expect(page.locator(`.edge[data-edge-id="t_login_success"]`)).toHaveCount(0);
+    await expect(page.locator(`.edge[data-edge-id="t_login_error"]`)).toHaveCount(0);
+    await expect(page.locator(".edge[data-edge-id]")).toHaveCount(2);
 
     const boundaryRoute = await page.evaluate(({ boundaryInputId, childId }) => {
       const nums = value => (value.match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
@@ -3149,7 +3281,8 @@ test.describe("State Blueprint tool", () => {
     await openTool(page);
     await openStateLayer(page, "login");
     await addChildByDoubleClick(page, "login");
-    await expect(page.locator(`.edge[data-edge-id="t_login_success"]`)).toHaveCount(1);
+    await expect(page.locator(`.edge[data-edge-id="boundary-flow:login:output"]`)).toHaveCount(1);
+    await expect(page.locator(`.edge[data-edge-id="t_login_success"]`)).toHaveCount(0);
 
     const before = await savedModel(page);
     const outputProxyId = await page.locator(".node.boundary-output").getAttribute("data-id");
@@ -3163,18 +3296,19 @@ test.describe("State Blueprint tool", () => {
       stateCount: model.states.length,
       transitionCount: model.transitions.length
     }))).toEqual({
-      selectedEdge: "t_login_success",
+      selectedEdge: "boundary-flow:login:output",
       stateCount: before.states.length,
       transitionCount: before.transitions.length
     });
   });
 
-  test("rewires projected parent entry by dragging it to another child state @smoke", async ({ page }) => {
+  test("rewires the canonical child entry without mutating parent transitions @smoke", async ({ page }) => {
     await openTool(page);
 
     const inputModel = await savedModel(page);
     const inputId = inputModel.transitions.find(transition => transition.from === "auth_start" && transition.to === "login")?.id || "";
     expect(inputId).toBeTruthy();
+    const boundaryInputId = "boundary-flow:login:input";
 
     await openStateLayer(page, "login");
     const firstChildId = await addChildByDoubleClick(page, "login");
@@ -3183,7 +3317,8 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator(".node")).toHaveCount(4);
     await expect(page.locator(`[data-id="${firstChildId}"]`)).toBeVisible();
     await expect(page.locator(`[data-id="${secondChildId}"]`)).toBeVisible();
-    const edgeTip = await centerOf(page.locator(`.edge-tip-hit[data-edge-id="${inputId}"]`));
+    await expect(page.locator(`.edge[data-edge-id="${inputId}"]`)).toHaveCount(0);
+    const edgeTip = await centerOf(page.locator(`.edge-tip-hit[data-edge-id="${boundaryInputId}"]`));
     const secondBox = await visibleBox(page.locator(`[data-id="${secondChildId}"]`));
     const target = { x: secondBox.x + 8, y: secondBox.y + secondBox.height / 2 };
 
@@ -3194,13 +3329,24 @@ test.describe("State Blueprint tool", () => {
 
     await expect.poll(async () => {
       const model = await savedModel(page);
-      const transition = model.transitions.find(item => item.id === inputId);
+      const parent = model.states.find(item => item.id === "login");
+      const parentTransition = model.transitions.find(item => item.id === inputId);
+      const boundaryTransition = model.transitions.find(item => item.id === boundaryInputId);
       return {
-        groupEntryId: transition?.groupEntryId
+        entryId: parent?.boundary?.entryId || "",
+        boundaryTo: boundaryTransition?.to || "",
+        parentGroupEntryId: parentTransition?.groupEntryId || "",
+        linkedToPreviousEntry: model.transitions.some(item => item.from === secondChildId && item.to === firstChildId)
       };
-    }).toEqual({ groupEntryId: secondChildId });
+    }).toEqual({
+      entryId: secondChildId,
+      boundaryTo: secondChildId,
+      parentGroupEntryId: "",
+      linkedToPreviousEntry: true
+    });
 
-    await expect(page.locator(`.edge[data-edge-id="${inputId}"]`)).toHaveCount(1);
+    await expect(page.locator(`.edge[data-edge-id="${boundaryInputId}"]`)).toHaveCount(1);
+    await expect(page.locator(`.edge[data-edge-id="${inputId}"]`)).toHaveCount(0);
   });
 
   test("preview runtime steps into child canvases and keeps the editor viewport on the active layer @smoke", async ({ page }) => {
@@ -3508,8 +3654,8 @@ test.describe("State Blueprint tool", () => {
       initial: "start",
       states: [
         { id: "start", title: "Start", components: [], x: 120, y: 180 },
-        { id: "parent", title: "Parent", components: [], boundary: { entryId: "child", exitId: "child", entryDisabled: false, exitDisabled: false }, x: 420, y: 180 },
-        { id: "child", title: "Child", components: [], parentId: "parent", x: 160, y: 140 }
+        { id: "parent", title: "Parent", components: [{ id: "parent_copy", type: "text", text: "Parent content" }], boundary: { entryId: "child", exitId: "child", entryDisabled: false, exitDisabled: false }, x: 420, y: 180 },
+        { id: "child", title: "Child", components: [{ id: "child_copy", type: "note", text: "Child content" }], parentId: "parent", x: 160, y: 140 }
       ],
       transitions: [
         { id: "start_parent", from: "start", to: "parent", label: "Open Parent", condition: "", set: {} }
@@ -3539,6 +3685,8 @@ test.describe("State Blueprint tool", () => {
     await app.getByRole("button", { name: "Open Parent", exact: true }).click();
     await expect(app.locator("#statePill")).toHaveText("parent");
     await expect(app.getByRole("button", { name: "Child", exact: true })).toBeVisible();
+    await expect(app.getByText("Parent content", { exact: true })).toBeVisible();
+    await expect(app.getByText("Child content", { exact: true })).toHaveCount(0);
 
     await triggerType.selectOption("auto");
     await expect.poll(async () => {
@@ -3557,11 +3705,53 @@ test.describe("State Blueprint tool", () => {
       entryTriggerEvent: "auto.runtime.enter.child.parent.child"
     });
 
-    await page.evaluate(() => startAppAtState("start", { preserveFocus: true, suppressLayerFollow: true }));
+    await page.locator('[data-id="start"]').click();
     await expect(app.locator("#statePill")).toHaveText("start");
-    await app.getByRole("button", { name: "Open Parent", exact: true }).click();
+    await page.locator('[data-id="parent"]').click();
     await expect(app.locator("#statePill")).toHaveText("child");
     await expect(app.getByRole("button", { name: "Child", exact: true })).toHaveCount(0);
+    await expect(app.getByText("Parent content", { exact: true })).toHaveCount(0);
+    await expect(app.getByText("Child content", { exact: true })).toBeVisible();
+    await expect.poll(() => page.evaluate(() => ({
+      layerId: currentLayerId,
+      selectedNodes: selected?.nodes || [],
+      runtimeStateId: hostRuntimeStateView()
+    }))).toEqual({
+      layerId: "parent",
+      selectedNodes: ["child"],
+      runtimeStateId: "child"
+    });
+    await expect(page.locator('[data-id="parent"]')).toHaveCount(0);
+    await expect(page.locator('[data-id="child"]')).toHaveClass(/selected/);
+    await expect(page.locator('[data-id="child"]')).toHaveClass(/active/);
+    await expect(page.locator("#pTitle")).toHaveValue("Child");
+
+    await page.locator("#layerBack").click();
+    await openStateInspector(page, "parent");
+    await expect(triggerType).toHaveValue("auto");
+    await triggerType.selectOption("button");
+    await expect.poll(async () => {
+      const stored = await savedModel(page);
+      const boundary = stored.states.find(state => state.id === "parent")?.boundary || {};
+      return {
+        hasTriggerOverride: Object.prototype.hasOwnProperty.call(boundary, "entryTriggerType"),
+        effectiveTriggerType: boundary.entryTriggerType || "button"
+      };
+    }).toEqual({
+      hasTriggerOverride: false,
+      effectiveTriggerType: "button"
+    });
+
+    await page.locator('[data-id="start"]').click();
+    await expect(app.locator("#statePill")).toHaveText("start");
+    await page.locator('[data-id="parent"]').click();
+    await expect(app.locator("#statePill")).toHaveText("parent");
+    await expect(app.getByText("Parent content", { exact: true })).toBeVisible();
+    await expect(app.getByText("Child content", { exact: true })).toHaveCount(0);
+    await expect(app.getByRole("button", { name: "Child", exact: true })).toBeVisible();
+    await expect(page.locator('[data-id="parent"]')).toHaveClass(/selected/);
+    await expect(page.locator('[data-id="parent"]')).toHaveClass(/active/);
+    await expect(page.locator('[data-id="parent"]')).not.toHaveClass(/active-descendant/);
   });
 
   test("lists real selected-state outs and nested parent proxy outs in the state trigger dropdown @smoke", async ({ page }) => {
@@ -3905,9 +4095,12 @@ test.describe("State Blueprint tool", () => {
     await expect(canvasStateNodes(page)).toHaveCount(1);
     await expect(page.locator('[data-id="register"]')).toBeVisible();
     await expect(boundaryProxyNodes(page)).toHaveCount(2);
-    await expect(page.locator('.edge[data-edge-id="t_auth_register"]')).toHaveCount(1);
-    await expect(page.locator('.edge[data-edge-id="t_register_success"]')).toHaveCount(1);
-    await expect(page.locator('.edge[data-edge-id="t_register_error"]')).toHaveCount(1);
+    await expect(page.locator('.edge[data-edge-id="boundary-flow:login:input"]')).toHaveCount(1);
+    await expect(page.locator('.edge[data-edge-id="boundary-flow:login:output"]')).toHaveCount(1);
+    await expect(page.locator(".edge[data-edge-id]")).toHaveCount(2);
+    for (const transitionId of ["t_auth_register", "t_register_success", "t_register_error"]) {
+      await expect(page.locator(`.edge[data-edge-id="${transitionId}"]`)).toHaveCount(0);
+    }
   });
 
   test("preserves inner state canvases when a state is saved to and reused from the explorer", async ({ page }) => {
@@ -3915,9 +4108,11 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator('[data-id="login"]').click();
     await openStateLayer(page, "login");
-    await addComponentState(page, "Text");
+    const originalChildId = await addChildByDoubleClick(page, "login");
+    await openStateInspector(page, originalChildId);
+    await page.locator("#pTitle").fill("Reusable child");
+    await addContentPresetToState(page, originalChildId, "Text");
     await componentEditor(page, "Text").locator("textarea").fill("Reusable nested child");
-    const originalChildId = await page.locator(".node.selected").getAttribute("data-id");
     await page.keyboard.press("Alt+ArrowLeft");
 
     await dragNodeToStateExplorer(page, page.locator('[data-id="login"]'));
@@ -3937,8 +4132,8 @@ test.describe("State Blueprint tool", () => {
     await openStateLayer(page, reusedId);
     await expect(canvasStateNodes(page)).toHaveCount(1);
     await expect(boundaryProxyNodes(page)).toHaveCount(2);
-    await expect(nodeByTitle(page, "Text")).toBeVisible();
-    await nodeByTitle(page, "Text").click();
+    await expect(nodeByTitle(page, "Reusable child")).toBeVisible();
+    await nodeByTitle(page, "Reusable child").click();
     await expandComponentEditor(page, "Text");
     await expect(componentEditor(page, "Text").locator("textarea")).toHaveValue("Reusable nested child");
     await expect.poll(async () => {
@@ -3994,7 +4189,7 @@ test.describe("State Blueprint tool", () => {
 
     await expect.poll(async () => {
       const model = await savedModel(page);
-      const note = model.states.find(state => state.parentId === "login" && state.title === "Note");
+      const note = model.states.find(state => state.id === "login");
       return note?.components.find(component => component.type === "note")?.text || "";
     }).toBe("Manual note for {{states.login.userName}}");
 
@@ -4182,13 +4377,14 @@ test.describe("State Blueprint tool", () => {
 
     await expect.poll(async () => {
       const model = await savedModel(page);
-      return model.states.filter(state => state.parentId === "login").map(state => ({
-        title: state.title,
-        type: state.components[0]?.type,
-        text: state.components[0]?.text,
-        url: state.components[0]?.url
+      return model.states.find(state => state.id === "login").components.map(component => ({
+        title: ({ heading: "Heading", text: "Text", image: "Image", list: "List", link: "Link", note: "Note", divider: "Divider" })[component.type],
+        type: component.type,
+        text: component.text,
+        url: component.url
       }));
     }).toEqual([
+      { title: "Text", type: "text", text: "Email and password are entered.", url: "" },
       { title: "Heading", type: "heading", text: "Account heading {{states.login.userName}}", url: "" },
       { title: "Text", type: "text", text: "Body paragraph for {{states.login.userName}}", url: "" },
       { title: "Image", type: "image", text: "Chart for {{states.login.userName}}", url: imageUrl },
@@ -4201,27 +4397,22 @@ test.describe("State Blueprint tool", () => {
     await page.keyboard.press("Alt+ArrowLeft");
     await page.locator('[data-id="login"]').click();
     await openStateLayer(page, "login");
+    await page.locator("#layerFrameLabel").click();
+    await expect(page.locator("#pTitle")).toHaveValue("Login");
 
-    await nodeByTitle(page, "Heading").click();
     await expect(componentEditor(page, "Heading").locator("input")).toHaveValue("Account heading {{states.login.userName}}");
-    await nodeByTitle(page, "Text").click();
     await expect(componentEditor(page, "Text").locator("textarea")).toHaveValue("Body paragraph for {{states.login.userName}}");
-    await nodeByTitle(page, "Image").click();
     await expect(componentEditor(page, "Image").locator("input").nth(0)).toHaveValue("Chart for {{states.login.userName}}");
     await expect(componentEditor(page, "Image").locator("input").nth(1)).toHaveValue(imageUrl);
-    await nodeByTitle(page, "List").click();
     await expect(componentEditor(page, "List").locator(".list-item-editor input")).toHaveCount(5);
     await expect(componentEditor(page, "List").locator(".list-item-editor input").nth(0)).toHaveValue("First step for {{states.login.userName}}");
     await expect(componentEditor(page, "List").locator(".list-item-editor input").nth(1)).toHaveValue("Second step");
     await expect(componentEditor(page, "List").locator(".list-item-editor input").nth(2)).toHaveValue("Nachweis anhängen");
     await expect(componentEditor(page, "List").locator(".list-item-editor input").nth(3)).toHaveValue("Erledigt markieren");
     await expect(componentEditor(page, "List").locator(".list-item-editor input").nth(4)).toHaveValue("Third persisted step");
-    await nodeByTitle(page, "Link").click();
     await expect(componentEditor(page, "Link").locator("input").nth(0)).toHaveValue("Docs for {{states.login.userName}}");
     await expect(componentEditor(page, "Link").locator("input").nth(1)).toHaveValue("https://example.com/{{states.login.userName}}/docs");
-    await nodeByTitle(page, "Note").click();
     await expect(componentEditor(page, "Note").locator("textarea")).toHaveValue("Note survives for {{states.login.userName}}");
-    await nodeByTitle(page, "Divider").click();
     await expect(componentEditor(page, "Divider")).toBeVisible();
 
     await page.keyboard.press("Alt+ArrowLeft");
@@ -4337,7 +4528,7 @@ test.describe("State Blueprint tool", () => {
     await expect(app.getByText("Helper: Resume safely")).toBeVisible();
   });
 
-  test("pauses runtime timers through the global state bus and resumes with play @smoke", async ({ page }) => {
+  test("pauses runtime timers through the global state bus and resumes with editor Space @smoke", async ({ page }) => {
     const model = defaultTestModel();
     model.transitions.push({
       id: "t_auth_auto_done",
@@ -4355,14 +4546,20 @@ test.describe("State Blueprint tool", () => {
 
     await expect(page.getByRole("button", { name: "Fortsetzen" })).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator("#runtimeState")).toContainText("Pausiert: auth_start");
+    await expect(page.locator("#runtimePauseBanner")).toBeVisible();
+    await expect(page.locator("#runtimePauseBanner")).toContainText("Automatik und Timer angehalten");
+    await expect(page.locator("#workspace")).toHaveClass(/runtime-paused/);
     await expect.poll(async () => (await runtimeContext(page)).runtime?.paused).toBe(true);
 
     await page.waitForTimeout(1250);
     await expect(app.locator("#statePill")).toHaveText("auth_start");
     await expect(page.locator('[data-id="auth_start"]')).toHaveClass(/active/);
 
-    await page.getByRole("button", { name: "Fortsetzen" }).click();
+    await page.locator("#map").focus();
+    await page.keyboard.press("Space");
     await expect(page.getByRole("button", { name: "Pausieren" })).toHaveAttribute("aria-pressed", "false");
+    await expect(page.locator("#runtimePauseBanner")).toBeHidden();
+    await expect(page.locator("#workspace")).not.toHaveClass(/runtime-paused/);
     await expect.poll(async () => (await runtimeContext(page)).runtime?.paused).toBe(false);
     await expect(app.locator("#statePill")).toHaveText("logged_in", { timeout: 2400 });
     await expect(page.locator("#runtimeState")).toContainText("Zustand: logged_in");
@@ -4385,12 +4582,17 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator('[data-id="login"]').click();
     await expect(app.locator("#statePill")).toHaveText("login");
-    await page.getByRole("button", { name: "Pausieren" }).click();
+    await page.locator("#map").focus();
+    await page.keyboard.press("Space");
     await expect.poll(async () => (await runtimeContext(page)).runtime?.paused).toBe(true);
     const eventCount = context => `events.change.${emailPath}.count`.split(".").reduce((value, key) => value?.[key], context) || 0;
     const eventCountBeforePause = eventCount(await runtimeContext(page));
     const emailInput = runtimeTextInput(app, "E-Mail");
     await expect(emailInput).toBeVisible();
+    await emailInput.focus();
+    await page.keyboard.press("Space");
+    await expect(emailInput).toHaveValue(" ");
+    await expect.poll(async () => (await runtimeContext(page)).runtime?.paused).toBe(true);
     await emailInput.fill("paused@example.com");
     await expect.poll(async () => emailPath.split(".").reduce((value, key) => value?.[key], await runtimeContext(page))).toBe("paused@example.com");
     await expect.poll(async () => eventCount(await runtimeContext(page))).toBe(eventCountBeforePause);
@@ -5360,7 +5562,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator('[data-id="login"] .title')).toHaveText("Sign in");
   });
 
-  test("keeps undo redo deterministic across unchanged saves", async ({ page }) => {
+  test("keeps undo redo deterministic across interaction boundaries and unchanged saves @smoke", async ({ page }) => {
     await openTool(page);
     const undo = page.locator("#btnCanvasUndo");
     const redo = page.locator("#btnCanvasRedo");
@@ -5376,20 +5578,50 @@ test.describe("State Blueprint tool", () => {
     await expect(redo).toBeDisabled();
 
     await openStateInspector(page, "login");
-    await page.locator("#pTitle").fill("Sign in");
+    const title = page.locator("#pTitle");
+    const baseUndoCount = await page.evaluate(() => undoStack.length);
+
+    await title.fill("Sign in");
     await expect(page.locator('[data-id="login"] .title')).toHaveText("Sign in");
+    await expect.poll(() => page.evaluate(() => undoStack.length)).toBe(baseUndoCount + 1);
     await expect(undo).toBeEnabled();
     await expect(redo).toBeDisabled();
 
+    await title.evaluate(element => element.blur());
+    await title.focus();
+    await title.fill("Member sign in");
+    await expect(page.locator('[data-id="login"] .title')).toHaveText("Member sign in");
+    await expect.poll(() => page.evaluate(() => undoStack.length)).toBe(baseUndoCount + 2);
+
     await undo.click();
-    await expect(page.locator('[data-id="login"] .title')).toHaveText("Login");
+    await expect(page.locator('[data-id="login"] .title')).toHaveText("Sign in");
     await expect(redo).toBeEnabled();
     await page.evaluate(() => saveModel("test:noop-after-undo"));
     await expect(redo).toBeEnabled();
 
+    await undo.click();
+    await expect(page.locator('[data-id="login"] .title')).toHaveText("Login");
+
     await redo.click();
     await expect(page.locator('[data-id="login"] .title')).toHaveText("Sign in");
+    await expect(redo).toBeEnabled();
+
+    await redo.click();
+    await expect(page.locator('[data-id="login"] .title')).toHaveText("Member sign in");
     await expect(redo).toBeDisabled();
+
+    await undo.click();
+    await expect(page.locator('[data-id="login"] .title')).toHaveText("Sign in");
+    await expect(redo).toBeEnabled();
+
+    await title.focus();
+    await title.fill("Secure sign in");
+    await expect(page.locator('[data-id="login"] .title')).toHaveText("Secure sign in");
+    await expect(redo).toBeDisabled();
+    await expect.poll(() => page.evaluate(() => redoStack.length)).toBe(0);
+
+    await undo.click();
+    await expect(page.locator('[data-id="login"] .title')).toHaveText("Sign in");
   });
 
   test("keeps undo redo only in the top-right canvas history actions @smoke", async ({ page }) => {
@@ -6091,7 +6323,6 @@ test.describe("State Blueprint tool", () => {
       return {
         id: template.id,
         title: root.title,
-        renderMode: root.renderMode,
         components: root.components.map(component => ({
           type: component.type,
           variant: component.variant || "",
@@ -7227,8 +7458,12 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator("#pWidgetLibrary").getByLabel("Bausteinvorlage").selectOption("builtin_daisy_avatar");
     await expect(page.locator("#pWidgetLibrary").getByRole("button", { name: "Remove" })).toHaveCount(0);
-    await expect(page.locator("#pWidgetLibrary").getByRole("button", { name: "Baustein hinzufügen" })).toBeDisabled();
-    const avatarEditor = await expandComponentEditor(page, "Baustein: Benutzer-Avatar");
+    const editAvatar = page.locator("#pWidgetLibrary").getByRole("button", { name: "Bearbeiten", exact: true });
+    await expect(editAvatar).toBeEnabled();
+    await editAvatar.click();
+    const avatarEditor = componentEditor(page, "Baustein: Benutzer-Avatar");
+    await expect(avatarEditor).toHaveJSProperty("open", true);
+    await expect(avatarEditor.getByLabel("Bausteinname")).toBeVisible();
     await avatarEditor.getByRole("button", { name: "Löschen" }).click();
     await expect.poll(async () => {
       const stored = await savedModel(page);
@@ -7257,6 +7492,92 @@ test.describe("State Blueprint tool", () => {
       component: { dataPath: "states.auth_start.avatar", dataRole: "widget", dataLabel: "Benutzer-Avatar" },
       data: { name: "Mira Keller" }
     });
+  });
+
+  test("edits and reorders assigned widgets from their visible state list @smoke", async ({ page }) => {
+    await openTool(page);
+    await openStateInspector(page, "auth_start");
+    const panel = page.locator("#pWidgetLibrary");
+
+    for (const templateId of ["builtin_daisy_avatar", "builtin_daisy_badge"]) {
+      await panel.getByLabel("Bausteinvorlage").selectOption(templateId);
+      await panel.getByRole("button", { name: "Baustein hinzufügen" }).click();
+    }
+
+    const assignedRows = panel.locator(".widget-assigned-row");
+    await expect(assignedRows).toHaveCount(2);
+    await expect(assignedRows.locator(".widget-assigned-label")).toHaveText(["Benutzer-Avatar", "Status-Badge"]);
+
+    await panel.getByRole("button", { name: "Baustein Benutzer-Avatar bearbeiten" }).click();
+    const avatarEditor = componentEditor(page, "Baustein: Benutzer-Avatar");
+    await expect(avatarEditor).toHaveJSProperty("open", true);
+    await expect(avatarEditor.getByLabel("Bausteinname")).toBeFocused();
+
+    const source = panel.locator('.widget-assigned-row[data-component-id]').filter({ hasText: "Status-Badge" });
+    const target = panel.locator('.widget-assigned-row[data-component-id]').filter({ hasText: "Benutzer-Avatar" });
+    await target.scrollIntoViewIfNeeded();
+    const targetBox = await visibleBox(target);
+    const dataTransfer = await page.evaluateHandle(() => new DataTransfer());
+    await source.locator(".widget-assigned-drag").dispatchEvent("dragstart", {
+      dataTransfer,
+      bubbles: true,
+      cancelable: true
+    });
+    await expect(source).toHaveClass(/dragging/);
+    await target.dispatchEvent("dragover", {
+      dataTransfer,
+      bubbles: true,
+      cancelable: true,
+      clientY: targetBox.y + 2
+    });
+    await expect(target).toHaveClass(/drop-before/);
+    await target.dispatchEvent("drop", {
+      dataTransfer,
+      bubbles: true,
+      cancelable: true,
+      clientY: targetBox.y + 2
+    });
+
+    await expect.poll(async () => {
+      const stored = await savedModel(page);
+      return stored.states.find(state => state.id === "auth_start").components
+        .filter(component => component.type === "daisy" && component.dataRole === "widget")
+        .map(component => component.dataLabel);
+    }).toEqual(["Status-Badge", "Benutzer-Avatar"]);
+    await expect(panel.locator(".widget-assigned-label")).toHaveText(["Status-Badge", "Benutzer-Avatar"]);
+    await expect.poll(() => appFrame(page).locator(".daisy-widget").evaluateAll(elements => elements.map(element => {
+      if (element.matches(".badge") || element.querySelector(".badge")) return "badge";
+      if (element.matches(".avatar") || element.querySelector(".avatar")) return "avatar";
+      return "other";
+    }))).toEqual(["badge", "avatar"]);
+
+    await page.locator("#btnCanvasUndo").click();
+    await expect.poll(async () => {
+      const stored = await savedModel(page);
+      return stored.states.find(state => state.id === "auth_start").components
+        .filter(component => component.type === "daisy" && component.dataRole === "widget")
+        .map(component => component.dataLabel);
+    }).toEqual(["Benutzer-Avatar", "Status-Badge"]);
+    await expect(panel.locator(".widget-assigned-label")).toHaveText(["Benutzer-Avatar", "Status-Badge"]);
+    await expect.poll(() => appFrame(page).locator(".daisy-widget").evaluateAll(elements => elements.map(element => {
+      if (element.matches(".badge") || element.querySelector(".badge")) return "badge";
+      if (element.matches(".avatar") || element.querySelector(".avatar")) return "avatar";
+      return "other";
+    }))).toEqual(["avatar", "badge"]);
+
+    await page.locator("#btnCanvasRedo").click();
+    await expect.poll(async () => {
+      const stored = await savedModel(page);
+      return stored.states.find(state => state.id === "auth_start").components
+        .filter(component => component.type === "daisy" && component.dataRole === "widget")
+        .map(component => component.dataLabel);
+    }).toEqual(["Status-Badge", "Benutzer-Avatar"]);
+    await expect(panel.locator(".widget-assigned-label")).toHaveText(["Status-Badge", "Benutzer-Avatar"]);
+    await expect.poll(() => appFrame(page).locator(".daisy-widget").evaluateAll(elements => elements.map(element => {
+      if (element.matches(".badge") || element.querySelector(".badge")) return "badge";
+      if (element.matches(".avatar") || element.querySelector(".avatar")) return "avatar";
+      return "other";
+    }))).toEqual(["badge", "avatar"]);
   });
 
   test("autowires daisy card actions into real FSM states and transition buttons @smoke", async ({ page }) => {
@@ -8682,6 +9003,32 @@ test.describe("State Blueprint tool", () => {
     const after = await savedModel(page);
     expect(after.states).toHaveLength(before.states.length);
     expect(after.transitions).toHaveLength(before.transitions.length);
+  });
+
+  test("pans the desktop canvas when dragging a transition line body @smoke", async ({ page }) => {
+    await openTool(page);
+    const before = await savedModel(page);
+    const loginEdgeId = before.transitions.find(t => t.from === "auth_start" && t.to === "login")?.id;
+    expect(loginEdgeId).toBeTruthy();
+    const edge = page.locator(`.edge[data-edge-id="${loginEdgeId}"]`);
+    const start = await transitionLinePoint(page, loginEdgeId);
+    const transformBefore = await worldTransform(page);
+
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(start.x + 90, start.y + 45, { steps: 6 });
+    await expect(page.locator("#map")).toHaveClass(/panning/);
+    await expect.poll(() => worldTransform(page)).not.toBe(transformBefore);
+    await page.mouse.up();
+
+    await expect(page.locator("#map")).not.toHaveClass(/panning|connecting|dragging-state/);
+    await expect(edge).not.toHaveClass(/selected/);
+    expect(await savedModel(page)).toEqual(before);
+
+    const clickPoint = await transitionLinePoint(page, loginEdgeId);
+    await page.mouse.click(clickPoint.x, clickPoint.y);
+    await expect(edge).toHaveClass(/selected/);
+    await expect(page.locator("#pLabel")).toBeVisible();
   });
 
   test("single-clicking a transition handle selects it without creating a state @smoke", async ({ page }) => {
@@ -10312,7 +10659,7 @@ test.describe("State Blueprint tool", () => {
     await itemInputs.last().fill("Remember me option");
     await expect.poll(async () => {
       const model = await savedModel(page);
-      const list = model.states.find(state => state.parentId === "login" && state.title === "List");
+      const list = model.states.find(state => state.id === "login");
       return list?.components.find(component => component.type === "list")?.text || "";
     }).toContain("Remember me option");
 
@@ -12352,7 +12699,12 @@ test.describe("State Blueprint tool", () => {
       return {
         title: created?.title || "",
         selected: Boolean(created && selectedId === created.id),
-        components: created?.components || [],
+        components: (created?.components || []).map(component => ({
+          type: component.type,
+          text: component.text,
+          url: component.url,
+          variant: component.variant
+        })),
         data: created?.data,
         dataTypes: created?.dataTypes,
         dataWires: (created?.dataWires || []).map(wire => wire.sourcePath)
@@ -12360,19 +12712,15 @@ test.describe("State Blueprint tool", () => {
     }).toEqual({
       title: "Externer Link",
       selected: true,
-      components: [],
-      data: {
-        link: {
-          label: "Dokumentation öffnen",
-          url: "https://example.com/docs"
-        }
-      },
-      dataTypes: {
-        link: "object",
-        "link.label": "text",
-        "link.url": "url"
-      },
-      dataWires: ["states.externer_link.link"]
+      components: [{
+        type: "link",
+        text: "Dokumentation öffnen",
+        url: "https://example.com/docs",
+        variant: ""
+      }],
+      data: {},
+      dataTypes: {},
+      dataWires: []
     });
     await expect(appFrame(page).getByRole("link", { name: "Dokumentation öffnen" })).toBeVisible();
 
@@ -12560,7 +12908,6 @@ test.describe("State Blueprint tool", () => {
       rootStateId: "tpl_long_overflow",
       title: longTitle,
       description: longText,
-      renderMode: "state",
       components: [{ id: "c_long_overflow", type: "text", text: longText, url: "" }],
       data: {},
       dataTypes: {}
@@ -13400,7 +13747,7 @@ test.describe("State Blueprint tool", () => {
     }
   });
 
-  test("keeps parent outs direct before entry and projects them at the child exit @smoke", async ({ page }) => {
+  test("keeps parent outs direct before entry and exposes them at the configured child exit @smoke", async ({ page }) => {
     const model = {
       version: 2,
       name: "Parent out render order",

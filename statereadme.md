@@ -304,7 +304,10 @@ Editoraktion
 - **NEST-004 Eintritt:** `boundary.entryId` bezeichnet den echten Child-Eintritt.
   Ein manueller Eintritt wird als explizite Aktion angeboten. Nur eine
   ausdrückliche Konfiguration wie `entryTriggerType: "auto"` darf den Parent
-  automatisch in sein Entry-Child weiterführen.
+  automatisch in sein Entry-Child weiterführen. Jeder bestätigte, bewegungsfreie
+  State-Klick im Canvas startet den gewählten State erneut, auch nach Reload oder
+  bei bereits bestehender Auswahl. Löst ein Auto-Parent dabei den Child-Eintritt
+  aus, folgen Canvas-Ebene, Auswahl und Inspector atomar dem aktiven Child.
 - **NEST-005 Wiedereintritt:** Wird ein Parent erneut betreten, MUSS sein
   Boundary-Eintritt wieder am konfigurierten Entry-Child beginnen; ein zuvor
   aktives tieferes Child darf nicht stillschweigend fortgesetzt werden.
@@ -313,9 +316,11 @@ Editoraktion
   Ebenengrenzen springen.
 - **NEST-007 Ausgang:** `boundary.exitId` bezeichnet das Child, an dem echte
   Parent-Ausgänge projiziert werden dürfen.
-- **NEST-008 Ausgangsprojektion:** Am Exit-Child MÜSSEN zuerst dessen eigene
-  ausgehende Aktionen und danach die echt verdrahteten Parent-Ausgänge
-  erscheinen.
+- **NEST-008 Ausgangsprojektion:** In der Runtime MÜSSEN am Exit-Child zuerst
+  dessen eigene ausgehende Aktionen und danach die echt verdrahteten
+  Parent-Ausgänge erscheinen. Der Editor-Canvas zeigt davon unabhängig pro
+  Parent-Layer genau eine kanonische Input- und Output-Boundary-Route; externe
+  Parent-Kanten DÜRFEN dort nicht als vervielfachte Kabel erscheinen.
 - **NEST-009 Kein impliziter Ausgang:** Ein Child ohne konfigurierten Ausgang
   DARF keine Parent-Ausgänge, Geschwisteraktionen oder Rückkehr zum Parent
   erben.
@@ -470,6 +475,12 @@ Editoraktion
   Bearbeiten gerichtete Nutzeraktion darf ihn öffnen oder schließen. Auf Mobil
   MÜSSEN `Hinzufügen` und `Verwenden` außerdem die gewählte Arbeitsansicht
   unverändert lassen.
+- **PRE-017 Zugeordnete Widgets:** Jedes einem Zustand zugeordnete Widget MUSS im
+  Bausteinbereich als sichtbarer Eintrag erscheinen. Seine Bearbeiten-Aktion
+  öffnet den bestehenden Komponenten-Editor; sie DARF keine zweite
+  Bearbeitungsform erzeugen. Drag-Reihenfolge im Bausteinbereich, generische
+  Renderliste, Modell, Preview und Export MÜSSEN dasselbe `components`-Array
+  verwenden und unmittelbar dieselbe Reihenfolge zeigen.
 
 ## 11. Editor-Vertrag
 
@@ -882,12 +893,12 @@ Editoraktion
 ## 17. Ausführbare Absicherung
 
 - **TST-001 Testbestand:** Am Stand dieses Dokuments umfasst die ausführbare
-  Spezifikation 344 expandierte Playwright-Fälle in fünf Spec-Dateien und 21
-  Node-Server-Tests, insgesamt 365 Fälle.
-- **TST-002 Smoke:** 244 Playwright-Fälle tragen `@smoke`. `npm test` prüft
-  zuerst die 21 Server-Tests und danach diese 244 Smoke-Fälle.
-- **TST-003 Vollständiger Lauf:** `npm run test:full` prüft zuerst alle 21
-  Server-Tests und danach alle 344 Playwright-Fälle. Der vollständige lokale
+  Spezifikation 345 expandierte Playwright-Fälle in fünf Spec-Dateien und 26
+  Node-Server-Tests, insgesamt 371 Fälle.
+- **TST-002 Smoke:** 246 Playwright-Fälle tragen `@smoke`. `npm test` prüft
+  zuerst die 26 Server-Tests und danach diese 246 Smoke-Fälle.
+- **TST-003 Vollständiger Lauf:** `npm run test:full` prüft zuerst alle 26
+  Server-Tests und danach alle 345 Playwright-Fälle. Der vollständige lokale
   Vertragslauf ist damit genau ein Befehl:
 
   ```bash
@@ -903,9 +914,9 @@ Editoraktion
   der vor dem Fix am beobachteten Verhalten scheitert und nach dem Fix ohne
   Retry, Force-Click oder Sonderpfad besteht.
 - **TST-007 CI-Freigabe:** GitHub Actions und Gitea MÜSSEN beide den
-  vollständigen Bestand von 21 Server- und 344 Playwright-Fällen ausführen.
+  vollständigen Bestand von 26 Server- und 345 Playwright-Fällen ausführen.
   Gitea verwendet `npm run test:full`. GitHub Actions DARF die Playwright-Fälle
-  in disjunkte Shards aufteilen, wenn deren Vereinigung exakt alle 344 Fälle
+  in disjunkte Shards aufteilen, wenn deren Vereinigung exakt alle 345 Fälle
   enthält, die Serverfälle genau einmal laufen und der Deploy von allen Shards
   abhängt. Kein Deploy darf nur durch den kleineren Smoke-Lauf freigegeben
   werden.
@@ -1202,16 +1213,13 @@ Abdeckungsbereiche:
   Registrierungen und leeren Cache Storage. Source- und Hostingtests beweisen
   zusätzlich: keine Registrierung, kein Fetch-Handler und `no-store` an der
   kontrollierten Nginx-Grenze. Die externe Erstantwort bleibt GAP-027.
-- **GAP-038 `renderMode: "component"` ist eine nicht definierte passive
-  Zustandssemantik, offen am 2026-07-12:** Ein Child mit diesem Modus wird samt
-  eigener Defaults rekursiv im aktiven Parent gerendert, obwohl es nicht der
-  aktuelle FSM-Zustand ist und seine Transitionen nicht zur aktiven
-  Kandidatenmenge gehören. Ein Smoke-Test erwartet dieses Verhalten
-  ausdrücklich, während andere Tests nur das alte Feld `passiveRender`
-  verbieten. Der Vertrag beschreibt Children als echte innere FSM-Schritte und
-  definiert keine parallele oder passive Region. Damit sind PRN-002, PRN-006,
-  STA-005 und NEST-001 gegenüber der API-Beschreibung eines
-  „komponentenartigen Zustands“ unvollständig.
+- **GAP-038 Passive Child-States, geschlossen am 2026-07-13:**
+  `renderMode` ist kein Modellfeld und wird an allen formalen Grenzen abgelehnt.
+  Die Runtime rendert ausschließlich den aktiven State; Parent und Child werden
+  niemals gemeinsam oder passiv gerendert. Verschachtelte States und Layer
+  bleiben echte FSM-Schritte mit `parentId`, Boundary und eigenen Transitionen.
+  Sichtbarer Inhalt gehört in das `components`-Array des States, der ihn
+  tatsächlich rendert. Formale und Browserregressionen sichern diese Trennung.
 - **GAP-039 Deutsche Systemdefaults, geschlossen am 2026-07-12:** Runtime,
   Editor und MCP verwenden für sichtbare Produktdefaults ausschließlich native
   deutsche Texte. `Weiter` ist der kanonische leere Transitionname; englische
@@ -1223,9 +1231,16 @@ Abdeckungsbereiche:
   und Runtime-Nachrichten greifen nicht mehr in den durch State-ID und Ebene
   begrenzten Gestenautomaten ein. Ein Real-Browser-Test prüft beide
   `elementFromPoint()`-Treffer und den ersten Double-Tap ohne Force oder Retry.
+- **GAP-041 Widget-Bearbeitung und Reihenfolge, geschlossen am 2026-07-13:**
+  Zugeordnete Widgets waren nur indirekt als generische, eingeklappte
+  Komponenten bearbeitbar und im Bausteinbereich nicht sortierbar. Der
+  Bausteinbereich zeigt nun dieselben Komponenten als sichtbare Zeilen, öffnet
+  per Pencil-Aktion den einzigen vorhandenen Komponenten-Editor und sortiert per
+  Grip-Drag unmittelbar das kanonische `components`-Array. Ein Browsertest
+  beweist Bearbeitung, Modellreihenfolge und Preview-Reihenfolge gemeinsam.
 
-Auditnachweis vom 2026-07-12: `playwright test --list` bestätigt 344 Fälle in
-fünf Dateien, davon 244 Smoke-Fälle. Hinzu kommen 21 Node-Server-Tests. Es gibt
+Auditnachweis vom 2026-07-13: `playwright test --list` bestätigt 345 Fälle in
+fünf Dateien, davon 246 Smoke-Fälle. Hinzu kommen 26 Node-Server-Tests. Es gibt
 keine regulären `skip`-, `only`-, Retry-, Force-Click- oder Sondertimeout-Fälle.
 Der vollständige Endlauf und seine Dauer stehen in Abschnitt 22.5.
 
@@ -1276,13 +1291,13 @@ einer Vertragsregel, ist er in Abschnitt 18 als offene Abweichung zu behandeln.
   Erfolg beziehungsweise Fehler treten wieder als FSM-Ereignisse ein. Nur ein
   explizit deklarierter Trigger bildet eine Transition auf dieses Ereignis ab;
   Conditions entscheiden ausschließlich über die Zulassung.
-- **ARC-008 Rendering:** Die Runtime rendert die aktive Eltern-/Kindkette aus
-  strukturierten State-Daten. Explizite Render-Reihenfolge verbindet manuelle
+- **ARC-008 Rendering:** Die Runtime rendert ausschließlich den aktiven State
+  aus strukturierten State-Daten. Parent, Child und Geschwister werden niemals
+  gleichzeitig oder passiv gerendert. Explizite Render-Reihenfolge verbindet manuelle
   Komponenten, `dataWire`-Referenzen und `transitionButton`-Referenzen. Text ist
   Anzeige; nur explizite Transition-IDs binden eine Nutzeraktion an den Ablauf.
   Parallel dazu interpretiert `renderLiteralText` weiterhin `{{path}}`-Tokens;
-  siehe GAP-021. `renderMode: "component"` rendert außerdem nicht aktive
-  Child-States passiv in ihren Parent; siehe GAP-038.
+  siehe GAP-021.
 - **ARC-009 MCP-Schicht:** `mcp/state-blueprint-core.js` implementiert
   normalisierte Modellaktionen und Editor-Kommandos ohne DOM. Der
   `state-blueprint-server.js` stellt sie als zeilenbasiertes JSON-RPC über stdio
@@ -1347,6 +1362,10 @@ Disposition, solange der Vertrag nicht ausdrücklich gemeinsam geändert wird:
   Legacy-Fallbacks werden an Parser-, Import-, API-, MCP-, Persistenz- und
   Exportgrenzen abgelehnt oder entfernt; es gibt keine dauerhaft erlaubte
   Kompatibilitätsliste.
+- **DEC-013 ist entschieden:** Es gibt keine komponentenartigen Child-States
+  und keine passive Renderregion. `renderMode` ist verboten. Verschachtelte
+  States bleiben echte FSM-Schritte; sichtbarer Inhalt gehört als Komponente
+  auf genau den State, der ihn rendert.
 - Mobile verwendet genau die vier exklusiven Arbeitsansichten Canvas, Vorlagen,
   Details und Vorschau. Die Vorschau zeigt App und nicht interaktiven
   Live-Canvas gemeinsam; Gesten müssen ohne verdeckte Bedienflächen oder
@@ -1391,12 +1410,6 @@ Varianten stillschweigend zum Vertrag erklären:
   Klammern, Stringliterale, Fehler und Validierung müssen exakt definiert werden;
   alternativ entfällt freie Condition-Eingabe zugunsten ausschließlich
   strukturierter Regeln.
-- **DEC-013 Komponentenartige Child-States:** Zu entscheiden ist, ob
-  `renderMode: "component"` vollständig entfällt und Darstellung ausschließlich
-  über normale Komponenten erfolgt, oder ob echte parallele Regionen mit
-  eigener Aktivierung, Transitionkandidaten und Datenlebenszyklus modelliert
-  werden. Ein passiv gerenderter halber State ist keine zulässige Endlösung.
-
 ### 20.3 Index der zentralen Leitfragen
 
 - **App-Prinzip und Contract-Schutz:** PRN-001 bis PRN-011 sowie SYS-001 bis
@@ -1412,7 +1425,8 @@ Varianten stillschweigend zum Vertrag erklären:
   entschieden. Zustellklasse und eine mögliche spätere Erweiterung stehen
   getrennt in DEC-004; GAP-018 und GAP-026 sind geschlossen.
 - **Parent-/Child-Laufzeit:** NEST-001 bis NEST-016; offene Resolver- und
-  Boundary-Fragen stehen in GAP-013, GAP-034, GAP-038, DEC-005 und DEC-013.
+  Boundary-Fragen stehen in GAP-013, GAP-034 und DEC-005. Passive Child-States
+  sind mit DEC-013 und GAP-038 ausgeschlossen.
 - **Never-cache und gemeinsame Release-ID:** DEMO-011 sowie RT-019 bis RT-023
   sind fest. Offen sind der beweisbare Header der ersten Antwort in DEC-010 und
   GAP-027. GAP-037 ist geschlossen.
@@ -1425,9 +1439,9 @@ Varianten stillschweigend zum Vertrag erklären:
 - **Vollständige, schnellere Tests:** TST-001 bis TST-009 erlauben nur
   Parallelisierung. GAP-019 ist geschlossen; Force, Retry und Fallback bleiben
   verboten.
-- **Neu aus diesem Vollaudit:** Kanonische Zustandsdaten, komponentenartige
-  Child-States und formale ID-Grammatik stehen in DEC-012 bis DEC-014. DEC-012,
-  DEC-014, GAP-031 und GAP-033 sind umgesetzt; DEC-013/GAP-038 bleiben offen.
+- **Neu aus diesem Vollaudit:** Kanonische Zustandsdaten, Rendering und formale
+  ID-Grammatik stehen in DEC-012 bis DEC-014. Alle drei Entscheidungen sowie
+  GAP-031, GAP-033 und GAP-038 sind umgesetzt.
 
 ## 21. Nicht normative Richtung
 
@@ -1481,9 +1495,28 @@ aber nicht mehr normativ, wenn sie hier ausdrücklich geschlossen werden.
   Defaults nicht vor dem nächsten State-Eintritt. Die Runtime erzeugt keine
   Eingaben aus Condition-Text. Nutzereingaben existieren ausschließlich als
   explizite Komponenten mit vollqualifizierter Busbindung.
+- Jeder State ist ein vollständiger FSM-State. `parentId` bildet weiterhin echte
+  verschachtelte States und Editor-Layer; Eintritt, Ausgang und Stop-Verhalten
+  folgen ausschließlich den definierten Transitionen und Boundaries.
+- Ein geöffneter Parent-Layer zeigt genau eine technische Input- und eine
+  technische Output-Boundary-Route. `groupEntryId` und `groupExitId` erhalten
+  die Zuordnung zu den echten Parent-Transitionen, ohne deren externe Kabel im
+  Child-Canvas zu vervielfachen.
+- Die Runtime rendert genau den aktiven State. Sie rendert weder dessen Parent
+  noch dessen Children zusätzlich. `renderMode` ist kein Vertragsfeld, wird
+  nicht migriert und an Modell-, Template- und MCP-Grenzen abgelehnt.
+- Ein einfaches eingebautes Inhalts-Preset erzeugt auf der Root-Ebene einen
+  normalen State mit genau dieser Komponente. Innerhalb eines Parent-Layers
+  oder bei direktem Hinzufügen auf einen State wird dieselbe Komponente an das
+  bestehende `components`-Array dieses States angehängt; es entsteht kein
+  versteckter Child-State. Explizit erzeugte Child-States, gespeicherte
+  State-Vorlagen und verschachtelte Layer bleiben unverändert echte States.
+- Preset-Aktionen verändern den vom Nutzer bestimmten Inspectorzustand nicht.
+  Die Aktion `In <Parent>` ist ein ausdrücklicher Bearbeitungsbefehl und darf
+  den Inspector des Layer-Owners öffnen.
 
 Damit sind **DEC-012**, **DEC-014**, **GAP-030**, **GAP-031**, **GAP-032** und
-**GAP-033** entschieden und umgesetzt.
+**GAP-033** sowie **DEC-013/GAP-038** entschieden und umgesetzt.
 
 ### 22.2 Runtime-, Frame- und Realtime-Besitz
 
@@ -1575,11 +1608,11 @@ auch extern erfüllt.
   Komponenten, keine Runtime-Daten werden in `state.data` kopiert, Touch-Auswahl
   lässt den Inspectorzustand unverändert und echte Touch-Taps bleiben unabhängig
   von asynchronen Runtime-Nachrichten deterministisch.
-- Vollständige lokale Abnahme vom 2026-07-12: 21/21 Node-Server-Tests bestanden
-  in 14,2 Sekunden; 344/344 Playwright-Fälle bestanden mit vier Workern in
-  5,1 Minuten. Der langsamste Browser-Einzelfall benötigte 26,6 Sekunden und
-  blieb damit unter TST-010. Der Real-Touch-Double-Tap bestand zusätzlich zehn
-  frische Browserkontexte in Folge ohne Retry.
+- Vollständige lokale Abnahme vom 2026-07-13: 26/26 Node-Server-Tests bestanden
+  in 7,9 Sekunden; 345/345 Playwright-Fälle bestanden mit vier Workern in
+  3,1 Minuten. Der langsamste Browser-Einzelfall benötigte 13,6 Sekunden und
+  blieb damit deutlich unter TST-010. Das State-Reparenting bestand zusätzlich
+  zehn frische Browserkontexte in Folge ohne Retry.
 
 ### 22.6 Weiterhin offen, ohne stillen Fallback
 
@@ -1598,9 +1631,6 @@ auch extern erfüllt.
 - **DEC-011/GAP-028:** Die freie Condition-Sprache ist eval-frei und ihre
   Referenzen sind kanonisch, aber ihre vollständige formale Grammatik ist noch
   nicht als eigenständiges Schema dokumentiert.
-- **DEC-013/GAP-038:** `renderMode: "component"` besitzt noch keine vollständig
-  definierte Aktivierungs-, Kandidaten- und Datenlebenszyklus-Semantik. Bis zur
-  Entscheidung darf daraus kein zweiter Runtime-State entstehen.
 - **GAP-023:** Safari-Verhalten ist per Chromium-Vertrag und realer Beobachtung
   adressiert, aber noch nicht durch einen dauerhaft laufenden WebKit-CI-Job
   abgesichert.

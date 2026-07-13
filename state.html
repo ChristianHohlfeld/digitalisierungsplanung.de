@@ -235,6 +235,36 @@
       background: rgba(245,158,11,.12);
     }
 
+    .runtime-pause-banner {
+      position: absolute;
+      z-index: 220;
+      top: 12px;
+      left: 50%;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 38px;
+      padding: 8px 12px;
+      transform: translateX(-50%);
+      border: 1px solid #fbbf24;
+      border-radius: 6px;
+      background: #f59e0b;
+      color: #1f1303;
+      box-shadow: 0 8px 24px rgba(0,0,0,.34);
+      font-size: 13px;
+      font-weight: 850;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    .runtime-pause-banner[hidden] {
+      display: none;
+    }
+
+    .workspace.runtime-paused {
+      box-shadow: inset 0 0 0 2px rgba(245,158,11,.82);
+    }
+
     .workspace {
       display: grid;
       position: relative;
@@ -609,6 +639,11 @@
 
     .layer-frame-label {
       pointer-events: auto;
+      cursor: pointer;
+    }
+
+    .layer-frame-label:disabled {
+      cursor: default;
     }
 
     .layer-frame-hint {
@@ -3420,6 +3455,73 @@
       font-weight: 850;
     }
 
+    .widget-assigned-list {
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+      padding-block: 2px;
+    }
+
+    .widget-assigned-row {
+      display: grid;
+      grid-template-columns: 36px minmax(0, 1fr) 36px;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      min-height: 40px;
+      padding: 2px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background: rgba(8, 24, 39, .58);
+    }
+
+    .widget-assigned-row.dragging {
+      opacity: .55;
+    }
+
+    .widget-assigned-row.drop-before {
+      border-top-color: var(--accent);
+      box-shadow: inset 0 3px 0 rgba(245,158,11,.55);
+    }
+
+    .widget-assigned-row.drop-after {
+      border-bottom-color: var(--accent);
+      box-shadow: inset 0 -3px 0 rgba(245,158,11,.55);
+    }
+
+    .widget-assigned-label {
+      min-width: 0;
+      overflow: hidden;
+      color: #dbeafe;
+      font-size: 12px;
+      font-weight: 900;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .widget-assigned-icon {
+      display: inline-grid;
+      place-items: center;
+      width: 36px;
+      min-width: 36px;
+      height: 36px;
+      min-height: 36px;
+      padding: 0;
+      border-radius: 6px;
+      box-shadow: none;
+    }
+
+    .widget-assigned-icon svg {
+      width: 17px;
+      height: 17px;
+      pointer-events: none;
+    }
+
+    .widget-assigned-drag {
+      cursor: grab;
+      touch-action: none;
+    }
+
     .template-mode-note {
       display: grid;
       gap: 4px;
@@ -5003,6 +5105,10 @@
     </div>
   </div>
   <div class="workspace mobile-canvas-active" id="workspace">
+    <div id="runtimePauseBanner" class="runtime-pause-banner" role="status" aria-live="polite" hidden>
+      <strong>Pausiert</strong>
+      <span>Automatik und Timer angehalten</span>
+    </div>
     <aside class="inspector" id="stateInspector">
       <div class="inspector-title">
         <span class="inspector-title-text" id="stateInspectorTitle">Eigenschaften</span>
@@ -5020,7 +5126,7 @@
     <main id="map" class="map" tabindex="-1" style="background-size: 24px 24px, 24px 24px, 100% 100%, 100% 100%; background-position: 14px 3px, 14px 3px, 0px 0px, 0px 0px;">
       <div id="layerHud" class="layer-hud">
         <button id="layerBack" class="layer-back" type="button" aria-label="Zurück zum übergeordneten Zustand">Zurück</button>
-        <span id="layerFrameLabel" class="layer-frame-label">Wurzel</span>
+        <button id="layerFrameLabel" class="layer-frame-label" type="button" disabled>Wurzel</button>
         <span class="layer-frame-hint">Ablauf rein/raus</span>
       </div>
       <div id="mapScene" class="map-scene">
@@ -5416,7 +5522,7 @@
         let cursor = normalizeStateDataObject(state.data);
         let declared = parts.length > 0;
         for (const part of parts) {
-          if (Array.isArray(cursor) && /^\d+$/.test(part) && Number(part) < cursor.length) {
+          if (Array.isArray(cursor) && /^\\d+$/.test(part) && Number(part) < cursor.length) {
             cursor = cursor[Number(part)];
             continue;
           }
@@ -5708,14 +5814,7 @@
       for (const child of childComponentStates(state.id)) applyNestedStateDataDefaults(child, seen);
     }`;
       const runtimeNestedStateDefaultsJsEnhanced = `    function applyActiveStateDataDefaults(state) {
-      const seen = new Set();
-      const applyRenderedDefaults = renderedState => {
-        if (!renderedState || seen.has(renderedState.id)) return;
-        seen.add(renderedState.id);
-        applyStateDataDefaults(renderedState);
-        for (const child of childComponentStates(renderedState.id)) applyRenderedDefaults(child);
-      };
-      for (const activeState of activeStateChain(state)) applyRenderedDefaults(activeState);
+      for (const activeState of activeStateChain(state)) applyStateDataDefaults(activeState);
     }`;
       const runtimeEntryEffectsJs = `    function runCurrentStateEntryEffects({ fetch = false } = {}) {
       const state = stateById(current);
@@ -7618,17 +7717,6 @@
       return chain.length ? chain : [state].filter(Boolean);
     }
 
-    function stateHasRenderableContent(state) {
-      if (!state) return false;
-      if (normalizeComponents(state.components).length) return true;
-      if (normalizeDataWires(state.dataWires).length) return true;
-      return Boolean(normalizeRepeatConfig(state.repeat).path);
-    }
-
-    function childStatesRenderAsComponents(parentId) {
-      return Boolean(parentId && childComponentStates(parentId).some(stateHasRenderableContent));
-    }
-
     function runtimeStateUsesWidgetScreen(state) {
       const components = normalizeComponents(state?.components);
       if (!components.length) return false;
@@ -7637,23 +7725,10 @@
       return components.every(component => component.type === "daisy" && runtimeSupportedDaisyComponent(component));
     }
 
-    function renderChildStateComponents(screen, state, seen, renderOptions = {}) {
-      if (!state || !childStatesRenderAsComponents(state.id)) return 0;
-      let rendered = 0;
-      for (const child of childComponentStates(state.id)) {
-        rendered += renderComponents(screen, child, seen, true, renderOptions);
-        rendered += renderChildStateComponents(screen, child, seen, renderOptions);
-      }
-      return rendered;
-    }
-
     function renderActiveStateComponents(screen, chain, renderOptions = {}) {
       const state = chain[chain.length - 1];
       if (!state) return 0;
-      const seen = new Set();
-      let rendered = renderComponents(screen, state, seen, false, renderOptions);
-      rendered += renderChildStateComponents(screen, state, seen, renderOptions);
-      return rendered;
+      return renderComponents(screen, state, new Set(), false, renderOptions);
     }
 
 `;
@@ -8236,6 +8311,19 @@
       next = next.replace("</style>", finalDaisyBadgeCss + "\n" + runtimeViewportCss + "\n  </style>");
       next = pruneUnsupportedDaisyRuntime(next);
       next = removeGeneratedRange(next, `    function loadModel() {`, `    function normalizeStateRenderMode`);
+      next = removeGeneratedRange(next, `    function normalizeStateRenderMode`, `    function normalizeModel`);
+      next = next.replace(`        s.renderMode = normalizeStateRenderMode(s.renderMode);
+`, "");
+      next = replaceGeneratedRange(
+        next,
+        `    function stateRendersInParent`,
+        `    function boundaryConfigFor`,
+        `    function flowChildStates(parentId) {
+      return childStates(parentId);
+    }
+
+`
+      );
       next = removeGeneratedRange(next, `    window.addEventListener("storage", evt => {`, `    document.addEventListener("keydown", evt => {`);
       next = next
         .replace(`    const STORAGE_KEY = "stateBlueprintHotLinked.model.v2";\n`, "")
@@ -8523,6 +8611,7 @@
     const TOUCH_PORT_START_VERTICAL_PX = 38;
 
     const workspaceEl = document.getElementById("workspace");
+    const runtimePauseBannerEl = document.getElementById("runtimePauseBanner");
     const stateInspectorEl = document.getElementById("stateInspector");
     const stateInspectorTitleEl = document.getElementById("stateInspectorTitle");
     const stateInspectorBodyEl = document.getElementById("stateInspectorBody");
@@ -8635,7 +8724,6 @@
     let stateDragOverStateId = "";
     let canvasMoveFrame = 0;
     let queuedCanvasMoveEvent = null;
-    let isSpaceDown = false;
     let syncTimer = null;
     let appFrameReady = false;
     let pendingFramePayloads = [];
@@ -8703,7 +8791,9 @@
     let undoStack = [];
     let redoStack = [];
     let historyCurrent = null;
-    let lastHistoryKey = null;
+    let historyActionId = 0;
+    let lastHistoryGroup = null;
+    let historyPointerActive = false;
     let activePointerId = null;
     let lastTouchAt = 0;
     let suppressCanvasTextSelectionUntil = 0;
@@ -8856,7 +8946,6 @@
       const makeState = (id, title, x, y, components, data, extra = {}) => ({
         id,
         title,
-        renderMode: "state",
         components,
         data,
         dataTypes: typed(data),
@@ -9361,6 +9450,17 @@
       evt.stopPropagation();
       exitCurrentLayer({ force: true });
     });
+    layerFrameLabelEl.addEventListener("click", evt => {
+      evt.preventDefault();
+      evt.stopPropagation();
+      const owner = currentLayerId ? byId(currentLayerId) : null;
+      if (!owner) return;
+      showNodeInspector(owner, {
+        focus: false,
+        forceOpen: true,
+        manualOpen: true
+      });
+    });
 
     function loadModel() {
       try {
@@ -9636,7 +9736,6 @@
           const snapshot = {
             id: String(state.id || uid("state")),
             title: String(state.title || state.id || "Zustand"),
-            renderMode: normalizeStateRenderMode(state.renderMode),
             components: normalizeComponents(state.components || []),
             data: normalizeStateDataObject(state.data),
             dataTypes: normalizeDataTypes(state.dataTypes, state.data),
@@ -9684,7 +9783,6 @@
         .map(item => ({
           id: String(item.id || uid("tpl")),
           title: String(item.title || "Zustandsvorlage"),
-          renderMode: normalizeStateRenderMode(item.renderMode),
           components: normalizeComponents(item.components || []),
           data: normalizeStateDataObject(item.data),
           dataTypes: normalizeDataTypes(item.dataTypes, normalizeStateDataObject(item.data)),
@@ -9921,11 +10019,44 @@
       if (btnCanvasRedo) btnCanvasRedo.disabled = !canRedo;
     }
 
+    function historyTextEditTarget(target) {
+      const element = target?.nodeType === Node.TEXT_NODE ? target.parentElement : target;
+      if (!element?.matches) return false;
+      if (element.matches("textarea, [contenteditable='true']")) return true;
+      if (!element.matches("input")) return false;
+      return !new Set(["button", "checkbox", "color", "file", "hidden", "image", "radio", "range", "reset", "submit"]).has(String(element.type || "text").toLowerCase());
+    }
+
+    function beginHistoryAction() {
+      historyActionId += 1;
+      lastHistoryGroup = null;
+    }
+
+    document.addEventListener("pointerdown", evt => {
+      historyPointerActive = true;
+      if (!historyTextEditTarget(evt.target)) beginHistoryAction();
+    }, { capture: true });
+    document.addEventListener("pointerup", () => { historyPointerActive = false; }, { capture: true });
+    document.addEventListener("pointercancel", () => { historyPointerActive = false; }, { capture: true });
+    document.addEventListener("click", evt => {
+      if (evt.detail === 0 && !historyTextEditTarget(evt.target)) beginHistoryAction();
+    }, { capture: true });
+    document.addEventListener("focusin", evt => {
+      if (historyTextEditTarget(evt.target)) beginHistoryAction();
+    }, { capture: true });
+    document.addEventListener("keydown", evt => {
+      if (!historyTextEditTarget(evt.target)) beginHistoryAction();
+    }, { capture: true });
+    document.addEventListener("input", evt => {
+      if (!historyPointerActive && !historyTextEditTarget(evt.target)) beginHistoryAction();
+    }, { capture: true });
+    document.addEventListener("drop", beginHistoryAction, { capture: true });
+
     function initHistory() {
       historyCurrent = editorSnapshot();
       undoStack = [];
       redoStack = [];
-      lastHistoryKey = null;
+      beginHistoryAction();
       updateHistoryButtons();
     }
 
@@ -9937,17 +10068,18 @@
         persistStateTemplates();
         return;
       }
+      const historyGroup = historyKey ? `${historyActionId}:${historyKey}` : null;
       if (!historyCurrent) {
         historyCurrent = next;
-      } else if (historyKey && historyKey === lastHistoryKey && undoStack.length) {
-        // Continuous edits such as typing or dragging remain one deterministic undo step.
+      } else if (historyGroup && historyGroup === lastHistoryGroup && undoStack.length) {
+        // Repeated mutations within one explicit user interaction remain one undo step.
       } else {
         undoStack.push(historyCurrent);
         if (undoStack.length > 100) undoStack.shift();
       }
       redoStack = [];
       historyCurrent = next;
-      lastHistoryKey = historyKey;
+      lastHistoryGroup = historyGroup;
       persistModel(sync);
       persistStateTemplates();
       updateHistoryButtons();
@@ -9990,7 +10122,7 @@
       const current = editorSnapshot();
       const previous = undoStack.pop();
       redoStack.push(current);
-      lastHistoryKey = null;
+      beginHistoryAction();
       restoreHistorySnapshot(previous);
     }
 
@@ -9999,7 +10131,7 @@
       const current = editorSnapshot();
       const next = redoStack.pop();
       undoStack.push(current);
-      lastHistoryKey = null;
+      beginHistoryAction();
       restoreHistorySnapshot(next);
     }
 
@@ -10298,6 +10430,7 @@
       const states = source.states.map((state, index) => {
         const path = `definition.model.states[${index}]`;
         assertPlainObject(state, path);
+        if ("renderMode" in state) throw new Error(`${path}.renderMode is not part of the contract; put visible components on the state itself.`);
         const id = assertString(state.id, `${path}.id`);
         if (isReservedRuntimeId(id)) throw new Error(`${path}.id must not use the reserved runtime id namespace.`);
         if (ids.has(id)) throw new Error(`${path}.id must be unique.`);
@@ -10307,7 +10440,6 @@
         return {
           id,
           title: assertString(state.title, `${path}.title`),
-          renderMode: normalizeStateRenderMode(state.renderMode),
           components: validateComponents(state.components, `${path}.components`),
           data: dataObject,
           dataTypes: validateDataTypesObject(state.dataTypes, `${path}.dataTypes`, dataObject),
@@ -10409,6 +10541,7 @@
         const states = (Array.isArray(template.states) ? template.states : []).slice(0, 120).map((state, stateIndex) => {
           const statePath = `${itemPath}.states[${stateIndex}]`;
           assertPlainObject(state, statePath);
+          if ("renderMode" in state) throw new Error(`${statePath}.renderMode is not part of the contract; put visible components on the state itself.`);
           const stateId = assertString(state.id, `${statePath}.id`);
           if (isReservedRuntimeId(stateId)) throw new Error(`${statePath}.id must not use the reserved runtime id namespace.`);
           if (stateIds.has(stateId)) throw new Error(`${statePath}.id must be unique inside the preset.`);
@@ -10418,7 +10551,6 @@
           return {
             id: stateId,
             title: assertString(state.title, `${statePath}.title`),
-            renderMode: normalizeStateRenderMode(state.renderMode),
             components: validateComponents(state.components, `${statePath}.components`),
             data: dataObject,
             dataTypes: validateDataTypesObject(state.dataTypes, `${statePath}.dataTypes`, dataObject),
@@ -10467,10 +10599,10 @@
           };
         });
         const templateData = validateStateDataObject(template.data, `${itemPath}.data`);
+        if ("renderMode" in template) throw new Error(`${itemPath}.renderMode is not part of the contract; put visible components on the state itself.`);
         return {
           id,
           title: assertString(template.title, `${itemPath}.title`),
-          renderMode: normalizeStateRenderMode(template.renderMode),
           components: validateComponents(template.components, `${itemPath}.components`),
           data: templateData,
           dataTypes: validateDataTypesObject(template.dataTypes, `${itemPath}.dataTypes`, templateData),
@@ -10591,7 +10723,6 @@
       const snapshot = {
         id: String(s.id),
         title: String(s.title || s.id),
-        renderMode: normalizeStateRenderMode(s.renderMode),
         components: normalizeComponents(s.components || []),
         data: normalizeStateDataObject(s.data),
         dataTypes: normalizeDataTypes(s.dataTypes, s.data),
@@ -11149,7 +11280,6 @@
         id,
         title: String(value.title || "Zustandsvorlage"),
         description: String(value.description || ""),
-        renderMode: normalizeStateRenderMode(value.renderMode),
         builtIn: value.builtIn !== false,
         rootStateId,
         components: normalizeComponents(value.components || []),
@@ -12096,7 +12226,7 @@
         used.add(id);
         s.id = id;
         s.title = s.title || s.id;
-        s.renderMode = normalizeStateRenderMode(s.renderMode);
+        delete s.renderMode;
         s.components = normalizeComponents(s.components);
         delete s.body;
         s.data = normalizeStateDataObject(s.data);
@@ -12230,18 +12360,6 @@
       return layer?.rootLayer ? null : layer?.id || null;
     }
 
-    function groupContextStates(parent) {
-      if (!parent) return [];
-      const ids = new Set();
-      for (const transition of parentLayerTransitions(parent, "input")) {
-        if (transition.from !== parent.id) ids.add(transition.from);
-      }
-      for (const transition of parentLayerTransitions(parent, "output")) {
-        if (transition.to !== parent.id) ids.add(transition.to);
-      }
-      return [...ids].map(id => byId(id)).filter(Boolean);
-    }
-
     let _visibleFrameSnapshot = null;
 
     function computeVisibleStates(layerId = currentLayerId) {
@@ -12272,13 +12390,7 @@
     }
 
     function computeVisibleTransitions(layerId = currentLayerId) {
-      const base = transitionsInLayer(layerId);
-      const projected = projectedParentTransitions(layerId);
-      const projectedSides = new Set(projected.map(transition => transition.projection?.side).filter(Boolean));
-      const visibleBase = projectedSides.size
-        ? base.filter(transition => !transition.boundaryFlow || !projectedSides.has(transition.boundaryFlow.side))
-        : base;
-      return [...visibleBase, ...projected];
+      return transitionsInLayer(layerId);
     }
 
     function visibleTransitions(layerId = currentLayerId) {
@@ -12300,33 +12412,6 @@
 
     function clearVisibleFrameSnapshot(snapshot) {
       if (_visibleFrameSnapshot === snapshot) _visibleFrameSnapshot = null;
-    }
-
-    function projectedParentTransitions(layerId = currentLayerId) {
-      const parent = layerId ? byId(layerId) : null;
-      if (!parent || parent.virtualProxy) return [];
-      const children = statesInLayer(layerId);
-      if (!children.length) return [];
-      const inputProxy = byId(boundaryProxyForSide(parent.id, "input"));
-      const outputProxy = byId(boundaryProxyForSide(parent.id, "output"));
-      const inputEntry = transition => groupEntryChild(parent.id, transition) || configuredBoundaryState(parent, "input", children);
-      const outputExit = transition => groupExitChild(parent.id, transition) || configuredBoundaryState(parent, "output", children);
-      const projected = [];
-      if (inputProxy) {
-        for (const transition of parentLayerTransitions(parent, "input")) {
-          const entry = inputEntry(transition);
-          if (!entry) continue;
-          projected.push({ ...transition, from: inputProxy.id, to: entry.id, projection: { transitionId: transition.id, parentId: parent.id, side: "input" } });
-        }
-      }
-      if (outputProxy) {
-        for (const transition of parentLayerTransitions(parent, "output")) {
-          const exit = outputExit(transition);
-          if (!exit) continue;
-          projected.push({ ...transition, from: exit.id, to: outputProxy.id, projection: { transitionId: transition.id, parentId: parent.id, side: "output" } });
-        }
-      }
-      return projected;
     }
 
     function boundaryProxyId(parentId, side, transitionId) {
@@ -12813,7 +12898,7 @@
     }
 
     function transitionCanAcceptInsertedState(transition, parentId, insertedStateId = "") {
-      if (!transition || transition.boundaryFlow || transition.projection) return false;
+      if (!transition || transition.boundaryFlow) return false;
       if (transition.groupEntryId || transition.groupExitId) return false;
       if (isBoundaryProxyId(transition.from) || isBoundaryProxyId(transition.to)) return false;
       if (insertedStateId && (transition.from === insertedStateId || transition.to === insertedStateId)) return false;
@@ -13141,46 +13226,6 @@
       return model.transitions.find(t => t.id === id) || null;
     }
 
-    function projectedTransitionSource(transition) {
-      const projectionId = transition?.projection?.transitionId || "";
-      return projectionId ? concreteTransitionById(projectionId) || transition : transition;
-    }
-
-    function finishProjectedConnection(targetId) {
-      if (!connecting) return null;
-      const projection = connecting.projection || null;
-      if (!projection) return null;
-      const transition = concreteTransitionById(projection.transitionId);
-      if (!transition || projection.parentId !== currentLayerId) return null;
-      const parent = byId(projection.parentId);
-      if (!parent) return null;
-      if (projection.side === "input") {
-        const entry = byId(targetId);
-        if (!entry || stateParentId(entry) !== projection.parentId) return null;
-        transition.groupEntryId = entry.id;
-        selected = selectionFromParts([], [transition.id]);
-        return transition;
-      }
-      if (projection.side === "output") {
-        const target = byId(targetId);
-        if (target?.virtualProxy?.side === "output" && target.virtualProxy.transitionId === transition.id) {
-          const exit = byId(connecting.from);
-          if (!exit || stateParentId(exit) !== projection.parentId) return null;
-          transition.groupExitId = exit.id;
-          selected = selectionFromParts([], [transition.id]);
-          return transition;
-        }
-        if (!target || stateParentId(target) !== (parent.parentId || null)) return null;
-        const exit = byId(connecting.from);
-        if (!exit || stateParentId(exit) !== projection.parentId) return null;
-        transition.to = target.id;
-        transition.groupExitId = exit.id;
-        selected = selectionFromParts([], [transition.id]);
-        return transition;
-      }
-      return null;
-    }
-
     function splitBoundaryFlowConnection(targetId) {
       if (!connecting?.edgeId) return null;
       const parent = currentLayerContainer();
@@ -13482,7 +13527,7 @@
     }
 
     function mouseConnectionStartCandidate(evt) {
-      if (evt.button !== 0 || evt.shiftKey || evt.ctrlKey || evt.metaKey || isSpaceDown ||
+      if (evt.button !== 0 || evt.shiftKey || evt.ctrlKey || evt.metaKey ||
         Date.now() - lastTouchAt < 700) return null;
       const ownerNodeId = evt.target?.closest?.(".node:not(.boundary-proxy)")?.dataset?.id || "";
       if (!isEmptyCanvasTarget(evt.target) && !ownerNodeId) return null;
@@ -13663,7 +13708,7 @@
       return cancelActiveCanvasGesture();
     }
 
-    function startPendingEdgeMouse(evt, t) {
+    function startPendingEdgeMouse(evt, t, canRewire = false) {
       if (evt.button !== 0) return false;
       evt.preventDefault();
       evt.stopPropagation();
@@ -13672,7 +13717,8 @@
         clientX: evt.clientX,
         clientY: evt.clientY,
         startedAt: Date.now(),
-        transition: t
+        transition: t,
+        canRewire
       };
       return true;
     }
@@ -13683,7 +13729,12 @@
       if (distance <= DESKTOP_DRAG_ACTIVATION_PX) return true;
       const start = pendingEdgeMouse;
       pendingEdgeMouse = null;
-      startEdgeRewire(eventFromPoint(start, evt), start.transition);
+      if (start.canRewire) {
+        startEdgeRewire(eventFromPoint(start, evt), start.transition);
+      } else {
+        suppressEdgeClickUntil = Date.now() + 650;
+        startPanning(eventFromPoint(start, evt));
+      }
       handleCanvasMove(evt);
       return true;
     }
@@ -13706,12 +13757,6 @@
     function startPendingNodeTouch(evt, state) {
       stopRuntimeLayerFollow();
       clearLongPress();
-      const previousNode = singleSelectedNodeId();
-      selected = selectionFromParts([state.id], []);
-      const singleNode = singleSelectedNodeId();
-      if (singleNode && singleNode !== previousNode && byModelId(model, singleNode)) {
-        startAppAtState(singleNode, { preserveFocus: true, suppressLayerFollow: true });
-      }
       pressedTouchNodeId = state.id;
       touchDragReadyNodeId = "";
       pendingNodeTouch = {
@@ -13959,13 +14004,13 @@
       return edges.length === 1 && selectedNodeIdList().length === 0 ? edges[0] : null;
     }
 
-    function setSingleSelection(kind, id, historyKey = null) {
+    function setSingleSelection(kind, id, historyKey = null, opts = {}) {
       clearQuickRenameSession();
       const previousNode = kind === "node" ? singleSelectedNodeId() : null;
       selected = kind === "node" ? selectionFromParts([id], []) : selectionFromParts([], [id]);
       saveSelection(historyKey);
       const singleNode = kind === "node" ? singleSelectedNodeId() : null;
-      if (singleNode && singleNode !== previousNode && byModelId(model, singleNode)) {
+      if (opts.startRuntime !== false && singleNode && singleNode !== previousNode && byModelId(model, singleNode)) {
         startAppAtState(singleNode, { preserveFocus: true, suppressLayerFollow: true });
       }
     }
@@ -14481,16 +14526,6 @@
       return polylinePoint(routePoints, 0.82);
     }
 
-    function clampEdgeHandleToViewport(point, margin = 18) {
-      if (!point || !mapEl || !camera.scale) return point;
-      const rect = mapEl.getBoundingClientRect();
-      if (!rect.width || !rect.height) return point;
-      return {
-        x: clamp(point.x, (margin - camera.x) / camera.scale, (rect.width - margin - camera.x) / camera.scale),
-        y: clamp(point.y, (margin - camera.y) / camera.scale, (rect.height - margin - camera.y) / camera.scale)
-      };
-    }
-
     function midPointForRoute(routePoints) {
       return polylinePoint(routePoints, 0.5);
     }
@@ -14919,12 +14954,7 @@
     function startNodeDrag(evt, s) {
       stopRuntimeLayerFollow();
       evt.stopPropagation();
-      const previousNode = singleSelectedNodeId();
       if (!evt.shiftKey) selected = selectionFromParts([s.id], []);
-      const singleNode = singleSelectedNodeId();
-      if (singleNode && singleNode !== previousNode && byModelId(model, singleNode)) {
-        startAppAtState(singleNode, { preserveFocus: true, suppressLayerFollow: true });
-      }
       const p = screenToWorld(evt);
       dragging = {
         id: s.id,
@@ -14970,22 +15000,20 @@
       stopRuntimeLayerFollow();
       evt.preventDefault();
       evt.stopPropagation();
-      const concrete = projectedTransitionSource(t);
       const from = byId(t.from);
       if (!from) return;
       blockLayerEntryAfterPointerAction(1000);
       connecting = {
         from: t.from,
         to: screenToWorld(evt),
-        edgeId: concrete?.id || t.id,
-        projection: t.projection || null,
+        edgeId: t.id,
         touch: isTouchPointer(evt),
         moved: false,
         startClientX: evt.clientX,
         startClientY: evt.clientY
       };
       connectingTargetId = null;
-      selected = selectionFromParts([], [concrete?.id || t.id]);
+      selected = selectionFromParts([], [t.id]);
       suppressEdgeClickUntil = Date.now() + 650;
       mapEl.classList.add("connecting");
       draw();
@@ -15013,13 +15041,10 @@
     }
 
     function transitionColorSource(transition) {
-      const projectedSource = projectedTransitionSource(transition);
-      return concreteTransitionById(projectedSource?.id) || projectedSource || transition;
+      return concreteTransitionById(transition?.id) || transition;
     }
 
     function transitionLineColorLayerId(transition, state = null, fallbackLayerId = currentLayerId) {
-      const projectedParent = transition?.projection?.parentId ? byId(transition.projection.parentId) : null;
-      if (projectedParent) return stateParentId(projectedParent);
       const parentExit = transition?.runtimeParentFrom ? byId(transition.runtimeParentFrom) : null;
       if (parentExit) return stateParentId(parentExit);
       const source = transitionColorSource(transition);
@@ -16190,9 +16215,6 @@
     }
 
     function transitionRouteKey(transition) {
-      if (transition?.projection) {
-        return `projection:${transition.projection.parentId}:${transition.projection.side}:${transition.projection.transitionId}`;
-      }
       return String(transition?.id || "");
     }
 
@@ -16202,8 +16224,7 @@
 
     function edgeOrder(routeKey) {
       const transition = frameRouteTransition(routeKey);
-      const source = projectedTransitionSource(transition);
-      const index = _frameRouteOrder.get(source?.id);
+      const index = _frameRouteOrder.get(transition?.id);
       return Number.isFinite(index) && index >= 0 ? index : Number.MAX_SAFE_INTEGER;
     }
 
@@ -16442,9 +16463,7 @@
     }
 
     function edgeTipHandlePoint(from, to, transition = null) {
-      const ratio = transition?.projection?.side === "input" ? 0.92 : transition?.projection?.side === "output" ? 0.08 : 0.82;
-      const point = polylinePoint(edgeRoutePoints(from, to, transition), ratio);
-      return transition?.projection ? clampEdgeHandleToViewport(point) : point;
+      return polylinePoint(edgeRoutePoints(from, to, transition), 0.82);
     }
 
     function arrowPathForPoints(points) {
@@ -16507,15 +16526,18 @@
 
     function svgEdgeConcreteId(transition) {
       if (!transition) return "";
-      return projectedTransitionSource(transition)?.id || transition.id || "";
+      return transition.id || "";
     }
 
     function handleSvgEdgeMouseDown(evt) {
       const el = svgEdgeTarget(evt);
-      if (!el || el.getAttribute("data-edge-rewire") !== "true" || evt.button !== 0) return false;
+      if (!el || evt.button !== 0) return false;
+      const canRewire = el.getAttribute("data-edge-rewire") === "true";
+      const canPan = el.classList.contains("hit") || el.classList.contains("edge");
+      if (!canRewire && !canPan) return false;
       const transition = transitionFromSvgEdge(el);
       if (!transition) return false;
-      startPendingEdgeMouse(evt, transition);
+      startPendingEdgeMouse(evt, transition, canRewire);
       return true;
     }
 
@@ -16654,21 +16676,6 @@
     function appendEdgeHit(hit) {
       const defs = wiresEl.querySelector("defs");
       wiresEl.insertBefore(hit, defs?.nextSibling || wiresEl.firstChild);
-    }
-
-    function parentLayerTransitions(parent, side) {
-      if (!parent) return [];
-      const parentLayerId = parent.parentId || null;
-      return transitionsInLayer(parentLayerId)
-        .filter(transition => side === "input" ? transition.to === parent.id : transition.from === parent.id)
-        .sort((a, b) => {
-          const aOther = byId(side === "input" ? a.from : a.to);
-          const bOther = byId(side === "input" ? b.from : b.to);
-          return (aOther?.y ?? 0) - (bOther?.y ?? 0) ||
-            (aOther?.x ?? 0) - (bOther?.x ?? 0) ||
-            String(a.label || "").localeCompare(String(b.label || "")) ||
-            String(a.id || "").localeCompare(String(b.id || ""));
-        });
     }
 
     function syncBoundaryProxies(parent, states) {
@@ -16865,7 +16872,6 @@
         });
         el.addEventListener("blur", () => {
           requestAnimationFrame(() => persistLayerFrameCommentFromCanvas({ updateFrame: true }));
-          lastHistoryKey = null;
         });
         el.addEventListener("keydown", evt => {
           if (evt.key === "Escape") {
@@ -16991,11 +16997,10 @@
       if (state.virtualProxy?.side !== "output" || side !== "in") return false;
       const transition = visibleTransitions().find(item =>
         item.to === state.id &&
-        (item.projection?.side === "output" || item.boundaryFlow?.side === "output")
+        item.boundaryFlow?.side === "output"
       );
       if (!transition) return false;
-      const concrete = projectedTransitionSource(transition);
-      selectEdge(concrete?.id || transition.id, evt.clientX, evt.clientY);
+      selectEdge(transition.id, evt.clientX, evt.clientY);
       return true;
     }
 
@@ -17106,6 +17111,9 @@
       layerHudEl.hidden = false;
       layerBackEl.hidden = Boolean(parent.rootLayer);
       layerFrameLabelEl.textContent = parent.rootLayer ? "Wurzel" : `In ${parent.title || parent.id}`;
+      layerFrameLabelEl.disabled = Boolean(parent.rootLayer);
+      layerFrameLabelEl.title = parent.rootLayer ? "Wurzel" : `${parent.title || parent.id} bearbeiten`;
+      layerFrameLabelEl.setAttribute("aria-label", layerFrameLabelEl.title);
     }
 
     function hostRuntimeStateView() {
@@ -17129,6 +17137,8 @@
     }
 
     function syncRuntimePauseButton(paused) {
+      workspaceEl?.classList.toggle("runtime-paused", Boolean(paused));
+      if (runtimePauseBannerEl) runtimePauseBannerEl.hidden = !paused;
       if (!btnPause) return;
       btnPause.textContent = paused ? "Fortsetzen" : "Pausieren";
       btnPause.title = paused ? "Timer und automatische Änderungen fortsetzen" : "Timer und automatische Änderungen pausieren";
@@ -17171,6 +17181,7 @@
         : { transitions });
       const nodeSelection = selectedNodeIds();
       const edgeSelection = selectedEdgeIds();
+      const runtimeStateId = hostRuntimeStateView();
 
       const activeEl = document.activeElement;
       let focusedNodeId = null;
@@ -17217,7 +17228,7 @@
         const edgeKey = suffix => `edge:${routeKey}:${suffix}`;
 
         const hit = appendWireElement(edgeKey("hit"), "path", { d: pathD, class: "hit", style: edgeStyle, "data-edge-id": t.id });
-        attachEdgeInteractions(hit, t, Boolean(t.projection));
+        attachEdgeInteractions(hit, t);
 
         const classes = ["edge"];
         if (edgeSelection.has(t.id)) classes.push("selected");
@@ -17239,15 +17250,13 @@
           "data-edge-arrow": "in"
         });
 
-        if (!t.projection) {
-          const m = midPointForRoute(routePoints);
-          const labelClasses = ["edge-label"];
-          if (edgeSelection.has(t.id)) labelClasses.push("selected");
-          if (hoveredEdgeId === t.id) labelClasses.push("hovered");
-          const label = appendWireElement(edgeKey("label"), "text", { x: m.x, y: m.y - 10, class: labelClasses.join(" "), style: edgeStyle, "text-anchor": "middle", "data-edge-id": t.id });
-          label.textContent = transitionDisplayLabel(t) + (t.condition ? `  [${t.condition}]` : "");
-          attachEdgeInteractions(label, t);
-        }
+        const m = midPointForRoute(routePoints);
+        const labelClasses = ["edge-label"];
+        if (edgeSelection.has(t.id)) labelClasses.push("selected");
+        if (hoveredEdgeId === t.id) labelClasses.push("hovered");
+        const label = appendWireElement(edgeKey("label"), "text", { x: m.x, y: m.y - 10, class: labelClasses.join(" "), style: edgeStyle, "text-anchor": "middle", "data-edge-id": t.id });
+        label.textContent = transitionDisplayLabel(t) + (t.condition ? `  [${t.condition}]` : "");
+        attachEdgeInteractions(label, t);
 
         const pinClasses = ["edge-pin"];
         if (edgeSelection.has(t.id)) pinClasses.push("selected");
@@ -17341,7 +17350,10 @@
         if (!s.virtualProxy && nodeSelection.has(s.id)) classes.push("selected");
         if (!s.virtualProxy && pressedTouchNodeId === s.id) classes.push("touch-pressed");
         if (!s.virtualProxy && touchDragReadyNodeId === s.id) classes.push("touch-drag-ready");
-        if (hostRuntimeStateView() === s.id) classes.push("active");
+        const runtimeStateIsExact = runtimeStateId === s.id;
+        const runtimeStateIsDescendant = Boolean(runtimeStateId && !runtimeStateIsExact && isDescendant(s.id, runtimeStateId));
+        if (runtimeStateIsExact || runtimeStateIsDescendant) classes.push("active");
+        if (runtimeStateIsDescendant) classes.push("active-descendant");
         if (connectingTargetId === s.id) classes.push("drop-target");
         const inputTransitions = orderedPortTransitions(s.id, "in");
         const outputTransitions = orderedPortTransitions(s.id, "out");
@@ -17431,6 +17443,10 @@
         }
 
         if (!s.virtualProxy) {
+          const liveBadge = el.querySelector(".live-badge");
+          if (liveBadge) {
+            liveBadge.title = runtimeStateIsDescendant ? "Aktiver Child-Zustand" : "Aktiver Zustand";
+          }
           const titleEl = el.querySelector(".title");
           const bodyEl = el.querySelector(".body");
           titleEl.textContent = s.title || s.id;
@@ -17451,7 +17467,7 @@
             if (!isTouchPointer(evt)) return;
             evt.preventDefault();
             lastTouchAt = Date.now();
-            setSingleSelection("node", el.__state.id);
+            setSingleSelection("node", el.__state.id, null, { startRuntime: false });
             draw();
             showNodeInspector(el.__state, { forceOpen: true, manualOpen: true });
           });
@@ -17459,7 +17475,7 @@
             evt.preventDefault();
             evt.stopPropagation();
             if (Date.now() - lastTouchAt < 700) return;
-            setSingleSelection("node", el.__state.id);
+            setSingleSelection("node", el.__state.id, null, { startRuntime: false });
             draw();
             showNodeInspector(el.__state, { forceOpen: true, manualOpen: true });
           });
@@ -17474,7 +17490,7 @@
               evt.preventDefault();
               return;
             }
-            if (evt.button === 1 || evt.button === 2 || isSpaceDown) return startPanning(evt);
+            if (evt.button === 1 || evt.button === 2) return startPanning(evt);
             if (evt.button !== 0) return;
 
             const portCandidate = mouseConnectionStartCandidate(evt);
@@ -17659,7 +17675,7 @@
         if (!target?.matches?.("input:not([type='button']):not([type='submit']):not([type='checkbox']):not([type='radio']), select")) return;
         evt.preventDefault();
         evt.stopPropagation();
-        lastHistoryKey = null;
+        beginHistoryAction();
         opts.onCommit?.();
       };
       const firstInput = controls.find(el => !hiddenForKeyboard(el) && el.matches("input, textarea, select"));
@@ -17699,10 +17715,6 @@
       if (type === "daisy") return "Baustein";
       if (type === "transitionButton") return "Schaltfläche";
       return "Text";
-    }
-
-    function normalizeStateRenderMode(value) {
-      return String(value || "").trim() === "component" ? "component" : "state";
     }
 
     function componentPresetTypes() {
@@ -17753,6 +17765,16 @@
       });
     }
 
+    function setInspectorIcon(button, icon, label) {
+      const icons = {
+        edit: '<svg data-lucide="pencil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>',
+        drag: '<svg data-lucide="grip-vertical" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="5" r="1"></circle><circle cx="9" cy="12" r="1"></circle><circle cx="9" cy="19" r="1"></circle><circle cx="15" cy="5" r="1"></circle><circle cx="15" cy="12" r="1"></circle><circle cx="15" cy="19" r="1"></circle></svg>'
+      };
+      button.innerHTML = icons[icon] || "";
+      button.title = label;
+      button.setAttribute("aria-label", label);
+    }
+
     function renderComponentEditors(s, focusRequest = null, root = stateInspectorBodyEl, options = {}) {
       const list = root.querySelector("#pComponents");
       if (!list) return;
@@ -17780,6 +17802,9 @@
           seen.add(id);
           templates.push({ template, info });
         });
+        const attachedComponents = normalizeComponents(state.components).filter(component =>
+          component.type === "daisy" && component.dataRole === "widget"
+        );
         widgetLibrary.innerHTML = "";
         widgetLibrary.hidden = !templates.length;
         widgetLibrary.classList.remove("drag-over");
@@ -17793,6 +17818,85 @@
         const status = document.createElement("div");
         status.className = "widget-library-status";
         head.append(title, status);
+
+        const openWidgetEditor = component => {
+          if (!component?.id) return;
+          openComponentEditorIds.add(component.id);
+          rerender({ componentId: component.id });
+          requestAnimationFrame(() => {
+            const editor = root.querySelector(`.component-editor[data-component-id="${cssEscapeValue(component.id)}"]`);
+            if (!editor) return;
+            editor.open = true;
+            editor.scrollIntoView({ block: "nearest", behavior: "smooth" });
+            editor.querySelector('.widget-data-editor input, .widget-data-editor textarea, .widget-data-editor select')?.focus({ preventScroll: true });
+          });
+        };
+
+        const assignedList = document.createElement("div");
+        assignedList.className = "widget-assigned-list";
+        attachedComponents.forEach(component => {
+          const componentLabel = component.dataLabel || component.variant || "Baustein";
+          const row = document.createElement("div");
+          row.className = "widget-assigned-row";
+          row.dataset.componentId = component.id;
+          row.addEventListener("dragover", evt => {
+            const dragId = evt.dataTransfer?.getData("text/plain") || draggingComponentId;
+            if (!dragId || dragId === component.id) return;
+            evt.preventDefault();
+            const rect = row.getBoundingClientRect();
+            const after = evt.clientY > rect.top + rect.height / 2;
+            clearComponentDropMarks();
+            row.classList.add(after ? "drop-after" : "drop-before");
+            if (evt.dataTransfer) evt.dataTransfer.dropEffect = "move";
+          });
+          row.addEventListener("dragleave", evt => {
+            if (!row.contains(evt.relatedTarget)) row.classList.remove("drop-before", "drop-after");
+          });
+          row.addEventListener("drop", evt => {
+            const dragId = evt.dataTransfer?.getData("text/plain") || draggingComponentId;
+            if (!dragId || dragId === component.id) return;
+            evt.preventDefault();
+            const rect = row.getBoundingClientRect();
+            const after = evt.clientY > rect.top + rect.height / 2;
+            moveComponentBefore(dragId, component.id, after);
+          });
+
+          const drag = document.createElement("button");
+          drag.type = "button";
+          drag.className = "widget-assigned-icon widget-assigned-drag";
+          drag.draggable = true;
+          setInspectorIcon(drag, "drag", `Baustein ${componentLabel} sortieren`);
+          drag.addEventListener("pointerdown", evt => {
+            if (startTouchComponentReorder(evt, component, row, true)) {
+              evt.preventDefault();
+              evt.stopPropagation();
+            }
+          });
+          drag.addEventListener("dragstart", evt => {
+            draggingComponentId = component.id;
+            row.classList.add("dragging");
+            evt.dataTransfer.effectAllowed = "move";
+            evt.dataTransfer.setData("text/plain", component.id);
+          });
+          drag.addEventListener("dragend", () => {
+            draggingComponentId = null;
+            row.classList.remove("dragging");
+            clearComponentDropMarks();
+          });
+
+          const label = document.createElement("span");
+          label.className = "widget-assigned-label";
+          label.textContent = componentLabel;
+          label.title = componentLabel;
+
+          const edit = document.createElement("button");
+          edit.type = "button";
+          edit.className = "widget-assigned-icon widget-assigned-edit";
+          setInspectorIcon(edit, "edit", `Baustein ${componentLabel} bearbeiten`);
+          bindImmediateButton(edit, () => openWidgetEditor(component));
+          row.append(drag, label, edit);
+          assignedList.appendChild(row);
+        });
 
         const controls = document.createElement("div");
         controls.className = "widget-library-controls";
@@ -17811,13 +17915,12 @@
         const selectedItem = () => templates.find(item => item.template.id === select.value) || templates[0];
         const syncAction = () => {
           const item = selectedItem();
-          const attached = Boolean(item && widgetPresetComponentInState(state, item.template));
-          const count = templates.filter(item => widgetPresetComponentInState(state, item.template)).length;
-          action.textContent = "Baustein hinzufügen";
-          action.disabled = attached;
-          action.title = attached ? "Bereits in der Darstellung" : "Ausgewählten Baustein hinzufügen";
+          const attached = item ? widgetPresetComponentInState(state, item.template) : null;
+          action.textContent = attached ? "Bearbeiten" : "Baustein hinzufügen";
+          action.disabled = !item;
+          action.title = attached ? "Ausgewählten Baustein bearbeiten" : "Ausgewählten Baustein hinzufügen";
           action.classList.remove("danger");
-          status.textContent = attached ? "Ausgewählter Baustein ist bereits in der Darstellung" : count ? `${count} im Render` : "Vorlage hier ablegen";
+          status.textContent = attachedComponents.length ? `${attachedComponents.length} zugeordnet` : "Keine zugeordnet";
         };
         select.onchange = syncAction;
         action.onclick = evt => {
@@ -17826,11 +17929,18 @@
           const item = selectedItem();
           const liveState = byId(s.id) || s;
           if (!item || !liveState) return;
+          const attached = widgetPresetComponentInState(liveState, item.template);
+          if (attached) {
+            openWidgetEditor(attached);
+            return;
+          }
           addWidgetPresetToState(liveState, item.template);
           renderStateExplorer();
         };
         controls.append(select, action);
-        widgetLibrary.append(head, controls);
+        widgetLibrary.append(head);
+        if (attachedComponents.length) widgetLibrary.append(assignedList);
+        widgetLibrary.append(controls);
         syncAction();
 
         const draggedWidgetTemplate = evt => {
@@ -17950,7 +18060,8 @@
       };
       let draggingComponentId = null;
       const clearComponentDropMarks = () => {
-        list.querySelectorAll(".component-editor.drop-before,.component-editor.drop-after").forEach(el => el.classList.remove("drop-before", "drop-after"));
+        root.querySelectorAll(".component-editor.drop-before,.component-editor.drop-after,.widget-assigned-row.drop-before,.widget-assigned-row.drop-after")
+          .forEach(el => el.classList.remove("drop-before", "drop-after"));
       };
       const moveComponentBefore = (dragId, targetId, after = false) => {
         if (!dragId || !targetId || dragId === targetId) return false;
@@ -17982,7 +18093,7 @@
       };
       let touchComponentReorder = null;
       const componentDropTargetAt = clientY => {
-        const rows = [...list.querySelectorAll(".component-editor[data-component-id]")];
+        const rows = [...root.querySelectorAll(".widget-assigned-row[data-component-id],.component-editor[data-component-id]")];
         const candidates = rows.filter(row => row.dataset.componentId !== touchComponentReorder?.componentId);
         if (!candidates.length) return null;
         let first = null;
@@ -18243,7 +18354,7 @@
             data[key] = typeof data[key] === "number" ? Number(control.value) || 0 : control.value;
             persistWidgetData(component, dataPath, data, "state:widget-field:" + component.id + ":" + key);
           };
-          control.onblur = () => { lastHistoryKey = null; draw(); };
+          control.onblur = () => { draw(); };
         }
         control.setAttribute("aria-label", labelText);
         field.append(labelEl, control);
@@ -18346,7 +18457,7 @@
           input.value = widgetItemLabel(itemValue);
           input.setAttribute("aria-label", `${title} Eintrag ${index + 1}`);
           input.oninput = () => updateWidgetListLabel(component, dataPath, key, index, input.value);
-          input.onblur = () => { lastHistoryKey = null; draw(); };
+          input.onblur = () => { draw(); };
           const controls = document.createElement("div");
           controls.className = "widget-list-actions";
           const up = document.createElement("button");
@@ -18384,7 +18495,7 @@
           component.dataLabel = nameInput.value.slice(0, 80);
           saveComponent(component);
         };
-        nameInput.onblur = () => { lastHistoryKey = null; draw(); rerender({ componentId: component.id }); };
+        nameInput.onblur = () => { draw(); rerender({ componentId: component.id }); };
         nameField.append(nameLabel, nameInput);
         editor.appendChild(nameField);
 
@@ -18890,7 +19001,7 @@
                   itemVal.text = input.value;
                   writeItems();
                 };
-                input.onblur = () => { lastHistoryKey = null; draw(); };
+                input.onblur = () => { draw(); };
                 textField.append(label, input);
                 row.appendChild(textField);
               }
@@ -18908,7 +19019,7 @@
                   itemVal.url = input.value;
                   writeItems();
                 };
-                input.onblur = () => { lastHistoryKey = null; draw(); };
+                input.onblur = () => { draw(); };
                 urlField.append(label, input);
                 row.appendChild(urlField);
               }
@@ -18943,7 +19054,7 @@
               component.text = input.value;
               saveComponent(component);
             };
-            input.onblur = () => { lastHistoryKey = null; draw(); };
+            input.onblur = () => { draw(); };
             field.append(fieldLabel, input);
             body.appendChild(field);
           }
@@ -18960,7 +19071,7 @@
             component.url = input.value;
             saveComponent(component);
           };
-          input.onblur = () => { lastHistoryKey = null; draw(); };
+          input.onblur = () => { draw(); };
           field.append(fieldLabel, input);
           body.appendChild(field);
         }
@@ -19173,7 +19284,6 @@
         inspectTimer = setTimeout(() => inspectJsonEndpoint(owner, root, persistOwner, token, () => inspectToken, historyPrefix), 350);
       };
       url.oninput = target.oninput = select.oninput = () => update(true);
-      url.onblur = target.onblur = select.onblur = () => { lastHistoryKey = null; };
       update(false);
     }
 
@@ -19752,7 +19862,6 @@
       };
       as.oninput = persistAlias;
       index.oninput = persistAlias;
-      path.onblur = () => { lastHistoryKey = null; };
       update(false);
     }
 
@@ -20916,8 +21025,14 @@
         transition.triggerEvent = normalizeTransitionTriggerEvent(transition);
         transition.timerMs = normalizeTransitionTimerMs(transition.timerMs);
         if (row.boundaryEntry) persistBoundaryEntryTrigger(transition);
+        const runtimeStateId = hostRuntimeStateView();
+        const reapplyActiveBoundary = Boolean(
+          row.boundaryEntry &&
+          (runtimeStateId === s.id || isDescendant(s.id, runtimeStateId))
+        );
         saveModel("state:flow-trigger:" + s.id + ":" + transition.id);
-        scheduleSync(false);
+        if (reapplyActiveBoundary) startAppAtState(s.id, { preserveFocus: true, suppressLayerFollow: true });
+        else scheduleSync(false);
         renderStateFlowTriggerEditor();
         renderComponentEditors(s, null, root);
         renderGlobalStateSubscribeMap();
@@ -21599,7 +21714,6 @@
       updateDataPreview(false);
       updateSubscriptionsPreview(false);
       renderStateFlowTriggerEditor();
-      title.onblur = data.onblur = () => { lastHistoryKey = null; };
       bindDataSourceEditor(s, root, historyKey => {
         saveModel(`${historyKey}:${s.id}`);
         scheduleSync(false);
@@ -21971,7 +22085,6 @@
       renderTemplateVariableSuggestions();
       if (normalizeRepeatConfig(template.repeat).path && repeatCard) repeatCard.open = true;
       updateDataPreview(false);
-      title.onblur = data.onblur = () => { lastHistoryKey = null; };
       bindDataSourceEditor(template, root, historyKey => persistTemplate("template:" + template.id + ":" + historyKey), "template");
       bindRepeatEditor(template, root, historyKey => persistTemplate("template:" + template.id + ":" + historyKey), "template");
       const componentOptions = {
@@ -22877,7 +22990,6 @@
         requestAnimationFrame(pollSetPreview);
       };
       requestAnimationFrame(pollSetPreview);
-      label.onblur = cond.onblur = set.onblur = () => { lastHistoryKey = null; };
       root.querySelector("#pDelete").onclick = () => {
         selected = selectionFromParts([], [t.id]);
         deleteSelectedItems();
@@ -23168,9 +23280,8 @@
       const snap = normalizeModel(JSON.parse(JSON.stringify(model)));
       delete snap.editorGroups;
       snap.transitions.forEach(t => {
-        const source = projectedTransitionSource(t);
         const layerId = transitionLineColorLayerId(t, null, t.from ? stateParentId(byId(t.from)) : null);
-        const index = Math.max(0, transitionsInLayer(layerId).findIndex(item => item.id === source?.id));
+        const index = Math.max(0, transitionsInLayer(layerId).findIndex(item => item.id === t.id));
         t._runtimeHue = (195 + index * 137.508) % 360;
       });
       return snap;
@@ -23396,7 +23507,6 @@
       const state = {
         id,
         title,
-        renderMode: "state",
         components: [],
         data: {},
         dataTypes: {},
@@ -23420,7 +23530,6 @@
         id: uid("tpl"),
         rootStateId: s.id,
         title: s.title || s.id,
-        renderMode: normalizeStateRenderMode(s.renderMode),
         components: cloneComponents(s.components),
         data: normalizeStateDataObject(s.data),
         dataTypes: normalizeDataTypes(s.dataTypes, s.data),
@@ -23446,7 +23555,6 @@
       const template = {
         id: uid("tpl"),
         title: nextStateTemplateTitle(),
-        renderMode: "state",
         components: [],
         data: {},
         dataSource: null,
@@ -23524,7 +23632,37 @@
       startAppAtState(instance.root.id, { suppressLayerFollow: true });
     }
 
+    function simpleContentPresetComponent(template) {
+      if (!template?.builtIn) return null;
+      const copy = snapshotStateTemplates([template])[0];
+      if (!copy) return null;
+      const components = normalizeComponents(copy.components);
+      if (components.length !== 1 || !componentPresetTypes().includes(components[0].type)) return null;
+      if (snapshotTemplateStates(copy).length || snapshotTemplateTransitions(copy).length) return null;
+      if (normalizeDataWires(copy.dataWires).length) return null;
+      return cloneComponents(components)[0] || null;
+    }
+
+    function addSimpleContentPresetToState(state, template, historyKey) {
+      const component = simpleContentPresetComponent(template);
+      if (!state || state.virtualProxy || !component) return false;
+      component.id = uid("c");
+      state.components = [...normalizeComponents(state.components), component];
+      selected = selectionFromParts([state.id], []);
+      saveModel(historyKey || ("state:component:add:" + state.id));
+      draw();
+      showNodeInspector(state, { focus: false });
+      syncToApp(false);
+      return true;
+    }
+
     function addTemplateToCurrentLayer(template) {
+      const contentOwner = currentLayerId ? byId(currentLayerId) : null;
+      if (contentOwner && addSimpleContentPresetToState(
+        contentOwner,
+        template,
+        "state:component:add:" + contentOwner.id
+      )) return contentOwner;
       const parent = currentLayerContainer();
       const parentId = layerChildParentId(parent);
       const layerWasEmpty = !statesInLayer(parentId).some(state => !state.virtualProxy);
@@ -24774,7 +24912,6 @@
 
     function makeStateFromTemplate(template, x, y, parentId = currentLayerId) {
       const s = makeState(x, y, template.title || nextStateTitle(), parentId);
-      s.renderMode = normalizeStateRenderMode(template.renderMode);
       s.components = cloneComponents(template.components);
       s.data = normalizeStateDataObject(template.data);
       s.dataTypes = normalizeDataTypes(template.dataTypes, s.data);
@@ -24798,7 +24935,6 @@
         const nextParentId = idMap.get(sourceParentId) || root.id;
         const next = makeState(child.x, child.y, child.title || nextStateTitle(), nextParentId);
         next.parentId = nextParentId;
-        next.renderMode = normalizeStateRenderMode(child.renderMode);
         next.components = cloneComponents(child.components);
         next.data = normalizeDataObject(child.data);
         next.dataTypes = normalizeDataTypes(child.dataTypes, next.data);
@@ -24855,6 +24991,7 @@
       const template = templateById(templateId);
       const parent = byId(parentId);
       if (!template || !parent) return null;
+      if (addSimpleContentPresetToState(parent, template, "state:component:add:" + parent.id)) return parent;
       const position = nextChildPosition(parent.id);
       const layerWasEmpty = !statesInLayer(parent.id).some(state => !state.virtualProxy);
       const instance = instantiateStateTemplate(template, position.x, position.y, parent.id);
@@ -24894,6 +25031,12 @@
     function addTemplateAt(templateId, clientX, clientY) {
       const template = templateById(templateId);
       if (!template) return;
+      const contentOwner = currentLayerId ? byId(currentLayerId) : null;
+      if (contentOwner && addSimpleContentPresetToState(
+        contentOwner,
+        template,
+        "state:component:add:" + contentOwner.id
+      )) return;
       const parent = currentLayerContainer();
       const parentId = layerChildParentId(parent);
       const layerWasEmpty = !statesInLayer(parentId).some(state => !state.virtualProxy);
@@ -25290,7 +25433,8 @@
       ];
       builtinStateTemplates().forEach(template => {
         const group = explorerGroups.find(item => item.key === explorerGroupForTemplate(template)) || explorerGroups[explorerGroups.length - 1];
-        const templateForImmediateAdd = () => composerTemplateFrom(template) || template;
+        const templateForImmediateAdd = () =>
+          simpleContentPresetComponent(template) ? template : (composerTemplateFrom(template) || template);
         const card = document.createElement("div");
         card.className = "component-preset-card";
         if (composingTemplateId === template.id) card.classList.add("composing");
@@ -25531,7 +25675,6 @@
         stateExplorerEl.classList.remove("drag-over");
         clearTouchNodeFeedback();
         syncStateDragDropTarget("");
-        lastHistoryKey = null;
         if (wasClick && s) {
           if (touchClick) {
             finishTouchNodeTap(evt, s);
@@ -25547,6 +25690,7 @@
           }
           focusCanvasForSelection();
           setSingleSelection("node", s.id);
+          startAppAtState(s.id, { preserveFocus: true, allowLayerFollow: true });
           lastTouchNodeTap = null;
           const now = Date.now();
           const previousClick = lastNodeClick;
@@ -25601,28 +25745,11 @@
         const domTargetId = evt.target?.closest?.(".node")?.dataset?.id || "";
         const domTargetNode = byId(domTargetId);
         const dropTargetNode = connectionTargetAtWorldPoint(dropPoint) || (domTargetNode?.id !== connecting.from ? domTargetNode : null);
-        const targetNode = connecting.projection ? (dropTargetNode || byId(connectingTargetId)) : (dropTargetNode || (connectingTargetId ? byId(connectingTargetId) : null));
+        const targetNode = dropTargetNode || (connectingTargetId ? byId(connectingTargetId) : null);
         const targetId = targetNode?.id;
         const fromNode = byId(connecting.from);
         const wasRewire = Boolean(connecting.edgeId);
         if (targetId) {
-          const projected = finishProjectedConnection(targetId);
-          if (projected) {
-            saveModel();
-            connecting = null;
-            connectingTargetId = null;
-            mapEl.classList.remove("connecting");
-            draw();
-            showEdgeInspector(projected, { focus: false });
-            return;
-          }
-          if (connecting.projection) {
-            connecting = null;
-            connectingTargetId = null;
-            mapEl.classList.remove("connecting");
-            draw();
-            return;
-          }
           const splitBoundary = splitBoundaryFlowConnection(targetId);
           if (splitBoundary) {
             saveModel();
@@ -25917,7 +26044,7 @@
 
     mapEl.addEventListener("mousedown", evt => {
       if (Date.now() - lastTouchAt < 700) return;
-      if (evt.button === 1 || evt.button === 2 || isSpaceDown) return startPanning(evt);
+      if (evt.button === 1 || evt.button === 2) return startPanning(evt);
       if (isEmptyCanvasTarget(evt.target)) {
         if (evt.button !== 0) return;
         if (evt.shiftKey || evt.ctrlKey || evt.metaKey) {
@@ -26025,6 +26152,13 @@
         return;
       }
       if (!modalBackdropEl.hidden) return;
+      if (!mod && !evt.altKey && !evt.shiftKey && evt.code === "Space" && !evt.repeat && !isEditableTarget(evt.target)) {
+        evt.preventDefault();
+        evt.stopImmediatePropagation();
+        clearQuickRenameSession();
+        applyRuntimePaused(!hostRuntimePausedView());
+        return;
+      }
       if (evt.altKey && (evt.key === "ArrowLeft" || evt.code === "ArrowLeft")) {
         evt.preventDefault();
         evt.stopImmediatePropagation();
@@ -26120,12 +26254,6 @@
         clearQuickRenameSession();
         return;
       }
-      if (evt.code === "Space") {
-        clearQuickRenameSession();
-        isSpaceDown = true;
-        mapEl.classList.add("panning");
-        evt.preventDefault();
-      }
       if (evt.key === "Backspace") {
         clearQuickRenameSession();
         evt.preventDefault();
@@ -26143,13 +26271,6 @@
 
     document.addEventListener("keydown", handleKeyDown, { capture: true });
     document.addEventListener("beforeinput", handleBeforeInput, { capture: true });
-
-    window.addEventListener("keyup", evt => {
-      if (evt.code === "Space") {
-        isSpaceDown = false;
-        if (!panning) mapEl.classList.remove("panning");
-      }
-    });
 
     var RUNTIME_EDGE_PULSE_MS = 1220;
     var RUNTIME_STATE_ENTER_PULSE_MS = 1420;
@@ -26710,7 +26831,7 @@
 
     window.__stateNativeDragBlocked = true;
     document.addEventListener("dragstart", evt => {
-      if (evt.target?.closest?.(".state-template-card, .component-preset-card, [data-template-id], .component-drag-handle, .data-wire-row.draggable")) return;
+      if (evt.target?.closest?.(".state-template-card, .component-preset-card, [data-template-id], .component-drag-handle, .widget-assigned-drag, .data-wire-row.draggable")) return;
       if (evt.target?.closest?.(".map, .node, .wires, svg, img, .preview, .inspector, .component-editor")) {
         evt.preventDefault();
         evt.stopPropagation();

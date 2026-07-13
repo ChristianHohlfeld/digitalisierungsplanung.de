@@ -845,7 +845,6 @@ test.describe("Core source contracts", () => {
           states: [{
             id: "start",
             title: "Start",
-            renderMode: "state",
             components: [],
             data: {},
             dataTypes: {},
@@ -903,7 +902,6 @@ test.describe("Core source contracts", () => {
           states: [{
             id: "start",
             title: "Start",
-            renderMode: "state",
             components: [],
             data: { email: "" },
             dataTypes: { email: "email" },
@@ -935,11 +933,14 @@ test.describe("Core source contracts", () => {
       dottedData.model.states[0].dataTypes = {};
       const qualifiedType = baseDefinition();
       qualifiedType.model.states[0].dataTypes = { "states.start.email": "email" };
-      return [validate(dottedData), validate(qualifiedType)];
+      const passiveRenderMode = baseDefinition();
+      passiveRenderMode.model.states[0].renderMode = "component";
+      return [validate(dottedData), validate(qualifiedType), validate(passiveRenderMode)];
     });
 
     expect(messages[0]).toContain("must use a local identifier without dots");
     expect(messages[1]).toContain("must reference a local path declared in state.data");
+    expect(messages[2]).toContain("renderMode is not part of the contract");
   });
 
   test("formal definitions reserve runtime ids for derived FSM actions @smoke", async ({ page }) => {
@@ -960,7 +961,6 @@ test.describe("Core source contracts", () => {
           states: [{
             id: "start",
             title: "Start",
-            renderMode: "state",
             components: [],
             data: {},
             dataTypes: {},
@@ -1010,7 +1010,6 @@ test.describe("Core source contracts", () => {
       presetTransitionId.stateTemplates = [{
         id: "preset_root",
         title: "Reserved preset",
-        renderMode: "state",
         components: [],
         data: {},
         dataTypes: {},
@@ -1023,7 +1022,6 @@ test.describe("Core source contracts", () => {
         states: [{
           id: "preset_child",
           title: "Preset child",
-          renderMode: "state",
           components: [],
           data: {},
           dataTypes: {},
@@ -2448,7 +2446,7 @@ test.describe("Core browser contracts", () => {
     }
   });
 
-  test("child exit states project real parent outs without a child-to-parent return @smoke", async ({ page }) => {
+  test("child exits expose real parent outs while the child canvas stays canonical @smoke", async ({ page }) => {
     await openWithModel(page, {
       version: 2,
       name: "Child Exit Parent Out",
@@ -2472,12 +2470,21 @@ test.describe("Core browser contracts", () => {
 
     const buttonStyles = await transitionButtonStyles(app);
 
-    await openLayer(page, "parent", "exit_child");
-    const edge = page.locator('.edge[data-edge-id="parent_out"]');
-    await expect(edge).toHaveCount(1);
-    const edgeColor = await edge.evaluate(el => getComputedStyle(el).getPropertyValue("--edge-color").trim());
+    await page.evaluate(() => {
+      stopRuntimeLayerFollow(10_000);
+      exitCurrentLayer({ force: true });
+    });
+    const parentEdge = page.locator('.edge[data-edge-id="parent_out"]');
+    await expect(parentEdge).toHaveCount(1);
+    const edgeColor = await parentEdge.evaluate(el => getComputedStyle(el).getPropertyValue("--edge-color").trim());
     expect(buttonStyles.parent_out.color).toBe(edgeColor);
     expect(buttonStyles.parent_out.strong).toBe(edgeColor);
+
+    await openLayer(page, "parent", "exit_child");
+    await expect(parentEdge).toHaveCount(0);
+    await expect(page.locator('.edge[data-edge-id="boundary-flow:parent:input"]')).toHaveCount(1);
+    await expect(page.locator('.edge[data-edge-id="boundary-flow:parent:output"]')).toHaveCount(1);
+    await expect(page.locator(".edge[data-edge-id]")).toHaveCount(2);
 
     await app.getByRole("button", { name: "Leave" }).click();
     await expect(app.locator("#statePill")).toHaveText("outside");
