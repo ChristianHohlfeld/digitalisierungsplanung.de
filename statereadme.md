@@ -504,7 +504,9 @@ Editoraktion
 - **ED-007 Transition-Auswahl:** Ein einzelner Click auf einen
   Transition-Handle wählt aus und DARF keinen neuen Zustand erzeugen.
   Umverdrahten darf nur vom vorgesehenen Arrowhead/Pin und nicht vom Linienkörper
-  starten.
+  starten. Ein Desktop-Drag auf dem Linienkörper MUSS stattdessen den Canvas
+  pannen; ein danach ausgeführter eigener Click MUSS die Transition unmittelbar
+  auswählen können.
 - **ED-008 Duplikate:** Ein normaler Verbindungsdrag DARF keine identische
   Duplikat-Transition erzeugen. Explizites Umverdrahten MUSS die Identität der
   bestehenden Transition erhalten.
@@ -571,6 +573,16 @@ Editoraktion
   und aktuelle Ebene gebunden und wird zwischen den Pointer-Down-Zeitpunkten
   gemessen. Beide echten Browser-Taps MÜSSEN den State ohne erzwungenes Event,
   Retry oder Locator-Fallback treffen.
+- **ED-021 Übergangszuordnung:** Wird im State-Inspector ein ausgehender
+  Übergang, dessen Auslöser oder dessen konkretes Ereignis gewählt, MUSS genau
+  die zugeordnete sichtbare Canvas-Transition kurz pulsieren. Diese rein visuelle
+  Rückmeldung DARF weder die Transition auslösen noch Modell, Runtime-Zustand
+  oder Canvas-Auswahl verändern.
+- **ED-022 Einzel- und Doppelclick:** Der erste bewegungsfreie State-Click MUSS
+  sofort auswählen. Erst nach Ablauf des Doppelclick-Zeitfensters darf er als
+  bestätigter Einzelclick die Runtime starten. Ein gültiger Doppelclick MUSS den
+  ausstehenden Runtime-Start verwerfen und ausschließlich die innere State-Ebene
+  öffnen.
 
 ## 12. Canvas, Routing und Treffererkennung
 

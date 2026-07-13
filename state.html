@@ -743,6 +743,20 @@
     .edge-arrow.runtime-pulse-a { animation: runtimeEdgeArrowPulseA 1.22s ease-out both; }
     .edge-arrow.runtime-pulse-b { animation: runtimeEdgeArrowPulseB 1.22s ease-out both; }
 
+    .edge.inspector-focus-pulse {
+      stroke: var(--selected);
+      stroke-linecap: round;
+      opacity: 1;
+    }
+    .edge.inspector-focus-pulse-a { animation: inspectorEdgePulseA .82s ease-out both; }
+    .edge.inspector-focus-pulse-b { animation: inspectorEdgePulseB .82s ease-out both; }
+    .edge-arrow.inspector-focus-pulse {
+      fill: var(--selected);
+      opacity: 1;
+    }
+    .edge-arrow.inspector-focus-pulse-a { animation: inspectorEdgeArrowPulseA .82s ease-out both; }
+    .edge-arrow.inspector-focus-pulse-b { animation: inspectorEdgeArrowPulseB .82s ease-out both; }
+
     .edge-pin {
       opacity: 0;
       fill: var(--edge-color, #5f8dbc);
@@ -783,6 +797,30 @@
     @keyframes runtimeEdgeArrowPulseB {
       0%, 100% { opacity: 1; }
       34% { opacity: .82; }
+    }
+
+    @keyframes inspectorEdgePulseA {
+      0%, 100% { stroke-width: 3.7; opacity: 1; filter: drop-shadow(0 0 4px rgba(245,158,11,.24)); }
+      22%, 68% { stroke-width: 7; opacity: 1; filter: drop-shadow(0 0 10px rgba(245,158,11,.72)); }
+      44% { stroke-width: 4.2; opacity: .48; filter: drop-shadow(0 0 5px rgba(245,158,11,.32)); }
+    }
+
+    @keyframes inspectorEdgePulseB {
+      0%, 100% { stroke-width: 3.7; opacity: 1; filter: drop-shadow(0 0 4px rgba(245,158,11,.24)); }
+      24%, 70% { stroke-width: 7; opacity: 1; filter: drop-shadow(0 0 10px rgba(245,158,11,.72)); }
+      46% { stroke-width: 4.2; opacity: .48; filter: drop-shadow(0 0 5px rgba(245,158,11,.32)); }
+    }
+
+    @keyframes inspectorEdgeArrowPulseA {
+      0%, 100% { opacity: 1; filter: drop-shadow(0 0 4px rgba(245,158,11,.24)); }
+      22%, 68% { opacity: 1; filter: drop-shadow(0 0 11px rgba(245,158,11,.78)); }
+      44% { opacity: .48; filter: drop-shadow(0 0 5px rgba(245,158,11,.32)); }
+    }
+
+    @keyframes inspectorEdgeArrowPulseB {
+      0%, 100% { opacity: 1; filter: drop-shadow(0 0 4px rgba(245,158,11,.24)); }
+      24%, 70% { opacity: 1; filter: drop-shadow(0 0 11px rgba(245,158,11,.78)); }
+      46% { opacity: .48; filter: drop-shadow(0 0 5px rgba(245,158,11,.32)); }
     }
 
     @keyframes activeStateBreath {
@@ -8601,6 +8639,7 @@
     const TOUCH_TEMPLATE_DRAG_HOLD_MS = 140;
     const TOUCH_TEMPLATE_DRAG_START_PX = 9;
     const TOUCH_TEMPLATE_SCROLL_CANCEL_PX = 16;
+    const DESKTOP_NODE_DOUBLE_CLICK_MS = 420;
     const MOUSE_PORT_START_OUTSIDE_PX = 32;
     const MOUSE_PORT_START_INSIDE_PX = 8;
     const MOUSE_PORT_START_VERTICAL_PX = 22;
@@ -8798,6 +8837,7 @@
     let lastTouchAt = 0;
     let suppressCanvasTextSelectionUntil = 0;
     let lastNodeClick = null;
+    let pendingNodeRuntimeStartTimer = 0;
     let lastTouchNodeTap = null;
     let lastCreatedStateId = null;
     let lastCreatedStateTime = 0;
@@ -13127,6 +13167,7 @@
     function navigateToLayer(layerId, historyKey = "layer:navigate", opts = {}) {
       const nextLayerId = layerId && byId(layerId) ? layerId : null;
       if (currentLayerId === nextLayerId) return;
+      cancelPendingNodeRuntimeStart();
       if (historyKey !== "layer:runtime") {
         stopRuntimeLayerFollow(1200);
       }
@@ -13159,6 +13200,7 @@
       if (!state || state.virtualProxy) return;
       if (!opts.force && stateParentId(state) !== (currentLayerId || null)) return;
       if (!opts.force && (dragging || connecting || panning || boxSelecting)) return;
+      cancelPendingNodeRuntimeStart();
       suppressLayerExitUntil = Date.now() + 800;
       suppressEmptyCanvasDblClickUntil = Date.now() + 800;
       lastNodeClick = null;
@@ -14951,7 +14993,25 @@
       mapEl.classList.add("panning");
     }
 
+    function cancelPendingNodeRuntimeStart() {
+      if (pendingNodeRuntimeStartTimer) clearTimeout(pendingNodeRuntimeStartTimer);
+      pendingNodeRuntimeStartTimer = 0;
+    }
+
+    function scheduleNodeRuntimeStart(stateId) {
+      cancelPendingNodeRuntimeStart();
+      const id = String(stateId || "");
+      const layerId = currentLayerId || null;
+      if (!id || !byModelId(model, id)) return;
+      pendingNodeRuntimeStartTimer = setTimeout(() => {
+        pendingNodeRuntimeStartTimer = 0;
+        if ((currentLayerId || null) !== layerId || singleSelectedNodeId() !== id || !byModelId(model, id)) return;
+        startAppAtState(id, { preserveFocus: true, allowLayerFollow: true });
+      }, DESKTOP_NODE_DOUBLE_CLICK_MS + 30);
+    }
+
     function startNodeDrag(evt, s) {
+      cancelPendingNodeRuntimeStart();
       stopRuntimeLayerFollow();
       evt.stopPropagation();
       if (!evt.shiftKey) selected = selectionFromParts([s.id], []);
@@ -16662,7 +16722,9 @@
 
     function bindSvgInteractionDelegates(portOverlay) {
       wiresEl.onmousedown = handleSvgEdgeMouseDown;
-      wiresEl.onpointerdown = handleSvgEdgePointerDown;
+      wiresEl.onpointerdown = evt => {
+        handleSvgEdgePointerDown(evt);
+      };
       wiresEl.onclick = handleSvgEdgeClick;
       wiresEl.onmouseover = handleSvgEdgeMouseOver;
       wiresEl.onmouseout = handleSvgEdgeMouseOut;
@@ -17524,6 +17586,7 @@
             evt.stopImmediatePropagation();
             if (s.virtualProxy) return;
             if (s.id === lastCreatedStateId && Date.now() - lastCreatedStateTime < 500) return;
+            cancelPendingNodeRuntimeStart();
             enterStateLayer(s.id, { source: "node-dblclick", explicit: true });
           });
         }
@@ -21669,9 +21732,21 @@
         subscriptionCustom.value = "";
       });
       subscriptions.oninput = () => updateSubscriptionsPreview(true);
-      flowTransitionSelect.onchange = renderStateFlowTriggerEditor;
-      stateTriggerType.onchange = persistStateFlowTrigger;
-      if (stateTriggerEvent) stateTriggerEvent.onchange = persistStateFlowTrigger;
+      const pulseSelectedStateFlowTransition = () => pulseInspectorTransition(flowTransitionSelect.value);
+      flowTransitionSelect.onchange = () => {
+        renderStateFlowTriggerEditor();
+        pulseSelectedStateFlowTransition();
+      };
+      stateTriggerType.onchange = () => {
+        persistStateFlowTrigger();
+        pulseSelectedStateFlowTransition();
+      };
+      if (stateTriggerEvent) {
+        stateTriggerEvent.onchange = () => {
+          persistStateFlowTrigger();
+          pulseSelectedStateFlowTransition();
+        };
+      }
       if (stateTriggerEventImport) {
         stateTriggerEventImport.onclick = async () => {
           const previousLabel = stateTriggerEventImport.textContent;
@@ -25659,6 +25734,9 @@
       if (panning) {
         panning = null;
         mapEl.classList.remove("panning");
+        setTimeout(() => {
+          if (!panning) suppressEdgeClickUntil = 0;
+        }, 0);
       }
       if (dragging) {
         const s = byId(dragging.id);
@@ -25690,21 +25768,22 @@
           }
           focusCanvasForSelection();
           setSingleSelection("node", s.id);
-          startAppAtState(s.id, { preserveFocus: true, allowLayerFollow: true });
           lastTouchNodeTap = null;
           const now = Date.now();
           const previousClick = lastNodeClick;
           if (previousClick?.id === s.id &&
             previousClick.layerId === (currentLayerId || null) &&
-            now - previousClick.time < 420 &&
+            now - previousClick.time < DESKTOP_NODE_DOUBLE_CLICK_MS &&
             Math.hypot(evt.clientX - previousClick.x, evt.clientY - previousClick.y) <= 10 &&
             !(s.id === lastCreatedStateId && now - lastCreatedStateTime < 500)
           ) {
             lastNodeClick = null;
+            cancelPendingNodeRuntimeStart();
             enterStateLayer(s.id, { source: "node-dblclick", explicit: true });
             return;
           }
           lastNodeClick = { id: s.id, layerId: currentLayerId || null, time: now, x: evt.clientX, y: evt.clientY };
+          scheduleNodeRuntimeStart(s.id);
           showNodeProperties(s);
           return;
         }
@@ -26279,6 +26358,40 @@
     var activeRuntimeEdgePulses = new Map();
     var runtimeEdgePulseCleanupTimer = 0;
     var activeRuntimeStatePulses = new Map();
+    var inspectorTransitionPulseSerial = 0;
+    var inspectorTransitionPulseTimer = 0;
+
+    function clearInspectorTransitionPulse() {
+      for (const el of wiresEl.querySelectorAll(".inspector-focus-pulse")) {
+        el.classList.remove("inspector-focus-pulse", "inspector-focus-pulse-a", "inspector-focus-pulse-b");
+        delete el.dataset.inspectorPulseToken;
+      }
+    }
+
+    function pulseInspectorTransition(edgeId) {
+      const id = String(edgeId || "");
+      if (inspectorTransitionPulseTimer) clearTimeout(inspectorTransitionPulseTimer);
+      inspectorTransitionPulseTimer = 0;
+      clearInspectorTransitionPulse();
+      if (!id) return false;
+      const elements = runtimeEdgePulseElements(id);
+      if (!elements.length) return false;
+      const token = String(++inspectorTransitionPulseSerial);
+      const variant = inspectorTransitionPulseSerial % 2 ? "a" : "b";
+      for (const el of elements) {
+        el.dataset.inspectorPulseToken = token;
+        el.classList.add("inspector-focus-pulse", `inspector-focus-pulse-${variant}`);
+      }
+      inspectorTransitionPulseTimer = setTimeout(() => {
+        for (const el of runtimeEdgePulseElements(id)) {
+          if (el.dataset.inspectorPulseToken !== token) continue;
+          el.classList.remove("inspector-focus-pulse", "inspector-focus-pulse-a", "inspector-focus-pulse-b");
+          delete el.dataset.inspectorPulseToken;
+        }
+        inspectorTransitionPulseTimer = 0;
+      }, 860);
+      return true;
+    }
 
     function runtimeEdgePulseElements(id) {
       const escaped = cssEscapeValue(id);

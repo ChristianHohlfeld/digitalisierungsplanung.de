@@ -6785,10 +6785,21 @@ test.describe("State Blueprint tool", () => {
     const triggerEvent = page.locator("#pStateTriggerEvent");
     const timerInput = page.locator("#pStateTriggerTimer");
     await expect(transitionSelect).toBeVisible();
+    const modelBeforePulse = await savedModel(page);
+    const runtimeStateBeforePulse = await appFrame(page).locator("#statePill").textContent();
     await transitionSelect.selectOption("t_auth_login");
+    const selectedEdge = page.locator('.edge[data-edge-id="t_auth_login"]');
+    const selectedArrow = page.locator('.edge-arrow[data-edge-id="t_auth_login"]');
+    await expect(selectedEdge).toHaveClass(/inspector-focus-pulse/);
+    await expect(selectedArrow).toHaveClass(/inspector-focus-pulse/);
+    await expect(page.locator('.edge[data-edge-id="t_auth_register"]')).not.toHaveClass(/inspector-focus-pulse/);
+    await expect(selectedEdge).not.toHaveClass(/inspector-focus-pulse/);
+    expect(await savedModel(page)).toEqual(modelBeforePulse);
+    await expect(appFrame(page).locator("#statePill")).toHaveText(runtimeStateBeforePulse || "");
     await expect(triggerType).toHaveValue("button");
 
     await triggerType.selectOption("api");
+    await expect(selectedEdge).toHaveClass(/inspector-focus-pulse/);
     await expect.poll(async () => {
       const model = await savedModel(page);
       const transition = model.transitions.find(item => item.id === "t_auth_login");
@@ -6977,6 +6988,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#pStateTriggerEvent")).toHaveValue("");
     await page.locator("#pStateTriggerEvent").selectOption("realtime.sip.call.incoming");
     await expect(page.locator("#pStateTriggerEvent")).toHaveValue("realtime.sip.call.incoming");
+    await expect(page.locator('.edge[data-edge-id="t_auth_login"]')).toHaveClass(/inspector-focus-pulse/);
     await expect(page.locator("#pStateTriggerEventImport")).toBeVisible();
     await expect(page.locator("#pStateTriggerEventImport")).toHaveText("Realtime-Ereignisse neu laden");
     await expect.poll(async () => {
