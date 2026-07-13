@@ -10189,6 +10189,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#stateInspector")).toBeHidden();
     await expect(page.locator(".preview")).toBeHidden();
     await expect(page.locator("#previewResizeHandle")).toBeHidden();
+    await expect(page.locator("#mobileSplitResizeHandle")).toBeHidden();
     await expect(page.locator("#canvasHistoryActions")).toBeVisible();
     await expect.poll(async () => Math.round((await page.locator('[data-id="auth_start"]').boundingBox())?.width || 0)).toBeGreaterThanOrEqual(140);
     await expect(page.locator("#stateInspectorBody")).not.toContainText("Click a state");
@@ -10210,6 +10211,7 @@ test.describe("State Blueprint tool", () => {
     await expectElementAboveMobileTabs("#map");
     await expect(page.locator("#mapScene")).toBeVisible();
     await expect(page.locator("#stateExplorer")).toBeVisible();
+    await expect(page.locator("#mobileSplitResizeHandle")).toBeVisible();
     await expect.poll(() => page.locator("#stateExplorer").evaluate(explorer => {
       const list = explorer.querySelector("#stateExplorerList");
       return {
@@ -10283,6 +10285,25 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#stateInspector")).toBeVisible();
     await expectElementAboveMobileTabs("#stateInspector");
     await expectCanvasBesidePanel("#stateInspector");
+    const portraitSceneBeforeResize = await page.locator("#mapScene").boundingBox();
+    const portraitSplitHandle = await page.locator("#mobileSplitResizeHandle").boundingBox();
+    expect(portraitSceneBeforeResize).toBeTruthy();
+    expect(portraitSplitHandle).toBeTruthy();
+    await page.mouse.move(
+      portraitSplitHandle.x + portraitSplitHandle.width / 2,
+      portraitSplitHandle.y + portraitSplitHandle.height / 2
+    );
+    await page.mouse.down();
+    await page.mouse.move(
+      portraitSplitHandle.x + portraitSplitHandle.width / 2,
+      portraitSplitHandle.y + portraitSplitHandle.height / 2 + 80,
+      { steps: 4 }
+    );
+    await page.mouse.up();
+    await expect.poll(async () => Math.round((await page.locator("#mapScene").boundingBox())?.height || 0))
+      .toBeGreaterThan(Math.round(portraitSceneBeforeResize.height) + 60);
+    await expectCanvasBesidePanel("#stateInspector");
+    await expect.poll(async () => (await savedUiState(page)).mobileCanvasContextHeight).toBeGreaterThan(260);
     await expect(page.locator("#selectionActions")).toBeHidden();
     await expect(page.locator("#map")).toBeVisible();
     await expect(page.locator("#mapScene")).toBeVisible();
@@ -10392,6 +10413,7 @@ test.describe("State Blueprint tool", () => {
     await landscapePage.locator('[data-mobile-view="presets"]').tap();
     await expect(landscapePage.locator("#stateExplorer")).toBeVisible();
     await expect(landscapePage.locator("#mapScene")).toBeVisible();
+    await expect(landscapePage.locator("#mobileSplitResizeHandle")).toBeVisible();
     await expect(landscapePage.locator("#stateInspector")).toBeHidden();
     await expect(landscapePage.locator(".preview")).toBeHidden();
     await expect.poll(() => landscapePage.evaluate(() => {
@@ -10406,6 +10428,24 @@ test.describe("State Blueprint tool", () => {
         Math.abs(scene.top - workspace.top) <= 1 &&
         Math.abs(scene.bottom - workspace.bottom) <= 1;
     })).toBe(true);
+    const landscapeSceneBeforeResize = await landscapePage.locator("#mapScene").boundingBox();
+    const landscapeSplitHandle = await landscapePage.locator("#mobileSplitResizeHandle").boundingBox();
+    expect(landscapeSceneBeforeResize).toBeTruthy();
+    expect(landscapeSplitHandle).toBeTruthy();
+    await landscapePage.mouse.move(
+      landscapeSplitHandle.x + landscapeSplitHandle.width / 2,
+      landscapeSplitHandle.y + landscapeSplitHandle.height / 2
+    );
+    await landscapePage.mouse.down();
+    await landscapePage.mouse.move(
+      landscapeSplitHandle.x + landscapeSplitHandle.width / 2 + 70,
+      landscapeSplitHandle.y + landscapeSplitHandle.height / 2,
+      { steps: 4 }
+    );
+    await landscapePage.mouse.up();
+    await expect.poll(async () => Math.round((await landscapePage.locator("#mapScene").boundingBox())?.width || 0))
+      .toBeGreaterThan(Math.round(landscapeSceneBeforeResize.width) + 50);
+    await expect.poll(async () => (await savedUiState(landscapePage)).mobileCanvasContextWidth).toBeGreaterThan(370);
 
     await landscapePage.locator('[data-mobile-view="edit"]').tap();
     await expect(landscapePage.locator("#stateInspector")).toBeVisible();
@@ -10434,7 +10474,7 @@ test.describe("State Blueprint tool", () => {
       const workspace = document.querySelector("#workspace").getBoundingClientRect();
       return {
         monitorUsable: map.width >= 250,
-        previewUsable: preview.width >= 500,
+        previewUsable: preview.width >= 360,
         sideBySideWithoutGap: Math.abs(map.right - preview.left) <= 1,
         fillsWorkspace: Math.abs(map.left - workspace.left) <= 1 &&
           Math.abs(preview.right - workspace.right) <= 1 &&
@@ -10710,6 +10750,8 @@ test.describe("State Blueprint tool", () => {
         previewCollapsed: false,
         stateExplorerCollapsed: false,
         mobileWorkspaceView: "canvas",
+        mobileCanvasContextHeight: 280,
+        mobileCanvasContextWidth: 390,
         inspectorWidth: 540,
         previewWidth: 520
       }));
@@ -10721,6 +10763,8 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator(".preview")).toBeVisible();
     expect(await savedUiState(page)).toMatchObject({
       mobileWorkspaceView: "app",
+      mobileCanvasContextHeight: 280,
+      mobileCanvasContextWidth: 390,
       previewCollapsed: false,
       inspectorWidth: 540,
       previewWidth: 520
@@ -10732,6 +10776,7 @@ test.describe("State Blueprint tool", () => {
     await expect(reopened.locator('[data-mobile-view="app"]')).toHaveClass(/active/);
     await expect(reopened.locator(".preview")).toBeVisible();
     await expect(reopened.locator("#map")).toBeVisible();
+    await expect.poll(async () => Math.abs(((await reopened.locator("#mapScene").boundingBox())?.height || 0) - 280) <= 1).toBe(true);
     await expect(reopened.locator("#map")).toHaveCSS("pointer-events", "none");
     await expect(reopened.locator("#workspace")).toHaveClass(/mobile-app-active/);
     await expect(reopened.locator("#stateInspector")).toBeHidden();

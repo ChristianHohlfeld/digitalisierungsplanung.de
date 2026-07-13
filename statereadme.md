@@ -534,8 +534,10 @@ Editoraktion
   Canvas-Renderer: in Portrait übereinander, in Querformat nebeneinander. Die
   Vorschau verwendet den Canvas als nicht interaktiven Live-Monitor; Vorlagen
   und Details behalten den normalen Editor-Canvas als Kontext. Jeder Teil MUSS
-  eine feste, bedienbare Mindestgröße besitzen; mobile Resizer und unsichtbare
-  Restflächen sind verboten. Der gemeinsame Canvas MUSS die an einer
+  eine feste, bedienbare Mindestgröße besitzen. Ein gemeinsamer mobiler
+  Split-Griff DARF das Verhältnis verändern, MUSS aber Canvas und Panel auf
+  ihren vertraglichen Mindestgrößen begrenzen; freie oder panelspezifische
+  Resizer und unsichtbare Restflächen sind verboten. Der gemeinsame Canvas MUSS die an einer
   Runtime-Transition beteiligten States und die bestehende State-/Kantenanimation
   sichtbar halten, DARF keinen zweiten Renderer oder Modellstand erzeugen und
   DARF die vom Nutzer gespeicherte Canvas-Kamera nicht überschreiben. Beim
@@ -1027,8 +1029,11 @@ Abdeckungsbereiche:
   Querformat und auf mittleren Touch-Geräten genau vier Aufgaben:
   `canvas`, `presets`, `edit` und `app`. Die Navigation zeigt nur Canvas,
   Vorlagen, Details und Vorschau. Undo/Redo liegen ausschließlich als
-  44-Pixel-Aktionen oben rechts auf dem Canvas. Mobile Panel-Resizer sind
-  deaktiviert.
+  44-Pixel-Aktionen oben rechts auf dem Canvas. Primäraktionen in Topbar und
+  Vorlagenkarten verwenden auf Mobile kompakte Symbole mit weiterhin mindestens
+  44 Pixel großen Touchzielen. Der gemeinsame Split-Griff verändert die
+  Canvasfläche in Portrait vertikal und in Querformat horizontal; seine Grenzen
+  halten beide Arbeitsbereiche bedienbar.
   Beim Öffnen oder Laden fokussiert der Canvas den fachlichen Startzustand mit
   mindestens 0,82 Skalierung; der explizite Befehl `Einpassen` bleibt der
   vollständige Modellüberblick. Eine spätere Vollflächenregel für Vorlagen und

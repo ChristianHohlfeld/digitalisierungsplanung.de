@@ -180,6 +180,12 @@
       display: none;
     }
 
+    .topbar-action-icon {
+      display: none;
+      width: 20px;
+      height: 20px;
+    }
+
     .topbar-menu-panel {
       position: absolute;
       top: calc(100% + 6px);
@@ -3582,6 +3588,10 @@
       display: none;
     }
 
+    .mobile-split-resizer {
+      display: none;
+    }
+
     @media (max-width: 900px) {
       .workspace { grid-template-columns: var(--inspector-panel-width) minmax(0, 1fr); grid-template-rows: 1fr 45vh; }
       html[data-preview-collapsed="true"] .workspace,
@@ -3617,8 +3627,8 @@
       }
 
       .topbar {
-        gap: 7px;
-        padding: calc(7px + env(safe-area-inset-top)) 10px 7px;
+        gap: 4px;
+        padding: calc(3px + env(safe-area-inset-top)) 8px 3px;
         overflow: visible;
       }
 
@@ -3637,7 +3647,24 @@
       .topbar > button,
       .topbar > .topbar-menu > summary {
         flex: 0 0 auto;
-        padding-inline: 10px;
+        width: 44px;
+        padding: 0;
+        display: inline-grid;
+        place-items: center;
+        border-radius: 8px;
+      }
+
+      .topbar-action-icon {
+        display: block;
+      }
+
+      .topbar-action-label {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
       }
 
       .topbar > #btnLoad,
@@ -3740,6 +3767,40 @@
 
       .panel-resizer {
         display: none;
+      }
+
+      .workspace.mobile-presets-active .mobile-split-resizer,
+      .workspace.mobile-edit-active .mobile-split-resizer,
+      .workspace.mobile-app-active .mobile-split-resizer {
+        position: absolute;
+        z-index: 95;
+        display: block;
+        left: 50%;
+        top: calc(var(--mobile-canvas-context-height) - 22px);
+        width: 52px;
+        min-width: 52px;
+        height: 44px;
+        min-height: 44px;
+        padding: 0;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        box-shadow: none;
+        transform: translateX(-50%);
+        cursor: row-resize;
+        touch-action: none;
+      }
+
+      .mobile-split-resizer::after {
+        content: "";
+        position: absolute;
+        left: 14px;
+        right: 14px;
+        top: 20px;
+        height: 4px;
+        border-radius: 999px;
+        background: #7dd3fc;
+        box-shadow: 0 0 0 3px rgba(2,6,23,.78), 0 0 0 4px rgba(56,189,248,.28);
       }
 
       html[data-preview-collapsed="true"] .workspace.mobile-canvas-active .preview-resizer,
@@ -3915,10 +3976,10 @@
         display: grid;
         flex: 0 0 auto;
         grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 6px;
+        gap: 4px;
         width: 100%;
-        min-height: calc(58px + env(safe-area-inset-bottom));
-        padding: 6px max(8px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+        min-height: calc(52px + env(safe-area-inset-bottom));
+        padding: 4px max(6px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left));
         border-top: 1px solid #18314d;
         background: rgba(5,11,20,.96);
         position: relative;
@@ -3934,7 +3995,7 @@
         display: grid;
         justify-items: center;
         gap: 2px;
-        padding: 6px 5px;
+        padding: 4px;
         font-size: 11px;
         line-height: 1.05;
       }
@@ -4090,15 +4151,14 @@
 
       .workspace.mobile-presets-active .state-explorer-title {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-columns: auto minmax(0, 1fr) auto;
         grid-template-areas:
-          "title add"
-          "search search"
-          "tabs tabs";
+          "title search add"
+          "tabs tabs tabs";
         align-items: center;
         min-height: 0;
-        padding: 8px 10px 10px;
-        gap: 7px;
+        padding: 6px 8px;
+        gap: 5px;
       }
 
       .workspace.mobile-presets-active .state-explorer-title > span:first-child {
@@ -4131,7 +4191,18 @@
 
       .workspace.mobile-presets-active .state-explorer-add {
         grid-area: add;
+        width: 44px;
+        min-width: 44px;
         min-height: 44px;
+        padding: 0;
+        border-radius: 8px;
+        font-size: 0;
+      }
+
+      .workspace.mobile-presets-active .state-explorer-add::before {
+        content: "+";
+        font-size: 22px;
+        line-height: 1;
       }
 
       .workspace.mobile-presets-active .state-explorer-toggle {
@@ -4170,6 +4241,38 @@
         flex-basis: auto;
         border-radius: 8px;
         touch-action: pan-y;
+      }
+
+      .workspace.mobile-presets-active .component-preset-card {
+        grid-template-columns: minmax(0, 1fr) 44px;
+        grid-template-rows: auto !important;
+        align-items: center;
+        min-height: 60px !important;
+      }
+
+      .workspace.mobile-presets-active .component-preset-card .template-title {
+        min-height: 0;
+      }
+
+      .workspace.mobile-presets-active .component-preset-card .template-actions {
+        align-self: center;
+        justify-content: end;
+      }
+
+      .workspace.mobile-presets-active .component-preset-card .template-use {
+        flex: 0 0 44px;
+        width: 44px;
+        min-width: 44px;
+        height: 44px;
+        min-height: 44px;
+        padding: 0;
+        font-size: 0;
+      }
+
+      .workspace.mobile-presets-active .component-preset-card .template-use::before {
+        content: "+";
+        font-size: 22px;
+        line-height: 1;
       }
 
       .workspace.mobile-presets-active .state-template-card[data-template-kind="user"] {
@@ -4339,6 +4442,28 @@
       .workspace.mobile-app-active .preview {
         grid-column: 2;
         grid-row: 1;
+      }
+
+      .workspace.mobile-presets-active .mobile-split-resizer,
+      .workspace.mobile-edit-active .mobile-split-resizer,
+      .workspace.mobile-app-active .mobile-split-resizer {
+        left: calc(var(--mobile-canvas-context-width) - 22px);
+        top: 50%;
+        width: 44px;
+        min-width: 44px;
+        height: 52px;
+        min-height: 52px;
+        transform: translateY(-50%);
+        cursor: col-resize;
+      }
+
+      .mobile-split-resizer::after {
+        left: 20px;
+        right: auto;
+        top: 14px;
+        bottom: 14px;
+        width: 4px;
+        height: auto;
       }
 
       .workspace.mobile-presets-active .state-explorer-title {
@@ -4960,7 +5085,11 @@
         display: none !important;
       }
 
-      .workspace.mobile-presets-active .component-preset-card,
+      .workspace.mobile-presets-active .component-preset-card {
+        height: auto !important;
+        min-height: 60px !important;
+      }
+
       .workspace.mobile-presets-active .state-template-card {
         height: auto !important;
         min-height: 96px !important;
@@ -5160,15 +5289,24 @@
 <body>
   <div class="topbar">
     <div class="brand">Zustand</div>
-    <button id="btnNew">Neu</button>
-    <button id="btnSave">Speichern</button>
+    <button id="btnNew" title="Neu" aria-label="Neu">
+      <svg class="topbar-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5Z"></path><path d="M14 2v6h6"></path><path d="M12 18v-6"></path><path d="M9 15h6"></path></svg>
+      <span class="topbar-action-label">Neu</span>
+    </button>
+    <button id="btnSave" title="Speichern" aria-label="Speichern">
+      <svg class="topbar-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8A2 2 0 0 1 21 8.8V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"></path><path d="M17 21v-8H7v8"></path><path d="M7 3v5h8"></path></svg>
+      <span class="topbar-action-label">Speichern</span>
+    </button>
     <button id="btnLoad">Laden</button>
     <button id="btnExport">HTML exportieren</button>
     <button id="btnFit">Einpassen</button>
     <button id="btnRun">App zurücksetzen</button>
     <button id="btnPause" title="Timer und automatische Änderungen pausieren" aria-pressed="false">Pausieren</button>
     <details class="topbar-menu" id="topbarMore">
-      <summary>Mehr</summary>
+      <summary title="Mehr" aria-label="Mehr">
+        <svg class="topbar-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle></svg>
+        <span class="topbar-action-label">Mehr</span>
+      </summary>
       <div class="topbar-menu-panel">
         <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnLoad">Laden</button>
         <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnExport">HTML exportieren</button>
@@ -5268,6 +5406,7 @@
         <div id="stateExplorerList" class="state-explorer-list"></div>
       </div>
     </main>
+    <button id="mobileSplitResizeHandle" class="mobile-split-resizer" type="button" title="Canvas und Panel skalieren" aria-label="Canvas und Panel skalieren"></button>
     <button id="previewResizeHandle" class="panel-resizer preview-resizer" type="button" title="App-Vorschau skalieren" aria-label="App-Vorschau skalieren"></button>
 
     <aside class="preview">
@@ -8708,6 +8847,7 @@
     const stateInspectorBodyEl = document.getElementById("stateInspectorBody");
     const btnToggleInspector = document.getElementById("btnToggleInspector");
     const inspectorResizeHandleEl = document.getElementById("inspectorResizeHandle");
+    const mobileSplitResizeHandleEl = document.getElementById("mobileSplitResizeHandle");
     const mapEl = document.getElementById("map");
     const mapSceneEl = document.getElementById("mapScene");
     const layerHudEl = document.getElementById("layerHud");
@@ -8860,6 +9000,8 @@
     let inspectorCollapsed = uiState.inspectorCollapsed;
     let inspectorCollapsedByUser = false;
     let mobileWorkspaceView = uiState.mobileWorkspaceView;
+    let mobileCanvasContextHeight = uiState.mobileCanvasContextHeight;
+    let mobileCanvasContextWidth = uiState.mobileCanvasContextWidth;
     let mobilePanelCanvasCameraSnapshot = null;
     let mobileCanvasNeedsRuntimeFocus = false;
     let stateExplorerCollapsed = uiState.stateExplorerCollapsed;
@@ -9635,6 +9777,11 @@
       return Number.isFinite(number) ? clampNumber(Math.round(number), min, max) : fallback;
     }
 
+    function normalizeStoredMobileCanvasSize(value) {
+      const number = Number(value);
+      return Number.isFinite(number) && number > 0 ? Math.round(number) : null;
+    }
+
     function defaultPreviewCollapsed() {
       try {
       } catch (_) {}
@@ -9650,6 +9797,8 @@
         stateExplorerCollapsed: false,
         stateExplorerGroup: "website",
         mobileWorkspaceView: "canvas",
+        mobileCanvasContextHeight: null,
+        mobileCanvasContextWidth: null,
         inspectorWidth: INSPECTOR_PANEL_DEFAULT,
         previewWidth: mobilePreviewLayout ? PREVIEW_PANEL_MOBILE_DEFAULT : PREVIEW_PANEL_DEFAULT
       };
@@ -9662,6 +9811,8 @@
           stateExplorerCollapsed: typeof stored.stateExplorerCollapsed === "boolean" ? stored.stateExplorerCollapsed : fallback.stateExplorerCollapsed,
           stateExplorerGroup: normalizeStateExplorerGroup(stored.stateExplorerGroup),
           mobileWorkspaceView: normalizeMobileWorkspaceView(stored.mobileWorkspaceView),
+          mobileCanvasContextHeight: normalizeStoredMobileCanvasSize(stored.mobileCanvasContextHeight),
+          mobileCanvasContextWidth: normalizeStoredMobileCanvasSize(stored.mobileCanvasContextWidth),
           inspectorWidth: normalizeStoredPanelWidth(stored.inspectorWidth, INSPECTOR_PANEL_MIN, INSPECTOR_PANEL_MAX, fallback.inspectorWidth),
           previewWidth: normalizeStoredPanelWidth(stored.previewWidth, previewMin, PREVIEW_PANEL_MAX, fallback.previewWidth)
         };
@@ -9677,6 +9828,8 @@
         stateExplorerCollapsed: Boolean(stateExplorerCollapsed),
         stateExplorerGroup: normalizeStateExplorerGroup(stateExplorerGroup),
         mobileWorkspaceView: normalizeMobileWorkspaceView(mobileWorkspaceView),
+        mobileCanvasContextHeight: normalizeStoredMobileCanvasSize(mobileCanvasContextHeight),
+        mobileCanvasContextWidth: normalizeStoredMobileCanvasSize(mobileCanvasContextWidth),
         inspectorWidth: Math.round(inspectorPanelWidth),
         previewWidth: Math.round(previewPanelWidth)
       };
@@ -9740,12 +9893,52 @@
       inspectorPanelWidth = clampNumber(Math.round(inspectorPanelWidth), INSPECTOR_PANEL_MIN, maxInspectorPanelWidth());
     }
 
+    function mobileCanvasContextBounds(landscape) {
+      const rect = workspaceEl.getBoundingClientRect();
+      const axisSize = landscape ? rect.width : rect.height;
+      const min = landscape ? 250 : 176;
+      const panelMin = 360;
+      const preferredMax = landscape ? 420 : 360;
+      return {
+        min,
+        max: Math.max(min, Math.min(preferredMax, Math.max(min, axisSize - panelMin)))
+      };
+    }
+
+    function applyMobileCanvasContextSize() {
+      if (!isMobileWorkspaceLayout()) {
+        workspaceEl.style.removeProperty("--mobile-canvas-context-height");
+        workspaceEl.style.removeProperty("--mobile-canvas-context-width");
+        return;
+      }
+      const landscape = Boolean(window.matchMedia?.("(orientation: landscape)")?.matches);
+      if (mobileCanvasContextHeight) {
+        if (!landscape) {
+          const bounds = mobileCanvasContextBounds(false);
+          mobileCanvasContextHeight = clampNumber(Math.round(mobileCanvasContextHeight), bounds.min, bounds.max);
+        }
+        workspaceEl.style.setProperty("--mobile-canvas-context-height", mobileCanvasContextHeight + "px");
+      } else {
+        workspaceEl.style.removeProperty("--mobile-canvas-context-height");
+      }
+      if (mobileCanvasContextWidth) {
+        if (landscape) {
+          const bounds = mobileCanvasContextBounds(true);
+          mobileCanvasContextWidth = clampNumber(Math.round(mobileCanvasContextWidth), bounds.min, bounds.max);
+        }
+        workspaceEl.style.setProperty("--mobile-canvas-context-width", mobileCanvasContextWidth + "px");
+      } else {
+        workspaceEl.style.removeProperty("--mobile-canvas-context-width");
+      }
+    }
+
     function applyWorkspaceSplitStyle() {
       if (!isMobileWorkspaceLayout()) {
         workspaceEl.style.gridTemplateColumns = "";
         workspaceEl.style.gridTemplateRows = "";
         return;
       }
+      applyMobileCanvasContextSize();
       if (mobileWorkspaceView !== "canvas") {
         const landscape = Boolean(window.matchMedia?.("(orientation: landscape)")?.matches);
         workspaceEl.style.gridTemplateColumns = landscape
@@ -9794,20 +9987,49 @@
       try { evt.currentTarget.setPointerCapture(evt.pointerId); } catch (_) {}
     }
 
+    function startMobileSplitResize(evt) {
+      if (!isMobileWorkspaceLayout() || mobileWorkspaceView === "canvas") return;
+      evt.preventDefault();
+      evt.stopPropagation();
+      clearQuickRenameSession();
+      const landscape = Boolean(window.matchMedia?.("(orientation: landscape)")?.matches);
+      const sceneRect = mapSceneEl.getBoundingClientRect();
+      panelResize = {
+        kind: "mobile",
+        landscape,
+        pointerId: evt.pointerId,
+        startX: evt.clientX,
+        startY: evt.clientY,
+        startSize: landscape ? sceneRect.width : sceneRect.height
+      };
+      workspaceEl.classList.add("panel-resizing");
+      try { evt.currentTarget.setPointerCapture(evt.pointerId); } catch (_) {}
+    }
+
     function updatePanelResize(evt) {
       if (!panelResize || evt.pointerId !== panelResize.pointerId) return false;
       evt.preventDefault();
       evt.stopImmediatePropagation();
       const deltaX = evt.clientX - panelResize.startX;
       const deltaY = evt.clientY - panelResize.startY;
-      if (panelResize.mobilePreviewResize) {
+      if (panelResize.kind === "mobile") {
+        const bounds = mobileCanvasContextBounds(panelResize.landscape);
+        const size = clampNumber(
+          Math.round(panelResize.startSize + (panelResize.landscape ? deltaX : deltaY)),
+          bounds.min,
+          bounds.max
+        );
+        if (panelResize.landscape) mobileCanvasContextWidth = size;
+        else mobileCanvasContextHeight = size;
+        applyMobileCanvasContextSize();
+      } else if (panelResize.mobilePreviewResize) {
         previewPanelWidth = panelResize.previewWidth - (panelResize.mobileSideBySide ? deltaX : deltaY);
       } else if (panelResize.kind === "inspector") {
         inspectorPanelWidth = panelResize.inspectorWidth + deltaX;
       } else {
         previewPanelWidth = panelResize.previewWidth - deltaX;
       }
-      applyPanelWidths({ persist: false });
+      if (panelResize.kind !== "mobile") applyPanelWidths({ persist: false });
       return true;
     }
 
@@ -9816,9 +10038,18 @@
       evt.preventDefault();
       evt.stopImmediatePropagation();
       try { evt.target.releasePointerCapture?.(evt.pointerId); } catch (_) {}
+      const mobileResize = panelResize.kind === "mobile";
       panelResize = null;
       workspaceEl.classList.remove("panel-resizing");
-      applyPanelWidths();
+      if (mobileResize) {
+        saveUiState();
+        requestAnimationFrame(() => {
+          applyCamera();
+          draw();
+        });
+      } else {
+        applyPanelWidths();
+      }
       return true;
     }
 
@@ -26938,6 +27169,7 @@
     });
     inspectorResizeHandleEl.addEventListener("pointerdown", evt => startPanelResize("inspector", evt));
     previewResizeHandleEl.addEventListener("pointerdown", evt => startPanelResize("preview", evt));
+    mobileSplitResizeHandleEl.addEventListener("pointerdown", startMobileSplitResize);
     window.addEventListener("pointermove", evt => {
       updatePanelResize(evt);
     }, { capture: true, passive: false });
