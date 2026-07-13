@@ -16,6 +16,9 @@ jobs:
   contract-tests:
     name: Contracts (${{ matrix.shard }})
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.60.0-noble
+      options: --ipc=host
     timeout-minutes: 25
     strategy:
       fail-fast: false
@@ -34,8 +37,6 @@ jobs:
           else
             npm install
           fi
-      - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
       - name: Run server contract tests
         if: matrix.shard == '1/4'
         run: npm run test:server
