@@ -13712,6 +13712,7 @@
     }
 
     function startPendingCanvasTouch(evt) {
+      cancelPendingNodeRuntimeStart();
       stopRuntimeLayerFollow();
       clearLongPress();
       pendingCanvasTouch = {
@@ -13817,6 +13818,7 @@
     }
 
     function startPendingCanvasMouse(evt, options = {}) {
+      cancelPendingNodeRuntimeStart();
       stopRuntimeLayerFollow();
       clearLongPress();
       evt.preventDefault();
@@ -25484,6 +25486,7 @@
       if (panning) {
         panning = null;
         mapEl.classList.remove("panning");
+        suppressEdgeClickUntil = Math.max(suppressEdgeClickUntil, Date.now() + 650);
         setTimeout(() => {
           if (!panning && Date.now() >= suppressEdgeClickUntil) suppressEdgeClickUntil = 0;
         }, 0);

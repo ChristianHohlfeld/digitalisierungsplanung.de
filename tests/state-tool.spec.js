@@ -652,11 +652,15 @@ async function emptyCanvasPoint(page) {
       );
     };
     const findPoint = (requireClearStateBox) => {
+      const blockedCanvasTarget = ".node:not(.boundary-proxy), .port, .input-port, .port-slot, .svg-port, .edge, .edge-arrow, .edge-pin, .hit, .edge-label, .edge-tip-hit, button, input, textarea, select, [contenteditable], .state-explorer, .inspector, .help, .layer-frame-comment, .selection-actions, .canvas-history-actions";
       for (let y = scan.top; y < scan.bottom; y += 38) {
         for (let x = scan.left; x < scan.right; x += 46) {
           const el = document.elementFromPoint(x, y);
           if (!el || !map.contains(el)) continue;
-          if (el.closest(".state-explorer, .node, .svg-port, .edge, .edge-arrow, .edge-pin, .hit, .edge-label, .edge-tip-hit, .help, .layer-frame-comment, .selection-actions, .canvas-history-actions")) continue;
+          if (el.closest(blockedCanvasTarget)) continue;
+          try {
+            if (typeof isEmptyCanvasTarget === "function" && !isEmptyCanvasTarget(el)) continue;
+          } catch (_) {}
           if (requireClearStateBox && overlapsExistingNode(x, y)) continue;
           return { x, y };
         }
