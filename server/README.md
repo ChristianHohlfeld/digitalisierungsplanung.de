@@ -91,7 +91,8 @@ required when reloading or saving through the admin API. A save validates the
 same strict server contract, writes `server/event-catalog.json` and
 `release-version.js` as one release unit, commits them, and pushes to GitHub.
 There is no version selector and no old contract pinning; runtime always uses
-the latest green `release-N`.
+the latest green `release-N`. Release IDs are audit labels, not compatibility
+branches.
 
 All connector IDs are globally unique and path-safe. Runtime state is written under `events.<eventName>.*` and `emitters.<emitterId>.*`. Exact ID collisions and parent/child path collisions are rejected server-side. The canvas should store only concrete refs it uses, mainly `triggerType: realtime` and `triggerEvent`. It should not store preset contracts, endpoint definitions, catalog copies, or preset instances.
 
