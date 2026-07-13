@@ -10433,6 +10433,37 @@ test.describe("State Blueprint tool", () => {
     await mobileSearch.fill("avatar");
     await expect(componentPreset(page, "Benutzer-Avatar")).toBeVisible();
     await expect(componentPreset(page, "Textblock")).toHaveCount(0);
+    await expect.poll(() => page.locator("#stateExplorer").evaluate(explorer => {
+      const list = explorer.querySelector("#stateExplorerList");
+      const card = explorer.querySelector(".component-preset-card, .state-template-card");
+      return {
+        searching: explorer.classList.contains("searching"),
+        directDrag: explorer.classList.contains("search-direct-drag"),
+        canScroll: list.scrollHeight > list.clientHeight + 2,
+        touchAction: card ? getComputedStyle(card).touchAction : ""
+      };
+    })).toEqual({
+      searching: true,
+      directDrag: true,
+      canScroll: false,
+      touchAction: "none"
+    });
+    await mobileSearch.fill("a");
+    await expect.poll(() => page.locator("#stateExplorer").evaluate(explorer => {
+      const list = explorer.querySelector("#stateExplorerList");
+      const card = explorer.querySelector(".component-preset-card, .state-template-card");
+      return {
+        searching: explorer.classList.contains("searching"),
+        directDrag: explorer.classList.contains("search-direct-drag"),
+        canScroll: list.scrollHeight > list.clientHeight + 2,
+        touchAction: card ? getComputedStyle(card).touchAction : ""
+      };
+    })).toEqual({
+      searching: true,
+      directDrag: false,
+      canScroll: true,
+      touchAction: "pan-y"
+    });
     await mobileSearch.press("Escape");
     await expect(componentPreset(page, "Textblock")).toHaveCSS("touch-action", "pan-y");
     await expect.poll(() => presetList.evaluate(el => ({
@@ -10852,6 +10883,8 @@ test.describe("State Blueprint tool", () => {
     const preset = componentPreset(page, "Textblock");
     await expect(preset).toBeVisible();
     await expect(page.locator("#stateExplorer")).toHaveClass(/searching/);
+    await expect(page.locator("#stateExplorer")).toHaveClass(/search-direct-drag/);
+    await expect(preset).toHaveCSS("touch-action", "none");
     const start = await centerOf(preset);
     const before = await canvasStateNodes(page).count();
 

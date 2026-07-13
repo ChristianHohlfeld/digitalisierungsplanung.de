@@ -4448,8 +4448,8 @@
         touch-action: pan-y;
       }
 
-      .workspace.mobile-presets-active .state-explorer.searching .state-template-card,
-      .workspace.mobile-presets-active .state-explorer.searching .component-preset-card {
+      .workspace.mobile-presets-active .state-explorer.search-direct-drag .state-template-card,
+      .workspace.mobile-presets-active .state-explorer.search-direct-drag .component-preset-card {
         touch-action: none;
       }
 
@@ -10742,6 +10742,7 @@
       const top = mobileSheetTopPxFromRatio();
       workspaceEl.style.setProperty("--mobile-sheet-top", top + "px");
       if (opts.persist === true) saveUiState();
+      requestAnimationFrame(() => updateStateExplorerSearchDragMode());
     }
 
     function applyWorkspaceSplitStyle() {
@@ -10948,6 +10949,7 @@
       updateMobileRuntimeFollowButton();
       saveUiState();
       requestAnimationFrame(() => {
+        updateStateExplorerSearchDragMode();
         applyCamera({ persist: false });
         draw();
       });
@@ -25882,7 +25884,7 @@
       if (!templateTouchDrag.active) {
         const listStyle = stateExplorerListEl ? getComputedStyle(stateExplorerListEl) : null;
         const scrollsVertically = listStyle?.flexDirection === "column";
-        const searchDragMode = Boolean(stateExplorerEl?.classList.contains("searching"));
+        const searchDragMode = Boolean(stateExplorerEl?.classList.contains("search-direct-drag"));
         const scrollAxis = scrollsVertically ? absY : absX;
         const dragAxis = scrollsVertically ? absX : absY;
         if (!searchDragMode && scrollAxis >= TOUCH_TEMPLATE_SCROLL_CANCEL_PX && scrollAxis > dragAxis * 1.35) {
@@ -26008,6 +26010,14 @@
       });
     }
 
+    function updateStateExplorerSearchDragMode(searchQuery = normalizePresetSearchText(stateExplorerSearch)) {
+      if (!stateExplorerEl || !stateExplorerListEl) return false;
+      const canScroll = stateExplorerListEl.scrollHeight > stateExplorerListEl.clientHeight + 2;
+      const directDrag = Boolean(searchQuery) && isMobileWorkspaceLayout() && mobileWorkspaceView === "presets" && !canScroll;
+      stateExplorerEl.classList.toggle("search-direct-drag", directDrag);
+      return directDrag;
+    }
+
     function renderStateExplorer(opts = {}) {
       const scrollSnapshot = opts.scrollToGroup ? null : stateExplorerScrollSnapshot();
       if (stateExplorerSearchEl && document.activeElement === stateExplorerSearchEl) {
@@ -26016,6 +26026,7 @@
       const searchQuery = normalizePresetSearchText(stateExplorerSearch);
       if (stateExplorerSearchEl && stateExplorerSearchEl.value !== stateExplorerSearch) stateExplorerSearchEl.value = stateExplorerSearch;
       stateExplorerEl.classList.toggle("searching", Boolean(searchQuery));
+      stateExplorerEl.classList.remove("search-direct-drag");
       stateExplorerListEl.innerHTML = "";
       const stopAction = evt => evt.stopPropagation();
       const appendSection = (kind, label, items) => {
@@ -26208,6 +26219,7 @@
       requestAnimationFrame(() => {
         if (opts.scrollToGroup && !searchQuery) scrollStateExplorerToGroup(stateExplorerGroup);
         else restoreStateExplorerScroll(scrollSnapshot);
+        updateStateExplorerSearchDragMode(searchQuery);
       });
     }
 
