@@ -312,7 +312,8 @@ test("serves an admin event designer that validates, commits, and pushes the cat
       assert.match(html, /fetch\("\/events"/);
       assert.match(html, /fetch\("\/events\/contract"/);
       assert.match(html, /localStorage\.setItem\(ADMIN_SECRET_STORAGE_KEY/);
-      assert.doesNotMatch(html, /sip\.call\.custom/);
+      assert.match(html, /New dataset/);
+      assert.match(html, /Add field/);
       assert.doesNotMatch(html, /admin-secret/);
 
       const unauthorized = await fetch(httpUrl(realtime, "/events-admin/catalog"));
@@ -336,7 +337,15 @@ test("serves an admin event designer that validates, commits, and pushes the cat
       assert.equal(invalid.status, 400);
       assert.deepEqual(await invalid.json(), { error: "unknown_field" });
 
-      loaded.catalog.events[0].label = "Incoming call updated";
+      const missedCall = {
+        name: "realtime.sip.call.missed",
+        label: "Missed call",
+        description: "SIP call was not answered",
+        detail: { caller: "text", callId: "text", missedAt: "text" },
+        bindings: []
+      };
+      loaded.catalog.events.push(missedCall);
+      loaded.catalog.emitters[0].events.push(missedCall.name);
       const validateOnly = await fetch(httpUrl(realtime, "/events-admin/catalog?validate=1"), {
         method: "POST",
         headers: {
@@ -356,13 +365,28 @@ test("serves an admin event designer that validates, commits, and pushes the cat
         },
         body: JSON.stringify({
           catalog: loaded.catalog,
-          message: "Update incoming call label"
+          message: "Add missed call dataset"
         })
       });
       assert.equal(saved.status, 200);
-      assert.deepEqual(await saved.json(), { ok: true, changed: true, commit: "abc123" });
-      assert.match(fs.readFileSync(catalogPath, "utf8"), /Incoming call updated/);
-      assert.ok(calls.some(args => args[0] === "add" && args.includes("server/event-catalog.json")));
+      const savedPayload = await saved.json();
+      assert.equal(savedPayload.ok, true);
+      assert.equal(savedPayload.changed, true);
+      assert.equal(savedPayload.commit, "abc123");
+      assert.equal(savedPayload.releaseId, "release-1");
+      assert.equal(savedPayload.releaseSequence, 1);
+      assert.match(fs.readFileSync(catalogPath, "utf8"), /realtime\.sip\.call\.missed/);
+      assert.match(fs.readFileSync(path.join(tempDir, "release-version.js"), "utf8"), /ZUSTAND_RELEASE_ID = "release-1"/);
+      const refreshed = await fetch(httpUrl(realtime, "/events"));
+      assert.equal(refreshed.status, 200);
+      const refreshedCatalog = await refreshed.json();
+      assert.ok(refreshedCatalog.events.some(event => event.name === "realtime.sip.call.missed"));
+      assert.equal(refreshedCatalog.release.releaseId, "release-1");
+      const refreshedContract = await fetch(httpUrl(realtime, "/events/contract"));
+      assert.equal(refreshedContract.status, 200);
+      const refreshedContractPayload = await refreshedContract.json();
+      assert.ok(refreshedContractPayload.events.some(event => event.name === "realtime.sip.call.missed"));
+      assert.ok(calls.some(args => args[0] === "add" && args.includes("server/event-catalog.json") && args.includes("release-version.js")));
       assert.ok(calls.some(args => args[0] === "commit" || args.includes("commit")));
       assert.ok(calls.some(args => args[0] === "push" || args.includes("push")));
     });

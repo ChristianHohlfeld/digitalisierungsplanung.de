@@ -119,13 +119,6 @@ const DEFAULT_EVENT_CATALOG = Object.freeze({
   ]
 });
 
-const PREDEFINED_EVENT_CONTRACTS = Object.freeze(Object.fromEntries(
-  DEFAULT_EVENT_CATALOG.events.map(event => [
-    event.name,
-    Object.freeze({ detail: Object.freeze({ ...event.detail }) })
-  ])
-));
-
 function isPlainObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -225,29 +218,6 @@ function normalizeBindings(value, detail, eventName) {
   });
 }
 
-function assertPredefinedEventContract(name, detail) {
-  const contract = PREDEFINED_EVENT_CONTRACTS[name];
-  if (!contract) {
-    throw contractError("unknown_event_contract", `${name} is not a predefined realtime dataset`);
-  }
-  const expected = contract.detail;
-  const actualKeys = Object.keys(detail).sort();
-  const expectedKeys = Object.keys(expected).sort();
-  if (actualKeys.length !== expectedKeys.length) {
-    throw contractError("invalid_event_detail_contract", `${name}.detail must match its predefined schema`);
-  }
-  for (let index = 0; index < expectedKeys.length; index += 1) {
-    if (actualKeys[index] !== expectedKeys[index]) {
-      throw contractError("invalid_event_detail_contract", `${name}.detail must match its predefined schema`);
-    }
-  }
-  for (const key of expectedKeys) {
-    if (detail[key] !== expected[key]) {
-      throw contractError("invalid_event_detail_contract", `${name}.detail.${key} must be ${expected[key]}`);
-    }
-  }
-}
-
 function validateEventCatalog(value) {
   if (!isPlainObject(value)) throw contractError("invalid_catalog", "Event catalog must be an object");
   assertAllowedKeys(value, ["provider", "state", "events", "emitters"], "catalog");
@@ -283,7 +253,6 @@ function validateEventCatalog(value) {
     const label = String(event.label || "").trim();
     if (!label) throw contractError("invalid_event_label", `${name}.label is required`);
     const detail = normalizeSchema(event.detail || {}, `${name}.detail`);
-    assertPredefinedEventContract(name, detail);
     return {
       name,
       label,
@@ -410,10 +379,6 @@ function eventCatalogResponse(catalog) {
   };
 }
 
-function predefinedEventContractResponse() {
-  return eventCatalogResponse(validateEventCatalog(DEFAULT_EVENT_CATALOG));
-}
-
 function detailTypeMatches(value, type) {
   if (type === "number") return typeof value === "number" && Number.isFinite(value);
   if (type === "boolean") return typeof value === "boolean";
@@ -437,7 +402,6 @@ function validateEventDetail(detail, schema) {
 module.exports = {
   DEFAULT_EVENT_CATALOG,
   DEFAULT_EVENT_CATALOG_PATH,
-  PREDEFINED_EVENT_CONTRACTS,
   VALID_EMITTER_TYPES,
   VALID_VALUE_TYPES,
   contractError,
@@ -446,7 +410,6 @@ module.exports = {
   emitterStateRoot,
   loadEventCatalog,
   loadEventCatalogFile,
-  predefinedEventContractResponse,
   sanitizeEventName,
   sanitizeId,
   sanitizeStatePath,

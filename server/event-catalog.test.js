@@ -20,7 +20,7 @@ test("validates the realtime event catalog as the single server contract", () =>
   assert.match(serializeEventCatalog(catalog), /"realtime\.sip\.call\.incoming"/);
 });
 
-test("rejects catalog fields outside the contract instead of silently normalizing", () => {
+test("rejects invalid catalog shape and colliding contract paths", () => {
   assert.throws(
     () => validateEventCatalog({ ...DEFAULT_EVENT_CATALOG, version: 1 }),
     error => error.code === "unknown_field"
@@ -52,20 +52,32 @@ test("rejects catalog fields outside the contract instead of silently normalizin
   assert.throws(
     () => validateEventCatalog({
       ...DEFAULT_EVENT_CATALOG,
-      events: [{ ...DEFAULT_EVENT_CATALOG.events[0], name: "realtime.sip.call.missed" }],
-      emitters: [{ ...DEFAULT_EVENT_CATALOG.emitters[0], events: ["realtime.sip.call.missed"] }]
+      events: [
+        ...DEFAULT_EVENT_CATALOG.events,
+        {
+          name: "realtime.sip.call",
+          label: "Call",
+          description: "",
+          detail: { value: "text" },
+          bindings: []
+        }
+      ],
+      emitters: [
+        {
+          ...DEFAULT_EVENT_CATALOG.emitters[0],
+          events: [...DEFAULT_EVENT_CATALOG.emitters[0].events, "realtime.sip.call"]
+        },
+        ...DEFAULT_EVENT_CATALOG.emitters.slice(1)
+      ]
     }),
-    error => error.code === "unknown_event_contract"
+    error => error.code === "catalog_path_collision"
   );
   assert.throws(
     () => validateEventCatalog({
       ...DEFAULT_EVENT_CATALOG,
-      events: [{
-        ...DEFAULT_EVENT_CATALOG.events[0],
-        detail: { ...DEFAULT_EVENT_CATALOG.events[0].detail, queue: "text" }
-      }]
+      events: [{ ...DEFAULT_EVENT_CATALOG.events[0], detail: { customer: "object", "customer.id": "text" } }]
     }),
-    error => error.code === "invalid_event_detail_contract"
+    error => error.code === "catalog_path_collision"
   );
   assert.throws(
     () => validateEventCatalog({
@@ -91,6 +103,33 @@ test("rejects catalog fields outside the contract instead of silently normalizin
     }),
     error => error.code === "catalog_path_collision"
   );
+});
+
+test("accepts new server-contract datasets with strict typed fields", () => {
+  const catalog = validateEventCatalog({
+    ...DEFAULT_EVENT_CATALOG,
+    events: [
+      ...DEFAULT_EVENT_CATALOG.events,
+      {
+        name: "realtime.sip.call.missed",
+        label: "Missed call",
+        description: "SIP call was not answered",
+        detail: { caller: "text", callId: "text", missedAt: "text" },
+        bindings: []
+      }
+    ],
+    emitters: [
+      {
+        ...DEFAULT_EVENT_CATALOG.emitters[0],
+        events: [...DEFAULT_EVENT_CATALOG.emitters[0].events, "realtime.sip.call.missed"]
+      },
+      ...DEFAULT_EVENT_CATALOG.emitters.slice(1)
+    ]
+  });
+  const response = eventCatalogResponse(catalog);
+  const missed = response.events.find(event => event.name === "realtime.sip.call.missed");
+  assert.equal(missed.contributes.root, "events.realtime.sip.call.missed");
+  assert.ok(missed.contributes.fields.includes("events.realtime.sip.call.missed.detail.missedAt"));
 });
 
 test("exposes each event contribution to the unique global state tree", () => {

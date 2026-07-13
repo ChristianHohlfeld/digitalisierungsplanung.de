@@ -110,7 +110,7 @@ test("keeps automatic deployment locked, release-gated, force-synced, verified, 
   assert.match(deploy, /nginx -t/);
   assert.match(deploy, /releaseId !== expected/);
   assert.match(deploy, /git cat-file -e "\$\{ZUSTAND_RELEASE_SOURCE\}\^\{commit\}"/);
-  assert.match(deploy, /git diff --quiet "\$ZUSTAND_RELEASE_SOURCE" -- \. ':\(exclude\)release-version\.js'/);
+  assert.match(deploy, /git diff --quiet "\$ZUSTAND_RELEASE_SOURCE" -- \. ':\(exclude\)release-version\.js' ':\(exclude\)server\/event-catalog\.json'/);
   assert.match(deploy, /AUTO_DEPLOY_INSTALL/);
   assert.match(deploy, /auto-deploy\.sh" --install/);
   assert.match(deploy, /REALTIME_ADMIN_SECRET/);
@@ -125,6 +125,7 @@ test("keeps automatic deployment locked, release-gated, force-synced, verified, 
   assert.match(runScript, /REALTIME_ENV_FILE/);
   assert.match(workflow, /needs: contract-tests/);
   assert.match(workflow, /paths-ignore:\s*\n\s*- release-version\.js/);
+  assert.match(workflow, /Release stamp was advanced by the pushed commit/);
   assert.match(workflow, /RELEASE_INCREMENT: "1"/);
   assert.doesNotMatch(workflow, /\[skip ci\]/);
   assert.match(writer, /previousSequence \+ 1/);

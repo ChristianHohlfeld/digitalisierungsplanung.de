@@ -103,8 +103,8 @@ Der Server in [`server/`](server/) ist nur Transport. Er speichert keine fachlic
 | --- | --- |
 | `GET /healthz` | Gesundheitsprüfung |
 | `GET /version` | gemeinsame Frontend-/Backend-Release-ID |
-| `GET /events` | erlaubte Echtzeit-Ereignisse |
-| `GET /events/contract` | strikt erlaubte Event-Keys, Detail-Typen und State-Beiträge |
+| `GET /events` | aktueller Echtzeit-Contract mit Quellen |
+| `GET /events/contract` | aktueller Server-Contract mit Detail-Typen und State-Beiträgen |
 | `GET /token` | signiertes Raum-Token für den Browser |
 | `GET /console.html` | Testoberfläche für Ereignisse |
 | `GET /events-admin.html` | einfacher Designer für Event-Type, Datensatz und Felder |
@@ -112,19 +112,18 @@ Der Server in [`server/`](server/) ist nur Transport. Er speichert keine fachlic
 | `POST /emit` | authentifiziertes Ereignis von außen |
 | `WSS /ws` | WebSocket-Verbindung |
 
-Der harte Contract kommt aus dem Server unter `/events/contract`: erlaubte
-`realtime.*`-Keys, feste Detail-Datentypen und kollisionsfreie State-Beiträge.
-Der aktive Ereigniskatalog liegt in [`server/event-catalog.json`](server/event-catalog.json)
-und darf nur diese Contract-Events anbieten. Der Canvas speichert keine
-Katalogkopie, sondern nur konkrete Referenzen wie `triggerType: realtime` und
-`triggerEvent`.
+Der harte Contract kommt aus [`server/event-catalog.json`](server/event-catalog.json)
+und wird vom Server unter `/events` und `/events/contract` ausgeliefert:
+`realtime.*`-Keys, Detail-Datentypen, Quellen und kollisionsfreie
+State-Beiträge. Der Canvas speichert keine Katalogkopie, sondern nur konkrete
+Referenzen wie `triggerType: realtime` und `triggerEvent`.
 
 Der Designer arbeitet in der gleichen Reihenfolge wie der Canvas-Vertrag:
-Event-Type, Contract-Datensatz, feste Felder, Quelle. Er lädt `/events/contract`
-für erlaubte Keys/Typen und `/events` für den aktiven Katalog. Das Admin-Secret
-bleibt lokal im Browser gespeichert; beim Speichern validiert der Server den Contract,
-committet
-`server/event-catalog.json` und pusht nach GitHub.
+Event-Type, Dataset-Key, Felder, Quelle. Das Admin-Secret bleibt lokal im
+Browser gespeichert; beim Speichern validiert der Server den Contract, committet
+`server/event-catalog.json` und `release-version.js` als eine Einheit und pusht
+nach GitHub. Es gibt kein Pinning alter Contract-Versionen: Runtime und
+Frontend verwenden immer den aktuellen `release-N`-Stand.
 
 Ein Ereignis von außen senden:
 
@@ -251,7 +250,7 @@ npm run test:state-explorer
 npm run test:state-render
 ```
 
-`npm test` führt die Server-Tests und die wichtigsten Playwright-Abläufe aus. `npm run test:full` führt den vollständigen Bestand lokal aus. GitHub Actions verteilt dieselben Browserfälle vollständig auf vier parallele Shards, führt die Serverfälle einmal aus und erhöht erst nach dem Gesamterfolg die gemeinsame Release-Sequenz in `release-version.js`.
+`npm test` führt die Server-Tests und die wichtigsten Playwright-Abläufe aus. `npm run test:full` führt den vollständigen Bestand lokal aus. GitHub Actions verteilt dieselben Browserfälle vollständig auf vier parallele Shards, führt die Serverfälle einmal aus und erhöht nach dem Gesamterfolg die gemeinsame Release-Sequenz in `release-version.js`, sofern der Push nicht bereits eine Event-Designer-Release-Einheit enthält.
 
 ## Ordner
 
@@ -281,7 +280,7 @@ npm run test:state-render
 
 1. Änderungen auf `main` pushen.
 2. GitHub Actions führt alle Server- und Browserfälle in vier vollständigen Browser-Shards aus.
-3. Nach grünem Lauf wird die gemeinsame `release-N`-ID in `release-version.js` inkrementiert.
+3. Nach grünem Lauf wird die gemeinsame `release-N`-ID in `release-version.js` inkrementiert; Event-Designer-Saves bringen diese ID bereits im selben Commit mit.
 4. GitHub Pages veröffentlicht die Root-Domain-Dateien.
 5. Der Droplet-Timer erkennt die neue ID, synchronisiert den Remote-Stand mit Force und deployt/verifiziert nur `realtime.digitalisierungsplanung.de`.
 

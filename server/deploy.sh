@@ -103,7 +103,7 @@ if [[ -z "$ZUSTAND_RELEASE_SOURCE" ]] || ! git cat-file -e "${ZUSTAND_RELEASE_SO
   printf 'Refusing a production deploy without a valid release source commit.\n' >&2
   exit 1
 fi
-if ! git diff --quiet "$ZUSTAND_RELEASE_SOURCE" -- . ':(exclude)release-version.js'; then
+if ! git diff --quiet "$ZUSTAND_RELEASE_SOURCE" -- . ':(exclude)release-version.js' ':(exclude)server/event-catalog.json'; then
   printf 'Refusing a production deploy because this checkout contains code beyond green source %s.\n' "$ZUSTAND_RELEASE_SOURCE" >&2
   exit 1
 fi

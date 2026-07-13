@@ -69,7 +69,7 @@
     <header>
       <div>
         <h1>Event Designer</h1>
-        <div class="muted">Event type, contract dataset, fields. Same contract as the canvas.</div>
+        <div class="muted">Event type, dataset key, fields. Same contract as the canvas.</div>
       </div>
       <div class="row">
         <a href="/console.html">Console</a>
@@ -92,11 +92,11 @@
     <section class="panel stack">
       <div class="row between">
         <h2>2. Dataset</h2>
-        <button id="newEvent" class="secondary" type="button">Add contract dataset</button>
+        <button id="newEvent" class="secondary" type="button">New dataset</button>
       </div>
       <label>Edit dataset<select id="eventSelect"></select></label>
       <div class="grid">
-        <label>Contract dataset<select id="datasetKey"></select></label>
+        <label>Dataset key<input id="datasetKey" autocomplete="off" placeholder="sip.call.incoming"></label>
         <label>Canvas label<input id="eventLabel" autocomplete="off" placeholder="Incoming call"></label>
       </div>
       <label>Description<textarea id="eventDescription" placeholder="Business fact that happened"></textarea></label>
@@ -105,7 +105,7 @@
     <section class="panel stack">
       <div class="row between">
         <h2>3. Fields</h2>
-        <button id="addField" class="secondary" type="button" disabled>Fields from contract</button>
+        <button id="addField" class="secondary" type="button">Add field</button>
       </div>
       <div id="fields" class="stack"></div>
     </section>
@@ -173,7 +173,6 @@
       emitters: []
     };
     let contract = null;
-    let eventTemplates = {};
     let contractEmitters = [];
     let defaultEventName = "";
     let selectedEventIndex = 0;
@@ -224,36 +223,14 @@
       return JSON.parse(JSON.stringify(value));
     }
 
-    function allowedEventNames() {
-      return new Set(Object.keys(eventTemplates));
-    }
-
-    function defaultEventTemplate() {
-      return eventTemplates[defaultEventName] || Object.values(eventTemplates)[0] || null;
-    }
-
-    function templateForEventName(name) {
-      return eventTemplates[name] || defaultEventTemplate();
-    }
-
-    function normalizeContractEvent(event = {}) {
-      return {
-        name: String(event.name || "").trim(),
-        label: String(event.label || "Contract dataset").trim(),
-        description: String(event.description || "").trim(),
-        detail: event.detail && typeof event.detail === "object" && !Array.isArray(event.detail) ? clone(event.detail) : {},
-        bindings: Array.isArray(event.bindings) ? clone(event.bindings) : []
-      };
-    }
-
     function normalizeEvent(event = {}) {
-      const template = templateForEventName(String(event.name || defaultEventName || "").trim());
+      const detail = event.detail && typeof event.detail === "object" && !Array.isArray(event.detail) ? clone(event.detail) : {};
       return {
-        name: template?.name || String(event.name || "").trim(),
-        label: String(event.label || template?.label || "Contract dataset").trim(),
+        name: String(event.name || defaultEventName || "").trim(),
+        label: String(event.label || labelFromDatasetKey(datasetKeyFromEventName(event.name || defaultEventName))).trim(),
         description: String(event.description || "").trim(),
-        detail: clone(template?.detail || {}),
-        bindings: clone(template?.bindings || [])
+        detail,
+        bindings: Array.isArray(event.bindings) ? clone(event.bindings) : []
       };
     }
 
@@ -269,12 +246,11 @@
     }
 
     function cleanCatalog(input) {
-      const allowed = allowedEventNames();
-      const events = (input.events || []).map(normalizeEvent).filter(event => allowed.has(event.name));
+      const events = (input.events || []).map(normalizeEvent);
       const eventNames = new Set(events.map(event => event.name));
       const emitters = (input.emitters || []).map(normalizeConnector).map(source => ({
         ...source,
-        events: source.events.filter(name => allowed.has(name) && eventNames.has(name))
+        events: [...new Set(source.events.filter(name => eventNames.has(name)))]
       })).filter(source => source.events.length);
       return {
         provider: input.provider || contract?.provider || DEFAULT_PROVIDER,
@@ -292,8 +268,32 @@
 
     function eventNameFromDatasetKey(key) {
       const clean = String(key || "custom").trim().replace(/^realtime\./, "");
-      const name = selectedEventType + "." + clean;
-      return eventTemplates[name] ? name : defaultEventName;
+      return selectedEventType + "." + clean;
+    }
+
+    function labelFromDatasetKey(key) {
+      return String(key || "custom")
+        .split(".")
+        .filter(Boolean)
+        .map(part => part ? part[0].toUpperCase() + part.slice(1) : part)
+        .join(" ");
+    }
+
+    function newDatasetBaseKey(sourceType) {
+      if (sourceType === "sip") return "sip.call.custom";
+      if (sourceType === "email") return "mail.received.custom";
+      if (sourceType === "data") return "data.updated.custom";
+      return "endpoint.updated.custom";
+    }
+
+    function uniqueDatasetKey(baseKey) {
+      const used = new Set(catalog.events.map(event => datasetKeyFromEventName(event.name)));
+      if (!used.has(baseKey)) return baseKey;
+      for (let index = 2; index < 1000; index += 1) {
+        const candidate = `${baseKey}.${index}`;
+        if (!used.has(candidate)) return candidate;
+      }
+      return `${baseKey}.${Date.now()}`;
     }
 
     function sourceForEvent(eventName) {
@@ -331,15 +331,36 @@
       }
     }
 
+    function readFieldsFromForm() {
+      const detail = {};
+      for (const row of el("fields").querySelectorAll("[data-field-row='true']")) {
+        const path = row.querySelector("[data-field-path='true']")?.value.trim();
+        const type = row.querySelector("[data-field-type='true']")?.value || "text";
+        if (path) detail[path] = type;
+      }
+      return detail;
+    }
+
+    function uniqueFieldPath(basePath = "value") {
+      const used = new Set(Object.keys(readFieldsFromForm()));
+      if (!used.has(basePath)) return basePath;
+      for (let index = 2; index < 1000; index += 1) {
+        const candidate = `${basePath}${index}`;
+        if (!used.has(candidate)) return candidate;
+      }
+      return `${basePath}${Date.now()}`;
+    }
+
     function syncEventFromForm() {
       const event = selectedEvent();
       if (!event) return;
-      const template = templateForEventName(event.name);
-      event.name = template?.name || event.name;
+      const oldName = event.name;
+      event.name = eventNameFromDatasetKey(el("datasetKey").value);
       event.label = el("eventLabel").value.trim();
       event.description = el("eventDescription").value.trim();
-      event.detail = clone(template?.detail || {});
-      event.bindings = clone(template?.bindings || []);
+      event.detail = readFieldsFromForm();
+      event.bindings = Array.isArray(event.bindings) ? event.bindings : [];
+      replaceEventName(oldName, event.name);
       const source = selectedConnector();
       if (source && event.name && !source.events.includes(event.name)) source.events.push(event.name);
     }
@@ -406,20 +427,14 @@
       };
     }
 
-    function renderDatasetSelect(event) {
-      const select = el("datasetKey");
+    function renderDatasetInput(event) {
+      const input = el("datasetKey");
       const current = datasetKeyFromEventName(event?.name || defaultEventName);
-      select.innerHTML = "";
-      for (const template of Object.values(eventTemplates)) {
-        const option = document.createElement("option");
-        option.value = datasetKeyFromEventName(template.name);
-        option.textContent = `${template.label || template.name} (${datasetKeyFromEventName(template.name)})`;
-        option.selected = option.value === current;
-        select.appendChild(option);
-      }
-      select.onchange = () => {
-        applyDatasetTemplate(select.value);
-        render();
+      input.value = current;
+      input.oninput = () => {
+        syncEventFromForm();
+        renderEventSelect();
+        renderReadouts();
       };
     }
 
@@ -434,14 +449,20 @@
       pathInput.dataset.fieldPath = "true";
       pathInput.value = path;
       pathInput.placeholder = "caller";
-      pathInput.readOnly = true;
+      pathInput.oninput = () => {
+        syncEventFromForm();
+        renderReadouts();
+      };
       pathLabel.appendChild(pathInput);
 
       const typeLabel = document.createElement("label");
       typeLabel.textContent = "Type";
       const typeSelect = document.createElement("select");
       typeSelect.dataset.fieldType = "true";
-      typeSelect.disabled = true;
+      typeSelect.onchange = () => {
+        syncEventFromForm();
+        renderReadouts();
+      };
       for (const item of TYPES) {
         const option = document.createElement("option");
         option.value = item;
@@ -453,34 +474,21 @@
 
       const remove = document.createElement("button");
       remove.type = "button";
-      remove.className = "secondary";
-      remove.textContent = "Locked";
-      remove.disabled = true;
+      remove.className = "danger";
+      remove.textContent = "Remove";
+      remove.onclick = () => {
+        row.remove();
+        syncEventFromForm();
+        renderReadouts();
+      };
       row.append(pathLabel, typeLabel, remove);
       el("fields").appendChild(row);
-    }
-
-    function applyDatasetTemplate(datasetKey) {
-      const event = selectedEvent();
-      if (!event) return;
-      const oldName = event.name;
-      const name = eventNameFromDatasetKey(datasetKey);
-      const template = templateForEventName(name);
-      if (!template) return;
-      event.name = template.name;
-      event.label = template.label;
-      event.description = template.description;
-      event.detail = clone(template.detail || {});
-      event.bindings = clone(template.bindings || []);
-      replaceEventName(oldName, event.name);
-      const source = selectedConnector();
-      if (source && !source.events.includes(event.name)) source.events.push(event.name);
     }
 
     function renderEventEditor() {
       const event = selectedEvent();
       renderEventSelect();
-      renderDatasetSelect(event);
+      renderDatasetInput(event);
       el("eventType").value = selectedEventType;
       el("eventLabel").value = event.label;
       el("eventDescription").value = event.description;
@@ -614,7 +622,6 @@
     function applyContract(payload) {
       contract = payload || {};
       const events = Array.isArray(contract.events) ? contract.events : [];
-      eventTemplates = Object.fromEntries(events.map(event => [event.name, normalizeContractEvent(event)]));
       defaultEventName = events[0]?.name || "";
       contractEmitters = Array.isArray(contract.emitters) ? contract.emitters.map(normalizeConnector) : [];
       if (contract.state) catalog.state = contract.state;
@@ -683,12 +690,19 @@
         setStatus(payload.error || "Save failed", "bad");
         return;
       }
-      setStatus(payload.changed ? `Saved. Commit ${payload.commit || "created"} pushed.` : "No changes.", payload.changed ? "ok" : "warn");
+      const releaseText = payload.releaseId ? ` ${payload.releaseId}.` : "";
+      setStatus(payload.changed ? `Saved${releaseText} Commit ${payload.commit || "created"} pushed.` : "No changes.", payload.changed ? "ok" : "warn");
     }
 
     function createEventFromDatasetKey(datasetKey) {
       const eventName = eventNameFromDatasetKey(datasetKey);
-      return normalizeEvent(templateForEventName(eventName));
+      return normalizeEvent({
+        name: eventName,
+        label: labelFromDatasetKey(datasetKey),
+        description: "",
+        detail: { value: "text" },
+        bindings: []
+      });
     }
 
     function selectEventByName(name) {
@@ -720,17 +734,16 @@
     function newEvent() {
       syncFromForm();
       const source = selectedConnector();
-      const candidates = contractEmitters
-        .filter(preset => !source?.type || preset.type === source.type)
-        .flatMap(preset => preset.events || [])
-        .filter((name, index, list) => name && list.indexOf(name) === index);
-      const eventName = candidates.find(name => !source.events.includes(name)) || candidates[0] || defaultEventName;
-      if (!eventName) return;
-      if (!catalog.events.some(event => event.name === eventName)) catalog.events.push(createEventFromDatasetKey(datasetKeyFromEventName(eventName)));
+      if (!source) return;
+      const datasetKey = uniqueDatasetKey(newDatasetBaseKey(source.type));
+      const eventName = eventNameFromDatasetKey(datasetKey);
+      catalog.events.push(createEventFromDatasetKey(datasetKey));
       if (!source.events.includes(eventName)) source.events.push(eventName);
       selectEventByName(eventName);
       render();
-      setStatus("Contract dataset added. Save to publish.", "warn");
+      el("datasetKey").focus();
+      el("datasetKey").select();
+      setStatus("Dataset created locally. Save to publish through the server contract.", "warn");
     }
 
     function deleteEvent() {
@@ -777,7 +790,10 @@
     el("deleteEvent").onclick = deleteEvent;
     el("deleteConnector").onclick = deleteSource;
     el("addField").onclick = () => {
-      setStatus("Fields are fixed by /events/contract.", "warn");
+      addFieldRow(uniqueFieldPath("value"), "text");
+      syncEventFromForm();
+      renderReadouts();
+      setStatus("Field added. Save to publish through the server contract.", "warn");
     };
     el("copyEmit").onclick = async () => {
       try {

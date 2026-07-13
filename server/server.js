@@ -8,7 +8,7 @@ const path = require("node:path");
 const { URL } = require("node:url");
 const { WebSocketServer, WebSocket } = require("ws");
 const eventCatalog = require("./event-catalog");
-const { loadReleaseInfo } = require("./release");
+const { loadReleaseInfo, parseReleaseSource } = require("./release");
 
 const DEFAULT_ALLOWED_ORIGINS = ["https://digitalisierungsplanung.de"];
 const DEFAULT_PATH = "/ws";
@@ -290,6 +290,8 @@ function loadConfig(options = {}) {
   const roomSecret = options.roomSecret ?? env.REALTIME_ROOM_SECRET ?? "";
   const emitSecret = options.emitSecret ?? env.REALTIME_EMIT_SECRET ?? "";
   const nodeEnv = options.nodeEnv || env.NODE_ENV || "development";
+  const repoDir = path.resolve(options.repoDir || env.REALTIME_REPO_DIR || process.cwd());
+  const releaseFile = path.resolve(options.releaseFile || env.ZUSTAND_RELEASE_FILE || path.join(repoDir, "release-version.js"));
   const allowUnsignedRooms = options.allowUnsignedRooms ?? (
     String(env.REALTIME_ALLOW_UNSIGNED_ROOMS || "").toLowerCase() === "true"
   );
@@ -308,7 +310,8 @@ function loadConfig(options = {}) {
     versionPath: options.versionPath || env.REALTIME_VERSION_PATH || DEFAULT_VERSION_PATH,
     eventCatalogPath: path.resolve(options.eventCatalogPath || env.REALTIME_EVENT_CATALOG_PATH || eventCatalog.DEFAULT_EVENT_CATALOG_PATH),
     eventAdminHtmlPath: path.resolve(options.eventAdminHtmlPath || env.REALTIME_EVENT_ADMIN_HTML_PATH || path.join(__dirname, "events-admin.html")),
-    repoDir: path.resolve(options.repoDir || env.REALTIME_REPO_DIR || process.cwd()),
+    repoDir,
+    releaseFile,
     adminSecret: options.adminSecret ?? env.REALTIME_ADMIN_SECRET ?? "",
     gitPushToken: options.gitPushToken ?? env.REALTIME_GIT_PUSH_TOKEN ?? "",
     gitRunner: options.gitRunner || defaultGitRunner,
@@ -323,7 +326,7 @@ function loadConfig(options = {}) {
     tokenTtlMs: parseInteger(options.tokenTtlMs ?? env.REALTIME_ROOM_TOKEN_TTL_MS, 60 * 60 * 1000, 1000),
     roomSecret,
     emitSecret,
-    release: options.release || loadReleaseInfo({ env, path: options.releaseFile }),
+    release: options.release || loadReleaseInfo({ env, path: releaseFile }),
     eventCatalog: loadEventCatalog(options, env),
     allowUnsignedRooms: Boolean(allowUnsignedRooms),
     requireRoomSecret: options.requireRoomSecret ?? (nodeEnv === "production" && !allowUnsignedRooms)
@@ -478,7 +481,10 @@ function publicBaseUrl(request) {
 }
 
 function eventCatalogResponse(config) {
-  return eventCatalog.eventCatalogResponse(config.eventCatalog);
+  return {
+    ...eventCatalog.eventCatalogResponse(config.eventCatalog),
+    release: releaseResponse(config)
+  };
 }
 
 function releaseResponse(config) {
@@ -495,6 +501,35 @@ function releaseResponse(config) {
 function cleanCommitMessage(value) {
   const text = String(value || "").replace(/[\r\n]+/g, " ").trim();
   return (text || DEFAULT_ADMIN_COMMIT_MESSAGE).slice(0, 120);
+}
+
+function serializeReleaseInfo(release) {
+  return `globalThis.ZUSTAND_RELEASE_SEQUENCE = ${Math.max(0, release.sequence || 0)};\n` +
+    `globalThis.ZUSTAND_RELEASE_ID = ${JSON.stringify(release.id || "dev-local")};\n` +
+    `globalThis.ZUSTAND_RELEASE_BUILT_AT = ${JSON.stringify(release.builtAt || "")};\n` +
+    `globalThis.ZUSTAND_RELEASE_SOURCE = ${JSON.stringify(release.sourceCommit || "")};\n`;
+}
+
+function readFileRelease(config) {
+  try {
+    return parseReleaseSource(fs.readFileSync(config.releaseFile, "utf8"));
+  } catch (_) {
+    return config.release;
+  }
+}
+
+function nextReleaseInfo(config) {
+  const current = readFileRelease(config);
+  const currentSequence = Number.isSafeInteger(current.sequence) && current.sequence > 0
+    ? current.sequence
+    : Number.isSafeInteger(config.release.sequence) ? config.release.sequence : 0;
+  return {
+    id: `release-${currentSequence + 1}`,
+    sequence: currentSequence + 1,
+    builtAt: new Date().toISOString(),
+    sourceCommit: currentShortCommit(config),
+    deployedCommit: ""
+  };
 }
 
 function gitFailure(code, result, status = 500) {
@@ -555,6 +590,7 @@ function localAheadCount(config) {
 
 function writeCatalogCommitAndPush(config, catalog, message) {
   const relativeCatalogPath = repoRelativePath(config.repoDir, config.eventCatalogPath);
+  const relativeReleasePath = repoRelativePath(config.repoDir, config.releaseFile);
   const serialized = eventCatalog.serializeEventCatalog(catalog);
   fs.writeFileSync(config.eventCatalogPath, serialized, { encoding: "utf8", mode: 0o644 });
 
@@ -577,7 +613,12 @@ function writeCatalogCommitAndPush(config, catalog, message) {
     return { ok: true, changed: false };
   }
 
-  runGit(config, ["add", "--", relativeCatalogPath], "git_add_failed");
+  const release = nextReleaseInfo(config);
+  fs.writeFileSync(config.releaseFile, serializeReleaseInfo(release), { encoding: "utf8", mode: 0o644 });
+
+  runGit(config, ["add", "--", relativeCatalogPath, relativeReleasePath], "git_add_failed");
+  const baseMessage = cleanCommitMessage(message);
+  const commitMessage = baseMessage.includes(release.id) ? baseMessage : `${baseMessage} (${release.id})`;
   runGit(config, [
     "-c",
     "user.name=Realtime Event Designer",
@@ -585,13 +626,22 @@ function writeCatalogCommitAndPush(config, catalog, message) {
     "user.email=realtime-events@digitalisierungsplanung.de",
     "commit",
     "-m",
-    cleanCommitMessage(message),
+    commitMessage,
     "--",
-    relativeCatalogPath
+    relativeCatalogPath,
+    relativeReleasePath
   ], "git_commit_failed");
 
   pushCurrentHead(config);
-  return { ok: true, changed: true, commit: currentShortCommit(config) };
+  const commit = currentShortCommit(config);
+  return {
+    ok: true,
+    changed: true,
+    commit,
+    releaseId: release.id,
+    releaseSequence: release.sequence,
+    release: { ...release, deployedCommit: commit }
+  };
 }
 
 function createRoom(roomId) {
@@ -683,9 +733,15 @@ function sendError(socket, code, close = false) {
 function createRealtimeServer(options = {}) {
   const config = loadConfig(options);
   const allowedOrigins = new Set(config.allowedOrigins);
-  const offeredEventsByName = new Map(config.eventCatalog.events.map(event => [event.name, event]));
-  const offeredEmittersById = new Map(config.eventCatalog.emitters.map(emitter => [emitter.id, emitter]));
+  let offeredEventsByName = new Map();
+  let offeredEmittersById = new Map();
   const rooms = new Map();
+  const setEventCatalog = catalog => {
+    config.eventCatalog = eventCatalog.validateEventCatalog(catalog);
+    offeredEventsByName = new Map(config.eventCatalog.events.map(event => [event.name, event]));
+    offeredEmittersById = new Map(config.eventCatalog.emitters.map(emitter => [emitter.id, emitter]));
+  };
+  setEventCatalog(config.eventCatalog);
   const isOriginAllowed = origin => allowedOrigins.has("*") || allowedOrigins.has(origin);
   const isSamePublicOrigin = (origin, request) => Boolean(origin) && origin === publicBaseUrl(request);
   const corsHeadersForOrigin = (origin, request) => {
@@ -757,7 +813,7 @@ function createRealtimeServer(options = {}) {
     if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.eventsContractPath) {
       const prepared = prepareCatalogResponse(request, response);
       if (prepared.done) return;
-      writeJson(response, 200, eventCatalog.predefinedEventContractResponse(), prepared.headers);
+      writeJson(response, 200, eventCatalogResponse(config), prepared.headers);
       return;
     }
     if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.emitPath) {
@@ -877,7 +933,8 @@ function createRealtimeServer(options = {}) {
     if (request.method === "GET") {
       try {
         writeJson(response, 200, {
-          catalog: eventCatalog.loadEventCatalogFile(config.eventCatalogPath)
+          catalog: eventCatalog.loadEventCatalogFile(config.eventCatalogPath),
+          release: releaseResponse(config)
         }, headers);
       } catch (error) {
         writeJson(response, error.status || 500, { error: error.code || "catalog_load_failed" }, headers);
@@ -901,6 +958,8 @@ function createRealtimeServer(options = {}) {
         return;
       }
       const result = writeCatalogCommitAndPush(config, catalog, payload.message);
+      setEventCatalog(catalog);
+      if (result.release) config.release = result.release;
       writeJson(response, 200, result, headers);
     } catch (error) {
       writeJson(response, error.status || 500, { error: error.code || "event_catalog_save_failed" }, headers);

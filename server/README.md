@@ -60,11 +60,11 @@ Open `https://realtime.digitalisierungsplanung.de/console.html?room=<room-id>` f
 
 ## Event Catalog
 
-The event catalog is the server-side source of truth for offered realtime events and connector sources. Unknown `realtime.*` names are rejected on `/emit`, rejected on `/ws`, and ignored by the host bridge before they can enter the generated runtime.
+The event catalog is the server-side source of truth for offered realtime events and connector sources. Unknown `realtime.*` names are rejected on `/emit`, rejected on `/ws`, and ignored by the host bridge before they can enter the generated runtime. New datasets are created by editing this one catalog through the admin designer and saving it through the server.
 
-- `server/event-catalog.json`: single catalog source in Git.
-- `/events/contract`: strict server contract for allowed event keys, detail types, and collision-free state contribution paths.
-- `/events`: event and connector definitions.
+- `server/event-catalog.json`: single contract/catalog source in Git.
+- `/events/contract`: current server contract for event keys, detail types, and collision-free state contribution paths.
+- `/events`: current event and connector definitions.
 - `/ws`: WebSocket relay only.
 - `/emit`: authenticated server-to-server fire endpoint only.
 - `/console.html`: manual browser emitter for testing only.
@@ -85,12 +85,13 @@ Workspace automation or small mail bridge. For Outlook this is a Microsoft
 automation or Graph/mail bridge. The realtime server does not poll mailboxes or
 run a SIP stack.
 
-The designer follows the canvas contract order: event type, contract dataset,
-fixed fields, source. It loads `/events/contract` for the allowed keys and data
-types, then `/events` for the active catalog. The admin secret is stored only in
-this browser's localStorage and is required when reloading or saving through the
-admin API. A save validates the same strict server contract, writes
-`server/event-catalog.json`, commits it, and pushes it to GitHub.
+The designer follows the canvas contract order: event type, dataset key, fields,
+source. The admin secret is stored only in this browser's localStorage and is
+required when reloading or saving through the admin API. A save validates the
+same strict server contract, writes `server/event-catalog.json` and
+`release-version.js` as one release unit, commits them, and pushes to GitHub.
+There is no version selector and no old contract pinning; runtime always uses
+the latest green `release-N`.
 
 All connector IDs are globally unique and path-safe. Runtime state is written under `events.<eventName>.*` and `emitters.<emitterId>.*`. Exact ID collisions and parent/child path collisions are rejected server-side. The canvas should store only concrete refs it uses, mainly `triggerType: realtime` and `triggerEvent`. It should not store preset contracts, endpoint definitions, catalog copies, or preset instances.
 
@@ -132,14 +133,15 @@ sudo bash server/deploy.sh
 ```
 
 The systemd timer checks `origin/main` every minute. It deploys only when CI has
-advanced the shared `release-N` ID in `release-version.js`. It then locks against a
+accepted a shared `release-N` ID in `release-version.js`. It then locks against a
 second run, discards all local repository changes, checks out the exact remote
 commit, runs `deploy.sh`, updates the PM2 environment, validates Nginx and
 requires `/healthz` to report the same release ID. The success marker advances
 only after all checks pass. A failed deployment does not advance the marker and
 does not search for older commits; the timer keeps retrying the latest green
-`release-N` until that same release is live. Non-stamped `main` changes are
-discarded by the next force sync.
+`release-N` until that same release is live. Event-designer saves may include
+`server/event-catalog.json` in the stamped release unit; other non-stamped
+`main` changes are discarded by the next force sync.
 
 Useful commands:
 
