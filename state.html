@@ -1293,15 +1293,32 @@
     .node.initial .badge { display: block; }
     .node.active .live-badge { display: block; }
     .node.has-children .layer-badge { display: block; }
-    .node.has-children {
-      border-color: rgba(245,158,11,.62);
-      background-image:
-        linear-gradient(135deg, rgba(245,158,11,.13), transparent 42%),
-        linear-gradient(180deg, rgba(255,255,255,.055), transparent);
+    .node.has-children:not(.boundary-proxy) {
+      border-color: rgba(245,158,11,.92);
+      background:
+        linear-gradient(135deg, rgba(245,158,11,.25), rgba(20,83,45,.12) 46%, transparent 72%),
+        #14345a;
       box-shadow:
+        0 0 0 3px rgba(245,158,11,.13),
         0 18px 42px rgba(0,0,0,.35),
-        inset 0 1px 0 rgba(255,255,255,.06),
-        0 0 0 1px rgba(245,158,11,.12);
+        inset 0 1px 0 rgba(255,255,255,.09),
+        0 0 28px rgba(245,158,11,.18);
+    }
+    .node.has-children:not(.boundary-proxy) .title {
+      color: #fff7ed;
+    }
+    .node.has-children.selected:not(.boundary-proxy) {
+      border-color: var(--selected);
+      outline-color: var(--selected);
+      box-shadow:
+        0 0 0 5px rgba(245,158,11,.22),
+        0 18px 42px rgba(0,0,0,.35),
+        inset 0 1px 0 rgba(255,255,255,.1);
+    }
+    .node.has-children.active:not(.boundary-proxy) {
+      background:
+        linear-gradient(135deg, rgba(245,158,11,.22), rgba(34,197,94,.25) 46%, transparent 72%),
+        #14345a;
     }
     .node.has-children .layer-badge {
       color: #451a03;
@@ -3644,6 +3661,10 @@
       display: none;
     }
 
+    .mobile-sheet-handle {
+      display: none;
+    }
+
     @media (max-width: 900px) {
       .workspace { grid-template-columns: var(--inspector-panel-width) minmax(0, 1fr); grid-template-rows: 1fr 45vh; }
       html[data-preview-collapsed="true"] .workspace,
@@ -3855,21 +3876,17 @@
         box-shadow: none;
       }
 
-      .workspace.mobile-app-active .map {
-        pointer-events: none;
-        cursor: default;
-      }
-
       .workspace.mobile-app-active .preview {
         display: grid;
         position: absolute;
         z-index: 72;
         left: 0;
         right: 0;
+        top: var(--mobile-sheet-top, 42%);
         bottom: 0;
-        height: min(64%, 560px);
-        min-height: min(320px, calc(100% - 24px));
-        max-height: calc(100% - 24px);
+        height: auto;
+        min-height: 0;
+        max-height: none;
         border-left: 0;
         border-top: 1px solid #315f8c;
         border-bottom: 0;
@@ -3893,10 +3910,11 @@
         z-index: 72;
         left: 0;
         right: 0;
+        top: var(--mobile-sheet-top, 42%);
         bottom: 0;
-        height: min(62%, 520px);
-        min-height: min(300px, calc(100% - 24px));
-        max-height: calc(100% - 24px);
+        height: auto;
+        min-height: 0;
+        max-height: none;
         border-top: 1px solid #315f8c;
         border-bottom: 0;
         border-right: 0;
@@ -4139,6 +4157,13 @@
         box-shadow: 0 0 0 3px rgba(251,113,133,.16);
       }
 
+      .mobile-runtime-follow[aria-pressed="true"] {
+        border-color: rgba(52,211,153,.65);
+        color: #bbf7d0;
+        background: rgba(6,78,59,.42);
+        box-shadow: 0 0 0 3px rgba(52,211,153,.14);
+      }
+
       .mobile-process-recording-status {
         display: inline-flex;
         align-items: center;
@@ -4233,10 +4258,10 @@
 
       .workspace.mobile-presets-active .state-explorer {
         display: grid;
-        inset: auto 0 0 0;
-        height: min(58%, 470px);
-        min-height: min(300px, calc(100% - 24px));
-        max-height: calc(100% - 24px);
+        inset: var(--mobile-sheet-top, 42%) 0 0 0;
+        height: auto;
+        min-height: 0;
+        max-height: none;
         z-index: 70;
         border-top: 1px solid #315f8c;
         background: #050b14;
@@ -4256,12 +4281,64 @@
       }
 
       .workspace.mobile-presets-active .state-explorer.collapsed {
-        inset: auto 0 0 0;
+        inset: var(--mobile-sheet-top, 42%) 0 0 0;
         width: auto;
-        height: min(58%, 470px);
-        min-height: min(300px, calc(100% - 24px));
-        max-height: calc(100% - 24px);
+        height: auto;
+        min-height: 0;
+        max-height: none;
         opacity: 1;
+      }
+
+      .workspace.mobile-presets-active .mobile-sheet-handle,
+      .workspace.mobile-edit-active .mobile-sheet-handle,
+      .workspace.mobile-app-active .mobile-sheet-handle {
+        display: block;
+        position: absolute;
+        z-index: 96;
+        left: 50%;
+        top: calc(var(--mobile-sheet-top, 42%) - 34px);
+        width: min(232px, 72vw);
+        min-width: 132px;
+        height: 64px;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+        transform: translateX(-50%);
+        cursor: ns-resize;
+        touch-action: none;
+      }
+
+      .mobile-sheet-handle::before {
+        content: "";
+        position: absolute;
+        left: 50%;
+        bottom: 12px;
+        width: 116px;
+        height: 24px;
+        border: 1px solid rgba(125,211,252,.42);
+        border-radius: 999px;
+        background: rgba(5,11,20,.9);
+        box-shadow: 0 10px 24px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.08);
+        transform: translateX(-50%);
+      }
+
+      .mobile-sheet-handle::after {
+        content: "";
+        position: absolute;
+        left: 50%;
+        bottom: 21px;
+        width: 76px;
+        height: 5px;
+        border-radius: 999px;
+        background: #7dd3fc;
+        box-shadow: 0 0 14px rgba(125,211,252,.36);
+        transform: translateX(-50%);
+      }
+
+      .workspace.mobile-sheet-resizing .mobile-sheet-handle::after {
+        background: var(--accent);
+        box-shadow: 0 0 18px rgba(245,158,11,.46);
       }
 
       .workspace.mobile-presets-active .state-explorer.collapsed .state-explorer-list {
@@ -4557,6 +4634,12 @@
         border-top: 0;
         border-left: 1px solid #315f8c;
         box-shadow: -12px 0 28px rgba(0,0,0,.34);
+      }
+
+      .workspace.mobile-presets-active .mobile-sheet-handle,
+      .workspace.mobile-edit-active .mobile-sheet-handle,
+      .workspace.mobile-app-active .mobile-sheet-handle {
+        display: none;
       }
 
       .workspace.mobile-presets-active .state-explorer-title {
@@ -5508,6 +5591,7 @@
       </div>
     </main>
     <button id="previewResizeHandle" class="panel-resizer preview-resizer" type="button" title="App-Vorschau skalieren" aria-label="App-Vorschau skalieren"></button>
+    <button id="mobileSheetHandle" class="mobile-sheet-handle" type="button" title="Panel verschieben" aria-label="Panel verschieben"></button>
 
     <aside class="preview">
       <div class="preview-title">
@@ -5535,6 +5619,9 @@
         <span class="process-recording-dot" aria-hidden="true"></span>
         <span id="mobileProcessRecordingStatusText" class="mobile-process-recording-text">Rec 00:00</span>
       </span>
+      <button id="btnMobileRuntimeFollow" class="mobile-runtime-follow" type="button" title="Runtime folgen" aria-label="Runtime folgen" aria-pressed="true">
+        <svg class="mobile-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7"></circle><path d="M12 3v3"></path><path d="M12 18v3"></path><path d="M3 12h3"></path><path d="M18 12h3"></path><circle cx="12" cy="12" r="2"></circle></svg>
+      </button>
       <button id="btnMobileActionUndo" type="button" title="Rückgängig" aria-label="Rückgängig" disabled="">
         <svg class="mobile-action-icon" data-lucide="undo-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"></path><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5A5.5 5.5 0 0 1 14.5 20H11"></path></svg>
       </button>
@@ -9001,6 +9088,9 @@
     const TOUCH_PORT_START_INSIDE_PX = 18;
     const TOUCH_PORT_START_OUTSIDE_PX = 48;
     const TOUCH_PORT_START_VERTICAL_PX = 38;
+    const MOBILE_SHEET_DEFAULT_TOP_RATIO = 0.42;
+    const MOBILE_SHEET_MIN_HEIGHT = 112;
+    const MOBILE_SHEET_SNAP_PX = 72;
 
     const workspaceEl = document.getElementById("workspace");
     const runtimePauseBannerEl = document.getElementById("runtimePauseBanner");
@@ -9038,6 +9128,7 @@
     const btnMobileProcessRecord = document.getElementById("btnMobileProcessRecord");
     const mobileProcessRecordingStatusEl = document.getElementById("mobileProcessRecordingStatus");
     const mobileProcessRecordingStatusTextEl = document.getElementById("mobileProcessRecordingStatusText");
+    const btnMobileRuntimeFollow = document.getElementById("btnMobileRuntimeFollow");
     const btnMobileActionUndo = document.getElementById("btnMobileActionUndo");
     const btnMobileActionRedo = document.getElementById("btnMobileActionRedo");
     const btnMobileActionCopy = document.getElementById("btnMobileActionCopy");
@@ -9050,6 +9141,7 @@
     const btnPause = document.getElementById("btnPause");
     const btnTogglePreview = document.getElementById("btnTogglePreview");
     const previewResizeHandleEl = document.getElementById("previewResizeHandle");
+    const mobileSheetHandleEl = document.getElementById("mobileSheetHandle");
     const stateExplorerEl = document.getElementById("stateExplorer");
     const stateExplorerListEl = document.getElementById("stateExplorerList");
     const stateExplorerGroupsEl = document.getElementById("stateExplorerGroups");
@@ -9177,6 +9269,8 @@
     let inspectorCollapsed = uiState.inspectorCollapsed;
     let inspectorCollapsedByUser = false;
     let mobileWorkspaceView = uiState.mobileWorkspaceView;
+    let mobileSheetTopRatio = normalizeMobileSheetTopRatio(uiState.mobileSheetTopRatio);
+    let mobileRuntimeFollow = true;
     let stateExplorerCollapsed = uiState.stateExplorerCollapsed;
     let stateExplorerGroup = uiState.stateExplorerGroup;
     let stateExplorerSearch = "";
@@ -10491,6 +10585,11 @@
       return Math.min(max, Math.max(min, value));
     }
 
+    function normalizeMobileSheetTopRatio(value) {
+      const number = Number(value);
+      return Number.isFinite(number) ? clampNumber(number, 0, 1) : MOBILE_SHEET_DEFAULT_TOP_RATIO;
+    }
+
     function normalizeStoredPanelWidth(value, min, max, fallback) {
       const number = Number(value);
       return Number.isFinite(number) ? clampNumber(Math.round(number), min, max) : fallback;
@@ -10511,6 +10610,7 @@
         stateExplorerCollapsed: false,
         stateExplorerGroup: "website",
         mobileWorkspaceView: "canvas",
+        mobileSheetTopRatio: MOBILE_SHEET_DEFAULT_TOP_RATIO,
         inspectorWidth: INSPECTOR_PANEL_DEFAULT,
         previewWidth: mobilePreviewLayout ? PREVIEW_PANEL_MOBILE_DEFAULT : PREVIEW_PANEL_DEFAULT
       };
@@ -10523,6 +10623,7 @@
           stateExplorerCollapsed: typeof stored.stateExplorerCollapsed === "boolean" ? stored.stateExplorerCollapsed : fallback.stateExplorerCollapsed,
           stateExplorerGroup: normalizeStateExplorerGroup(stored.stateExplorerGroup),
           mobileWorkspaceView: normalizeMobileWorkspaceView(stored.mobileWorkspaceView),
+          mobileSheetTopRatio: normalizeMobileSheetTopRatio(stored.mobileSheetTopRatio),
           inspectorWidth: normalizeStoredPanelWidth(stored.inspectorWidth, INSPECTOR_PANEL_MIN, INSPECTOR_PANEL_MAX, fallback.inspectorWidth),
           previewWidth: normalizeStoredPanelWidth(stored.previewWidth, previewMin, PREVIEW_PANEL_MAX, fallback.previewWidth)
         };
@@ -10538,6 +10639,7 @@
         stateExplorerCollapsed: Boolean(stateExplorerCollapsed),
         stateExplorerGroup: normalizeStateExplorerGroup(stateExplorerGroup),
         mobileWorkspaceView: normalizeMobileWorkspaceView(mobileWorkspaceView),
+        mobileSheetTopRatio: normalizeMobileSheetTopRatio(mobileSheetTopRatio),
         inspectorWidth: Math.round(inspectorPanelWidth),
         previewWidth: Math.round(previewPanelWidth)
       };
@@ -10601,14 +10703,56 @@
       inspectorPanelWidth = clampNumber(Math.round(inspectorPanelWidth), INSPECTOR_PANEL_MIN, maxInspectorPanelWidth());
     }
 
+    function mobileSheetBounds() {
+      const height = Math.max(1, Math.round(workspacePanelHeight()));
+      const minHeight = Math.min(height, Math.max(72, MOBILE_SHEET_MIN_HEIGHT));
+      return {
+        height,
+        maxTop: Math.max(0, height - minHeight)
+      };
+    }
+
+    function mobileSheetTopPxFromRatio() {
+      const bounds = mobileSheetBounds();
+      const ratio = normalizeMobileSheetTopRatio(mobileSheetTopRatio);
+      return clampNumber(Math.round(bounds.height * ratio), 0, bounds.maxTop);
+    }
+
+    function setMobileSheetTopPx(topPx, opts = {}) {
+      const bounds = mobileSheetBounds();
+      const top = clampNumber(Math.round(topPx), 0, bounds.maxTop);
+      mobileSheetTopRatio = bounds.height > 0 ? top / bounds.height : MOBILE_SHEET_DEFAULT_TOP_RATIO;
+      applyMobileSheetGeometry(opts);
+    }
+
+    function snapMobileSheetTopPx(topPx) {
+      const bounds = mobileSheetBounds();
+      const top = clampNumber(Math.round(topPx), 0, bounds.maxTop);
+      if (top <= MOBILE_SHEET_SNAP_PX) return 0;
+      if (bounds.maxTop - top <= MOBILE_SHEET_SNAP_PX) return bounds.maxTop;
+      return top;
+    }
+
+    function applyMobileSheetGeometry(opts = {}) {
+      if (!isMobileWorkspaceLayout() || mobileWorkspaceView === "canvas") {
+        workspaceEl.style.removeProperty("--mobile-sheet-top");
+        return;
+      }
+      const top = mobileSheetTopPxFromRatio();
+      workspaceEl.style.setProperty("--mobile-sheet-top", top + "px");
+      if (opts.persist === true) saveUiState();
+    }
+
     function applyWorkspaceSplitStyle() {
       if (!isMobileWorkspaceLayout()) {
         workspaceEl.style.gridTemplateColumns = "";
         workspaceEl.style.gridTemplateRows = "";
+        workspaceEl.style.removeProperty("--mobile-sheet-top");
         return;
       }
       workspaceEl.style.gridTemplateColumns = "1fr";
       workspaceEl.style.gridTemplateRows = "minmax(0, 1fr)";
+      applyMobileSheetGeometry({ persist: false });
     }
 
     function applyPanelWidths(opts = {}) {
@@ -10645,13 +10789,32 @@
       try { evt.currentTarget.setPointerCapture(evt.pointerId); } catch (_) {}
     }
 
+    function startMobileSheetResize(evt) {
+      if (!isMobileWorkspaceLayout() || mobileWorkspaceView === "canvas") return;
+      evt.preventDefault();
+      evt.stopPropagation();
+      clearQuickRenameSession();
+      const startTop = mobileSheetTopPxFromRatio();
+      panelResize = {
+        kind: "mobileSheet",
+        pointerId: evt.pointerId,
+        startX: evt.clientX,
+        startY: evt.clientY,
+        startTop
+      };
+      workspaceEl.classList.add("mobile-sheet-resizing");
+      try { evt.currentTarget.setPointerCapture(evt.pointerId); } catch (_) {}
+    }
+
     function updatePanelResize(evt) {
       if (!panelResize || evt.pointerId !== panelResize.pointerId) return false;
       evt.preventDefault();
       evt.stopImmediatePropagation();
       const deltaX = evt.clientX - panelResize.startX;
       const deltaY = evt.clientY - panelResize.startY;
-      if (panelResize.mobilePreviewResize) {
+      if (panelResize.kind === "mobileSheet") {
+        setMobileSheetTopPx(panelResize.startTop + deltaY, { persist: false });
+      } else if (panelResize.mobilePreviewResize) {
         previewPanelWidth = panelResize.previewWidth - (panelResize.mobileSideBySide ? deltaX : deltaY);
       } else if (panelResize.kind === "inspector") {
         inspectorPanelWidth = panelResize.inspectorWidth + deltaX;
@@ -10667,6 +10830,12 @@
       evt.preventDefault();
       evt.stopImmediatePropagation();
       try { evt.target.releasePointerCapture?.(evt.pointerId); } catch (_) {}
+      if (panelResize.kind === "mobileSheet") {
+        setMobileSheetTopPx(snapMobileSheetTopPx(mobileSheetTopPxFromRatio()), { persist: true });
+        panelResize = null;
+        workspaceEl.classList.remove("mobile-sheet-resizing");
+        return true;
+      }
       panelResize = null;
       workspaceEl.classList.remove("panel-resizing");
       applyPanelWidths();
@@ -10758,6 +10927,11 @@
       saveEditorState(historyKey, false);
     }
 
+    function updateMobileRuntimeFollowButton() {
+      if (!btnMobileRuntimeFollow) return;
+      btnMobileRuntimeFollow.setAttribute("aria-pressed", mobileRuntimeFollow ? "true" : "false");
+    }
+
     function applyMobileWorkspaceView() {
       mobileWorkspaceView = normalizeMobileWorkspaceView(mobileWorkspaceView);
       workspaceEl.classList.toggle("mobile-canvas-active", mobileWorkspaceView === "canvas");
@@ -10770,9 +10944,10 @@
         button.classList.toggle("active", active);
         button.setAttribute("aria-pressed", String(active));
       });
+      updateMobileRuntimeFollowButton();
       saveUiState();
       requestAnimationFrame(() => {
-        applyCamera();
+        applyCamera({ persist: false });
         draw();
       });
     }
@@ -10801,7 +10976,7 @@
       btnTogglePreview.setAttribute("aria-expanded", previewCollapsed ? "false" : "true");
       saveUiState();
       requestAnimationFrame(() => {
-        applyCamera();
+        applyCamera(isMobileWorkspaceLayout() ? { persist: false } : {});
         draw();
       });
     }
@@ -10814,7 +10989,7 @@
       btnToggleInspector.setAttribute("aria-expanded", inspectorCollapsed ? "false" : "true");
       if (opts.persist !== false) saveUiState();
       requestAnimationFrame(() => {
-        applyCamera();
+        applyCamera(isMobileWorkspaceLayout() ? { persist: false } : {});
         draw();
       });
     }
@@ -15772,6 +15947,63 @@
       camera.x = Math.round(rect.width / 2 - (target.x + width / 2) * camera.scale);
       camera.y = Math.round(rect.height * .38 - (target.y + height / 2) * camera.scale);
       applyCamera();
+    }
+
+    function mobileRuntimeFollowRect() {
+      const mapRect = mapEl.getBoundingClientRect();
+      let height = mapRect.height;
+      if (mobileWorkspaceView !== "canvas") {
+        const panelSelector = mobileWorkspaceView === "app" ? ".preview" : mobileWorkspaceView === "edit" ? "#stateInspector" : "#stateExplorer";
+        const panel = document.querySelector(panelSelector)?.getBoundingClientRect();
+        if (panel && panel.top > mapRect.top + 140) {
+          height = Math.max(128, Math.min(mapRect.height, panel.top - mapRect.top - 16));
+        }
+      }
+      return {
+        width: Math.max(1, mapRect.width),
+        height: Math.max(1, height)
+      };
+    }
+
+    function focusMobileRuntimeFollow(previousStateId, runtimeStateId, transitionId = "") {
+      if (!isMobileWorkspaceLayout() || !mobileRuntimeFollow || !runtimeStateId) return false;
+      const runtimeState = byId(runtimeStateId);
+      if (!runtimeState || runtimeState.virtualProxy) return false;
+      const runtimeLayerId = stateParentId(runtimeState);
+      let changedLayer = false;
+      if ((currentLayerId || null) !== runtimeLayerId) {
+        navigateToLayer(runtimeLayerId, "layer:runtime-mobile", { fit: false, persist: false, draw: false });
+        changedLayer = true;
+      }
+      const ids = new Set([runtimeStateId]);
+      const transition = transitionId ? model.transitions.find(item => item.id === transitionId) : null;
+      if (transition) {
+        ids.add(transition.from);
+        ids.add(transition.to);
+      }
+      if (previousStateId) ids.add(previousStateId);
+      const states = [...ids]
+        .map(id => byId(id))
+        .filter(state => state && !state.virtualProxy && stateParentId(state) === (currentLayerId || null));
+      if (!states.length) return false;
+      const rect = mobileRuntimeFollowRect();
+      const minX = Math.min(...states.map(state => state.x));
+      const minY = Math.min(...states.map(state => state.y));
+      const maxX = Math.max(...states.map(state => state.x + nodeWidth(state)));
+      const maxY = Math.max(...states.map(state => state.y + nodeHeight(state)));
+      const width = Math.max(1, maxX - minX);
+      const height = Math.max(1, maxY - minY);
+      const scale = clampScale(Math.max(.58, Math.min(
+        1,
+        (rect.width - 64) / Math.max(1, width + 64),
+        (rect.height - 48) / Math.max(1, height + 64)
+      )));
+      camera.scale = scale;
+      camera.x = Math.round((rect.width - width * scale) / 2 - minX * scale);
+      camera.y = Math.round((rect.height - height * scale) / 2 - minY * scale);
+      applyCamera({ persist: false });
+      if (changedLayer) draw();
+      return true;
     }
 
     function fitView() {
@@ -26971,6 +27203,9 @@
         if (!selectionAlreadyRuntime) canvasNeedsDraw = true;
       }
       if (canvasNeedsDraw) draw();
+      if (lastAppTransitionId || stateChanged) {
+        focusMobileRuntimeFollow(previousAppState, runtimeStateId, lastAppTransitionId || "");
+      }
       if (allowRuntimeLayerFollow && runtimeState && shouldFollowRuntimeState) {
         showNodeInspector(runtimeState, {
           focus: false,
@@ -27187,6 +27422,10 @@
     btnMobileActionRedo.onclick = redoModel;
     btnProcessRecord.onclick = () => processRecording ? void stopProcessRecording() : void startProcessRecording();
     btnMobileProcessRecord.onclick = () => processRecording ? void stopProcessRecording() : void startProcessRecording();
+    btnMobileRuntimeFollow.onclick = () => {
+      mobileRuntimeFollow = !mobileRuntimeFollow;
+      updateMobileRuntimeFollowButton();
+    };
     canvasHistoryActionsEl.addEventListener("pointerdown", evt => evt.stopPropagation());
     btnSelectionCopy.onclick = copySelectedNodes;
     btnSelectionCollapse.onclick = groupOrDegroupSelected;
@@ -27241,6 +27480,7 @@
     });
     inspectorResizeHandleEl.addEventListener("pointerdown", evt => startPanelResize("inspector", evt));
     previewResizeHandleEl.addEventListener("pointerdown", evt => startPanelResize("preview", evt));
+    mobileSheetHandleEl.addEventListener("pointerdown", startMobileSheetResize);
     window.addEventListener("pointermove", evt => {
       updatePanelResize(evt);
     }, { capture: true, passive: false });

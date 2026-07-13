@@ -4107,6 +4107,16 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator('[data-id="register"]')).toHaveCount(0);
     await expect(target).toHaveClass(/has-children/);
     await expect(target.locator(".layer-badge")).toHaveText("1 state");
+    await expect.poll(() => target.evaluate(node => {
+      const style = getComputedStyle(node);
+      return {
+        borderColor: style.borderTopColor,
+        titleColor: getComputedStyle(node.querySelector(".title")).color
+      };
+    })).not.toEqual({
+      borderColor: "rgb(95, 141, 188)",
+      titleColor: "rgb(255, 255, 255)"
+    });
 
     await expect.poll(async () => {
       const model = await savedModel(page);
@@ -5751,6 +5761,8 @@ test.describe("State Blueprint tool", () => {
       await expect(page.locator("#btnUndo, #btnRedo, #btnMobileUndo, #btnMobileRedo")).toHaveCount(0);
       await expect(page.locator("#btnMobileProcessRecord")).toBeVisible();
       await expect(page.locator("#btnMobileProcessRecord")).toHaveAttribute("aria-pressed", "false");
+      await expect(page.locator("#btnMobileRuntimeFollow")).toBeVisible();
+      await expect(page.locator("#btnMobileRuntimeFollow")).toHaveAttribute("aria-pressed", "true");
       await expect(page.locator("#mobileProcessRecordingStatus")).toBeHidden();
       await expect(page.locator('#btnMobileActionUndo svg[data-lucide="undo-2"]')).toHaveCount(1);
       await expect(page.locator('#btnMobileActionRedo svg[data-lucide="redo-2"]')).toHaveCount(1);
@@ -10246,6 +10258,56 @@ test.describe("State Blueprint tool", () => {
         anchored: true
       });
     };
+    const expectMobileSheetHandle = async (targetPage, visible) => {
+      const handle = targetPage.locator("#mobileSheetHandle");
+      if (visible) {
+        await expect(handle).toBeVisible();
+        await assertVisibleInViewport(targetPage, "#mobileSheetHandle");
+      } else {
+        await expect(handle).toBeHidden();
+      }
+    };
+    const dragMobileSheetTo = async (targetPage, clientY) => {
+      const handle = targetPage.locator("#mobileSheetHandle");
+      const box = await handle.boundingBox();
+      expect(box).toBeTruthy();
+      const start = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      await handle.dispatchEvent("pointerdown", {
+        pointerId: 771,
+        pointerType: "touch",
+        isPrimary: true,
+        button: 0,
+        buttons: 1,
+        clientX: start.x,
+        clientY: start.y,
+        bubbles: true,
+        cancelable: true
+      });
+      await targetPage.evaluate(({ x, y }) => {
+        window.dispatchEvent(new PointerEvent("pointermove", {
+          pointerId: 771,
+          pointerType: "touch",
+          isPrimary: true,
+          button: 0,
+          buttons: 1,
+          clientX: x,
+          clientY: y,
+          bubbles: true,
+          cancelable: true
+        }));
+        window.dispatchEvent(new PointerEvent("pointerup", {
+          pointerId: 771,
+          pointerType: "touch",
+          isPrimary: true,
+          button: 0,
+          buttons: 0,
+          clientX: x,
+          clientY: y,
+          bubbles: true,
+          cancelable: true
+        }));
+      }, { x: start.x, y: clientY });
+    };
     const expectCamera = async (targetPage, expected) => {
       await expect.poll(() => targetPage.evaluate(() => ({
         x: Math.round(camera.x),
@@ -10270,6 +10332,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator(".preview")).toBeHidden();
     await expect(page.locator("#previewResizeHandle")).toBeHidden();
     await expect(page.locator("#mobileSplitResizeHandle")).toHaveCount(0);
+    await expectMobileSheetHandle(page, false);
     await expect(page.locator("#mobileCommandBar")).toBeVisible();
     await expect(page.locator("#canvasHistoryActions")).toBeHidden();
     await expect.poll(async () => Math.round((await page.locator('[data-id="auth_start"]').boundingBox())?.width || 0)).toBeGreaterThanOrEqual(140);
@@ -10296,6 +10359,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#mapScene")).toBeVisible();
     await expect(page.locator("#stateExplorer")).toBeVisible();
     await expect(page.locator("#mobileSplitResizeHandle")).toHaveCount(0);
+    await expectMobileSheetHandle(page, true);
     await expectCanvasFillsWorkspace(page);
     await expectPanelOverlay(page, "#stateExplorer");
     await expectCamera(page, canvasCamera);
@@ -10367,6 +10431,7 @@ test.describe("State Blueprint tool", () => {
     await page.locator('[data-mobile-view="edit"]').tap();
     await expect(page.locator("#stateInspector")).toBeVisible();
     await expectElementAboveMobileTabs("#stateInspector");
+    await expectMobileSheetHandle(page, true);
     await expectCanvasFillsWorkspace(page);
     await expectPanelOverlay(page, "#stateInspector");
     await expectCamera(page, canvasCamera);
@@ -10381,12 +10446,37 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator(".preview")).toBeVisible();
     await expectElementAboveMobileTabs(".preview");
     await expectElementAboveMobileTabs("#appFrame");
+    await expectMobileSheetHandle(page, true);
     await expect(page.locator("#map")).toBeVisible();
     await expectElementAboveMobileTabs("#map");
     await expectCanvasFillsWorkspace(page);
     await expectPanelOverlay(page, ".preview");
     await expectCamera(page, canvasCamera);
-    await expect(page.locator("#map")).toHaveCSS("pointer-events", "none");
+    await expect(page.locator("#map")).toHaveCSS("pointer-events", "auto");
+    const workspaceBox = await page.locator("#workspace").boundingBox();
+    expect(workspaceBox).toBeTruthy();
+    await dragMobileSheetTo(page, workspaceBox.y + 4);
+    await expect.poll(() => page.locator(".preview").evaluate(preview => {
+      const previewRect = preview.getBoundingClientRect();
+      const workspaceRect = document.querySelector("#workspace").getBoundingClientRect();
+      return Math.round(previewRect.top - workspaceRect.top);
+    })).toBeLessThanOrEqual(2);
+    await dragMobileSheetTo(page, workspaceBox.y + workspaceBox.height - 4);
+    await expect.poll(() => page.locator(".preview").evaluate(preview => {
+      const previewRect = preview.getBoundingClientRect();
+      const workspaceRect = document.querySelector("#workspace").getBoundingClientRect();
+      return {
+        bottom: Math.round(workspaceRect.bottom - previewRect.bottom),
+        height: Math.round(previewRect.height)
+      };
+    })).toEqual({ bottom: 0, height: 112 });
+    const freeSheetTop = Math.round(workspaceBox.y + workspaceBox.height * .46);
+    await dragMobileSheetTo(page, freeSheetTop);
+    await expect.poll(() => page.locator(".preview").evaluate(preview => {
+      const previewRect = preview.getBoundingClientRect();
+      const workspaceRect = document.querySelector("#workspace").getBoundingClientRect();
+      return Math.round(previewRect.top - workspaceRect.top);
+    })).toBeGreaterThan(180);
     await expect(page.locator("#selectionActions")).toBeHidden();
     await expect(page.locator("#mobileCommandBar")).toBeVisible();
     await expect(page.locator("#stateInspector")).toBeHidden();
@@ -10456,11 +10546,13 @@ test.describe("State Blueprint tool", () => {
     await expect(landscapePage.locator(".preview")).toBeHidden();
     await expectCanvasFillsWorkspace(landscapePage);
     await expect(landscapePage.locator("#mobileSplitResizeHandle")).toHaveCount(0);
+    await expectMobileSheetHandle(landscapePage, false);
 
     await landscapePage.locator('[data-mobile-view="presets"]').tap();
     await expect(landscapePage.locator("#stateExplorer")).toBeVisible();
     await expect(landscapePage.locator("#mapScene")).toBeVisible();
     await expect(landscapePage.locator("#mobileSplitResizeHandle")).toHaveCount(0);
+    await expectMobileSheetHandle(landscapePage, false);
     await expect(landscapePage.locator("#stateInspector")).toBeHidden();
     await expect(landscapePage.locator(".preview")).toBeHidden();
     await expectCanvasFillsWorkspace(landscapePage);
@@ -10481,7 +10573,7 @@ test.describe("State Blueprint tool", () => {
     await expect(landscapePage.locator("#map")).toBeVisible();
     await expectCanvasFillsWorkspace(landscapePage);
     await expectPanelOverlay(landscapePage, ".preview", "right");
-    await expect(landscapePage.locator("#map")).toHaveCSS("pointer-events", "none");
+    await expect(landscapePage.locator("#map")).toHaveCSS("pointer-events", "auto");
     await expectCamera(landscapePage, landscapeCamera);
     await landscapeContext.close();
   });
@@ -10526,17 +10618,23 @@ test.describe("State Blueprint tool", () => {
           draw();
         }
       });
+      const expectedStoredCamera = await page.evaluate(key => {
+        const snapshot = { x: camera.x, y: camera.y, scale: camera.scale };
+        localStorage.setItem(`${key}.camera`, JSON.stringify(snapshot));
+        return JSON.stringify(snapshot);
+      }, STORAGE_KEY);
+      await page.evaluate(() => {
+        camera = { x: -980, y: -760, scale: .62 };
+        applyCamera({ persist: false });
+        draw();
+      });
       const cameraBefore = await worldTransform(page);
-      const expectedStoredCamera = await page.evaluate(() => JSON.stringify({
-        x: camera.x,
-        y: camera.y,
-        scale: camera.scale
-      }));
 
       await page.locator('[data-mobile-view="app"]').tap();
       await expect(page.locator("#map")).toBeVisible();
       await expect(page.locator(".preview")).toBeVisible();
-      await expect(page.locator("#map")).toHaveCSS("pointer-events", "none");
+      await expect(page.locator("#map")).toHaveCSS("pointer-events", "auto");
+      await expect(page.locator("#btnMobileRuntimeFollow")).toHaveAttribute("aria-pressed", "true");
 
       const app = appFrame(page);
       await app.getByRole("button", { name: "Login" }).click();
@@ -10560,7 +10658,7 @@ test.describe("State Blueprint tool", () => {
         .toBe(expectedStoredCamera);
       await page.locator('[data-mobile-view="canvas"]').tap();
       await expect(page.locator("#map")).toHaveCSS("pointer-events", "auto");
-      await expect.poll(() => worldTransform(page)).toBe(cameraBefore);
+      await expect.poll(() => worldTransform(page)).not.toBe(cameraBefore);
     } finally {
       await context.close();
     }
@@ -10634,7 +10732,7 @@ test.describe("State Blueprint tool", () => {
     await page.locator('[data-mobile-view="app"]').tap();
     await expect(page.locator(".preview")).toBeVisible();
     await expect(page.locator("#map")).toBeVisible();
-    await expect(page.locator("#map")).toHaveCSS("pointer-events", "none");
+    await expect(page.locator("#map")).toHaveCSS("pointer-events", "auto");
     await context.close();
   });
 
@@ -10811,7 +10909,7 @@ test.describe("State Blueprint tool", () => {
         Math.abs(scene.right - workspace.right) <= 1 &&
         Math.abs(scene.bottom - workspace.bottom) <= 1;
     })).toBe(true);
-    await expect(reopened.locator("#map")).toHaveCSS("pointer-events", "none");
+    await expect(reopened.locator("#map")).toHaveCSS("pointer-events", "auto");
     await expect(reopened.locator("#workspace")).toHaveClass(/mobile-app-active/);
     await expect(reopened.locator("#stateInspector")).toBeHidden();
     await reopened.close();
