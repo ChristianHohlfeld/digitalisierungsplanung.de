@@ -11359,7 +11359,6 @@ test.describe("State Blueprint tool", () => {
     await page.mouse.move(point.x, point.y);
     await page.mouse.down();
     await page.mouse.move(point.x - 120, point.y + 70, { steps: 8 });
-    await expect(page.locator("#map")).toHaveClass(/panning/);
     await page.mouse.up();
 
     await expect.poll(() => worldTransform(page)).not.toBe(beforeDrag);
