@@ -2,8 +2,11 @@
 
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
 const test = require("node:test");
 const WebSocket = require("ws");
+const eventCatalog = require("./event-catalog");
 const {
   createRealtimeServer,
   createRoomToken,
@@ -171,7 +174,7 @@ test("does not issue room tokens without a server secret", async () => {
   });
 });
 
-test("serves event definitions only to allowed origins", async () => {
+test("serves the event and connector catalog only to allowed origins", async () => {
   await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
     const response = await fetch(httpUrl(realtime, "/events"), {
       headers: { Origin: ORIGIN }
@@ -180,13 +183,16 @@ test("serves event definitions only to allowed origins", async () => {
     assert.equal(response.headers.get("access-control-allow-origin"), ORIGIN);
 
     const payload = await response.json();
-    assert.equal(payload.provider, undefined);
-    assert.equal(payload.state, undefined);
+    assert.equal(payload.provider.id, "digitalisierungsplanung.realtime");
+    assert.equal(payload.state.path, "realtime");
     assert.equal(payload.transport, undefined);
-    assert.ok(payload.events.some(event => event.name === "realtime.sip.call.incoming"));
-    assert.deepEqual(payload.events
-      .find(event => event.name === "realtime.sip.call.incoming")
-      .bindings, []);
+    assert.ok(payload.emitters.some(emitter => emitter.id === "sip.threecx"));
+    assert.ok(payload.emitters.some(emitter => emitter.id === "mail.gmail"));
+    const incoming = payload.events.find(event => event.name === "realtime.sip.call.incoming");
+    assert.ok(incoming);
+    assert.deepEqual(incoming.bindings, []);
+    assert.equal(incoming.contributes.root, "events.realtime.sip.call.incoming");
+    assert.ok(incoming.contributes.fields.includes("events.realtime.sip.call.incoming.detail.callId"));
 
     const rejected = await fetch(httpUrl(realtime, "/events"), {
       headers: { Origin: "https://evil.example" }
@@ -249,6 +255,8 @@ test("nginx proxies only lean public realtime routes", () => {
   const normalized = nginx.replace(/\\\./g, ".");
   for (const route of [
     "console.html",
+    "events-admin.html",
+    "/events-admin/catalog",
     "/healthz",
     "/version",
     "/token",
@@ -260,6 +268,86 @@ test("nginx proxies only lean public realtime routes", () => {
   }
   assert.match(normalized, /location = \/ws/);
   assert.match(nginx, /proxy_pass\s+http:\/\/127\.0\.0\.1:8788;/);
+});
+
+test("serves an admin event designer that validates, commits, and pushes the catalog", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "realtime-catalog-"));
+  const catalogPath = path.join(tempDir, "server", "event-catalog.json");
+  const calls = [];
+  fs.mkdirSync(path.dirname(catalogPath), { recursive: true });
+  fs.writeFileSync(catalogPath, eventCatalog.serializeEventCatalog(eventCatalog.DEFAULT_EVENT_CATALOG));
+
+  const gitRunner = (args) => {
+    calls.push(args);
+    if (args[0] === "diff") return { status: 1, stdout: "", stderr: "" };
+    if (args[0] === "rev-parse") return { status: 0, stdout: "abc123\n", stderr: "" };
+    return { status: 0, stdout: "", stderr: "" };
+  };
+
+  try {
+    await withRealtimeServer({
+      roomSecret: SECRET,
+      adminSecret: "admin-secret",
+      eventCatalogPath: catalogPath,
+      repoDir: tempDir,
+      gitRunner
+    }, async realtime => {
+      const htmlResponse = await fetch(httpUrl(realtime, "/events-admin.html"));
+      assert.equal(htmlResponse.status, 200);
+      const html = await htmlResponse.text();
+      assert.match(html, /Realtime Event Designer/);
+      assert.doesNotMatch(html, /admin-secret/);
+
+      const unauthorized = await fetch(httpUrl(realtime, "/events-admin/catalog"));
+      assert.equal(unauthorized.status, 401);
+
+      const load = await fetch(httpUrl(realtime, "/events-admin/catalog"), {
+        headers: { authorization: "Bearer admin-secret" }
+      });
+      assert.equal(load.status, 200);
+      const loaded = await load.json();
+      assert.equal(loaded.catalog.provider.id, "digitalisierungsplanung.realtime");
+
+      const invalid = await fetch(httpUrl(realtime, "/events-admin/catalog"), {
+        method: "POST",
+        headers: {
+          authorization: "Bearer admin-secret",
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({ catalog: { ...loaded.catalog, unknown: true } })
+      });
+      assert.equal(invalid.status, 400);
+      assert.deepEqual(await invalid.json(), { error: "unknown_field" });
+
+      loaded.catalog.events.push({
+        name: "realtime.sip.call.missed",
+        label: "Missed call",
+        description: "SIP phone call was missed",
+        detail: { callId: "text", caller: "text" },
+        bindings: []
+      });
+      loaded.catalog.emitters[0].events.push("realtime.sip.call.missed");
+      const saved = await fetch(httpUrl(realtime, "/events-admin/catalog"), {
+        method: "POST",
+        headers: {
+          authorization: "Bearer admin-secret",
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          catalog: loaded.catalog,
+          message: "Add missed call event"
+        })
+      });
+      assert.equal(saved.status, 200);
+      assert.deepEqual(await saved.json(), { ok: true, changed: true, commit: "abc123" });
+      assert.match(fs.readFileSync(catalogPath, "utf8"), /realtime\.sip\.call\.missed/);
+      assert.ok(calls.some(args => args[0] === "add" && args.includes("server/event-catalog.json")));
+      assert.ok(calls.some(args => args[0] === "commit" || args.includes("commit")));
+      assert.ok(calls.some(args => args[0] === "push" || args.includes("push")));
+    });
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
 });
 
 test("serves a stateless event console for catalogued test emits", async () => {
@@ -286,6 +374,7 @@ test("serves a stateless event console for catalogued test emits", async () => {
       body: JSON.stringify({
         roomId: "room",
         clientId: "console",
+        emitterId: "sip.threecx",
         name: "realtime.sip.call.incoming",
         detail: { caller: "+491234", callee: "100", callId: "console-123" }
       })
@@ -295,6 +384,7 @@ test("serves a stateless event console for catalogued test emits", async () => {
 
     const received = await runtimeEvent;
     assert.equal(received.clientId, "console");
+    assert.equal(received.emitterId, "sip.threecx");
     assert.equal(received.name, "realtime.sip.call.incoming");
     assert.deepEqual(received.detail, { caller: "+491234", callee: "100", callId: "console-123" });
     assert.equal(received.event?.name, "realtime.sip.call.incoming");
@@ -357,6 +447,7 @@ test("emits catalogued server events into a room without server-side state", asy
       },
       body: JSON.stringify({
         roomId: "room",
+        emitterId: "sip.threecx",
         name: "realtime.sip.call.incoming",
         detail: { caller: "+491234", callee: "100", callId: "abc-123" }
       })
@@ -372,6 +463,7 @@ test("emits catalogued server events into a room without server-side state", asy
     const [aliceEvent, bobEvent] = await Promise.all([aliceRuntimeEvent, bobRuntimeEvent]);
     for (const received of [aliceEvent, bobEvent]) {
       assert.equal(received.clientId, "server");
+      assert.equal(received.emitterId, "sip.threecx");
       assert.equal(received.name, "realtime.sip.call.incoming");
       assert.deepEqual(received.detail, { caller: "+491234", callee: "100", callId: "abc-123" });
       assert.equal(received.event?.name, "realtime.sip.call.incoming");
@@ -380,7 +472,7 @@ test("emits catalogued server events into a room without server-side state", asy
     const unauthorized = await fetch(httpUrl(realtime, "/emit"), {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ roomId: "room", name: "realtime.sip.call.incoming" })
+      body: JSON.stringify({ roomId: "room", emitterId: "sip.threecx", name: "realtime.sip.call.incoming" })
     });
     assert.equal(unauthorized.status, 401);
 
@@ -390,10 +482,53 @@ test("emits catalogued server events into a room without server-side state", asy
         authorization: "Bearer emit-secret",
         "content-type": "application/json"
       },
-      body: JSON.stringify({ roomId: "room", name: "realtime.unknown.event" })
+      body: JSON.stringify({ roomId: "room", emitterId: "sip.threecx", name: "realtime.unknown.event" })
     });
     assert.equal(unknown.status, 400);
     assert.deepEqual(await unknown.json(), { error: "event_not_offered" });
+
+    const missingDetail = await fetch(httpUrl(realtime, "/emit"), {
+      method: "POST",
+      headers: {
+        authorization: "Bearer emit-secret",
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({ roomId: "room", emitterId: "sip.threecx", name: "realtime.sip.call.incoming", detail: { callId: "abc-123" } })
+    });
+    assert.equal(missingDetail.status, 400);
+    assert.deepEqual(await missingDetail.json(), { error: "missing_detail_field" });
+
+    const unknownDetail = await fetch(httpUrl(realtime, "/emit"), {
+      method: "POST",
+      headers: {
+        authorization: "Bearer emit-secret",
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        roomId: "room",
+        emitterId: "sip.threecx",
+        name: "realtime.sip.call.incoming",
+        detail: { caller: "+491234", callee: "100", callId: "abc-123", extra: true }
+      })
+    });
+    assert.equal(unknownDetail.status, 400);
+    assert.deepEqual(await unknownDetail.json(), { error: "unknown_detail_field" });
+
+    const wrongEmitter = await fetch(httpUrl(realtime, "/emit"), {
+      method: "POST",
+      headers: {
+        authorization: "Bearer emit-secret",
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        roomId: "room",
+        emitterId: "mail.gmail",
+        name: "realtime.sip.call.incoming",
+        detail: { caller: "+491234", callee: "100", callId: "abc-123" }
+      })
+    });
+    assert.equal(wrongEmitter.status, 400);
+    assert.deepEqual(await wrongEmitter.json(), { error: "emitter_event_not_allowed" });
   });
 });
 
@@ -449,12 +584,29 @@ test("rate limits noisy realtime clients", async () => {
   }, async realtime => {
     const socket = await connectClient(realtime, { clientId: "noisy" });
 
-    socket.send(JSON.stringify({ type: "runtime.event", seq: 1, name: "realtime.sip.call.incoming", detail: { callId: "1" } }));
-    socket.send(JSON.stringify({ type: "runtime.event", seq: 2, name: "realtime.sip.call.incoming", detail: { callId: "2" } }));
-    socket.send(JSON.stringify({ type: "runtime.event", seq: 3, name: "realtime.sip.call.incoming", detail: { callId: "3" } }));
+    socket.send(JSON.stringify({ type: "runtime.event", seq: 1, name: "realtime.sip.call.incoming", detail: { caller: "+491", callee: "100", callId: "1" } }));
+    socket.send(JSON.stringify({ type: "runtime.event", seq: 2, name: "realtime.sip.call.incoming", detail: { caller: "+491", callee: "100", callId: "2" } }));
+    socket.send(JSON.stringify({ type: "runtime.event", seq: 3, name: "realtime.sip.call.incoming", detail: { caller: "+491", callee: "100", callId: "3" } }));
 
     const error = await nextMessage(socket, message => message.type === "error");
     assert.equal(error.code, "rate_limited");
+  });
+});
+
+test("rejects runtime events whose detail does not match the catalog", async () => {
+  await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
+    const alice = await connectClient(realtime, { clientId: "alice" });
+    const bob = await connectClient(realtime, { clientId: "bob" });
+
+    alice.send(JSON.stringify({
+      type: "runtime.event",
+      seq: 1,
+      name: "realtime.sip.call.ended",
+      detail: { callId: "call-1", duration: "12" }
+    }));
+    const error = await nextMessage(alice, message => message.type === "error");
+    assert.equal(error.code, "invalid_detail_type");
+    await assertNoMessage(bob, message => message.type === "runtime.event");
   });
 });
 

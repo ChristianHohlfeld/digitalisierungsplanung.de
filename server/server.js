@@ -1,10 +1,13 @@
 "use strict";
 
 const crypto = require("node:crypto");
+const { spawnSync } = require("node:child_process");
 const fs = require("node:fs");
 const http = require("node:http");
+const path = require("node:path");
 const { URL } = require("node:url");
 const { WebSocketServer, WebSocket } = require("ws");
+const eventCatalog = require("./event-catalog");
 const { loadReleaseInfo } = require("./release");
 
 const DEFAULT_ALLOWED_ORIGINS = ["https://digitalisierungsplanung.de"];
@@ -13,57 +16,16 @@ const DEFAULT_TOKEN_PATH = "/token";
 const DEFAULT_EVENTS_PATH = "/events";
 const DEFAULT_EMIT_PATH = "/emit";
 const DEFAULT_CONSOLE_PATH = "/console.html";
+const DEFAULT_EVENTS_ADMIN_PATH = "/events-admin.html";
+const DEFAULT_EVENTS_ADMIN_CATALOG_PATH = "/events-admin/catalog";
 const DEFAULT_VERSION_PATH = "/version";
+const DEFAULT_ADMIN_COMMIT_MESSAGE = "Update realtime event catalog";
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 8788;
 const MAX_ID_LENGTH = 128;
 const MAX_EVENT_NAME_LENGTH = 160;
 const MAX_STATE_PATH_LENGTH = 240;
 const MAX_EMIT_BODY_BYTES = 64 * 1024;
-const VALID_VALUE_TYPES = new Set(["text", "email", "password", "number", "boolean", "url", "image", "object", "list"]);
-const DEFAULT_EVENT_CATALOG = {
-  provider: {
-    id: "digitalisierungsplanung.realtime",
-    label: "Digitalisierungsplanung Realtime",
-    version: 1
-  },
-  state: {
-    path: "realtime",
-    schema: {
-      roomId: "text",
-      clientId: "text",
-      status: "text",
-      connected: "boolean",
-      joined: "boolean",
-      connecting: "boolean",
-      reconnectAttempt: "number",
-      error: "text"
-    }
-  },
-  events: [
-    {
-      name: "realtime.sip.call.incoming",
-      label: "Incoming call",
-      description: "SIP phone call started",
-      detail: { caller: "text", callee: "text", callId: "text" },
-      bindings: []
-    },
-    {
-      name: "realtime.sip.call.answered",
-      label: "Call answered",
-      description: "SIP phone call was answered",
-      detail: { callId: "text", agent: "text" },
-      bindings: []
-    },
-    {
-      name: "realtime.sip.call.ended",
-      label: "Call ended",
-      description: "SIP phone call ended",
-      detail: { callId: "text", duration: "number" },
-      bindings: []
-    }
-  ]
-};
 const MESSAGE_TYPES = new Set(["runtime.event"]);
 const CONSOLE_HTML = `<!doctype html>
 <html lang="en">
@@ -112,6 +74,7 @@ const CONSOLE_HTML = `<!doctype html>
         <label>Room ID<input id="roomId" name="roomId" autocomplete="off" value="smoke"></label>
         <label>Client ID<input id="clientId" name="clientId" autocomplete="off" value="console"></label>
       </div>
+      <label>Connector<select id="emitterId" name="emitterId"></select></label>
       <label>Event<select id="eventName" name="eventName"></select></label>
       <label>Detail JSON<textarea id="detail" name="detail" spellcheck="false">{}</textarea></label>
       <label>Emit Secret<input id="secret" name="secret" type="password" autocomplete="off" placeholder="REALTIME_EMIT_SECRET"></label>
@@ -127,6 +90,7 @@ const CONSOLE_HTML = `<!doctype html>
     const statusEl = document.getElementById("status");
     const resultEl = document.getElementById("result");
     const eventSelect = document.getElementById("eventName");
+    const emitterSelect = document.getElementById("emitterId");
     const detailEl = document.getElementById("detail");
     const roomEl = document.getElementById("roomId");
     const clientEl = document.getElementById("clientId");
@@ -165,6 +129,10 @@ const CONSOLE_HTML = `<!doctype html>
       return (catalog?.events || []).find(event => event.name === eventSelect.value) || null;
     }
 
+    function selectedEmitter() {
+      return (catalog?.emitters || []).find(emitter => emitter.id === emitterSelect.value) || null;
+    }
+
     function syncDetail() {
       detailEl.value = JSON.stringify(detailForEvent(selectedEvent()), null, 2);
     }
@@ -177,9 +145,16 @@ const CONSOLE_HTML = `<!doctype html>
     async function loadCatalog() {
       statusEl.textContent = "Loading event catalog...";
       eventSelect.innerHTML = "";
+      emitterSelect.innerHTML = "";
       const response = await fetch("/events", { cache: "no-store" });
       if (!response.ok) throw new Error("events failed with status " + response.status);
       catalog = await response.json();
+      for (const emitter of catalog.emitters || []) {
+        const option = document.createElement("option");
+        option.value = emitter.id;
+        option.textContent = (emitter.label || emitter.id) + " - " + emitter.id;
+        emitterSelect.appendChild(option);
+      }
       for (const event of catalog.events || []) {
         const option = document.createElement("option");
         option.value = event.name;
@@ -187,19 +162,36 @@ const CONSOLE_HTML = `<!doctype html>
         eventSelect.appendChild(option);
       }
       if (!eventSelect.options.length) throw new Error("event catalog has no events");
+      if (!emitterSelect.options.length) throw new Error("event catalog has no connectors");
+      syncEventsForEmitter();
       statusEl.textContent = "Loaded " + eventSelect.options.length + " event(s).";
       syncDetail();
       syncStateLink();
+    }
+
+    function syncEventsForEmitter() {
+      const emitter = selectedEmitter();
+      const allowed = new Set(emitter?.events || []);
+      for (const option of eventSelect.options) {
+        option.hidden = allowed.size > 0 && !allowed.has(option.value);
+        option.disabled = option.hidden;
+      }
+      const selected = eventSelect.selectedOptions[0];
+      if (!selected || selected.disabled) {
+        const first = [...eventSelect.options].find(option => !option.disabled);
+        if (first) eventSelect.value = first.value;
+      }
     }
 
     async function emitEvent(event) {
       event.preventDefault();
       const roomId = roomEl.value.trim();
       const clientId = clientEl.value.trim() || "console";
+      const emitterId = emitterSelect.value;
       const name = eventSelect.value;
       const secret = secretEl.value.trim();
-      if (!roomId || !name || !secret) {
-        setResult("roomId, event and secret are required.", false);
+      if (!roomId || !emitterId || !name || !secret) {
+        setResult("roomId, connector, event and secret are required.", false);
         return;
       }
       let detail;
@@ -218,7 +210,7 @@ const CONSOLE_HTML = `<!doctype html>
             "authorization": "Bearer " + secret,
             "content-type": "application/json"
           },
-          body: JSON.stringify({ roomId, clientId, name, detail })
+          body: JSON.stringify({ roomId, clientId, emitterId, name, detail })
         });
         const payload = await response.json().catch(() => ({}));
         setResult(JSON.stringify({ status: response.status, ...payload }, null, 2), response.ok);
@@ -234,6 +226,10 @@ const CONSOLE_HTML = `<!doctype html>
       if (key === "client") clientEl.value = value;
     });
     roomEl.addEventListener("input", syncStateLink);
+    emitterSelect.addEventListener("change", () => {
+      syncEventsForEmitter();
+      syncDetail();
+    });
     eventSelect.addEventListener("change", syncDetail);
     document.getElementById("reload").addEventListener("click", () => loadCatalog().catch(error => {
       statusEl.textContent = "Event load failed.";
@@ -264,11 +260,16 @@ function parseInteger(value, fallback, min = 0, max = Number.MAX_SAFE_INTEGER) {
   return Math.min(max, Math.max(min, parsed));
 }
 
+function defaultGitRunner(args, options = {}) {
+  return spawnSync("git", args, {
+    cwd: options.cwd,
+    env: options.env || process.env,
+    encoding: "utf8"
+  });
+}
+
 function loadEventCatalog(options = {}, env = process.env) {
-  if (options.eventCatalog) return normalizeEventCatalog(options.eventCatalog);
-  const catalogPath = options.eventCatalogPath || env.REALTIME_EVENT_CATALOG_PATH || "";
-  if (!catalogPath) return normalizeEventCatalog(DEFAULT_EVENT_CATALOG);
-  return normalizeEventCatalog(JSON.parse(fs.readFileSync(catalogPath, "utf8")));
+  return eventCatalog.loadEventCatalog(options, env);
 }
 
 function loadConfig(options = {}) {
@@ -288,7 +289,15 @@ function loadConfig(options = {}) {
     eventsPath: options.eventsPath || env.REALTIME_EVENTS_PATH || DEFAULT_EVENTS_PATH,
     emitPath: options.emitPath || env.REALTIME_EMIT_PATH || DEFAULT_EMIT_PATH,
     consolePath: options.consolePath || env.REALTIME_CONSOLE_PATH || DEFAULT_CONSOLE_PATH,
+    eventsAdminPath: options.eventsAdminPath || env.REALTIME_EVENTS_ADMIN_PATH || DEFAULT_EVENTS_ADMIN_PATH,
+    eventsAdminCatalogPath: options.eventsAdminCatalogPath || env.REALTIME_EVENTS_ADMIN_CATALOG_PATH || DEFAULT_EVENTS_ADMIN_CATALOG_PATH,
     versionPath: options.versionPath || env.REALTIME_VERSION_PATH || DEFAULT_VERSION_PATH,
+    eventCatalogPath: path.resolve(options.eventCatalogPath || env.REALTIME_EVENT_CATALOG_PATH || eventCatalog.DEFAULT_EVENT_CATALOG_PATH),
+    eventAdminHtmlPath: path.resolve(options.eventAdminHtmlPath || env.REALTIME_EVENT_ADMIN_HTML_PATH || path.join(__dirname, "events-admin.html")),
+    repoDir: path.resolve(options.repoDir || env.REALTIME_REPO_DIR || process.cwd()),
+    adminSecret: options.adminSecret ?? env.REALTIME_ADMIN_SECRET ?? "",
+    gitPushToken: options.gitPushToken ?? env.REALTIME_GIT_PUSH_TOKEN ?? "",
+    gitRunner: options.gitRunner || defaultGitRunner,
     allowedOrigins: parseList(
       options.allowedOrigins ?? env.REALTIME_ALLOWED_ORIGINS,
       DEFAULT_ALLOWED_ORIGINS
@@ -327,66 +336,6 @@ function sanitizeStatePath(value) {
   const text = String(value || "").trim();
   if (!text || text.length > MAX_STATE_PATH_LENGTH) return "";
   return /^[a-zA-Z_][a-zA-Z0-9_:-]*(?:\.[a-zA-Z_][a-zA-Z0-9_:-]*)*$/.test(text) ? text : "";
-}
-
-function normalizeValueType(value) {
-  const type = String(value || "").trim().toLowerCase();
-  return VALID_VALUE_TYPES.has(type) ? type : "text";
-}
-
-function normalizeDetailSchema(value) {
-  if (!isPlainObject(value)) return {};
-  const out = {};
-  for (const [path, type] of Object.entries(value).slice(0, 64)) {
-    const cleanPath = sanitizeStatePath(path);
-    if (cleanPath) out[cleanPath] = normalizeValueType(type);
-  }
-  return out;
-}
-
-function normalizeEventBindings(value) {
-  if (!Array.isArray(value)) return [];
-  return value.slice(0, 64).map(binding => {
-    if (!isPlainObject(binding)) return null;
-    const from = sanitizeStatePath(binding.from || "");
-    const to = sanitizeStatePath(binding.to || "");
-    if (!from || !/^states\.[a-zA-Z_][a-zA-Z0-9_]*\./.test(to)) return null;
-    return { from, to, type: normalizeValueType(binding.type) };
-  }).filter(Boolean);
-}
-
-function normalizeEventCatalog(value) {
-  const source = isPlainObject(value) ? value : {};
-  const providerSource = isPlainObject(source.provider) ? source.provider : {};
-  const stateSource = isPlainObject(source.state) ? source.state : {};
-  const provider = {
-    id: sanitizeId(providerSource.id || source.providerId || DEFAULT_EVENT_CATALOG.provider.id) || DEFAULT_EVENT_CATALOG.provider.id,
-    label: String(providerSource.label || source.label || DEFAULT_EVENT_CATALOG.provider.label).trim(),
-    version: parseInteger(providerSource.version ?? source.version, DEFAULT_EVENT_CATALOG.provider.version, 1)
-  };
-  const events = [];
-  const seen = new Set();
-  for (const item of Array.isArray(source.events) ? source.events : []) {
-    if (!isPlainObject(item)) continue;
-    const name = sanitizeEventName(item.name || "");
-    if (!name || !name.startsWith("realtime.") || seen.has(name)) continue;
-    seen.add(name);
-    events.push({
-      name,
-      label: String(item.label || name).trim(),
-      description: String(item.description || "").trim(),
-      detail: normalizeDetailSchema(item.detail),
-      bindings: normalizeEventBindings(item.bindings)
-    });
-  }
-  return {
-    provider,
-    state: {
-      path: sanitizeStatePath(stateSource.path || DEFAULT_EVENT_CATALOG.state.path) || DEFAULT_EVENT_CATALOG.state.path,
-      schema: normalizeDetailSchema(stateSource.schema || DEFAULT_EVENT_CATALOG.state.schema)
-    },
-    events
-  };
 }
 
 function toBase64UrlJson(value) {
@@ -515,9 +464,7 @@ function publicBaseUrl(request) {
 }
 
 function eventCatalogResponse(config) {
-  return {
-    events: config.eventCatalog.events
-  };
+  return eventCatalog.eventCatalogResponse(config.eventCatalog);
 }
 
 function releaseResponse(config) {
@@ -529,6 +476,108 @@ function releaseResponse(config) {
     sourceCommit: config.release.sourceCommit,
     deployedCommit: config.release.deployedCommit
   };
+}
+
+function cleanCommitMessage(value) {
+  const text = String(value || "").replace(/[\r\n]+/g, " ").trim();
+  return (text || DEFAULT_ADMIN_COMMIT_MESSAGE).slice(0, 120);
+}
+
+function gitFailure(code, result, status = 500) {
+  const error = new Error(code);
+  error.code = code;
+  error.status = status;
+  error.gitStatus = result?.status;
+  return error;
+}
+
+function runGit(config, args, code) {
+  const result = config.gitRunner(args, {
+    cwd: config.repoDir,
+    env: process.env
+  });
+  if (!result || result.status !== 0) throw gitFailure(code, result);
+  return result;
+}
+
+function repoRelativePath(repoDir, absolutePath) {
+  const relative = path.relative(repoDir, absolutePath).replaceAll("\\", "/");
+  if (!relative || relative.startsWith("../") || path.isAbsolute(relative)) {
+    const error = new Error("catalog_path_outside_repo");
+    error.code = "catalog_path_outside_repo";
+    error.status = 500;
+    throw error;
+  }
+  return relative;
+}
+
+function pushCurrentHead(config) {
+  const pushArgs = config.gitPushToken
+    ? [
+        "-c",
+        `http.https://github.com/.extraheader=AUTHORIZATION: basic ${Buffer.from(`x-access-token:${config.gitPushToken}`).toString("base64")}`,
+        "push",
+        "origin",
+        "HEAD:main"
+      ]
+    : ["push", "origin", "HEAD:main"];
+  runGit(config, pushArgs, "git_push_failed");
+}
+
+function currentShortCommit(config) {
+  const rev = runGit(config, ["rev-parse", "--short", "HEAD"], "git_rev_parse_failed");
+  return String(rev.stdout || "").trim();
+}
+
+function localAheadCount(config) {
+  const result = config.gitRunner(["rev-list", "--count", "@{u}..HEAD"], {
+    cwd: config.repoDir,
+    env: process.env
+  });
+  if (!result || result.status !== 0) return 0;
+  const count = Number.parseInt(String(result.stdout || "").trim(), 10);
+  return Number.isFinite(count) && count > 0 ? count : 0;
+}
+
+function writeCatalogCommitAndPush(config, catalog, message) {
+  const relativeCatalogPath = repoRelativePath(config.repoDir, config.eventCatalogPath);
+  const serialized = eventCatalog.serializeEventCatalog(catalog);
+  fs.writeFileSync(config.eventCatalogPath, serialized, { encoding: "utf8", mode: 0o644 });
+
+  const unstaged = config.gitRunner(["diff", "--quiet", "--", relativeCatalogPath], {
+    cwd: config.repoDir,
+    env: process.env
+  });
+  if (!unstaged) throw gitFailure("git_diff_failed", unstaged);
+  const staged = config.gitRunner(["diff", "--cached", "--quiet", "--", relativeCatalogPath], {
+    cwd: config.repoDir,
+    env: process.env
+  });
+  if (!staged) throw gitFailure("git_diff_failed", staged);
+  if (![0, 1].includes(unstaged.status) || ![0, 1].includes(staged.status)) throw gitFailure("git_diff_failed", unstaged.status !== 0 ? unstaged : staged);
+  if (unstaged.status === 0 && staged.status === 0) {
+    if (localAheadCount(config) > 0) {
+      pushCurrentHead(config);
+      return { ok: true, changed: true, commit: currentShortCommit(config) };
+    }
+    return { ok: true, changed: false };
+  }
+
+  runGit(config, ["add", "--", relativeCatalogPath], "git_add_failed");
+  runGit(config, [
+    "-c",
+    "user.name=Realtime Event Designer",
+    "-c",
+    "user.email=realtime-events@digitalisierungsplanung.de",
+    "commit",
+    "-m",
+    cleanCommitMessage(message),
+    "--",
+    relativeCatalogPath
+  ], "git_commit_failed");
+
+  pushCurrentHead(config);
+  return { ok: true, changed: true, commit: currentShortCommit(config) };
 }
 
 function createRoom(roomId) {
@@ -552,7 +601,8 @@ function serializeForBroadcast(message, state, room) {
     return {
       ...base,
       name: message.name,
-      detail: message.detail || {}
+      detail: message.detail || {},
+      emitterId: message.emitterId || ""
     };
   }
 
@@ -578,17 +628,28 @@ function validateJoinMessage(message) {
   return { ok: true, roomId, clientId, token: message.token || "" };
 }
 
-function validateRealtimeMessage(message, offeredEventNames = new Set()) {
+function validateRealtimeMessage(message, offeredEventsByName = new Map(), offeredEmittersById = new Map()) {
   if (!message || !MESSAGE_TYPES.has(message.type)) return { ok: false, code: "invalid_type" };
   if (message.seq !== undefined && !Number.isSafeInteger(message.seq)) return { ok: false, code: "invalid_seq" };
 
   if (message.type === "runtime.event") {
     const name = sanitizeEventName(message.name);
     if (!name || !name.startsWith("realtime.")) return { ok: false, code: "invalid_event_name" };
-    if (!offeredEventNames.has(name)) return { ok: false, code: "event_not_offered" };
-    if (message.detail !== undefined && !isPlainObject(message.detail)) return { ok: false, code: "invalid_detail" };
+    const offered = offeredEventsByName.get(name);
+    if (!offered) return { ok: false, code: "event_not_offered" };
+    const detail = message.detail === undefined ? {} : message.detail;
+    const detailValidation = eventCatalog.validateEventDetail(detail, offered.detail);
+    if (!detailValidation.ok) return detailValidation;
+    const emitterId = message.emitterId ? sanitizeId(message.emitterId) : "";
+    if (message.emitterId && !emitterId) return { ok: false, code: "invalid_emitter" };
+    if (emitterId) {
+      const emitter = offeredEmittersById.get(emitterId);
+      if (!emitter) return { ok: false, code: "emitter_not_offered" };
+      if (!emitter.events.includes(name)) return { ok: false, code: "emitter_event_not_allowed" };
+    }
     message.name = name;
-    message.detail = message.detail || {};
+    message.detail = detail;
+    message.emitterId = emitterId;
   }
 
   return { ok: true, message };
@@ -608,8 +669,8 @@ function sendError(socket, code, close = false) {
 function createRealtimeServer(options = {}) {
   const config = loadConfig(options);
   const allowedOrigins = new Set(config.allowedOrigins);
-  const offeredEventNames = new Set(config.eventCatalog.events.map(event => event.name));
   const offeredEventsByName = new Map(config.eventCatalog.events.map(event => [event.name, event]));
+  const offeredEmittersById = new Map(config.eventCatalog.emitters.map(emitter => [emitter.id, emitter]));
   const rooms = new Map();
   const isOriginAllowed = origin => allowedOrigins.has("*") || allowedOrigins.has(origin);
   const isSamePublicOrigin = (origin, request) => Boolean(origin) && origin === publicBaseUrl(request);
@@ -617,6 +678,17 @@ function createRealtimeServer(options = {}) {
     if (!origin || !isOriginAllowed(origin) && !isSamePublicOrigin(origin, request)) return null;
     return {
       "access-control-allow-origin": allowedOrigins.has("*") ? "*" : origin,
+      "access-control-allow-methods": "GET, POST, OPTIONS",
+      "access-control-allow-headers": "authorization, content-type",
+      "vary": "Origin"
+    };
+  };
+  const adminHeadersForRequest = (request) => {
+    const origin = request.headers.origin || "";
+    if (!origin) return {};
+    if (!isSamePublicOrigin(origin, request)) return null;
+    return {
+      "access-control-allow-origin": origin,
       "access-control-allow-methods": "GET, POST, OPTIONS",
       "access-control-allow-headers": "authorization, content-type",
       "vary": "Origin"
@@ -652,6 +724,14 @@ function createRealtimeServer(options = {}) {
     }
     if (request.method === "GET" && url.pathname === config.consolePath) {
       writeHtml(response, 200, CONSOLE_HTML);
+      return;
+    }
+    if (request.method === "GET" && url.pathname === config.eventsAdminPath) {
+      writeHtml(response, 200, fs.readFileSync(config.eventAdminHtmlPath, "utf8"));
+      return;
+    }
+    if ((request.method === "GET" || request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.eventsAdminCatalogPath) {
+      void handleAdminCatalogRequest(request, response);
       return;
     }
     if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.eventsPath) {
@@ -730,18 +810,76 @@ function createRealtimeServer(options = {}) {
     const roomId = sanitizeId(payload.roomId);
     const clientId = sanitizeId(payload.clientId || "server");
     const name = sanitizeEventName(payload.name || "");
+    const emitterId = sanitizeId(payload.emitterId || "");
     if (!roomId) return { ok: false, code: "invalid_room" };
     if (!clientId) return { ok: false, code: "invalid_client" };
     if (!name || !name.startsWith("realtime.")) return { ok: false, code: "invalid_event_name" };
-    if (!offeredEventNames.has(name)) return { ok: false, code: "event_not_offered" };
-    if (payload.detail !== undefined && !isPlainObject(payload.detail)) return { ok: false, code: "invalid_detail" };
+    const offered = offeredEventsByName.get(name);
+    if (!offered) return { ok: false, code: "event_not_offered" };
+    if (!emitterId) return { ok: false, code: "invalid_emitter" };
+    const emitter = offeredEmittersById.get(emitterId);
+    if (!emitter) return { ok: false, code: "emitter_not_offered" };
+    if (!emitter.events.includes(name)) return { ok: false, code: "emitter_event_not_allowed" };
+    const detail = payload.detail === undefined ? {} : payload.detail;
+    const detailValidation = eventCatalog.validateEventDetail(detail, offered.detail);
+    if (!detailValidation.ok) return detailValidation;
     return {
       ok: true,
       roomId,
       clientId,
+      emitterId,
       name,
-      detail: isPlainObject(payload.detail) ? payload.detail : {}
+      detail
     };
+  }
+
+  async function handleAdminCatalogRequest(request, response) {
+    const headers = adminHeadersForRequest(request);
+    if (!headers) {
+      writeJson(response, 403, { error: "origin_not_allowed" });
+      return;
+    }
+    if (request.method === "OPTIONS") {
+      response.writeHead(204, headers);
+      response.end();
+      return;
+    }
+    if (!config.adminSecret) {
+      writeJson(response, 503, { error: "admin_secret_required" }, headers);
+      return;
+    }
+    if (!timingSafeEqualString(bearerToken(request), config.adminSecret)) {
+      writeJson(response, 401, { error: "unauthorized" }, headers);
+      return;
+    }
+
+    if (request.method === "GET") {
+      try {
+        writeJson(response, 200, {
+          catalog: eventCatalog.loadEventCatalogFile(config.eventCatalogPath)
+        }, headers);
+      } catch (error) {
+        writeJson(response, error.status || 500, { error: error.code || "catalog_load_failed" }, headers);
+      }
+      return;
+    }
+
+    let payload;
+    try {
+      payload = await readJsonBody(request, config.maxPayload);
+    } catch (error) {
+      const status = error.code === "payload_too_large" ? 413 : 400;
+      writeJson(response, status, { error: error.code || "invalid_json" }, headers);
+      return;
+    }
+
+    try {
+      const catalog = eventCatalog.validateEventCatalog(payload.catalog);
+      const result = writeCatalogCommitAndPush(config, catalog, payload.message);
+      writeJson(response, 200, result, headers);
+    } catch (error) {
+      writeJson(response, error.status || 500, { error: error.code || "event_catalog_save_failed" }, headers);
+    }
   }
 
   async function handleEmitRequest(request, response) {
@@ -788,7 +926,9 @@ function createRealtimeServer(options = {}) {
       serverTime: Date.now(),
       name: emit.name,
       detail: emit.detail,
-      event: offeredEventsByName.get(emit.name)
+      emitterId: emit.emitterId,
+      event: offeredEventsByName.get(emit.name),
+      emitter: offeredEmittersById.get(emit.emitterId)
     }) : 0;
     writeJson(response, 202, {
       ok: true,
@@ -884,7 +1024,7 @@ function createRealtimeServer(options = {}) {
       return;
     }
 
-    const validated = validateRealtimeMessage(message, offeredEventNames);
+    const validated = validateRealtimeMessage(message, offeredEventsByName, offeredEmittersById);
     if (!validated.ok) {
       sendError(socket, validated.code);
       return;
@@ -907,7 +1047,10 @@ function createRealtimeServer(options = {}) {
       sendError(socket, "invalid_message");
       return;
     }
-    if (payload.type === "runtime.event") payload.event = offeredEventsByName.get(payload.name);
+    if (payload.type === "runtime.event") {
+      payload.event = offeredEventsByName.get(payload.name);
+      payload.emitter = payload.emitterId ? offeredEmittersById.get(payload.emitterId) || null : null;
+    }
     broadcast(room, socket, payload);
   }
 

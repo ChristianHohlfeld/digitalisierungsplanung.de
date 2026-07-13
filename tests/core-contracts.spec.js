@@ -197,7 +197,7 @@ async function waitForRuntimeRealtimeJoin(page) {
   await expect.poll(async () => (await runtimeContext(page)).realtime?.joined).toBe(true);
 }
 
-async function receiveRuntimeRealtimeEvent(page, event, detail = {}, roomId = "contract-room") {
+async function receiveRuntimeRealtimeEvent(page, event, detail = {}, roomId = "contract-room", emitterId = "") {
   await appFrame(page).locator("html").evaluate((_, payload) => {
     window.__fakeRealtimeSockets[0].receive(payload);
   }, {
@@ -206,6 +206,7 @@ async function receiveRuntimeRealtimeEvent(page, event, detail = {}, roomId = "c
     clientId: "console",
     serverTime: Date.now(),
     name: event.name,
+    emitterId,
     detail,
     event
   });
@@ -1652,8 +1653,14 @@ test.describe("Core source contracts", () => {
       caller: "+491234",
       callee: "100",
       callId: "remote-123"
-    }, "inbound-contract");
+    }, "inbound-contract", "sip.threecx");
     await expect(appFrame(page).locator("#statePill")).toHaveText("done");
+    await expect.poll(async () => (await runtimeContext(page)).emitters?.sip?.threecx).toMatchObject({
+      count: 1,
+      lastEvent: "realtime.sip.call.incoming",
+      status: "received",
+      error: ""
+    });
   });
 
   test("daisy widgets cannot create undeclared bus data @smoke", async ({ page }) => {

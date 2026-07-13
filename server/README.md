@@ -10,6 +10,7 @@ GitHub Pages, not by this server deploy.
 - Public endpoint: `wss://realtime.digitalisierungsplanung.de/ws`
 - Token endpoint: `https://realtime.digitalisierungsplanung.de/token`
 - Test console: `https://realtime.digitalisierungsplanung.de/console.html`
+- Event designer: `https://realtime.digitalisierungsplanung.de/events-admin.html`
 - Event definitions: `https://realtime.digitalisierungsplanung.de/events`
 - Shared release: `https://realtime.digitalisierungsplanung.de/version`
 - Local process: `127.0.0.1:8788`
@@ -43,7 +44,7 @@ Realtime is transport only. Runtime state still flows through the existing globa
 runtime.event -> emitRuntimeEvent(...) -> writeRuntimeState("events..." / "lastEvent")
 ```
 
-`/emit` accepts only offered `realtime.*` events from `/events`. Existing `button.*`, `change.*`, `timer.*`, and `auto.*` events remain local runtime events.
+`/emit` accepts only offered `realtime.*` events from `/events` and requires an offered `emitterId`. The emitter must be allowed to fire that event. Existing `button.*`, `change.*`, `timer.*`, and `auto.*` events remain local runtime events.
 Graph/model collaboration must go through the documented State Blueprint API, not through this WSS relay.
 
 The browser bridge has no emitter. Offered events enter through the authenticated external `/emit` boundary or the stateless test console.
@@ -55,18 +56,35 @@ triggerType: realtime
 triggerEvent: realtime.sip.call.incoming
 ```
 
-Open `https://realtime.digitalisierungsplanung.de/console.html?room=<room-id>` for a browser test emitter. The console loads event names and detail fields from `/events`, then POSTs to `/emit` with the Bearer secret you paste into the page. It stores no server-side state.
+Open `https://realtime.digitalisierungsplanung.de/console.html?room=<room-id>` for a browser test emitter. The console loads connector sources, event names, and detail fields from `/events`, then POSTs to `/emit` with the Bearer secret you paste into the page. It stores no server-side state.
 
 ## Event Catalog
 
-The event catalog is the server-side source of truth for offered realtime events. Unknown `realtime.*` names are rejected on `/emit`, rejected on `/ws`, and ignored by the host bridge before they can enter the generated runtime.
+The event catalog is the server-side source of truth for offered realtime events and connector sources. Unknown `realtime.*` names are rejected on `/emit`, rejected on `/ws`, and ignored by the host bridge before they can enter the generated runtime.
 
-- `/events`: event definitions only.
+- `server/event-catalog.json`: single catalog source in Git.
+- `/events`: event and connector definitions.
 - `/ws`: WebSocket relay only.
 - `/emit`: authenticated server-to-server fire endpoint only.
 - `/console.html`: manual browser emitter for testing only.
+- `/events-admin.html`: admin designer for events, connector sources, payloads, and global-state contribution.
 
-The canvas should store only concrete refs it uses, mainly `triggerType: realtime` and `triggerEvent`. It should not store preset contracts, endpoint definitions, catalog copies, or preset instances.
+Default connector sources are deliberately practical:
+
+- `sip.threecx`: 3CX / SIP phone system bridge.
+- `mail.gmail`: Gmail inbox bridge.
+- `mail.outlook`: Microsoft Outlook bridge.
+- `webhook.endpoint`: generic inbound webhook bridge.
+- `data.source`: external business data update bridge.
+
+The setup rule is always the same: the real system or a tiny bridge posts the
+designer's example payload to `/emit` with `REALTIME_EMIT_SECRET`. For 3CX this
+is a phone-system webhook or call-flow bridge. For Gmail this is a Google
+Workspace automation or small mail bridge. For Outlook this is a Microsoft
+automation or Graph/mail bridge. The realtime server does not poll mailboxes or
+run a SIP stack.
+
+All connector IDs are globally unique and path-safe. Runtime state is written under `events.<eventName>.*` and `emitters.<emitterId>.*`. The canvas should store only concrete refs it uses, mainly `triggerType: realtime` and `triggerEvent`. It should not store preset contracts, endpoint definitions, catalog copies, or preset instances.
 
 Detailed payloads, error codes, curl examples, and WebSocket frame shapes are documented in [`../docs/realtime-api.md`](../docs/realtime-api.md).
 
@@ -128,6 +146,12 @@ curl -fsS https://realtime.digitalisierungsplanung.de/version
 `/etc/digitalisierungsplanung-realtime.env` remains outside the repository and
 is never removed by the force sync. Do not keep manual production changes
 inside `/var/www/digitalisierungsplanung.de`; `origin/main` intentionally wins.
+
+The event designer needs `REALTIME_ADMIN_SECRET`. Saving through the designer
+also needs repository push credentials on the server. If the Git remote cannot
+push with its configured credentials, set `REALTIME_GIT_PUSH_TOKEN` in
+`/etc/digitalisierungsplanung-realtime.env` to a GitHub token with contents
+write permission for this repository.
 
 `deploy.sh` remains the bootstrap and manual recovery command. It installs
 missing runtime packages, validates that the checkout contains only the green

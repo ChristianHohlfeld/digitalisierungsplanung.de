@@ -117,6 +117,9 @@ fi
 if ! grep -q '^REALTIME_EMIT_SECRET=' "$ENV_FILE"; then
   printf 'REALTIME_EMIT_SECRET=%s\n' "$(openssl rand -base64 48)" >> "$ENV_FILE"
 fi
+if ! grep -q '^REALTIME_ADMIN_SECRET=' "$ENV_FILE"; then
+  printf 'REALTIME_ADMIN_SECRET=%s\n' "$(openssl rand -base64 48)" >> "$ENV_FILE"
+fi
 
 pm2 startOrReload server/ecosystem.config.cjs --update-env
 pm2 save

@@ -8,8 +8,10 @@ Der globale JSON-Zustands-/Ereignisbus bleibt die einzige fachliche Wahrheit. De
 
 - WSS-Transport für Runtime-Ereignisse,
 - Ereigniskatalog für erlaubte `realtime.*`-Ereignisse,
+- Connector-Katalog für echte Ereignisquellen,
 - zustandsloser Sende-Endpunkt für externe Systeme,
-- Browser-Testkonsole für manuelles Emitten.
+- Browser-Testkonsole für manuelles Emitten,
+- Admin-Designer für Katalogänderungen per Git.
 
 Zusätzlich veröffentlicht der Server lesend die gemeinsame
 Frontend-/Backend-Release-ID. Er besitzt dafür keinen zweiten Versionszähler.
@@ -71,7 +73,7 @@ Realtime-Ereignisse im App-Vertrag beginnen mit:
 realtime.
 ```
 
-`/emit` und WSS-`runtime.event` akzeptieren nur Ereignisse, die im aktuellen `/events`-Katalog angeboten werden.
+`/emit` und WSS-`runtime.event` akzeptieren nur Ereignisse, die im aktuellen `/events`-Katalog angeboten werden. `/emit` braucht zusätzlich eine angebotene `emitterId`; diese Quelle muss für das konkrete Ereignis freigeschaltet sein.
 
 ## REST-Endpunkte
 
@@ -120,6 +122,21 @@ Release-Commit.
 
 HTML-Testkonsole für `/emit`. Die Seite speichert serverseitig nichts. Das Emit-Secret wird nur im Browserfeld verwendet und als Bearer-Token an `/emit` gesendet.
 
+### `GET /events-admin.html`
+
+Admin-Designer für `server/event-catalog.json`. Er verwaltet Events, Connectoren, Payload-Felder und den daraus entstehenden globalen State-Beitrag.
+
+### `GET/POST /events-admin/catalog`
+
+Secret-geschützte Admin-API für den Designer.
+
+- Auth: `Authorization: Bearer <REALTIME_ADMIN_SECRET>`
+- `GET`: lädt den Katalog aus `server/event-catalog.json`
+- `POST`: validiert, schreibt, committet und pusht den Katalog
+
+Der Save-Pfad nutzt Git. Falls der Server-Checkout nicht mit seinen vorhandenen
+Remote-Credentials pushen kann, muss `REALTIME_GIT_PUSH_TOKEN` gesetzt sein.
+
 ### `GET /events`
 
 Ereignisdefinitionen. Das ist die Live-Quelle für auswählbare Realtime-Ereignisse im Editor.
@@ -128,6 +145,23 @@ Antwort:
 
 ```json
 {
+  "provider": {
+    "id": "digitalisierungsplanung.realtime",
+    "label": "Digitalisierungsplanung Realtime"
+  },
+  "state": {
+    "path": "realtime",
+    "schema": {
+      "roomId": "text",
+      "clientId": "text",
+      "status": "text",
+      "connected": "boolean",
+      "joined": "boolean",
+      "connecting": "boolean",
+      "reconnectAttempt": "number",
+      "error": "text"
+    }
+  },
   "events": [
     {
       "name": "realtime.sip.call.incoming",
@@ -138,7 +172,41 @@ Antwort:
         "callee": "text",
         "callId": "text"
       },
-      "bindings": []
+      "bindings": [],
+      "contributes": {
+        "root": "events.realtime.sip.call.incoming",
+        "fields": [
+          "events.realtime.sip.call.incoming.count",
+          "events.realtime.sip.call.incoming.lastAt",
+          "events.realtime.sip.call.incoming.detail",
+          "events.realtime.sip.call.incoming.detail.caller",
+          "events.realtime.sip.call.incoming.detail.callee",
+          "events.realtime.sip.call.incoming.detail.callId"
+        ]
+      }
+    }
+  ],
+  "emitters": [
+    {
+      "id": "sip.threecx",
+      "type": "sip",
+      "label": "3CX / SIP phone system",
+      "description": "Business phone bridge for real call events",
+      "endpoint": "POST /emit",
+      "events": [
+        "realtime.sip.call.incoming"
+      ],
+      "contributes": {
+        "root": "emitters.sip.threecx",
+        "fields": [
+          "emitters.sip.threecx.count",
+          "emitters.sip.threecx.lastAt",
+          "emitters.sip.threecx.lastEvent",
+          "emitters.sip.threecx.lastDetail",
+          "emitters.sip.threecx.status",
+          "emitters.sip.threecx.error"
+        ]
+      }
     }
   ]
 }
@@ -153,6 +221,10 @@ Felder:
 - `bindings`: Optionales Mapping von `detail.*` auf einen vollständig
   qualifizierten, im Modell deklarierten Pfad `states.<id>.<feld>`. Andere
   Ziele werden verworfen. Die Standardereignisse besitzen keine Bindings.
+- `emitters`: echte Connector-Quellen. Eine Quelle darf nur die in `events`
+  gelisteten Ereignisse feuern.
+- `contributes`: abgeleiteter State-Beitrag im globalen JSON-Bus. Der Canvas
+  speichert diese Metadaten nicht als Kopie.
 
 Unterstützte Typen:
 
@@ -201,6 +273,7 @@ curl -X POST https://realtime.digitalisierungsplanung.de/emit \
   -d '{
     "roomId": "smoke",
     "clientId": "sip-gateway",
+    "emitterId": "sip.threecx",
     "name": "realtime.sip.call.incoming",
     "detail": {
       "caller": "+491234",
@@ -230,7 +303,13 @@ Fehler:
 - `400 {"error":"invalid_client"}`
 - `400 {"error":"invalid_event_name"}`
 - `400 {"error":"event_not_offered"}`
+- `400 {"error":"invalid_emitter"}`
+- `400 {"error":"emitter_not_offered"}`
+- `400 {"error":"emitter_event_not_allowed"}`
 - `400 {"error":"invalid_detail"}`
+- `400 {"error":"missing_detail_field"}`
+- `400 {"error":"unknown_detail_field"}`
+- `400 {"error":"invalid_detail_type"}`
 - `401 {"error":"unauthorized"}`
 - `403 {"error":"origin_not_allowed"}`
 - `413 {"error":"payload_too_large"}`
@@ -282,6 +361,7 @@ Client sendet ein Ereignis, das im aktuellen `/events`-Katalog angeboten wird:
   "type": "runtime.event",
   "seq": 1,
   "name": "realtime.sip.call.incoming",
+  "emitterId": "sip.threecx",
   "detail": {
     "caller": "+491234",
     "callee": "100",
@@ -291,7 +371,8 @@ Client sendet ein Ereignis, das im aktuellen `/events`-Katalog angeboten wird:
 ```
 
 Andere Clients im selben Raum bekommen dasselbe Ereignis mit `roomId`,
-`clientId`, `serverTime`, optionaler `seq`, `name`, `detail` und `event`.
+`clientId`, `serverTime`, optionaler `seq`, `name`, `detail`, `emitterId`,
+`event` und `emitter`.
 `event` ist die vom Server normalisierte aktuelle Katalogdefinition für genau
 diesen Namen. Dadurch kann die Runtime Bindings anwenden und den Übergang
 auslösen, ohne beim Empfang nochmals von einem erfolgreichen `/events`-Abruf
@@ -324,7 +405,13 @@ invalid_seq
 invalid_cursor
 invalid_event_name
 event_not_offered
+invalid_emitter
+emitter_not_offered
+emitter_event_not_allowed
 invalid_detail
+missing_detail_field
+unknown_detail_field
+invalid_detail_type
 rate_limited
 room_missing
 invalid_message
@@ -358,15 +445,36 @@ Realtime-Ereignisse weiter und verarbeitet Runtime-Meldungen ausschließlich
 als UI-Ereignisse, ohne Businhalt zu speichern.
 Standalone verwendet denselben Transport ohne Host-Brücke.
 
-## Aktuelle Standard-Ereignisse
+## Aktuelle Standard-Ereignisse und Connectoren
 
-Wenn kein `REALTIME_EVENT_CATALOG_PATH` gesetzt ist, bietet der Server diese Ereignisse an:
+Der Default-Katalog liegt in `server/event-catalog.json`. Wenn
+`REALTIME_EVENT_CATALOG_PATH` nicht gesetzt ist, nutzt der Server diese Datei.
+Aktuelle Standardereignisse:
 
 ```text
 realtime.sip.call.incoming
 realtime.sip.call.answered
 realtime.sip.call.ended
+realtime.mail.received
+realtime.endpoint.updated
+realtime.data.updated
 ```
+
+Aktuelle Standardconnectoren:
+
+```text
+sip.threecx       3CX / SIP phone system
+mail.gmail        Gmail inbox
+mail.outlook      Outlook inbox
+webhook.endpoint  Generic webhook bridge
+data.source       External data source bridge
+```
+
+Einrichtung ist absichtlich einheitlich: Der echte Dienst oder eine kleine
+Bridge postet den Designer-Payload an `/emit`. 3CX nutzt dafür eine
+Telefonanlagen-Webhook-/Call-Flow-Bridge, Gmail eine Google-Workspace- oder
+Mail-Bridge, Outlook eine Microsoft-Automation oder Graph/Mail-Bridge. Der
+Realtime-Server selbst pollt keine Mailboxen und betreibt keinen SIP-Stack.
 
 Die Laufzeit-Wahrheit ist immer `/events`, nicht diese Dokumentation.
 
@@ -382,11 +490,16 @@ REALTIME_TOKEN_PATH=/token
 REALTIME_EVENTS_PATH=/events
 REALTIME_EMIT_PATH=/emit
 REALTIME_CONSOLE_PATH=/console.html
+REALTIME_EVENTS_ADMIN_PATH=/events-admin.html
+REALTIME_EVENTS_ADMIN_CATALOG_PATH=/events-admin/catalog
 REALTIME_ALLOWED_ORIGINS=https://digitalisierungsplanung.de
 REALTIME_ROOM_SECRET=<secret>
 REALTIME_EMIT_SECRET=<secret>
+REALTIME_ADMIN_SECRET=<secret>
+REALTIME_GIT_PUSH_TOKEN=<optional-github-token>
 REALTIME_ROOM_TOKEN_TTL_MS=3600000
 REALTIME_EVENT_CATALOG_PATH=/path/to/catalog.json
+REALTIME_REPO_DIR=/path/to/repo
 REALTIME_RATE_LIMIT=360
 REALTIME_RATE_WINDOW_MS=10000
 REALTIME_MAX_PAYLOAD_BYTES=65536
@@ -403,6 +516,9 @@ REALTIME_MAX_PAYLOAD_BYTES=65536
 events.realtime.sip.call.incoming.detail
 events.realtime.sip.call.incoming.count
 events.realtime.sip.call.incoming.lastAt
+emitters.sip.threecx.lastEvent
+emitters.sip.threecx.count
+emitters.sip.threecx.lastAt
 lastEvent
 ```
 

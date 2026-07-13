@@ -15,6 +15,7 @@ Der wichtigste Gedanke: Nur verstandene Prozesse lassen sich sauber digitalisier
 | Beispiel im Werkzeug laden | `https://digitalisierungsplanung.de/state.html?demo=zustand` |
 | Werkzeug mit Echtzeit-Raum | `https://digitalisierungsplanung.de/state.html?room=<raum-id>` |
 | Echtzeit-Konsole | `https://realtime.digitalisierungsplanung.de/console.html?room=<raum-id>` |
+| Echtzeit-Event-Designer | `https://realtime.digitalisierungsplanung.de/events-admin.html` |
 | Ereigniskatalog | `https://realtime.digitalisierungsplanung.de/events` |
 | Release-ID | `https://realtime.digitalisierungsplanung.de/version` |
 | WebSocket | `wss://realtime.digitalisierungsplanung.de/ws` |
@@ -105,8 +106,16 @@ Der Server in [`server/`](server/) ist nur Transport. Er speichert keine fachlic
 | `GET /events` | erlaubte Echtzeit-Ereignisse |
 | `GET /token` | signiertes Raum-Token für den Browser |
 | `GET /console.html` | Testoberfläche für Ereignisse |
+| `GET /events-admin.html` | Adminoberfläche für Events und Connectoren |
+| `GET/POST /events-admin/catalog` | validieren, committen und pushen von `server/event-catalog.json` |
 | `POST /emit` | authentifiziertes Ereignis von außen |
 | `WSS /ws` | WebSocket-Verbindung |
+
+Der Ereigniskatalog liegt in [`server/event-catalog.json`](server/event-catalog.json).
+Er definiert angebotene `realtime.*`-Events, erlaubte Connectoren wie 3CX,
+Gmail, Outlook, Webhook und Datenquelle, die Detail-Payloads und den Beitrag zum
+globalen State Tree. Der Canvas speichert keine Katalogkopie, sondern nur
+konkrete Referenzen wie `triggerType: realtime` und `triggerEvent`.
 
 Ein Ereignis von außen senden:
 
@@ -114,7 +123,7 @@ Ein Ereignis von außen senden:
 curl -X POST https://realtime.digitalisierungsplanung.de/emit \
   -H "authorization: Bearer $REALTIME_EMIT_SECRET" \
   -H "content-type: application/json" \
-  -d '{"roomId":"demo","name":"realtime.sip.call.incoming","detail":{"caller":"+491234","callee":"100","callId":"abc-123"}}'
+  -d '{"roomId":"demo","emitterId":"sip.threecx","name":"realtime.sip.call.incoming","detail":{"caller":"+491234","callee":"100","callId":"abc-123"}}'
 ```
 
 Dazu passender Übergang im Werkzeug:

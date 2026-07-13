@@ -5507,7 +5507,27 @@
       return name;
     }
 `;
-      const runtimeRecordEventJsEnhanced = `    function recordRuntimeEvent(eventName, detail = {}) {
+      const runtimeRecordEventJsEnhanced = `    function runtimeEventEmitterId(detail = {}) {
+      const id = String(detail?.emitterId || "").trim();
+      return /^[a-zA-Z_][a-zA-Z0-9_:-]*(?:\\.[a-zA-Z_][a-zA-Z0-9_:-]*)*$/.test(id) ? id : "";
+    }
+
+    function recordRuntimeEmitter(eventName, detail = {}, now = Date.now(), writeOpts = {}) {
+      const emitterId = runtimeEventEmitterId(detail);
+      if (!emitterId) return "";
+      const root = "emitters." + emitterId;
+      const countPath = root + ".count";
+      const count = Number(readValueAtPath(context, countPath) || 0) + 1;
+      writeRuntimeState(countPath, count, writeOpts);
+      writeRuntimeState(root + ".lastAt", now, writeOpts);
+      writeRuntimeState(root + ".lastEvent", eventName, writeOpts);
+      writeRuntimeState(root + ".lastDetail", isPlainDataObject(detail) ? JSON.parse(JSON.stringify(detail)) : {}, writeOpts);
+      writeRuntimeState(root + ".status", "received", writeOpts);
+      writeRuntimeState(root + ".error", "", writeOpts);
+      return emitterId;
+    }
+
+    function recordRuntimeEvent(eventName, detail = {}) {
       const name = normalizeTransitionEvent(eventName);
       if (!name) return "";
       const now = Date.now();
@@ -5519,6 +5539,7 @@
       writeRuntimeState("events." + name + ".detail", detail, writeOpts);
       writeRuntimeState("lastEvent", name, writeOpts);
       writeRuntimeState("lastEventAt", now, writeOpts);
+      recordRuntimeEmitter(name, detail, now, writeOpts);
       return name;
     }
 `;
@@ -6674,6 +6695,7 @@
             ...sourceDetail,
             source: "realtime",
             __realtimeRemote: true,
+            emitterId: String(message.emitterId || ""),
             roomId: sanitizeRuntimeRealtimeId(message.roomId || runtimeRealtimeTransport.roomId),
             remoteClientId: sanitizeRuntimeRealtimeId(message.clientId || ""),
             serverTime: Number(message.serverTime) || Date.now()

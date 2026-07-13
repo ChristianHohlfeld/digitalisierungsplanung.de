@@ -10,6 +10,7 @@ loadEnvFile(args.envFile || process.env.REALTIME_ENV_FILE || "/etc/digitalisieru
 const url = args.url || process.env.REALTIME_EMIT_URL || "https://realtime.digitalisierungsplanung.de/emit";
 const roomId = args.roomId || process.env.REALTIME_ROOM_ID || "smoke";
 const name = args.name || process.env.REALTIME_EVENT_NAME || "realtime.sip.call.incoming";
+const emitterId = args.emitterId || process.env.REALTIME_EMITTER_ID || "sip.threecx";
 const detail = parseDetail(args.detail || process.env.REALTIME_EVENT_DETAIL || '{"caller":"+491234","callee":"100","callId":"smoke-123"}');
 const secret = args.secret || process.env.REALTIME_EMIT_SECRET || "";
 const origin = args.origin || process.env.REALTIME_ORIGIN || "";
@@ -20,6 +21,7 @@ if (!secret) fail("missing REALTIME_EMIT_SECRET");
 
 postJson(url, {
   roomId,
+  emitterId,
   name,
   detail
 }, {
@@ -39,7 +41,7 @@ postJson(url, {
     return;
   }
 
-  console.log(`emit ok room=${payload.roomId} name=${payload.name} delivered=${payload.delivered ?? 0}`);
+  console.log(`emit ok room=${payload.roomId} emitter=${emitterId} name=${payload.name} delivered=${payload.delivered ?? 0}`);
 }).catch(error => {
   fail(`emit error: ${error.message}`);
 });
