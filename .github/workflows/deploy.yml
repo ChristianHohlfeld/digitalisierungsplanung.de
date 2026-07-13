@@ -60,10 +60,6 @@ jobs:
           RELEASE_INCREMENT: "1"
           RELEASE_SOURCE_COMMIT: ${{ github.sha }}
         run: |
-          if git show --format='' --name-only HEAD | grep -qx 'release-version.js'; then
-            echo "Release stamp was advanced by the pushed commit."
-            exit 0
-          fi
           RELEASE_BUILT_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")" node scripts/write-release-version.mjs
           if git diff --quiet -- release-version.js; then
             echo "Release stamp is current."

@@ -250,7 +250,7 @@ npm run test:state-explorer
 npm run test:state-render
 ```
 
-`npm test` führt die Server-Tests und die wichtigsten Playwright-Abläufe aus. `npm run test:full` führt den vollständigen Bestand lokal aus. GitHub Actions verteilt dieselben Browserfälle vollständig auf vier parallele Shards, führt die Serverfälle einmal aus und erhöht nach dem Gesamterfolg die gemeinsame Release-Sequenz in `release-version.js`, sofern der Push nicht bereits eine Event-Designer-Release-Einheit enthält.
+`npm test` führt die Server-Tests und die wichtigsten Playwright-Abläufe aus. `npm run test:full` führt den vollständigen Bestand lokal aus. GitHub Actions verteilt dieselben Browserfälle vollständig auf vier parallele Shards, führt die Serverfälle einmal aus und erhöht nach jedem Gesamterfolg auf `main` die gemeinsame Release-Sequenz in `release-version.js`.
 
 ## Ordner
 
@@ -280,7 +280,7 @@ npm run test:state-render
 
 1. Änderungen auf `main` pushen.
 2. GitHub Actions führt alle Server- und Browserfälle in vier vollständigen Browser-Shards aus.
-3. Nach grünem Lauf wird die gemeinsame `release-N`-ID in `release-version.js` inkrementiert; Event-Designer-Saves bringen diese ID bereits im selben Commit mit.
+3. Nach grünem Lauf wird die gemeinsame `release-N`-ID in `release-version.js` inkrementiert.
 4. GitHub Pages veröffentlicht die Root-Domain-Dateien.
 5. Der Droplet-Timer erkennt die neue ID, synchronisiert den Remote-Stand mit Force und deployt/verifiziert nur `realtime.digitalisierungsplanung.de`.
 

@@ -125,8 +125,8 @@ test("keeps automatic deployment locked, release-gated, force-synced, verified, 
   assert.match(runScript, /REALTIME_ENV_FILE/);
   assert.match(workflow, /needs: contract-tests/);
   assert.match(workflow, /paths-ignore:\s*\n\s*- release-version\.js/);
-  assert.match(workflow, /Release stamp was advanced by the pushed commit/);
   assert.match(workflow, /RELEASE_INCREMENT: "1"/);
+  assert.doesNotMatch(workflow, /Release stamp was advanced by the pushed commit/);
   assert.doesNotMatch(workflow, /\[skip ci\]/);
   assert.match(writer, /previousSequence \+ 1/);
   assert.match(writer, /ZUSTAND_RELEASE_SEQUENCE/);
