@@ -764,6 +764,7 @@ test("serves stateless process-recorder capability and a validated no-store mode
     assert.match(contract.headers.get("cache-control"), /no-store/);
     const capability = await contract.json();
     assert.equal(capability.enabled, true);
+    assert.deepEqual(capability.capture.sources, ["windows-companion", "browser-recorder"]);
     assert.equal(capability.capture.persisted, false);
 
     const response = await fetch(httpUrl(realtime, "/process/analyze"), {

@@ -861,7 +861,7 @@ function createRealtimeServer(options = {}) {
         provider: processAnalyzer.provider,
         model: processAnalyzer.model,
         capture: {
-          source: "windows-companion",
+          sources: ["windows-companion", "browser-recorder"],
           values: "redacted",
           persisted: false,
           maxEvents: MAX_PROCESS_EVENTS,

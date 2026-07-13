@@ -202,22 +202,29 @@ npm run server:smoke:wss:prod
 npm run server:smoke:emit:prod
 ```
 
-## PC-Prozessaufnahme
+## Ablaufaufnahme
 
-Der Aufnahmebutton oben rechts im Desktop-Canvas verbindet den Editor mit dem
-lokalen Windows-Begleiter. Während der Nutzer in anderen Anwendungen arbeitet,
-zeichnet der Agent den erkannten Ablauf live als States und Transitionen in
-dieselbe Arbeitsfläche. Stop schließt die Aufnahme als genau einen Undo-Schritt
-ab; Abbruch oder ein Fehler ohne gültiges Agentenergebnis lassen den vorherigen
-Stand unverändert.
+Der Aufnahmebutton erzeugt aus beobachteten Arbeitsschritten direkt States und
+Transitionen in derselben Arbeitsfläche. Stop schließt die Aufnahme als genau
+einen Undo-Schritt ab; Abbruch oder ein Fehler ohne gültiges Agentenergebnis
+lassen den vorherigen Stand unverändert.
 
-Beim ersten Einsatz `assets/Zustand-Prozessrecorder.zip` entpacken und
+Auf Desktop verbindet sich der Editor mit dem lokalen Windows-Begleiter. Beim
+ersten Einsatz `assets/Zustand-Prozessrecorder.zip` entpacken und
 `Zustand-Recorder.cmd` starten. Der sichtbare Begleiter läuft ausschließlich
 auf `127.0.0.1:43127`, persistiert nichts und liest keine Roh-Tasten,
 Passwörter oder konkreten Feldwerte als Ereignisdaten aus. Die ausdrücklich
-freigegebenen Kontextbilder zeigen den sichtbaren Desktop. Für den produktiven Agenten wird auf dem
-Server eine der beiden Konfigurationen in
-`/etc/digitalisierungsplanung-realtime.env` gesetzt:
+freigegebenen Kontextbilder zeigen den sichtbaren Desktop.
+
+Auf Android und iOS nutzt derselbe Button den Browser-Recorder in der mobilen
+Aktionsleiste. Er erfasst redigierte Tap-, Eingabe-, Scroll- und
+Sichtbarkeitsereignisse im geöffneten Werkzeug und sendet sie über denselben
+`/process/analyze`-Contract. Wenn Browser und Betriebssystem Bildschirmfreigabe
+erlauben, werden zusätzlich wenige Kontextbilder mitgegeben. Es wird nichts im
+Browser oder auf dem Server persistiert.
+
+Für den produktiven Agenten wird auf dem Server eine der beiden Konfigurationen
+in `/etc/digitalisierungsplanung-realtime.env` gesetzt:
 
 ```text
 PROCESS_RECORDER_OPENAI_API_KEY=<server-secret>

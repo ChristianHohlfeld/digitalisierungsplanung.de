@@ -5749,6 +5749,8 @@ test.describe("State Blueprint tool", () => {
       await expect(page.locator("#canvasHistoryActions")).toBeHidden();
       await expect(page.locator("#selectionActions")).toBeHidden();
       await expect(page.locator("#btnUndo, #btnRedo, #btnMobileUndo, #btnMobileRedo")).toHaveCount(0);
+      await expect(page.locator("#btnMobileProcessRecord")).toBeVisible();
+      await expect(page.locator("#btnMobileProcessRecord")).toHaveAttribute("aria-pressed", "false");
       await expect(page.locator('#btnMobileActionUndo svg[data-lucide="undo-2"]')).toHaveCount(1);
       await expect(page.locator('#btnMobileActionRedo svg[data-lucide="redo-2"]')).toHaveCount(1);
       await expect.poll(() => page.evaluate(() => {
@@ -14219,7 +14221,7 @@ test.describe("State Blueprint tool", () => {
 
     await openTool(page);
     await page.locator("#btnProcessRecord").click();
-    await expect(page.getByRole("heading", { name: "PC-Arbeit aufnehmen" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Ablauf aufnehmen" })).toBeVisible();
     await page.getByRole("button", { name: "Aufnahme starten" }).click();
     await expect(page.locator("#btnProcessRecord")).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator("#processRecordingStatus")).toBeVisible();
@@ -14248,7 +14250,80 @@ test.describe("State Blueprint tool", () => {
     expect(exportedHtml).not.toContain("PROCESS_COMPANION_URL");
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.locator("#btnProcessRecord")).toBeHidden();
+    await expect(page.locator("#btnMobileProcessRecord")).toBeVisible();
     await expect(page.locator("#map")).toBeVisible();
+  });
+
+  test("records a mobile browser process without the Windows companion", async ({ browser }) => {
+    const context = await browser.newContext({
+      baseURL: "http://localhost:8124",
+      viewport: { width: 390, height: 844 },
+      hasTouch: true,
+      isMobile: true
+    });
+    const page = await context.newPage();
+    await page.addInitScript(() => {
+      try {
+        if (navigator.mediaDevices) navigator.mediaDevices.getDisplayMedia = undefined;
+      } catch (_) {}
+    });
+    const recordedModel = modelFromTrace({
+      title: "Mobile Anfrage",
+      steps: [
+        { title: "Mobile Start", description: "Der mobile Ablauf beginnt.", actionToNext: "Weiter" },
+        { title: "Mobile Fertig", description: "Der mobile Ablauf ist erfasst.", actionToNext: "" }
+      ]
+    }).model;
+    let analyzeBody = null;
+    let companionTouched = false;
+
+    await page.route("**/process/contract", route => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers: { "cache-control": "no-store" },
+      body: JSON.stringify({
+        ok: true,
+        enabled: true,
+        contract: "zustand-process-recorder-v1",
+        capture: { sources: ["windows-companion", "browser-recorder"], persisted: false, maxEvents: 4000, maxFrames: 36 }
+      })
+    }));
+    await page.route("http://127.0.0.1:43127/v1/**", route => {
+      companionTouched = true;
+      return route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: "unexpected_companion_call" }) });
+    });
+    await page.route("**/process/analyze", async route => {
+      analyzeBody = route.request().postDataJSON();
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers: { "cache-control": "no-store" },
+        body: JSON.stringify({ ok: true, contract: "zustand-process-model-v1", model: recordedModel, summary: { states: 2, transitions: 1 } })
+      });
+    });
+
+    try {
+      await openTool(page);
+      await expect(page.locator("#btnMobileProcessRecord")).toBeVisible();
+      await page.locator("#btnMobileProcessRecord").tap();
+      await expect(page.getByRole("heading", { name: "Ablauf aufnehmen" })).toBeVisible();
+      await page.getByRole("button", { name: "Aufnahme starten" }).tap();
+      await expect(page.locator("#btnMobileProcessRecord")).toHaveAttribute("aria-pressed", "true");
+
+      await page.locator('[data-id="login"]').tap();
+      await page.locator("#btnMobileProcessRecord").tap();
+      await expect(page.locator("#btnMobileProcessRecord")).toHaveAttribute("aria-pressed", "false");
+      await expect(page.locator('[data-id="mobile_start"]')).toBeVisible();
+      await expect(page.locator("#btnMobileActionUndo")).toBeEnabled();
+
+      expect(companionTouched).toBe(false);
+      expect(analyzeBody).toBeTruthy();
+      expect(analyzeBody.events.map(event => event.kind)).toContain("application");
+      expect(analyzeBody.events.map(event => event.kind)).toContain("click");
+      expect(JSON.stringify(analyzeBody)).not.toContain("value");
+    } finally {
+      await context.close();
+    }
   });
 
   test("leaves model and history unchanged when PC process analysis fails", async ({ page }) => {
