@@ -10652,6 +10652,10 @@ test.describe("State Blueprint tool", () => {
       await expect(page.locator("#map")).toBeVisible();
       await expect(page.locator(".preview")).toBeVisible();
       await expect(page.locator("#map")).toHaveCSS("pointer-events", "auto");
+      await expect(page.locator("#layerFrame")).toBeVisible();
+      await expect(page.locator("#layerHud")).toBeVisible();
+      await expect(page.locator("#layerFrameLabel")).toBeVisible();
+      await expect(page.locator("#layerFrame")).toHaveCSS("border-top-style", "dashed");
       await expect(page.locator("#btnMobileRuntimeFollow")).toHaveAttribute("aria-pressed", "true");
 
       const app = appFrame(page);
@@ -10751,6 +10755,9 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator(".preview")).toBeVisible();
     await expect(page.locator("#map")).toBeVisible();
     await expect(page.locator("#map")).toHaveCSS("pointer-events", "auto");
+    await expect(page.locator("#layerFrame")).toBeVisible();
+    await expect(page.locator("#layerHud")).toBeVisible();
+    await expect(page.locator("#layerFrame")).toHaveCSS("border-top-style", "dashed");
     await context.close();
   });
 
