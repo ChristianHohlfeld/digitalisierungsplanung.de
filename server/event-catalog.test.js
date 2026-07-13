@@ -169,3 +169,18 @@ test("validates runtime event detail against the catalog detail schema", () => {
     { ok: false, code: "invalid_detail_type" }
   );
 });
+
+test("validates runtime event detail against field constraints, not only base types", () => {
+  assert.deepEqual(
+    validateEventDetail({ from: "not-an-email" }, { from: "email" }),
+    { ok: false, code: "invalid_detail_value" }
+  );
+  assert.deepEqual(
+    validateEventDetail({ endpoint: "ftp://example.com" }, { endpoint: "url" }),
+    { ok: false, code: "invalid_detail_value" }
+  );
+  assert.deepEqual(
+    validateEventDetail({ duration: Number.MAX_SAFE_INTEGER + 1 }, { duration: "number" }),
+    { ok: false, code: "invalid_detail_value" }
+  );
+});

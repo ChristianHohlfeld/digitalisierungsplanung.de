@@ -8674,15 +8674,15 @@
     const initialStoredModel = initialEditorState?.model ? null : loadModel();
     const initialPersistedModelExists = Boolean(initialEditorState?.model || initialStoredModel);
     const DEFAULT_STATE_VARIABLE_TYPES = [
-      { value: "text", id: "text", label: "Text", jsonType: "string", default: "", constraints: {} },
-      { value: "email", id: "email", label: "E-Mail", jsonType: "string", default: "", constraints: { format: "email" } },
-      { value: "password", id: "password", label: "Passwort", jsonType: "string", default: "", constraints: { sensitive: true } },
-      { value: "number", id: "number", label: "Zahl", jsonType: "number", default: 0, constraints: { finite: true } },
-      { value: "boolean", id: "boolean", label: "Wahr/Falsch", jsonType: "boolean", default: false, constraints: {} },
-      { value: "url", id: "url", label: "URL", jsonType: "string", default: "", constraints: { format: "url" } },
-      { value: "image", id: "image", label: "Bild", jsonType: "string", default: "", constraints: { format: "image-url-or-data-uri" } },
-      { value: "object", id: "object", label: "Objekt", jsonType: "object", default: {}, constraints: { plainObject: true } },
-      { value: "list", id: "list", label: "Liste", jsonType: "array", default: [], constraints: {} }
+      { value: "text", id: "text", label: "Text", jsonType: "string", default: "", constraints: { minLength: 0, maxLength: 20000 } },
+      { value: "email", id: "email", label: "E-Mail", jsonType: "string", default: "", constraints: { format: "email", minLength: 0, maxLength: 320 } },
+      { value: "password", id: "password", label: "Passwort", jsonType: "string", default: "", constraints: { sensitive: true, minLength: 0, maxLength: 4096 } },
+      { value: "number", id: "number", label: "Zahl", jsonType: "number", default: 0, constraints: { finite: true, min: -9007199254740991, max: 9007199254740991 } },
+      { value: "boolean", id: "boolean", label: "Wahr/Falsch", jsonType: "boolean", default: false, constraints: { enum: [true, false] } },
+      { value: "url", id: "url", label: "URL", jsonType: "string", default: "", constraints: { format: "url", protocols: ["http", "https"], minLength: 0, maxLength: 2048 } },
+      { value: "image", id: "image", label: "Bild", jsonType: "string", default: "", constraints: { format: "image-url-or-data-uri", protocols: ["http", "https", "data"], minLength: 0, maxLength: 1000000 } },
+      { value: "object", id: "object", label: "Objekt", jsonType: "object", default: {}, constraints: { plainObject: true, maxDepth: 8, maxProperties: 200 } },
+      { value: "list", id: "list", label: "Liste", jsonType: "array", default: [], constraints: { maxDepth: 8, maxItems: 1000 } }
     ];
     let productContract = null;
     let productContractPromise = null;
@@ -11045,7 +11045,9 @@
         label: String(value.label || dataPathLabel(name.replace(/^realtime\./, ""), "Realtime event")).trim().slice(0, 80),
         description: String(value.description || "").trim().slice(0, 240),
         detail: normalizeRealtimeDetailSchema(value.detail),
-        bindings: normalizeRealtimeEventBindings(value.bindings)
+        detailSchemas: normalizeProductContractFieldSchemas(value.detailSchemas),
+        bindings: normalizeRealtimeEventBindings(value.bindings),
+        contributes: normalizeProductContractContribution(value.contributes)
       };
     }
 
@@ -11086,6 +11088,97 @@
       };
     }
 
+    function normalizeProductContractFieldSchema(value) {
+      if (!isPlainObject(value)) return null;
+      const rawType = String(value.type || "").trim().toLowerCase();
+      const allowed = new Set(DEFAULT_STATE_VARIABLE_TYPES.map(item => item.value));
+      const type = allowed.has(rawType) ? rawType : "text";
+      return {
+        type,
+        jsonType: String(value.jsonType || "").trim(),
+        default: value.default,
+        constraints: isPlainObject(value.constraints) ? value.constraints : {}
+      };
+    }
+
+    function normalizeProductContractFieldSchemas(value) {
+      if (!isPlainObject(value)) return {};
+      const out = {};
+      for (const [path, schema] of Object.entries(value)) {
+        const cleanPath = normalizeBindingPath(path, "");
+        const cleanSchema = normalizeProductContractFieldSchema(schema);
+        if (cleanPath && cleanSchema) out[cleanPath] = cleanSchema;
+      }
+      return out;
+    }
+
+    function normalizeProductContractFieldTypes(value) {
+      if (!isPlainObject(value)) return {};
+      const out = {};
+      for (const [path, type] of Object.entries(value)) {
+        const cleanPath = normalizeBindingPath(path, "");
+        if (!cleanPath) continue;
+        out[cleanPath] = normalizeStateVariableType(type, "text");
+      }
+      return out;
+    }
+
+    function normalizeProductContractContribution(value) {
+      if (!isPlainObject(value)) return null;
+      const root = normalizeBindingPath(value.root || "", "");
+      const fieldTypes = normalizeProductContractFieldTypes(value.fieldTypes);
+      const fieldSchemas = normalizeProductContractFieldSchemas(value.fieldSchemas);
+      return {
+        id: String(value.id || root || "").trim(),
+        source: String(value.source || value.id || "contract").trim(),
+        root,
+        fields: (Array.isArray(value.fields) ? value.fields : []).map(field => normalizeBindingPath(field, "")).filter(Boolean),
+        fieldTypes,
+        fieldSchemas
+      };
+    }
+
+    function normalizeProductContractDataset(value) {
+      if (!isPlainObject(value)) return null;
+      const id = normalizeTransitionEvent(value.id || "");
+      if (!id) return null;
+      return {
+        ...value,
+        id,
+        fields: normalizeRealtimeDetailSchema(value.fields),
+        fieldSchemas: normalizeProductContractFieldSchemas(value.fieldSchemas),
+        contributes: normalizeProductContractContribution(value.contributes)
+      };
+    }
+
+    function normalizeProductContractPreset(value) {
+      if (!isPlainObject(value)) return null;
+      const id = String(value.id || "").trim();
+      if (!id) return null;
+      const rootStateId = String(value.rootStateId || value.id || "");
+      const data = normalizeStateDataObject(value.data);
+      return {
+        ...value,
+        id,
+        title: String(value.title || "Zustandsvorlage"),
+        description: String(value.description || ""),
+        renderMode: normalizeStateRenderMode(value.renderMode),
+        builtIn: value.builtIn !== false,
+        rootStateId,
+        components: normalizeComponents(value.components || []),
+        data,
+        dataTypes: normalizeDataTypes(value.dataTypes, data),
+        dataSource: normalizeDataSource(value.dataSource, stateDataScopeForId(rootStateId || id) + ".fetch"),
+        repeat: normalizeRepeatConfig(value.repeat),
+        dataWires: normalizeDataWires(value.dataWires),
+        subscriptions: normalizeSubscriptions(value.subscriptions),
+        boundary: normalizeBoundaryConfig(value.boundary),
+        states: snapshotTemplateStates(value),
+        transitions: snapshotTemplateTransitions(value),
+        stateContribution: normalizeProductContractContribution(value.stateContribution)
+      };
+    }
+
     function normalizeProductContractTriggerType(value) {
       if (!isPlainObject(value)) return null;
       const id = normalizeTransitionEvent(value.id || "");
@@ -11109,22 +11202,24 @@
         valueTypes: (Array.isArray(source.valueTypes) ? source.valueTypes : []).map(normalizeProductContractValueType).filter(Boolean),
         connectorTypes: Array.isArray(source.connectorTypes) ? source.connectorTypes : [],
         triggerTypes: (Array.isArray(source.triggerTypes) ? source.triggerTypes : []).map(normalizeProductContractTriggerType).filter(Boolean),
-        datasets: Array.isArray(source.datasets) ? source.datasets : [],
+        datasets: (Array.isArray(source.datasets) ? source.datasets : []).map(normalizeProductContractDataset).filter(Boolean),
         connectors: Array.isArray(source.connectors) ? source.connectors : [],
-        presets: Array.isArray(source.presets) ? source.presets : [],
-        stateContributions: Array.isArray(source.stateContributions) ? source.stateContributions : [],
+        presets: (Array.isArray(source.presets) ? source.presets : []).map(normalizeProductContractPreset).filter(Boolean),
+        stateContributions: (Array.isArray(source.stateContributions) ? source.stateContributions : []).map(normalizeProductContractContribution).filter(Boolean),
         release: isPlainObject(source.release) ? source.release : null
       };
     }
 
     async function fetchProductContract(options = {}) {
       const force = options.force === true;
+      const notify = options.notify !== false;
       if (!force && productContractPromise) return productContractPromise;
       productContractPromise = fetch(PRODUCT_CONTRACT_URL, { method: "GET", cache: "no-store", credentials: "omit" })
         .then(async response => {
           const payload = await response.json().catch(() => ({}));
           if (!response.ok) throw new Error(payload.error || "Product contract failed");
           productContract = normalizeProductContractPayload(payload);
+          if (notify) refreshProductContractConsumers();
           return productContract;
         });
       try {
@@ -11196,10 +11291,11 @@
         if (!isPlainObject(contribution)) continue;
         const source = String(contribution.source || contribution.id || "contract").trim();
         const fieldTypes = isPlainObject(contribution.fieldTypes) ? contribution.fieldTypes : {};
+        const fieldSchemas = isPlainObject(contribution.fieldSchemas) ? contribution.fieldSchemas : {};
         for (const field of Array.isArray(contribution.fields) ? contribution.fields : []) {
           const path = normalizeBindingPath(field, "");
           if (!path) continue;
-          out.push({ path, source, type: fieldTypes[path] || "value", value: undefined });
+          out.push({ path, source, type: fieldTypes[path] || fieldSchemas[path]?.type || "value", schema: fieldSchemas[path] || null, value: undefined });
         }
       }
       return out;
@@ -11207,6 +11303,7 @@
 
     function refreshProductContractConsumers() {
       if (typeof refreshInspectorForSelection === "function") refreshInspectorForSelection();
+      if (typeof renderStateExplorer === "function") renderStateExplorer();
     }
 
     function modelRealtimeTriggerEvents(sourceModel = model) {
@@ -17648,203 +17745,7 @@
     }
 
     function builtinStateTemplates() {
-      const component = (id, type, text = "", url = "", extra = {}) => ({ id, type, text, url, ...extra });
-      const daisy = (variant, title, key = variant) => component("builtin_daisy_" + normalizeId(key) + "_component", "daisy", "", "", {
-        variant,
-        dataPath: stateDataScopeForId(key),
-        dataRole: "widget",
-        dataLabel: title
-      });
-      const template = item => ({
-        components: [],
-        data: {},
-        renderMode: "state",
-        builtIn: true,
-        rootStateId: item.id,
-        ...item
-      });
-      const daisyTemplate = spec => {
-        const key = normalizeId(spec.id);
-        const defaults = normalizeStateDataObject(spec.data);
-        return template({
-          id: "builtin_daisy_" + key,
-          rootStateId: key,
-          title: spec.title,
-          description: spec.description || "Komponente mit geteilten Daten dieses Zustands verbunden.",
-          components: [daisy(spec.variant || spec.id, spec.title, spec.id)],
-          data: defaults,
-          dataTypes: {},
-          transitions: Array.isArray(spec.transitions) ? spec.transitions : []
-        });
-      };
-      const officialHeroBody = "Eine klare Einleitung für eine echte Seite, ein Angebot oder einen Prozess mit einem eindeutigen nächsten Schritt.";
-      const contentListSampleItems = [
-        {
-          title: "Starter-Paket",
-          description: "Eine klare Angebotskarte mit Bild, Titel, Kurztext und Preis.",
-          image: DEFAULT_IMAGE_COMPONENT_URL,
-          price: "EUR 29",
-          tag: "Beliebt"
-        },
-        {
-          title: "Team-Workshop",
-          description: "Ein zweiter Eintrag mit denselben Feldern, bereit für echte API-Daten.",
-          image: DEFAULT_IMAGE_COMPONENT_URL,
-          price: "EUR 149",
-          tag: "Neu"
-        }
-      ];
-      const contentListFetchPath = stateDataScopeForId("content_list") + ".fetch";
-      const contentListDataPath = contentListFetchPath + ".data";
-      const contentListWire = (id, itemPath, role, componentType, label) => ({
-        id,
-        sourcePath: contentListDataPath + "." + itemPath,
-        scopePath: contentListDataPath,
-        itemPath,
-        role,
-        componentType,
-        label
-      });
-      const featurePresetImages = {
-        screens: "https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=900&q=80",
-        data: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=900&q=80",
-        events: "https://images.unsplash.com/photo-1518005020951-eccb494ad742?auto=format&fit=crop&w=900&q=80"
-      };
-      const daisySpecs = [
-        { id: "accordion", title: "FAQ-Akkordeon", description: "Aufklappbare FAQ- oder Hilfebereiche aus gemeinsamen Daten.", data: { open: "Versand", items: [{ label: "Versand", body: "Bestellungen werden in der Regel innerhalb von zwei Werktagen versendet." }, { label: "Rückgabe", body: "Kunden können innerhalb von 30 Tagen eine Rückgabe anfragen." }] } },
-        { id: "alert", title: "Hinweisbanner", description: "Statusmeldung für Erfolg, Warnung, Info oder Fehler.", data: { tone: "info", message: "Ein neues Software-Update ist verfügbar." } },
-        { id: "avatar", title: "Benutzer-Avatar", description: "Benutzerbild, Platzhalter oder Avatar-Gruppe aus gemeinsamen Daten.", data: { name: "Mira Keller", image: "", status: "online", size: "w-16", shape: "rounded-full", ring: true, initials: "MK", avatars: [] } },
-        { id: "badge", title: "Status-Badge", description: "Kompaktes Label für Status, Tags oder Zähler.", data: { label: "Neu", tone: "primary" } },
-        { id: "bottom-navigation", title: "Mobile Fußnavigation", description: "Touchfreundliche mobile Navigation aus gemeinsamen Daten.", data: { selected: "Start", items: ["Start", "Suche", "Profil"] } },
-        { id: "breadcrumbs", title: "Breadcrumb-Pfad", description: "Aktueller Seitenpfad aus strukturierten Einträgen.", data: { items: [{ label: "Start", transitionId: "" }, { label: "Projekte", transitionId: "" }, { label: "Aktuell", transitionId: "" }] } },
-        { id: "button", title: "Aktionsbutton", description: "Primäre Schaltfläche, die Klickzustand schreibt oder echte ausgehende Übergänge feuert.", data: { label: "Weiter", clicked: false, clickedAt: 0 } },
-        { id: "card", title: "Produktkarte", description: "Bildkarte mit Titel, Kurztext und Aktionsfeld.", data: { title: "Premium-Sneaker", body: "Leichte Schuhe für Alltag, Arbeit und Reisen.", image: "https://img.daisyui.com/images/stock/photo-1606107557195-0e29a4b5b4aa.webp", imageAlt: "Schuhe", actionLabel: "Jetzt kaufen" } },
-        { id: "feature-grid", title: "Feature-Raster", description: "Responsive Feature-Karten, deren Aktionen echte FSM-Zustände ansteuern.", data: { eyebrow: "Vorteile", heading: "Alles für einen sauberen Ablauf", body: "Nutze diese Vorlage für Produktvorteile, App-Bereiche oder Navigationsteaser.", selected: "", items: [{ title: "Wiederverwendbare Ansichten", body: "Seiten aus Bausteinen zusammensetzen, ohne Verhalten im HTML zu verstecken.", image: featurePresetImages.screens, imageAlt: "Wiederverwendbare Bildschirmbereiche in einem Arbeitsbereich", features: ["Gescopte Zustandsdaten", "Explizite Übergangsaktion"], actionLabel: "Ansichten ansehen", transitionId: "" }, { title: "Datengebundene UI", body: "Felder und Labels lesen aus dem globalen JSON-Bus.", image: featurePresetImages.data, imageAlt: "Dashboard-Daten als Grundlage für UI-Karten", features: ["eine Wahrheit", "In Eigenschaften editierbar"], actionLabel: "Datenfluss ansehen", transitionId: "" }, { title: "FSM-sichere Ereignisse", body: "Schaltflächen feuern nur Übergänge, die wirklich existieren.", image: featurePresetImages.events, imageAlt: "Strukturierte Ereignisverbindungen", features: ["Keine lokale Navigation", "Kein Label-Raten"], actionLabel: "Ereignisse prüfen", transitionId: "" }] } },
-        { id: "pricing", title: "Preiskarten", description: "Drei Angebotskarten, deren Schaltflächen auf echte Zustände verdrahtet sind.", data: { selectedPlan: "", plans: [{ title: "Klarheit", price: "1.900 EUR", period: "einmalig", body: "Für einen kritischen Ablauf, der vor der Umsetzung verstanden werden muss.", features: ["Ein Prozessbild", "Klare Verantwortliche", "Nächster Schritt"], actionLabel: "Klarheit anfragen", transitionId: "" }, { title: "Blueprint", badge: "Beliebt", price: "4.900 EUR", period: "Projekt", body: "Für Teams, die einen Ablauf prüfbar modellieren und übergeben wollen.", features: ["Mehrere Pfade", "Daten und Auslöser", "Klickbare Prüfung"], highlight: true, actionLabel: "Blueprint anfragen", transitionId: "" }, { title: "Begleitung", badge: "Individuell", price: "auf Anfrage", period: "laufend", body: "Für Umsetzung mit klaren Schnittstellen, Abnahmen und Prioritäten.", features: ["Übergabe vorbereiten", "Automatisierung prüfen", "Risiken senken"], actionLabel: "Begleitung anfragen", transitionId: "" }] } },
-        { id: "carousel", title: "Bildkarussell", description: "Bildindex und Bilder liegen in gemeinsamen Daten.", data: { index: 0, images: ["https://picsum.photos/seed/state-1/640/360", "https://picsum.photos/seed/state-2/640/360", "https://picsum.photos/seed/state-3/640/360"] } },
-        { id: "checkbox", title: "Checkbox-Feld", description: "Checkbox-Auswahlen werden gespeichert und können Übergänge steuern.", data: { legend: "Einstellungen", items: [{ label: "Angemeldet bleiben", checked: false }], checked: false } },
-        { id: "countdown", title: "Countdown-Timer", description: "Timerwerte laufen in gemeinsamen Daten herunter und können den nächsten Zustand auslösen.", data: { duration: 20, value: 20, label: "Sekunden übrig", running: true, finished: false, startedAt: 0, endsAt: 0 } },
-        { id: "drawer", title: "Seitenmenü", description: "Offen- und Auswahlwerte sind gemeinsame Felder.", data: { open: false, title: "Menü", selected: "Posteingang", items: ["Posteingang", "Einstellungen", "Hilfe"] } },
-        { id: "dropdown", title: "Auswahlmenü", description: "Die Auswahl wird in gemeinsame Daten geschrieben.", data: { selected: "Option A", options: ["Option A", "Option B", "Option C"], open: false } },
-        { id: "file-input", title: "Datei-Upload", description: "Der ausgewählte Dateiname wird in gemeinsame Daten geschrieben.", data: { label: "Datei hochladen", filename: "" } },
-        { id: "footer", title: "Fußzeile", description: "Fußzeilen-Spalten, deren Einträge auf echte Zustände verdrahtet werden können.", data: { brand: "Zustand GmbH", note: "Wiederverwendbare Fußzeile aus gescopten Zustandsdaten.", columns: [{ title: "Produkt", items: [{ label: "Vorteile", transitionId: "" }, { label: "Angebot", transitionId: "" }] }, { title: "Unternehmen", items: [{ label: "Kontakt", transitionId: "" }] }] } },
-        { id: "hero", title: "Titelbereich", description: "Zentrierter Titelbereich aus Zustandsdaten.", data: { layout: "centered", title: "Mach dein Angebot sichtbar", body: officialHeroBody, actionLabel: "Loslegen" } },
-        { id: "hero-figure", variant: "hero", title: "Titelbereich mit Bild", description: "Titelbereich mit Text und Bild.", data: { layout: "figure", title: "Produkt-Update", body: officialHeroBody, actionLabel: "Mehr erfahren", image: "https://img.daisyui.com/images/stock/photo-1635805737707-575885ab0820.webp" } },
-        { id: "hero-figure-reverse", variant: "hero", title: "Titelbereich mit Bild rechts", description: "Titelbereich mit Bild und Text in umgekehrter offizieller Zeilenanordnung.", data: { layout: "figure-reverse", title: "Kampagnenstart", body: officialHeroBody, actionLabel: "Plan prüfen", image: "https://img.daisyui.com/images/stock/photo-1635805737707-575885ab0820.webp" } },
-        { id: "hero-form", variant: "hero", title: "Titelbereich mit Anmeldeformular", description: "Titelbereich mit E-Mail- und Passwortfeldern aus gemeinsamen Daten.", data: { layout: "form", title: "Im Arbeitsbereich anmelden", body: "E-Mail und Passwort eingeben, um zum Konto zu wechseln.", actionLabel: "Anmelden", emailLabel: "E-Mail", passwordLabel: "Passwort", forgotLabel: "Passwort vergessen?", email: "", password: "" } },
-        { id: "hero-overlay", variant: "hero", title: "Titelbereich mit Bildüberlagerung", description: "Inhalt liegt über einem Bild.", data: { layout: "overlay", title: "Plane deine nächste Kampagne", body: officialHeroBody, actionLabel: "Planung starten", image: "https://img.daisyui.com/images/stock/photo-1507358522600-9f71e620c44e.webp" } },
-        { id: "indicator", title: "Benachrichtigungs-Badge", description: "Zähler und Label kommen aus gemeinsamen Daten.", data: { label: "Posteingang", count: 3 } },
-        { id: "input", title: "Textfeld", description: "Textfeld schreibt den Wert in gemeinsame Daten.", data: { label: "Name", value: "" } },
-        { id: "loading", title: "Ladezustand", description: "Ladeanzeige, die über einen echten FSM-Timer-Übergang weiterläuft.", data: { label: "Lädt...", active: true, durationMs: 2000, nextLabel: "Weiter" } },
-        { id: "mask", title: "Bildmaske", description: "Bild wird über gemeinsame Daten in eine wiederverwendbare Form geschnitten.", data: { image: "https://img.daisyui.com/images/stock/photo-1635805737707-575885ab0820.webp", alt: "Maskiertes Bild", shape: "squircle" } },
-        { id: "menu", title: "Navigationsmenü", description: "Menüauswahl wird in gemeinsamen Daten gespeichert.", data: { selected: "Dashboard", items: ["Dashboard", "Aufgaben", "Einstellungen"] } },
-        { id: "modal", title: "Bestätigungsdialog", description: "Öffnungszustand und Bestätigung sind gemeinsame Felder.", data: { open: false, confirmed: false, openLabel: "Dialog öffnen", title: "Aktion bestätigen", body: "Prüfe die Details, bevor du fortfährst.", actionLabel: "Bestätigen", closeLabel: "Schließen" } },
-        { id: "navbar-title", variant: "navbar", title: "Kopfleiste einfach", description: "Einfache Marken-Navigationsleiste.", data: { layout: "title-only", brand: "Zustand GmbH" } },
-        { id: "navbar-menu-submenu", variant: "navbar", title: "Kopfleiste mit Menü", description: "Navigationsleiste mit Seitenlinks und optionalem Untermenü.", data: { layout: "menu-submenu", brand: "Zustand GmbH", selected: "Dashboard", items: ["Dashboard", "Projekte", "Einstellungen"], parent: "Mehr", submenu: [], submenuOpen: true } },
-        { id: "navbar-search-dropdown", variant: "navbar", title: "Kopfleiste Suche/Profil", description: "Navigationsleiste mit Sucheingabe und Profilmenü.", data: { layout: "search-dropdown", brand: "Zustand GmbH", search: "", profileOpen: false, avatar: "https://img.daisyui.com/images/stock/photo-1534528741775-53994a69daeb.webp", menuItems: ["Profil", "Einstellungen", "Abmelden"], badge: "Neu" } },
-        { id: "navbar-cart-profile", variant: "navbar", title: "Kopfleiste Shop/Warenkorb", description: "Shop-Navigation mit Warenkorb-Badge und Profilmenü.", data: { layout: "cart-profile", brand: "Zustand Shop", cartOpen: false, profileOpen: false, cartCount: 8, cartLabel: "Artikel", subtotal: "248 EUR", actionLabel: "Warenkorb ansehen", avatar: "https://img.daisyui.com/images/stock/photo-1534528741775-53994a69daeb.webp", menuItems: ["Profil", "Einstellungen", "Abmelden"], badge: "Neu" } },
-        { id: "progress", title: "Fortschrittsbalken", description: "Linearer Fortschritt aus Wert- und Max-Feldern.", data: { value: 45, max: 100, label: "Fortschritt" } },
-        { id: "radial-progress", title: "Fortschrittsring", description: "Kreisförmiger Fortschritt aus Wert- und Max-Feldern.", data: { value: 66, max: 100, label: "Abgeschlossen" } },
-        { id: "radio", title: "Radio-Gruppe", description: "Radio-Auswahl wird in gemeinsamen Daten gespeichert.", data: { label: "Tarif", value: "Team", options: ["Gratis", "Team", "Enterprise"] } },
-        { id: "range", title: "Schieberegler", description: "Numerischer Sliderwert wird in gemeinsame Daten geschrieben.", data: { label: "Priorität", value: 40, min: 0, max: 100 } },
-        { id: "rating", title: "Sternebewertung", description: "Bewertungswert wird in gemeinsame Daten geschrieben.", data: { label: "Bewertung", value: 3, max: 5 } },
-        { id: "select", title: "Auswahlfeld", description: "Auswahlwert wird in gemeinsame Daten geschrieben.", data: { label: "Status", value: "Offen", options: ["Offen", "In Bearbeitung", "Erledigt"] } },
-        { id: "stat", title: "Kennzahl", description: "Kennzahl-Titel, Wert und Beschreibung aus gemeinsamen Daten.", data: { title: "Umsatz", value: "12,4 Tsd. EUR", description: "+8% diese Woche" } },
-        { id: "steps", title: "Prozessschritte", description: "Prozessleiste mit optionalen echten FSM-Übergängen pro Schritt.", data: { current: "Bauen", items: [{ label: "Planen", description: "Ansicht und Datenvertrag definieren." }, { label: "Bauen", description: "Komponenten mit echten Übergängen verdrahten." }, { label: "Veröffentlichen", description: "Vorschau prüfen, testen und exportieren." }] } },
-        { id: "table", title: "Datentabelle", description: "Spalten und Zeilen werden aus gemeinsamen Datenarrays gerendert.", data: { columns: ["Auftrag", "Status"], rows: [["Auftrag #1024", "Bezahlt"], ["Auftrag #1025", "Ausstehend"]] } },
-        { id: "tabs", title: "Inhalts-Tabs", description: "Aktiver Tab wird in gemeinsamen Daten gespeichert.", data: { selected: "Übersicht", items: ["Übersicht", "Details", "Aktivität"] } },
-        { id: "textarea", title: "Textbereich", description: "Textbereich schreibt den Wert in gemeinsame Daten.", data: { label: "Notizen", value: "" } },
-        { id: "timeline", title: "Zeitachse", description: "Timeline-Einträge werden aus gemeinsamen Daten gerendert.", data: { current: "Prüfung", items: [{ title: "Entwurf", body: "Erstellt" }, { title: "Prüfung", body: "In Bearbeitung" }, { title: "Livegang", body: "Ausstehend" }] } },
-        { id: "toast", title: "Toast-Meldung", description: "Toast-Sichtbarkeit und Nachricht sind gemeinsame Felder; Ausblenden ist ein echter Timer-Übergang.", data: { visible: true, tone: "info", message: "Neue Nachricht eingetroffen." }, transitions: [{ id: "toast_dismiss", from: "toast", to: "toast", label: "Toast ausblenden", condition: "states.toast.visible == true", triggerType: "timer", timerMs: 3000, set: { "states.toast.visible": false } }] },
-        { id: "toggle", title: "Schalter", description: "Schalterwert wird in gemeinsame Daten geschrieben.", data: { legend: "Einstellungen", label: "Angemeldet bleiben", checked: true } }
-      ];
-      const coreTemplates = [
-        template({
-          id: "builtin_page_heading",
-          title: "Seitenüberschrift",
-          description: "Klare Überschrift für Seiten, Dashboards und Formulare.",
-          renderMode: "component",
-          components: [component("builtin_page_heading_component", "heading", "Seitentitel")]
-        }),
-        template({
-          id: "builtin_body_copy",
-          title: "Textblock",
-          description: "Normaler Text für Hinweise, Erklärungen oder Zusammenfassungen.",
-          renderMode: "component",
-          components: [component("builtin_body_copy_component", "text", "Schreibe hier die hilfreiche Erklärung.")]
-        }),
-        template({
-          id: "builtin_media_image",
-          title: "Bildblock",
-          description: "Bildbereich für Produkte, Diagramme, Avatare oder Cover.",
-          renderMode: "component",
-          components: [component("builtin_media_image_component", "image", "Bildbeschreibung", DEFAULT_IMAGE_COMPONENT_URL)]
-        }),
-        template({
-          id: "builtin_task_checklist",
-          title: "Aufgaben-Checkliste",
-          description: "Wiederverwendbare Checkliste für Aufgaben, Onboarding oder Qualitätssicherung.",
-          renderMode: "component",
-          components: [component("builtin_task_checklist_component", "list", "Verantwortung klären\nFrist prüfen\nNachweis anhängen\nErledigt markieren")]
-        }),
-        template({
-          id: "builtin_external_link",
-          title: "Externer Link",
-          description: "Einzelner Link zu Dokumentation, Support, Kalender oder Download.",
-          renderMode: "component",
-          components: [component("builtin_external_link_component", "link", "Dokumentation öffnen", "https://example.com/docs")]
-        }),
-        template({
-          id: "builtin_info_note",
-          title: "Infobox",
-          description: "Hervorgehobener Hinweis für Warnungen, Tipps oder nächste Schritte.",
-          renderMode: "component",
-          components: [component("builtin_info_note_component", "note", "Wichtiger Kontext steht hier.")]
-        }),
-        template({
-          id: "builtin_section_divider",
-          title: "Abschnittstrenner",
-          description: "Visuelle Trennung zwischen dichten Inhaltsgruppen.",
-          renderMode: "component",
-          components: [component("builtin_section_divider_component", "divider")]
-        }),
-        template({
-          id: "builtin_content_list",
-          rootStateId: "content_list",
-          title: "Inhaltsliste",
-          description: "Kartenliste aus Beispieldaten oder aus einem JSON-Endpunkt.",
-          components: [],
-          data: {
-            fetch: {
-              status: "sample",
-              loading: false,
-              done: true,
-              ok: true,
-              data: contentListSampleItems,
-              error: "",
-              statusCode: 0,
-              count: contentListSampleItems.length,
-              url: ""
-            }
-          },
-          dataTypes: { fetch: "object" },
-          dataWires: [
-            contentListWire("builtin_content_list_image", "image", "image", "image", "Bild"),
-            contentListWire("builtin_content_list_title", "title", "title", "heading", "Titel"),
-            contentListWire("builtin_content_list_description", "description", "description", "text", "Beschreibung"),
-            contentListWire("builtin_content_list_price", "price", "price", "text", "Preis")
-          ],
-          dataSource: {
-            url: "",
-            target: contentListFetchPath,
-            select: "",
-            timeoutMs: 8000,
-            retries: 2
-          },
-          repeat: { path: contentListDataPath, as: "item", index: "i", manual: true }
-        })
-      ];
-      return [...daisySpecs.map(daisyTemplate), ...coreTemplates];
+      return Array.isArray(productContract?.presets) ? productContract.presets : [];
     }
 
     function templateById(templateId) {
@@ -19192,7 +19093,7 @@
     }
 
     async function fetchRealtimeEvents(options = {}) {
-      await fetchProductContract({ force: options.force === true });
+      await fetchProductContract({ force: options.force === true, notify: false });
       const events = productContractRealtimeEvents();
       if (!events.length) throw new Error("Ereigniskatalog ist leer");
       return events;

@@ -1180,6 +1180,7 @@ test.describe("Core source contracts", () => {
   test("repeat sources offer readable candidates without auto-mapping render rows @smoke", () => {
     const html = stateHtml();
     const appHtml = generatedAppHtml();
+    const presetCatalog = fs.readFileSync(path.join(process.cwd(), "server", "preset-catalog.js"), "utf8");
 
     expect(html).toContain("function derivedRepeatComponents");
     expect(html).toContain("function pickDerivedRepeatFields");
@@ -1219,13 +1220,14 @@ test.describe("Core source contracts", () => {
     expect(html).not.toContain("Fetch automap");
     expect(html).not.toContain("Open fetch automap");
     expect(html).not.toContain("api.escuelajs");
-    expect(html).toContain('title: "Inhaltsliste"');
-    expect(html).not.toContain('title: "API list"');
-    expect(html).not.toContain("builtin_api_list");
-    expect(html).not.toContain('title: "Theme Controller"');
-    expect(html).not.toContain('title: "Kopfleiste - Farben"');
-    expect(html).toContain('title: "Titelbereich mit Bild rechts"');
-    expect(html).toContain('title: "Aktionsbutton"');
+    expect(html).not.toContain('title: "Inhaltsliste"');
+    expect(presetCatalog).toContain('title: "Inhaltsliste"');
+    expect(presetCatalog).not.toContain('title: "API list"');
+    expect(presetCatalog).not.toContain("builtin_api_list");
+    expect(presetCatalog).not.toContain('title: "Theme Controller"');
+    expect(presetCatalog).not.toContain('title: "Kopfleiste - Farben"');
+    expect(presetCatalog).toContain('title: "Titelbereich mit Bild rechts"');
+    expect(presetCatalog).toContain('title: "Aktionsbutton"');
     expect(html).toContain("const SUPPORTED_DAISY_VARIANTS = new Set");
     expect(html).toContain("function runtimeSupportedDaisyComponent");
     expect(html).toContain("pruneUnsupportedDaisyRuntime");

@@ -227,22 +227,34 @@ test("serves the event and connector catalog only to allowed origins", async () 
     assert.ok(productContractPayload.valueTypes.some(type =>
       type.id === "number" &&
       type.jsonType === "number" &&
-      type.constraints.finite === true
+      type.constraints.finite === true &&
+      Number.isFinite(type.constraints.min) &&
+      Number.isFinite(type.constraints.max)
     ));
     assert.ok(productContractPayload.valueTypes.some(type =>
       type.id === "email" &&
       type.jsonType === "string" &&
-      type.constraints.format === "email"
+      type.constraints.format === "email" &&
+      type.constraints.maxLength === 320
     ));
     assert.ok(productContractPayload.datasets.some(dataset =>
       dataset.id === "realtime.sip.call.incoming" &&
-      dataset.fields.callId === "text"
+      dataset.fields.callId === "text" &&
+      dataset.fieldSchemas.callId.type === "text" &&
+      dataset.fieldSchemas.callId.constraints.maxLength === 20000
     ));
     assert.ok(productContractPayload.stateContributions.some(contribution =>
       contribution.root === "events.realtime.sip.call.incoming" &&
       contribution.fields.includes("events.realtime.sip.call.incoming.detail.callId") &&
-      contribution.fieldTypes["events.realtime.sip.call.incoming.detail.callId"] === "text"
+      contribution.fieldTypes["events.realtime.sip.call.incoming.detail.callId"] === "text" &&
+      contribution.fieldSchemas["events.realtime.sip.call.incoming.detail.callId"].type === "text"
     ));
+    const buttonPreset = productContractPayload.presets.find(preset => preset.id === "builtin_daisy_button");
+    assert.ok(buttonPreset);
+    assert.equal(buttonPreset.dataTypes.clicked, "boolean");
+    assert.equal(buttonPreset.stateContribution.root, "states.button");
+    assert.equal(buttonPreset.stateContribution.fieldSchemas["states.button.clicked"].type, "boolean");
+    assert.equal(buttonPreset.stateContribution.fieldSchemas["states.button.clicked"].jsonType, "boolean");
   });
 });
 
@@ -602,6 +614,22 @@ test("emits catalogued server events into a room without server-side state", asy
     });
     assert.equal(unknownDetail.status, 400);
     assert.deepEqual(await unknownDetail.json(), { error: "unknown_detail_field" });
+
+    const invalidEmail = await fetch(httpUrl(realtime, "/emit"), {
+      method: "POST",
+      headers: {
+        authorization: "Bearer emit-secret",
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        roomId: "room",
+        emitterId: "mail.gmail",
+        name: "realtime.mail.received",
+        detail: { from: "not-an-email", subject: "Hello", messageId: "m-123" }
+      })
+    });
+    assert.equal(invalidEmail.status, 400);
+    assert.deepEqual(await invalidEmail.json(), { error: "invalid_detail_value" });
 
     const wrongEmitter = await fetch(httpUrl(realtime, "/emit"), {
       method: "POST",

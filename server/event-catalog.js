@@ -2,11 +2,12 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const valueTypes = require("./value-types");
 
 const MAX_ID_LENGTH = 128;
 const MAX_EVENT_NAME_LENGTH = 160;
 const MAX_STATE_PATH_LENGTH = 240;
-const VALID_VALUE_TYPES = new Set(["text", "email", "password", "number", "boolean", "url", "image", "object", "list"]);
+const VALID_VALUE_TYPES = valueTypes.VALID_VALUE_TYPES;
 const VALID_EMITTER_TYPES = new Set(["sip", "email", "webhook", "data"]);
 const DEFAULT_EVENT_CATALOG_PATH = path.join(__dirname, "event-catalog.json");
 const DEFAULT_EVENT_CATALOG = Object.freeze({
@@ -155,8 +156,8 @@ function sanitizeStatePath(value) {
 }
 
 function normalizeValueType(value) {
-  const type = String(value || "").trim().toLowerCase();
-  if (!VALID_VALUE_TYPES.has(type)) throw contractError("invalid_value_type", `Invalid value type: ${value}`);
+  const type = valueTypes.normalizeValueType(value);
+  if (!type) throw contractError("invalid_value_type", `Invalid value type: ${value}`);
   return type;
 }
 
@@ -356,26 +357,75 @@ function emitterContributes(emitterId) {
   };
 }
 
+function fieldSchemasForTypes(fieldTypes) {
+  return valueTypes.fieldSchemasFromTypeMap(fieldTypes);
+}
+
+function eventContributionFieldTypes(event) {
+  const root = eventStateRoot(event.name);
+  return {
+    [`${root}.count`]: "number",
+    [`${root}.lastAt`]: "number",
+    [`${root}.detail`]: "object",
+    ...Object.fromEntries(
+      Object.entries(event.detail || {}).map(([path, type]) => [`${root}.detail.${path}`, type])
+    )
+  };
+}
+
+function emitterContributionFieldTypes(emitter) {
+  const root = emitterStateRoot(emitter.id);
+  return {
+    [`${root}.count`]: "number",
+    [`${root}.lastAt`]: "number",
+    [`${root}.lastEvent`]: "text",
+    [`${root}.lastDetail`]: "object",
+    [`${root}.status`]: "text",
+    [`${root}.error`]: "text"
+  };
+}
+
 function eventCatalogResponse(catalog) {
   return {
     provider: catalog.provider,
-    state: catalog.state,
-    events: catalog.events.map(event => ({
-      ...event,
-      contributes: {
-        root: eventStateRoot(event.name),
-        fields: [
-          `${eventStateRoot(event.name)}.count`,
-          `${eventStateRoot(event.name)}.lastAt`,
-          `${eventStateRoot(event.name)}.detail`,
-          ...Object.keys(event.detail).map(path => `${eventStateRoot(event.name)}.detail.${path}`)
-        ]
-      }
-    })),
-    emitters: catalog.emitters.map(emitter => ({
-      ...emitter,
-      contributes: emitterContributes(emitter.id)
-    }))
+    state: {
+      ...catalog.state,
+      fieldSchemas: fieldSchemasForTypes(
+        Object.fromEntries(
+          Object.entries(catalog.state.schema || {}).map(([statePath, type]) => [`${catalog.state.path}.${statePath}`, type])
+        )
+      )
+    },
+    events: catalog.events.map(event => {
+      const fieldTypes = eventContributionFieldTypes(event);
+      return {
+        ...event,
+        detailSchemas: fieldSchemasForTypes(event.detail || {}),
+        contributes: {
+          root: eventStateRoot(event.name),
+          fields: [
+            `${eventStateRoot(event.name)}.count`,
+            `${eventStateRoot(event.name)}.lastAt`,
+            `${eventStateRoot(event.name)}.detail`,
+            ...Object.keys(event.detail).map(path => `${eventStateRoot(event.name)}.detail.${path}`)
+          ],
+          fieldTypes,
+          fieldSchemas: fieldSchemasForTypes(fieldTypes)
+        }
+      };
+    }),
+    emitters: catalog.emitters.map(emitter => {
+      const contributes = emitterContributes(emitter.id);
+      const fieldTypes = emitterContributionFieldTypes(emitter);
+      return {
+        ...emitter,
+        contributes: {
+          ...contributes,
+          fieldTypes,
+          fieldSchemas: fieldSchemasForTypes(fieldTypes)
+        }
+      };
+    })
   };
 }
 
@@ -394,7 +444,8 @@ function validateEventDetail(detail, schema) {
   }
   for (const [key, type] of Object.entries(schema)) {
     if (!Object.hasOwn(detail, key)) return { ok: false, code: "missing_detail_field" };
-    if (!detailTypeMatches(detail[key], type)) return { ok: false, code: "invalid_detail_type" };
+    const validation = valueTypes.validateValueAgainstSchema(detail[key], valueTypes.fieldSchemaForType(type));
+    if (!validation.ok) return validation;
   }
   return { ok: true };
 }
@@ -406,8 +457,11 @@ module.exports = {
   VALID_VALUE_TYPES,
   contractError,
   eventCatalogResponse,
+  eventContributionFieldTypes,
   emitterContributes,
+  emitterContributionFieldTypes,
   emitterStateRoot,
+  fieldSchemasForTypes,
   loadEventCatalog,
   loadEventCatalogFile,
   sanitizeEventName,

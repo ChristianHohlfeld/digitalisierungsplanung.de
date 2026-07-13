@@ -115,10 +115,15 @@ Der Server in [`server/`](server/) ist nur Transport. Er speichert keine fachlic
 
 Der harte Contract kommt aus [`server/event-catalog.json`](server/event-catalog.json)
 und wird vom Server unter `/contract` als Product Contract ausgeliefert:
-Trigger-Typen, Value-Types mit Constraints, `realtime.*`-Datasets, Quellen und
-kollisionsfreie State-Beiträge. `/events` bleibt der schlanke Live-Katalog für
-Realtime-Events. Der Canvas speichert keine Katalogkopie, sondern nur konkrete
-Referenzen wie `triggerType: realtime` und `triggerEvent`.
+Trigger-Typen, Value-Types mit Constraints, `realtime.*`-Datasets, Quellen,
+Standard-Presets aus `server/preset-catalog.js` und kollisionsfreie
+State-Beiträge. Jedes Contract-Feld liefert neben `fieldTypes`
+auch `fieldSchemas` mit `type`, `jsonType`, `default` und `constraints`
+wie `min`, `max`, `maxLength`, `format`, `protocols`, `maxDepth` oder
+`maxItems`. `/emit` und WebSocket-Runtime-Events prüfen dieselben Schemas,
+bevor ein Event in den Raum darf. `/events` bleibt der schlanke Live-Katalog
+für Realtime-Events. Der Canvas speichert keine Katalogkopie, sondern nur
+konkrete Referenzen wie `triggerType: realtime` und `triggerEvent`.
 
 Der Designer arbeitet in der gleichen Reihenfolge wie der Canvas-Vertrag:
 Event-Type, Dataset-Key, Felder, Quelle. Das Admin-Secret bleibt lokal im

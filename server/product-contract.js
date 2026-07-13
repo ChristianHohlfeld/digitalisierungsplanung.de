@@ -1,70 +1,12 @@
 "use strict";
 
 const eventCatalog = require("./event-catalog");
+const presetCatalog = require("./preset-catalog");
+const valueTypes = require("./value-types");
 
 const CONTRACT_SCHEMA_VERSION = 1;
 
-const VALUE_TYPE_CONSTRAINTS = Object.freeze({
-  text: {
-    label: "Text",
-    jsonType: "string",
-    default: "",
-    constraints: { maxLength: 20000 }
-  },
-  email: {
-    label: "E-Mail",
-    jsonType: "string",
-    default: "",
-    constraints: { format: "email", maxLength: 320 }
-  },
-  password: {
-    label: "Password",
-    jsonType: "string",
-    default: "",
-    constraints: { sensitive: true, maxLength: 4096 }
-  },
-  number: {
-    label: "Number",
-    jsonType: "number",
-    default: 0,
-    constraints: { finite: true }
-  },
-  boolean: {
-    label: "Boolean",
-    jsonType: "boolean",
-    default: false,
-    constraints: {}
-  },
-  url: {
-    label: "URL",
-    jsonType: "string",
-    default: "",
-    constraints: { format: "url", protocols: ["http", "https"], maxLength: 2048 }
-  },
-  image: {
-    label: "Image",
-    jsonType: "string",
-    default: "",
-    constraints: { format: "image-url-or-data-uri", protocols: ["http", "https", "data"], maxLength: 1000000 }
-  },
-  object: {
-    label: "Object",
-    jsonType: "object",
-    default: {},
-    constraints: { plainObject: true }
-  },
-  list: {
-    label: "List",
-    jsonType: "array",
-    default: [],
-    constraints: {}
-  }
-});
-
-const VALUE_TYPES = [...eventCatalog.VALID_VALUE_TYPES].map(id => ({
-  id,
-  ...VALUE_TYPE_CONSTRAINTS[id]
-}));
+const VALUE_TYPES = valueTypes.valueTypeList();
 
 const CONNECTOR_TYPES = [...eventCatalog.VALID_EMITTER_TYPES].map(id => ({
   id,
@@ -143,6 +85,7 @@ function triggerTypesForCatalog(catalog) {
         label: event.label,
         description: event.description,
         detail: event.detail,
+        detailSchemas: event.detailSchemas,
         contributes: event.contributes
       }))
     };
@@ -158,6 +101,7 @@ function datasetsForCatalog(catalog) {
     label: event.label,
     description: event.description,
     fields: event.detail,
+    fieldSchemas: event.detailSchemas,
     contributes: event.contributes
   }));
 }
@@ -167,43 +111,30 @@ function stateContributionsForCatalog(catalog) {
   const runtimeFieldTypes = Object.fromEntries(
     Object.entries(response.state.schema || {}).map(([path, type]) => [`${response.state.path}.${path}`, type])
   );
-  const eventFieldTypes = event => ({
-    [`${event.contributes.root}.count`]: "number",
-    [`${event.contributes.root}.lastAt`]: "number",
-    [`${event.contributes.root}.detail`]: "object",
-    ...Object.fromEntries(
-      Object.entries(event.detail || {}).map(([path, type]) => [`${event.contributes.root}.detail.${path}`, type])
-    )
-  });
-  const emitterFieldTypes = emitter => ({
-    [`${emitter.contributes.root}.count`]: "number",
-    [`${emitter.contributes.root}.lastAt`]: "number",
-    [`${emitter.contributes.root}.lastEvent`]: "text",
-    [`${emitter.contributes.root}.lastDetail`]: "object",
-    [`${emitter.contributes.root}.status`]: "text",
-    [`${emitter.contributes.root}.error`]: "text"
-  });
   return [
     {
       id: response.state.path,
       source: "runtime",
       root: response.state.path,
       fields: Object.keys(response.state.schema).map(path => `${response.state.path}.${path}`),
-      fieldTypes: runtimeFieldTypes
+      fieldTypes: runtimeFieldTypes,
+      fieldSchemas: valueTypes.fieldSchemasFromTypeMap(runtimeFieldTypes)
     },
     ...response.events.map(event => ({
       id: event.name,
       source: "event",
       root: event.contributes.root,
       fields: event.contributes.fields,
-      fieldTypes: eventFieldTypes(event)
+      fieldTypes: event.contributes.fieldTypes,
+      fieldSchemas: event.contributes.fieldSchemas
     })),
     ...response.emitters.map(emitter => ({
       id: emitter.id,
       source: "connector",
       root: emitter.contributes.root,
       fields: emitter.contributes.fields,
-      fieldTypes: emitterFieldTypes(emitter)
+      fieldTypes: emitter.contributes.fieldTypes,
+      fieldSchemas: emitter.contributes.fieldSchemas
     }))
   ];
 }
@@ -219,7 +150,7 @@ function productContractResponse(configOrCatalog) {
     triggerTypes: triggerTypesForCatalog(catalog),
     datasets: datasetsForCatalog(catalog),
     connectors: response.emitters,
-    presets: [],
+    presets: presetCatalog.presetCatalogResponse(),
     stateContributions: stateContributionsForCatalog(catalog)
   };
 }
@@ -229,6 +160,6 @@ module.exports = {
   CONNECTOR_TYPES,
   CONTRACT_SCHEMA_VERSION,
   VALUE_TYPES,
-  VALUE_TYPE_CONSTRAINTS,
+  VALUE_TYPE_CONSTRAINTS: valueTypes.VALUE_TYPE_DEFINITIONS,
   productContractResponse
 };

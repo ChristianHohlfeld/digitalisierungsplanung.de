@@ -164,7 +164,10 @@ Ereignisdefinitionen. Das ist die Live-Quelle für auswählbare Realtime-Ereigni
 Zentraler Product Contract für `state.html` und den Event Designer. Dieser
 Endpoint ist die frische Server-Wahrheit für vordefinierte Contract-Teile:
 Trigger-Typen, Value-Types mit Constraints, Realtime-Datasets, Connector-Quellen,
-Presets und State-Contribution-Pfade.
+Presets und State-Contribution-Pfade. Jedes Feld, das vom Contract in den
+globalen JSON-State geschrieben werden kann, hat neben dem kompakten Typstring
+ein `fieldSchemas`-Objekt mit `type`, `jsonType`, `default` und harten
+`constraints`.
 
 Die App darf daraus UI-Optionen rendern und konkrete Referenzen speichern, aber
 keine Contract-Kopie in den Canvas schreiben.
@@ -184,7 +187,7 @@ Antwort, gekürzt:
       "label": "Text",
       "jsonType": "string",
       "default": "",
-      "constraints": { "maxLength": 20000 }
+      "constraints": { "minLength": 0, "maxLength": 20000 }
     }
   ],
   "triggerTypes": [
@@ -195,7 +198,15 @@ Antwort, gekürzt:
       "events": [
         {
           "name": "realtime.sip.call.incoming",
-          "detail": { "caller": "text", "callee": "text", "callId": "text" }
+          "detail": { "caller": "text", "callee": "text", "callId": "text" },
+          "detailSchemas": {
+            "caller": {
+              "type": "text",
+              "jsonType": "string",
+              "default": "",
+              "constraints": { "minLength": 0, "maxLength": 20000 }
+            }
+          }
         }
       ]
     }
@@ -205,12 +216,57 @@ Antwort, gekürzt:
       "id": "realtime.sip.call.incoming",
       "type": "realtime",
       "key": "sip.call.incoming",
-      "fields": { "caller": "text", "callee": "text", "callId": "text" }
+      "fields": { "caller": "text", "callee": "text", "callId": "text" },
+      "fieldSchemas": {
+        "caller": {
+          "type": "text",
+          "jsonType": "string",
+          "default": "",
+          "constraints": { "minLength": 0, "maxLength": 20000 }
+        }
+      }
     }
   ],
   "connectors": [],
-  "presets": [],
-  "stateContributions": []
+  "presets": [
+    {
+      "id": "builtin_daisy_button",
+      "title": "Aktionsbutton",
+      "rootStateId": "button",
+      "data": { "label": "Weiter", "clicked": false, "clickedAt": 0 },
+      "dataTypes": { "label": "text", "clicked": "boolean", "clickedAt": "number" },
+      "stateContribution": {
+        "root": "states.button",
+        "fieldSchemas": {
+          "states.button.clicked": {
+            "type": "boolean",
+            "jsonType": "boolean",
+            "default": false,
+            "constraints": { "enum": [true, false] }
+          }
+        }
+      }
+    }
+  ],
+  "stateContributions": [
+    {
+      "id": "realtime.sip.call.incoming",
+      "source": "event",
+      "root": "events.realtime.sip.call.incoming",
+      "fields": ["events.realtime.sip.call.incoming.detail.caller"],
+      "fieldTypes": {
+        "events.realtime.sip.call.incoming.detail.caller": "text"
+      },
+      "fieldSchemas": {
+        "events.realtime.sip.call.incoming.detail.caller": {
+          "type": "text",
+          "jsonType": "string",
+          "default": "",
+          "constraints": { "minLength": 0, "maxLength": 20000 }
+        }
+      }
+    }
+  ]
 }
 ```
 
@@ -400,6 +456,7 @@ Fehler:
 - `400 {"error":"missing_detail_field"}`
 - `400 {"error":"unknown_detail_field"}`
 - `400 {"error":"invalid_detail_type"}`
+- `400 {"error":"invalid_detail_value"}`
 - `401 {"error":"unauthorized"}`
 - `403 {"error":"origin_not_allowed"}`
 - `413 {"error":"payload_too_large"}`

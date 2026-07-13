@@ -64,6 +64,7 @@ Open `https://realtime.digitalisierungsplanung.de/console.html?room=<room-id>` f
 The event catalog is the server-side source of truth for offered realtime events and connector sources. Unknown `realtime.*` names are rejected on `/emit`, rejected on `/ws`, and ignored by the host bridge before they can enter the generated runtime. New datasets are created by editing this one catalog through the admin designer and saving it through the server.
 
 - `server/event-catalog.json`: single contract/catalog source in Git.
+- `server/preset-catalog.js`: single standard-preset source in Git.
 - `/contract`: product contract for frontend trigger types, value types, datasets, connector sources, and collision-free state contribution paths.
 - `/events`: current event and connector definitions.
 - `/events/contract`: lower-level realtime catalog contract for event keys, detail types, and contribution paths.
@@ -98,7 +99,7 @@ There is no version selector and no old contract pinning; runtime always uses
 the latest green `release-N`. Release IDs are audit labels, not compatibility
 branches.
 
-All connector IDs are globally unique and path-safe. Runtime state is written under `events.<eventName>.*` and `emitters.<emitterId>.*`. Exact ID collisions and parent/child path collisions are rejected server-side. The canvas should load `/contract` fresh and store only concrete refs it uses, mainly `triggerType: realtime` and `triggerEvent`. It should not store preset contracts, endpoint definitions, catalog copies, or preset instances.
+All connector IDs are globally unique and path-safe. Runtime state is written under `events.<eventName>.*` and `emitters.<emitterId>.*`. Exact ID collisions and parent/child path collisions are rejected server-side. Every global-state contribution includes `fieldTypes` for compact display and `fieldSchemas` for hard validation: each field has a concrete value type, JSON type, default, and constraints such as length, range, format, protocol, max depth, or max items. `/emit` and WebSocket runtime events use the same schema validator, so a value can have the right JSON type and still be rejected when it violates the contract. The canvas should load `/contract` fresh and store only concrete refs it uses, mainly `triggerType: realtime` and `triggerEvent`. It should not store preset contracts, endpoint definitions, catalog copies, or preset instances.
 
 Detailed payloads, error codes, curl examples, and WebSocket frame shapes are documented in [`../docs/realtime-api.md`](../docs/realtime-api.md).
 
