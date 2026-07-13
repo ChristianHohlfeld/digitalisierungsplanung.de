@@ -85,9 +85,10 @@ Workspace automation or small mail bridge. For Outlook this is a Microsoft
 automation or Graph/mail bridge. The realtime server does not poll mailboxes or
 run a SIP stack.
 
-The designer follows the canvas contract order: event type, dataset key, fields,
-source. The admin secret is stored only in this browser's localStorage and is
-required when reloading or saving through the admin API. A save validates the
+The designer shows the existing contract datasets first, then follows the canvas
+contract order: event type, dataset key, fields, source. The admin secret is
+stored only in this browser's localStorage and is required when reloading or
+saving through the admin API. A save validates the
 same strict server contract, writes `server/event-catalog.json` and
 `release-version.js` as one release unit, commits them, and pushes to GitHub.
 There is no version selector and no old contract pinning; runtime always uses

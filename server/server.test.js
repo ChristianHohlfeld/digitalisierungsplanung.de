@@ -312,6 +312,8 @@ test("serves an admin event designer that validates, commits, and pushes the cat
       assert.match(html, /fetch\("\/events"/);
       assert.match(html, /fetch\("\/events\/contract"/);
       assert.match(html, /localStorage\.setItem\(ADMIN_SECRET_STORAGE_KEY/);
+      assert.match(html, /Existing datasets/);
+      assert.match(html, /datasetOverview/);
       assert.match(html, /New dataset/);
       assert.match(html, /Add field/);
       assert.doesNotMatch(html, /admin-secret/);

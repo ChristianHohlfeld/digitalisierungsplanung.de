@@ -51,6 +51,11 @@
     .chip-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(108px, 1fr)); gap: 8px; }
     .field-row { display: grid; grid-template-columns: minmax(0, 1fr) 140px auto; gap: 8px; align-items: end; }
     .readout { display: grid; gap: 8px; padding: 10px; border: 1px solid rgba(56,189,248,.24); border-radius: 6px; background: rgba(8,32,51,.62); }
+    .dataset-list { display: grid; gap: 8px; }
+    .dataset-item { display: grid; gap: 4px; width: 100%; min-height: 0; padding: 10px; text-align: left; border-color: var(--line); background: var(--field); }
+    .dataset-item.active { border-color: var(--accent); background: #08324b; }
+    .dataset-item strong { color: var(--text); font-size: 14px; }
+    .dataset-item span { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
     details { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
     summary { cursor: pointer; padding: 13px 15px; color: var(--text); font-weight: 850; }
     details > div { display: grid; gap: 12px; padding: 0 15px 15px; }
@@ -82,6 +87,14 @@
       <button id="load" class="secondary" type="button">Reload</button>
       <button id="save" type="button">Save to GitHub</button>
       <div id="status" class="status">Loading public catalog...</div>
+    </section>
+
+    <section class="panel stack">
+      <div class="row between">
+        <h2>Existing datasets</h2>
+        <span id="datasetCount" class="muted"></span>
+      </div>
+      <div id="datasetOverview" class="dataset-list"></div>
     </section>
 
     <section class="panel stack">
@@ -388,6 +401,35 @@
       return catalog.events.filter(event => names.has(event.name));
     }
 
+    function renderDatasetOverview() {
+      const box = el("datasetOverview");
+      box.innerHTML = "";
+      el("datasetCount").textContent = `${catalog.events.length} datasets`;
+      catalog.events.forEach((event, index) => {
+        const sourceIndex = sourceForEvent(event.name);
+        const source = sourceIndex >= 0 ? catalog.emitters[sourceIndex] : null;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "dataset-item";
+        button.classList.toggle("active", index === selectedEventIndex);
+        const title = document.createElement("strong");
+        title.textContent = event.label || datasetKeyFromEventName(event.name);
+        const meta = document.createElement("span");
+        const fieldCount = Object.keys(event.detail || {}).length;
+        meta.textContent = `${datasetKeyFromEventName(event.name)} - ${source?.label || source?.id || "No source"} - ${fieldCount} fields`;
+        const trigger = document.createElement("span");
+        trigger.textContent = event.name;
+        button.append(title, meta, trigger);
+        button.onclick = () => {
+          syncFromForm();
+          selectedEventIndex = index;
+          if (sourceIndex >= 0) selectedConnectorIndex = sourceIndex;
+          render();
+        };
+        box.appendChild(button);
+      });
+    }
+
     function renderSourceSelect() {
       const select = el("sourceSelect");
       select.innerHTML = "";
@@ -613,6 +655,7 @@
         return;
       }
       ensureCatalog();
+      renderDatasetOverview();
       renderConnectorEditor();
       renderEventEditor();
       renderPresetButtons();
