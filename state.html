@@ -1289,23 +1289,71 @@
 
     .badge { left: 10px; right: auto; top: -11px; color: #04111d; background: var(--ok); }
     .live-badge { left: 72px; right: auto; top: -11px; color: #052e16; background: #86efac; }
-    .layer-badge { left: 10px; right: auto; bottom: 8px; color: #451a03; background: #fde68a; }
+    .layer-badge {
+      right: 8px;
+      top: -11px;
+      color: #022c22;
+      background: #99f6e4;
+      border: 1px solid rgba(45,212,191,.7);
+      box-shadow: 0 8px 18px rgba(13,148,136,.22), inset 0 1px 0 rgba(255,255,255,.34);
+      letter-spacing: .03em;
+      text-transform: uppercase;
+    }
     .node.initial .badge { display: block; }
     .node.active .live-badge { display: block; }
     .node.has-children .layer-badge { display: block; }
     .node.has-children:not(.boundary-proxy) {
-      border-color: rgba(245,158,11,.92);
+      border-color: rgba(45,212,191,.96);
       background:
-        linear-gradient(135deg, rgba(245,158,11,.25), rgba(20,83,45,.12) 46%, transparent 72%),
-        #14345a;
+        linear-gradient(135deg, rgba(45,212,191,.2), rgba(56,189,248,.12) 46%, transparent 72%),
+        #12385a;
       box-shadow:
-        0 0 0 3px rgba(245,158,11,.13),
+        0 0 0 3px rgba(45,212,191,.14),
         0 18px 42px rgba(0,0,0,.35),
         inset 0 1px 0 rgba(255,255,255,.09),
-        0 0 28px rgba(245,158,11,.18);
+        0 0 28px rgba(45,212,191,.2);
+      cursor: zoom-in;
+    }
+    .node.has-children:not(.boundary-proxy)::before {
+      content: "";
+      position: absolute;
+      inset: 8px;
+      border: 1px solid rgba(153,246,228,.34);
+      border-radius: 8px;
+      box-shadow:
+        inset 0 0 0 1px rgba(8,47,73,.56),
+        inset 0 0 22px rgba(45,212,191,.08);
+      pointer-events: none;
+    }
+    .node.has-children:not(.boundary-proxy)::after {
+      content: "";
+      position: absolute;
+      right: 12px;
+      top: 37px;
+      width: 20px;
+      height: 20px;
+      border-radius: 6px;
+      border: 1px solid rgba(153,246,228,.78);
+      background:
+        linear-gradient(90deg, transparent 7px, rgba(153,246,228,.9) 7px 9px, transparent 9px),
+        linear-gradient(0deg, transparent 7px, rgba(153,246,228,.9) 7px 9px, transparent 9px),
+        rgba(8,47,73,.8);
+      box-shadow: 0 8px 18px rgba(13,148,136,.28);
+      pointer-events: none;
+    }
+    .node.has-children:not(.boundary-proxy):hover,
+    .node.has-children.touch-pressed:not(.boundary-proxy) {
+      border-color: #99f6e4;
+      filter: brightness(1.08) saturate(1.08);
+      box-shadow:
+        0 0 0 4px rgba(45,212,191,.18),
+        0 0 0 10px rgba(56,189,248,.08),
+        0 18px 42px rgba(0,0,0,.38),
+        inset 0 1px 0 rgba(255,255,255,.12),
+        0 0 32px rgba(45,212,191,.24);
     }
     .node.has-children:not(.boundary-proxy) .title {
-      color: #fff7ed;
+      color: #ecfeff;
     }
     .node.has-children.selected:not(.boundary-proxy) {
       border-color: var(--selected);
@@ -1317,13 +1365,13 @@
     }
     .node.has-children.active:not(.boundary-proxy) {
       background:
-        linear-gradient(135deg, rgba(245,158,11,.22), rgba(34,197,94,.25) 46%, transparent 72%),
-        #14345a;
+        linear-gradient(135deg, rgba(45,212,191,.22), rgba(34,197,94,.25) 46%, transparent 72%),
+        #12385a;
     }
     .node.has-children .layer-badge {
-      color: #451a03;
-      background: #fde68a;
-      border-color: rgba(245,158,11,.65);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
     }
 
     .input-port,
@@ -18591,7 +18639,9 @@
           const previewText = statePreviewText(s);
           bodyEl.textContent = previewText;
           bodyEl.title = previewText;
-          el.querySelector(".layer-badge").textContent = innerCount === 1 ? "1 state" : `${innerCount} states`;
+          const layerBadge = el.querySelector(".layer-badge");
+          layerBadge.textContent = "Ablauf";
+          layerBadge.title = innerCount === 1 ? "Enthält 1 inneren Zustand" : `Enthält ${innerCount} innere Zustände`;
         }
 
         if (isNewNode && !s.virtualProxy) {

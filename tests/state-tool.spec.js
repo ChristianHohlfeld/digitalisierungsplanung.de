@@ -1886,7 +1886,7 @@ test.describe("State Blueprint tool", () => {
     await page.locator("#layerBack").click();
     await expect(page.locator("#layerFrame")).toBeVisible();
     await expect(page.locator("#layerFrameLabel")).toHaveText("Wurzel");
-    await expect(page.locator('[data-id="login"] .layer-badge')).toHaveText("1 state");
+    await expect(page.locator('[data-id="login"] .layer-badge')).toHaveText("Ablauf");
     await expect(page.locator(`[data-id="${childId}"]`)).toHaveCount(0);
     await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(6);
 
@@ -2175,6 +2175,8 @@ test.describe("State Blueprint tool", () => {
     await page.goto("/state.html?demo=zustand");
     const app = appFrame(page);
     const parent = page.locator('[data-id="site_checkout_flow"]');
+    await expect(parent).toHaveClass(/has-children/);
+    await expect(parent.locator(".layer-badge")).toHaveText("Ablauf");
     const expectImmediateChildSelection = async () => {
       expect(await page.evaluate(() => ({
         layerId: currentLayerId,
@@ -2243,6 +2245,8 @@ test.describe("State Blueprint tool", () => {
       await page.goto("/state.html?demo=zustand");
       await expect(page).toHaveURL(/\/state\.html$/);
       await expect(page.locator('[data-id="site_checkout_flow"]')).toBeAttached();
+      await expect(page.locator('[data-id="site_checkout_flow"]')).toHaveClass(/has-children/);
+      await expect(page.locator('[data-id="site_checkout_flow"] .layer-badge')).toHaveText("Ablauf");
 
       await page.evaluate(() => {
         setMobileWorkspaceView("canvas");
@@ -4137,7 +4141,7 @@ test.describe("State Blueprint tool", () => {
     await page.evaluate(() => addTemplateInside("tpl_inner_lesson", "login"));
 
     const login = page.locator('[data-id="login"]');
-    await expect(login.locator(".layer-badge")).toHaveText("1 state");
+    await expect(login.locator(".layer-badge")).toHaveText("Ablauf");
     await openStateLayer(page, "login");
     await expect(page.locator("#layerFrameLabel")).toHaveText("In Login");
     await expect(canvasStateNodes(page)).toHaveCount(1);
@@ -4156,7 +4160,7 @@ test.describe("State Blueprint tool", () => {
     }).toEqual({ parentId: "login", text: "Nested preset text" });
 
     await page.locator("#layerBack").click();
-    await expect(page.locator('[data-id="login"] .layer-badge')).toHaveText("1 state");
+    await expect(page.locator('[data-id="login"] .layer-badge')).toHaveText("Ablauf");
     await expect(canvasStateNodes(page)).toHaveCount(6);
     await expect(boundaryProxyNodes(page)).toHaveCount(2);
   });
@@ -4176,7 +4180,7 @@ test.describe("State Blueprint tool", () => {
 
     await expect(page.locator('[data-id="register"]')).toHaveCount(0);
     await expect(target).toHaveClass(/has-children/);
-    await expect(target.locator(".layer-badge")).toHaveText("1 state");
+    await expect(target.locator(".layer-badge")).toHaveText("Ablauf");
     await expect.poll(() => target.evaluate(node => {
       const style = getComputedStyle(node);
       return {
@@ -4274,7 +4278,7 @@ test.describe("State Blueprint tool", () => {
 
     await preset.getByRole("button", { name: /hinzuf/i }).click();
     const reusedId = await page.locator(".node.selected").getAttribute("data-id");
-    await expect(page.locator(`[data-id="${reusedId}"] .layer-badge`)).toHaveText("1 state");
+    await expect(page.locator(`[data-id="${reusedId}"] .layer-badge`)).toHaveText("Ablauf");
     await openStateLayer(page, reusedId);
     await expect(canvasStateNodes(page)).toHaveCount(1);
     await expect(boundaryProxyNodes(page)).toHaveCount(2);
