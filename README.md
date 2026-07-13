@@ -124,6 +124,9 @@ wie `min`, `max`, `maxLength`, `format`, `protocols`, `maxDepth` oder
 bevor ein Event in den Raum darf. `/events` bleibt der schlanke Live-Katalog
 für Realtime-Events. Der Canvas speichert keine Katalogkopie, sondern nur
 konkrete Referenzen wie `triggerType: realtime` und `triggerEvent`.
+`state.html` lädt `/contract` beim Start mit `no-store`; wenn der Product
+Contract nicht erreichbar ist, startet der Editor nicht mit lokalen
+Fallback-Typen oder lokalen Preset-Definitionen.
 
 Der Designer arbeitet in der gleichen Reihenfolge wie der Canvas-Vertrag:
 Event-Type, Dataset-Key, Felder, Quelle. Das Admin-Secret bleibt lokal im

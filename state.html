@@ -5397,7 +5397,7 @@
           </label>
           <div id="stateExplorerGroups" class="state-explorer-tabs" aria-label="Vorlagengruppen"></div>
           <span class="state-explorer-hint">ziehen / halten</span>
-          <button id="btnAddStateTemplate" class="state-explorer-add" type="button" title="Eigene Vorlage erstellen">+ Vorlage</button>
+          <button id="btnAddStateTemplate" class="state-explorer-add" type="button" hidden title="Presets im Product Contract verwalten">+ Vorlage</button>
           <button id="btnToggleStateExplorer" class="state-explorer-toggle" type="button" title="Vorlagen einklappen" aria-label="Vorlagen einklappen" aria-controls="stateExplorerList" aria-expanded="true">
             <svg class="panel-icon panel-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
           </button>
@@ -5847,9 +5847,28 @@
       return /^[a-zA-Z_][a-zA-Z0-9_:-]*(?:\\.[a-zA-Z_][a-zA-Z0-9_:-]*)*$/.test(id) ? id : "";
     }
 
-    function recordRuntimeEmitter(eventName, detail = {}, now = Date.now(), writeOpts = {}) {
+    function normalizeRealtimeEmitterConfig(value) {
+      if (!isPlainDataObject(value)) return null;
+      const id = runtimeEventEmitterId({ emitterId: value.id });
+      const events = Array.isArray(value.events)
+        ? value.events.map(event => normalizeTransitionEvent(event)).filter(Boolean)
+        : [];
+      if (!id || !events.length) return null;
+      return { id, events };
+    }
+
+    function runtimeRealtimeConfigEvent(value) {
+      return isPlainDataObject(value?.event) ? value.event : value;
+    }
+
+    function runtimeRealtimeConfigEmitter(value) {
+      return isPlainDataObject(value?.emitter) ? value.emitter : null;
+    }
+
+    function recordRuntimeEmitter(eventName, detail = {}, now = Date.now(), writeOpts = {}, realtimeConfig = null) {
       const emitterId = runtimeEventEmitterId(detail);
-      if (!emitterId) return "";
+      const emitter = normalizeRealtimeEmitterConfig(runtimeRealtimeConfigEmitter(realtimeConfig));
+      if (!emitterId || !emitter || emitter.id !== emitterId || !emitter.events.includes(eventName)) return "";
       const root = "emitters." + emitterId;
       const countPath = root + ".count";
       const count = Number(readValueAtPath(context, countPath) || 0) + 1;
@@ -5862,7 +5881,7 @@
       return emitterId;
     }
 
-    function recordRuntimeEvent(eventName, detail = {}) {
+    function recordRuntimeEvent(eventName, detail = {}, realtimeConfig = null) {
       const name = normalizeTransitionEvent(eventName);
       if (!name) return "";
       const now = Date.now();
@@ -5874,7 +5893,7 @@
       writeRuntimeState("events." + name + ".detail", detail, writeOpts);
       writeRuntimeState("lastEvent", name, writeOpts);
       writeRuntimeState("lastEventAt", now, writeOpts);
-      recordRuntimeEmitter(name, detail, now, writeOpts);
+      recordRuntimeEmitter(name, detail, now, writeOpts, realtimeConfig);
       return name;
     }
 `;
@@ -6827,7 +6846,7 @@
         notifyRuntime();
         return false;
       }
-      const name = recordRuntimeEvent(eventName, detail);
+      const name = recordRuntimeEvent(eventName, detail, realtimeEventConfig);
       if (!name) return false;
       if (name.startsWith("realtime.")) applyRealtimeEventBindings(name, detail, realtimeEventConfig);
       runtimeEventQueue.push({ name, detail: { ...detail, eventName: name } });`;
@@ -6835,9 +6854,8 @@
       const runtimeNormalizeModelRealtimeJsEnhanced = `      m.transitions = Array.isArray(m.transitions) ? m.transitions : [];
       delete m.realtime;`;
       const realtimeRuntimeStateAnchor = `    function pathMatchesSubscription(path, subscription) {`;
-      const realtimeRuntimeStateJs = `    function normalizeRealtimeValueType(value) {
-      const type = String(value || "").trim().toLowerCase();
-      return ["text", "email", "password", "number", "boolean", "url", "image", "object", "list"].includes(type) ? type : "text";
+      const realtimeRuntimeStateJs = `    function normalizeRealtimeSchemaType(value) {
+      return String(value || "").trim().toLowerCase();
     }
 
     function normalizeRealtimeDetailSchema(value) {
@@ -6845,7 +6863,7 @@
       const out = {};
       for (const [path, type] of Object.entries(value).slice(0, 64)) {
         const cleanPath = runtimeNormalizeBindingPath(path, "");
-        if (cleanPath) out[cleanPath] = normalizeRealtimeValueType(type);
+        if (cleanPath) out[cleanPath] = normalizeRealtimeSchemaType(type);
       }
       return out;
     }
@@ -6857,20 +6875,21 @@
         const from = runtimeNormalizeBindingPath(binding.from || "", "");
         const to = runtimeNormalizeBindingPath(binding.to || "", "");
         if (!from || !/^states\.[a-zA-Z_][a-zA-Z0-9_]*\./.test(to)) return null;
-        return { from, to, type: normalizeRealtimeValueType(binding.type) };
+        return { from, to, type: normalizeRealtimeSchemaType(binding.type) };
       }).filter(Boolean);
     }
 
     function normalizeRealtimeEventConfig(value) {
-      if (!isPlainDataObject(value)) return null;
-      const name = normalizeTransitionEvent(value.name || "");
+      const source = isPlainDataObject(value?.event) ? value.event : value;
+      if (!isPlainDataObject(source)) return null;
+      const name = normalizeTransitionEvent(source.name || "");
       if (!name || !name.startsWith("realtime.")) return null;
       return {
         name,
-        label: String(value.label || name).trim(),
-        description: String(value.description || "").trim(),
-        detail: normalizeRealtimeDetailSchema(value.detail),
-        bindings: normalizeRealtimeEventBindings(value.bindings)
+        label: String(source.label || name).trim(),
+        description: String(source.description || "").trim(),
+        detail: normalizeRealtimeDetailSchema(source.detail),
+        bindings: normalizeRealtimeEventBindings(source.bindings)
       };
     }
 
@@ -7027,7 +7046,7 @@
             roomId: sanitizeRuntimeRealtimeId(message.roomId || runtimeRealtimeTransport.roomId),
             remoteClientId: sanitizeRuntimeRealtimeId(message.clientId || ""),
             serverTime: Number(message.serverTime) || Date.now()
-          }, event);
+          }, { event, emitter: message.emitter });
         });
         socket.addEventListener("close", () => {
           runtimeRealtimeTransport.joined = false;
@@ -8993,6 +9012,7 @@
     const initialStoredModel = initialEditorState?.model ? null : loadModel();
     const initialPersistedModelExists = Boolean(initialEditorState?.model || initialStoredModel);
     let productContract = null;
+    let productContractValueTypesInFlight = null;
     let model = initialEditorState?.model || initialStoredModel || blankModel();
     let camera = loadCamera() || { x: 32, y: 32, scale: 1 };
     const uiState = loadUiState();
@@ -9719,12 +9739,10 @@
     function applyPersistedEditorState(data) {
       if (!data || typeof data !== "object" || !data.model) return;
       model = normalizeModel(data.model);
-      const templates = snapshotStateTemplates(Array.isArray(data.stateTemplates) ? data.stateTemplates : stateTemplates);
-      const templateIds = new Set(templates.map(template => template.id));
-      stateTemplates = templates;
+      stateTemplates = [];
       currentLayerId = data.currentLayerId && byId(data.currentLayerId) ? data.currentLayerId : null;
       selected = normalizeSelection(data.selected || null);
-      editingTemplateId = templateIds.has(data.editingTemplateId) ? data.editingTemplateId : null;
+      editingTemplateId = null;
     }
 
     function loadCamera() {
@@ -9764,7 +9782,7 @@
     }
 
     function normalizeStateExplorerGroup(group) {
-      return ["website", "basics", "forms", "data", "more", "saved"].includes(group) ? group : "website";
+      return ["website", "basics", "forms", "data", "more"].includes(group) ? group : "website";
     }
 
     let panelResize = null;
@@ -10104,7 +10122,8 @@
         .filter(transition => transition.from && transition.to);
     }
 
-    function snapshotStateTemplates(templates = stateTemplates) {
+    function snapshotStateTemplates(templates) {
+      if (arguments.length === 0) return [];
       return (Array.isArray(templates) ? templates : [])
         .filter(item => item && typeof item === "object")
         .slice(0, 40)
@@ -10126,16 +10145,12 @@
     }
 
     function loadStateTemplates() {
-      try {
-        const stored = JSON.parse(localStorage.getItem(STATE_EXPLORER_KEY) || "[]");
-        return normalizeStateTemplates(stored);
-      } catch (_) {
-        return [];
-      }
+      try { localStorage.removeItem(STATE_EXPLORER_KEY); } catch (_) {}
+      return [];
     }
 
     function persistStateTemplates() {
-      try { localStorage.setItem(STATE_EXPLORER_KEY, JSON.stringify(snapshotStateTemplates())); } catch (_) {}
+      try { localStorage.removeItem(STATE_EXPLORER_KEY); } catch (_) {}
     }
 
     function saveStateTemplates(historyKey = "templates") {
@@ -10297,9 +10312,7 @@
       return {
         model: JSON.parse(modelSnapshot()),
         selected: normalizeSelection(),
-        currentLayerId,
-        stateTemplates: snapshotStateTemplates(),
-        editingTemplateId: editingTemplateId && stateTemplates.some(template => template.id === editingTemplateId) ? editingTemplateId : null
+        currentLayerId
       };
     }
 
@@ -10317,21 +10330,19 @@
     function parseEditorSnapshot(snapshot) {
       const data = JSON.parse(snapshot);
       if (data && typeof data === "object" && "model" in data) {
-        const templates = snapshotStateTemplates("stateTemplates" in data ? data.stateTemplates : stateTemplates);
-        const templateIds = new Set(templates.map(template => template.id));
         return {
           model: data.model,
           selected: data.selected || null,
           currentLayerId: data.currentLayerId || null,
-          stateTemplates: templates,
-          editingTemplateId: templateIds.has(data.editingTemplateId) ? data.editingTemplateId : null
+          stateTemplates: [],
+          editingTemplateId: null
         };
       }
       return {
         model: data,
         selected: null,
         currentLayerId: null,
-        stateTemplates: snapshotStateTemplates(),
+        stateTemplates: [],
         editingTemplateId: null
       };
     }
@@ -10430,8 +10441,8 @@
       model = normalizeModel(restored.model);
       currentLayerId = byId(restored.currentLayerId) ? restored.currentLayerId : null;
       selected = normalizeSelection(restored.selected);
-      stateTemplates = snapshotStateTemplates(restored.stateTemplates);
-      editingTemplateId = restored.editingTemplateId;
+      stateTemplates = [];
+      editingTemplateId = null;
       historyCurrent = editorSnapshot();
       connecting = null;
       connectingTargetId = null;
@@ -10443,9 +10454,7 @@
       persistStateTemplates();
       draw();
       renderStateExplorer();
-      const template = editingTemplateId ? stateTemplates.find(item => item.id === editingTemplateId) : null;
-      if (template) showTemplateInspector(template, { focus: false });
-      else refreshInspectorForSelection();
+      refreshInspectorForSelection();
       updateHistoryButtons();
     }
 
@@ -10474,7 +10483,6 @@
         app: "Zustand",
         savedAt: new Date().toISOString(),
         model: modelDefinitionSnapshot(),
-        stateTemplates: snapshotStateTemplates(),
         camera: {
           x: Number(camera.x),
           y: Number(camera.y),
@@ -10861,93 +10869,11 @@
       };
     }
 
-    function validateStateTemplatesDefinition(value, path = "definition.stateTemplates") {
+    function validateLegacyStateTemplatesDefinition(value, path = "definition.stateTemplates") {
       if (value === undefined) return [];
       if (!Array.isArray(value)) throw new Error(`${path} must be an array.`);
-      return value.slice(0, 40).map((template, index) => {
-        const itemPath = `${path}[${index}]`;
-        assertPlainObject(template, itemPath);
-        const id = assertString(template.id, `${itemPath}.id`);
-        const rootStateId = "rootStateId" in template ? assertString(template.rootStateId, `${itemPath}.rootStateId`, { allowEmpty: true }) : id;
-        const stateIds = new Set([rootStateId || id]);
-        const states = (Array.isArray(template.states) ? template.states : []).slice(0, 120).map((state, stateIndex) => {
-          const statePath = `${itemPath}.states[${stateIndex}]`;
-          assertPlainObject(state, statePath);
-          if ("renderMode" in state) throw new Error(`${statePath}.renderMode is not part of the contract; put visible components on the state itself.`);
-          const stateId = assertString(state.id, `${statePath}.id`);
-          if (isReservedRuntimeId(stateId)) throw new Error(`${statePath}.id must not use the reserved runtime id namespace.`);
-          if (stateIds.has(stateId)) throw new Error(`${statePath}.id must be unique inside the preset.`);
-          stateIds.add(stateId);
-          const parentId = "parentId" in state ? validateNullableString(state.parentId, `${statePath}.parentId`, { allowEmpty: true }) : "";
-          const dataObject = validateStateDataObject(state.data, `${statePath}.data`);
-          return {
-            id: stateId,
-            title: assertString(state.title, `${statePath}.title`),
-            components: validateComponents(state.components, `${statePath}.components`),
-            data: dataObject,
-            dataTypes: validateDataTypesObject(state.dataTypes, `${statePath}.dataTypes`, dataObject),
-            dataSource: validateDataSource(state.dataSource, `${statePath}.dataSource`, { fallbackTarget: stateDataScopeForId(stateId) + ".fetch" }),
-            repeat: validateRepeatConfig(state.repeat, `${statePath}.repeat`),
-            dataWires: validateDataWires(state.dataWires, `${statePath}.dataWires`),
-            subscriptions: validateSubscriptions(state.subscriptions, `${statePath}.subscriptions`),
-            boundary: normalizeBoundaryConfig(state.boundary),
-            parentId: parentId || rootStateId || id,
-            x: assertFiniteNumber(state.x, `${statePath}.x`),
-            y: assertFiniteNumber(state.y, `${statePath}.y`)
-          };
-        });
-        for (const state of states) {
-          if (!stateIds.has(state.parentId)) throw new Error(`${itemPath}.states.${state.id}.parentId must reference another preset state.`);
-        }
-        const templateTransitionIds = new Set();
-        const transitions = (Array.isArray(template.transitions) ? template.transitions : []).slice(0, 160).map((transition, transitionIndex) => {
-          const transitionPath = `${itemPath}.transitions[${transitionIndex}]`;
-          assertPlainObject(transition, transitionPath);
-          const transitionId = assertString(transition.id, `${transitionPath}.id`);
-          if (isReservedRuntimeId(transitionId)) throw new Error(`${transitionPath}.id must not use the reserved runtime id namespace.`);
-          if (templateTransitionIds.has(transitionId)) throw new Error(`${transitionPath}.id must be unique inside the preset.`);
-          if (stateIds.has(transitionId)) throw new Error(`${transitionPath}.id must not collide with a preset state id.`);
-          templateTransitionIds.add(transitionId);
-          const from = assertString(transition.from, `${transitionPath}.from`);
-          const to = assertString(transition.to, `${transitionPath}.to`);
-          if (!stateIds.has(from)) throw new Error(`${transitionPath}.from must reference a preset state.`);
-          if (!stateIds.has(to)) throw new Error(`${transitionPath}.to must reference a preset state.`);
-          const groupEntryId = "groupEntryId" in transition ? assertString(transition.groupEntryId, `${transitionPath}.groupEntryId`, { allowEmpty: true }) : "";
-          const groupExitId = "groupExitId" in transition ? assertString(transition.groupExitId, `${transitionPath}.groupExitId`, { allowEmpty: true }) : "";
-          if (groupEntryId && !stateIds.has(groupEntryId)) throw new Error(`${transitionPath}.groupEntryId must reference a preset state.`);
-          if (groupExitId && !stateIds.has(groupExitId)) throw new Error(`${transitionPath}.groupExitId must reference a preset state.`);
-          return {
-            id: transitionId,
-            from,
-            to,
-            label: assertString(transition.label, `${transitionPath}.label`),
-            condition: validateTransitionCondition(transition.condition, `${transitionPath}.condition`),
-            triggerType: normalizeTransitionTriggerType(transition),
-            triggerEvent: validateTransitionTriggerEventContract(transition, `${transitionPath}.triggerEvent`),
-            timerMs: normalizeTransitionTimerMs(transition.timerMs),
-            set: validateTransitionSet(transition.set, `${transitionPath}.set`),
-            groupEntryId,
-            groupExitId
-          };
-        });
-        const templateData = validateStateDataObject(template.data, `${itemPath}.data`);
-        if ("renderMode" in template) throw new Error(`${itemPath}.renderMode is not part of the contract; put visible components on the state itself.`);
-        return {
-          id,
-          title: assertString(template.title, `${itemPath}.title`),
-          components: validateComponents(template.components, `${itemPath}.components`),
-          data: templateData,
-          dataTypes: validateDataTypesObject(template.dataTypes, `${itemPath}.dataTypes`, templateData),
-          dataSource: validateDataSource(template.dataSource, `${itemPath}.dataSource`, { fallbackTarget: stateDataScopeForId(rootStateId || id) + ".fetch" }),
-          repeat: validateRepeatConfig(template.repeat, `${itemPath}.repeat`),
-          dataWires: validateDataWires(template.dataWires, `${itemPath}.dataWires`),
-          subscriptions: validateSubscriptions(template.subscriptions, `${itemPath}.subscriptions`),
-          boundary: normalizeBoundaryConfig(template.boundary),
-          rootStateId: rootStateId || id,
-          states,
-          transitions
-        };
-      });
+      if (value.length) throw new Error(`${path} is contract-managed; local preset definitions are not supported.`);
+      return [];
     }
 
     function validateBlueprintDefinition(data) {
@@ -10964,7 +10890,7 @@
         app: data.app,
         savedAt: data.savedAt,
         model: validateModelDefinition(data.model),
-        stateTemplates: validateStateTemplatesDefinition(data.stateTemplates),
+        stateTemplates: validateLegacyStateTemplatesDefinition(data.stateTemplates),
         camera: { x: 32, y: 32, scale: 1 },
         previewCollapsed: false
       };
@@ -11116,17 +11042,6 @@
       );
     }
 
-    function exportTemplateComponentFile(template) {
-      const snapshot = snapshotStateTemplates([template])[0];
-      const payload = componentExportPayload("preset", { template: snapshot });
-      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-      downloadTextFile(
-        JSON.stringify(payload, null, 2) + "\n",
-        `${normalizeId(snapshot.title || snapshot.id)}-${stamp}.state-component.json`,
-        "application/json"
-      );
-    }
-
     function saveDefinitionFile() {
       persistModel(false);
       persistStateTemplates();
@@ -11171,7 +11086,7 @@
     function importBlueprintDefinition(definition) {
       const data = validateBlueprintDefinition(definition);
       model = normalizeModel(JSON.parse(JSON.stringify(data.model)));
-      stateTemplates = snapshotStateTemplates(data.stateTemplates);
+      stateTemplates = [];
       camera = { ...data.camera };
       previewCollapsed = data.previewCollapsed;
       selected = null;
@@ -11218,15 +11133,6 @@
       }
     }
 
-    function uniqueStateTemplateId(base = "tpl") {
-      const normalized = normalizeId(base || "tpl");
-      const ids = new Set(stateTemplates.map(template => template.id));
-      let id = normalized;
-      let index = 2;
-      while (ids.has(id)) id = `${normalized}_${index++}`;
-      return id;
-    }
-
     function validateComponentExportDefinition(data) {
       assertPlainObject(data, "component import");
       if (data.kind !== COMPONENT_EXPORT_KIND) throw new Error(`component import kind must be "${COMPONENT_EXPORT_KIND}".`);
@@ -11246,11 +11152,7 @@
         };
       }
       if (type === "preset") {
-        assertPlainObject(data.component.template, "component import.component.template");
-        return {
-          type,
-          template: validateStateTemplatesDefinition([data.component.template], "component import.component.template")[0]
-        };
+        throw new Error("Preset components are contract-managed and cannot be imported locally.");
       }
       throw new Error("component import.component.type must be state or preset.");
     }
@@ -11274,16 +11176,8 @@
     }
 
     function importStateTemplateComponent(template) {
-      const copy = snapshotStateTemplates([template])[0];
-      copy.id = uniqueStateTemplateId(copy.id || copy.title || "tpl");
-      stateTemplates = [copy, ...stateTemplates].slice(0, 40);
-      editingTemplateId = copy.id;
-      stateExplorerCollapsed = false;
-      saveStateTemplates("template:import:" + copy.id);
-      applyStateExplorerCollapsed();
-      renderStateExplorer();
-      showTemplateInspector(copy, { focus: false });
-      return copy;
+      modalAlert("Presets werden zentral vom Product Contract geladen und können nicht lokal importiert werden.", "Contract-Presets");
+      return null;
     }
 
     function importComponentDefinition(definition) {
@@ -11441,7 +11335,7 @@
     function normalizeStateVariableType(value, fallback = "text") {
       const type = String(value || "").trim();
       const allowed = new Set(stateVariableTypes().map(item => item.value));
-      if (!allowed.size) return type || fallback;
+      if (!allowed.size) return "";
       return allowed.has(type) ? type : (allowed.has(fallback) ? fallback : "");
     }
 
@@ -11645,18 +11539,24 @@
 
     function normalizeProductContractPayload(value) {
       const source = isPlainObject(value) ? value : {};
-      return {
-        schemaVersion: Number(source.schemaVersion) || 0,
-        provider: isPlainObject(source.provider) ? source.provider : null,
-        valueTypes: (Array.isArray(source.valueTypes) ? source.valueTypes : []).map(normalizeProductContractValueType).filter(Boolean),
-        connectorTypes: Array.isArray(source.connectorTypes) ? source.connectorTypes : [],
-        triggerTypes: (Array.isArray(source.triggerTypes) ? source.triggerTypes : []).map(normalizeProductContractTriggerType).filter(Boolean),
-        datasets: (Array.isArray(source.datasets) ? source.datasets : []).map(normalizeProductContractDataset).filter(Boolean),
-        connectors: Array.isArray(source.connectors) ? source.connectors : [],
-        presets: (Array.isArray(source.presets) ? source.presets : []).map(normalizeProductContractPreset).filter(Boolean),
-        stateContributions: (Array.isArray(source.stateContributions) ? source.stateContributions : []).map(normalizeProductContractContribution).filter(Boolean),
-        release: isPlainObject(source.release) ? source.release : null
-      };
+      const valueTypes = (Array.isArray(source.valueTypes) ? source.valueTypes : []).map(normalizeProductContractValueType).filter(Boolean);
+      productContractValueTypesInFlight = valueTypes;
+      try {
+        return {
+          schemaVersion: Number(source.schemaVersion) || 0,
+          provider: isPlainObject(source.provider) ? source.provider : null,
+          valueTypes,
+          connectorTypes: Array.isArray(source.connectorTypes) ? source.connectorTypes : [],
+          triggerTypes: (Array.isArray(source.triggerTypes) ? source.triggerTypes : []).map(normalizeProductContractTriggerType).filter(Boolean),
+          datasets: (Array.isArray(source.datasets) ? source.datasets : []).map(normalizeProductContractDataset).filter(Boolean),
+          connectors: Array.isArray(source.connectors) ? source.connectors : [],
+          presets: (Array.isArray(source.presets) ? source.presets : []).map(normalizeProductContractPreset).filter(Boolean),
+          stateContributions: (Array.isArray(source.stateContributions) ? source.stateContributions : []).map(normalizeProductContractContribution).filter(Boolean),
+          release: isPlainObject(source.release) ? source.release : null
+        };
+      } finally {
+        productContractValueTypesInFlight = null;
+      }
     }
 
     async function fetchProductContract(options = {}) {
@@ -11669,12 +11569,27 @@
       return productContract;
     }
 
-    function ensureProductContractLoaded() {
-      return fetchProductContract()
+    function ensureProductContractLoaded(options = {}) {
+      return fetchProductContract(options)
         .then(contract => contract)
         .catch(error => {
+          console.error("Product contract load failed", error);
           return null;
         });
+    }
+
+    function showProductContractUnavailable() {
+      const message = "Product Contract nicht erreichbar. Der Editor startet ohne Server-Contract nicht.";
+      if (stateExplorerGroupsEl) stateExplorerGroupsEl.innerHTML = "";
+      if (stateExplorerListEl) {
+        stateExplorerListEl.innerHTML = "";
+        const empty = document.createElement("div");
+        empty.className = "state-explorer-empty-results";
+        empty.textContent = message;
+        stateExplorerListEl.appendChild(empty);
+      }
+      showEmptyInspector();
+      if (typeof modalAlert === "function") modalAlert(message, "Contract fehlt");
     }
 
     function productContractTriggerTypes() {
@@ -12663,7 +12578,6 @@
       return (_virtualNodes && _virtualNodes.get(id)) ||
         byModelId(model, id);
     }
-    applyPersistedEditorState(initialEditorState);
 
     function stateParentId(state) {
       return state?.parentId || null;
@@ -18104,8 +18018,7 @@
     }
 
     function templateById(templateId) {
-      return stateTemplates.find(item => item.id === templateId) ||
-        builtinStateTemplates().find(item => item.id === templateId) ||
+      return builtinStateTemplates().find(item => item.id === templateId) ||
         null;
     }
 
@@ -18173,7 +18086,7 @@
         const state = byId(s.id) || s;
         const templates = [];
         const seen = new Set();
-        [...builtinStateTemplates(), ...stateTemplates].forEach(template => {
+        builtinStateTemplates().forEach(template => {
           const info = widgetPresetInfo(template);
           const id = String(template?.id || "");
           if (!info || !id || seen.has(id)) return;
@@ -19716,8 +19629,11 @@
     }
 
     function stateVariableTypes() {
-      const contractTypes = Array.isArray(productContract?.valueTypes)
-        ? productContract.valueTypes.map(normalizeProductContractValueType).filter(Boolean)
+      const sourceTypes = Array.isArray(productContractValueTypesInFlight)
+        ? productContractValueTypesInFlight
+        : productContract?.valueTypes;
+      const contractTypes = Array.isArray(sourceTypes)
+        ? sourceTypes.map(normalizeProductContractValueType).filter(Boolean)
         : [];
       return contractTypes;
     }
@@ -22150,347 +22066,8 @@
     }
 
     function showTemplateInspector(template, opts = {}) {
-      const root = stateInspectorBodyEl;
       if (!template) return showEmptyInspector();
-      if (presetComposerDraft) clearPresetComposerUi({ restoreApp: false });
-      selected = null;
-      draw();
-      inspectorCollapsed = false;
-      applyInspectorCollapsed();
-      inspectorStateId = null;
-      inspectorEdgeId = null;
-      editingTemplateId = template.id;
-      if (opts.saveSelection) saveSelection("template:select:" + template.id);
-      stateInspectorEl.classList.remove("transition-inspector");
-      stateInspectorEl.classList.add("template-inspector");
-      stateInspectorTitleEl.textContent = "Vorlage: " + (template.title || "Zustandsvorlage");
-      root.innerHTML = `
-        <h3>Wiederverwendbare Vorlage</h3>
-        <div class="template-mode-note">
-          <strong>Einmal bauen, überall wiederverwenden</strong>
-          <span>Variablen bereiten gemeinsame Werte vor, wenn ein Zustand aus dieser Vorlage geöffnet wird. Bestehende Zustände auf der Arbeitsfläche bleiben unverändert.</span>
-        </div>
-        <div class="field"><label>Vorlagentitel</label><input id="pTitle"></div>
-        <div class="state-variable-panel">
-          <div class="state-variable-head">
-            <div>Variablen<span>Name, Typ und Startwert für diese Vorlage</span></div>
-          </div>
-          <div id="pTemplateStateVariableList" class="state-variable-list"></div>
-          <div class="state-variable-add">
-            <input id="pTemplateStateVariableName" list="pTemplateStateVariableNameList" placeholder="variableName">
-            <select id="pTemplateStateVariableType" aria-label="Variablentyp"></select>
-            <button id="pTemplateStateVariableAdd" type="button">+ Hinzufügen</button>
-            <datalist id="pTemplateStateVariableNameList"></datalist>
-          </div>
-        </div>
-        <div id="pDataPreview" class="condition-preview empty"></div>
-        <details class="inspector-collapse inspector-subcollapse" id="pTemplateAdvancedDataCard">
-          <summary class="inspector-collapse-summary">
-            <span>
-              <strong>Rohdaten</strong>
-              <em>Erweiterte Vertragsansicht.</em>
-            </span>
-          </summary>
-          <div class="inspector-collapse-body">
-            <div class="field"><label>Rohobjekt</label><textarea id="pData" spellcheck="false" placeholder='{"name":"Ada"}'></textarea></div>
-          </div>
-        </details>
-        <details class="inspector-collapse inspector-subcollapse" id="pTemplateRepeatCard">
-          <summary class="inspector-collapse-summary">
-            <span>
-              <strong>Liste anzeigen</strong>
-              <em>Nutzen, wenn diese Vorlage einen Eintrag pro Zeile rendert.</em>
-            </span>
-          </summary>
-          <div class="inspector-collapse-body">
-            <div class="data-source-panel">
-              <div class="field"><label>Einträge anzeigen aus</label><input id="pRepeatPath" placeholder="states.this_state.fetch.data"></div>
-              <div class="row">
-                <div class="field"><label>Eintragsname</label><input id="pRepeatAs" placeholder="item"></div>
-                <div class="field"><label>Indexname</label><input id="pRepeatIndex" placeholder="i"></div>
-              </div>
-              <div id="pRepeatPreview" class="condition-preview empty"></div>
-            </div>
-          </div>
-        </details>
-        <div class="small"><b>Inhalt</b></div>
-        <div id="pComponents" class="component-list"></div>
-        <div class="component-empty">Komplexe Vorlageninhalte auf der Arbeitsfläche bearbeiten und den aktualisierten Zustand danach wieder hierher ziehen.</div>
-        <div class="row" style="margin-top:10px">
-          <button id="pTemplateUse">Auf Arbeitsfläche verwenden</button>
-          <button id="pTemplateExport">Komponente exportieren</button>
-          <button id="pTemplateImport">Komponente importieren</button>
-          <button id="pTemplateDelete" class="danger">Vorlage löschen</button>
-        </div>
-        <details class="inspector-collapse inspector-subcollapse" id="pTemplateMetaCard">
-          <summary class="inspector-collapse-summary">
-            <span>
-              <strong>Vorlageninfo</strong>
-              <em>ID und Speicherdetails.</em>
-            </span>
-          </summary>
-          <div class="inspector-collapse-body">
-            <div class="small">Vorlagen-ID: <b>${escapeHtml(template.id)}</b></div>
-          </div>
-        </details>
-      `;
-      const title = root.querySelector("#pTitle");
-      const data = root.querySelector("#pData");
-      const dataPreview = root.querySelector("#pDataPreview");
-      const stateVariableList = root.querySelector("#pTemplateStateVariableList");
-      const stateVariableName = root.querySelector("#pTemplateStateVariableName");
-      const stateVariableNameList = root.querySelector("#pTemplateStateVariableNameList");
-      const stateVariableType = root.querySelector("#pTemplateStateVariableType");
-      const stateVariableAdd = root.querySelector("#pTemplateStateVariableAdd");
-      const advancedDataCard = root.querySelector("#pTemplateAdvancedDataCard");
-      const repeatCard = root.querySelector("#pTemplateRepeatCard");
-      const persistTemplate = (historyKey = "template:" + template.id) => {
-        saveStateTemplates(historyKey);
-        renderStateExplorer();
-      };
-      title.value = template.title || "";
-      data.value = JSON.stringify(normalizeStateDataObject(template.data), null, 2);
-      appendStateVariableTypeOptions(stateVariableType, "text");
-      const renderTemplateVariableSuggestions = () => {
-        if (!stateVariableNameList) return;
-        stateVariableNameList.innerHTML = "";
-        const seen = new Set();
-        const add = (path, label = path) => {
-          const clean = normalizeBindingPath(path, "");
-          if (!clean || seen.has(clean) || isRuntimeBookkeepingPath(clean)) return;
-          seen.add(clean);
-          const option = document.createElement("option");
-          option.value = clean;
-          option.label = label;
-          stateVariableNameList.appendChild(option);
-        };
-        for (const state of model.states || []) {
-          const label = state.title || state.id || "state";
-          for (const { busPath } of stateDataBusEntries(state)) add(busPath, label);
-        }
-        for (const transition of model.transitions || []) {
-          const label = transition.label || transition.id || "transition";
-          for (const key of Object.keys(normalizeDataObject(transition.set))) add(key, label);
-        }
-      };
-      const syncTemplateDataObject = (nextData, historyKey = "template:data:" + template.id, refreshVariables = true, nextTypes = template.dataTypes) => {
-        template.data = normalizeStateDataObject(nextData);
-        template.dataTypes = normalizeDataTypes(nextTypes, template.data);
-        data.value = JSON.stringify(template.data, null, 2);
-        updateDataPreview(true, { historyKey, refreshVariables });
-      };
-      const renderTemplateVariableList = () => {
-        if (!stateVariableList) return;
-        const templateDataObject = normalizeStateDataObject(template.data);
-        const entries = collectStateVariableRows({
-          id: template.rootStateId || template.id,
-          data: templateDataObject,
-          dataTypes: template.dataTypes
-        });
-        stateVariableList.innerHTML = "";
-        if (!entries.length) {
-          const empty = document.createElement("div");
-          empty.className = "state-variable-empty";
-          empty.textContent = "Noch keine Variablen. Lege eine an, wenn diese Vorlage gemeinsame Daten braucht.";
-          stateVariableList.appendChild(empty);
-          return;
-        }
-        const makeTypeSelect = (path, value) => {
-          const select = document.createElement("select");
-          select.dataset.stateVariableType = "true";
-          select.setAttribute("aria-label", "Variablentyp");
-          const savedTypes = normalizeDataTypes(template.dataTypes, template.data);
-          const currentType = savedTypes[path] || inferStateVariableType(path, value);
-          appendStateVariableTypeOptions(select, currentType, { path, value });
-          select.onchange = () => {
-            const next = normalizeStateDataObject(template.data);
-            const nextTypes = normalizeDataTypes(template.dataTypes, next);
-            nextTypes[path] = normalizeStateVariableType(select.value);
-            const nextData = setDataObjectPath(
-              next,
-              path,
-              coerceStateVariableValue(dataObjectValueAtPath(next, path), select.value)
-            );
-            syncTemplateDataObject(nextData, "template:data-variable-type:" + template.id + ":" + path, true, nextTypes);
-          };
-          return select;
-        };
-        const makeValueControl = (path, value, type) => {
-          let control;
-          const updateValue = nextValue => {
-            let next = setDataObjectPath(normalizeStateDataObject(template.data), path, nextValue);
-            next = syncChoiceItemsAggregate(next, path, nextValue);
-            syncTemplateDataObject(next, "template:data-variable-value:" + template.id + ":" + path, false);
-          };
-          if (type === "boolean") {
-            control = document.createElement("input");
-            control.type = "checkbox";
-            control.checked = Boolean(value);
-            control.onchange = () => updateValue(control.checked);
-          } else if (type === "list" && isChoiceItemsList(path, value, template.data)) {
-            control = createChoiceItemsEditor(value, updateValue);
-          } else if (type === "object" || type === "list") {
-            control = document.createElement("textarea");
-            control.spellcheck = false;
-            control.value = JSON.stringify(value, null, 2);
-            control.oninput = () => {
-              try {
-                const parsed = JSON.parse(control.value || (type === "list" ? "[]" : "{}"));
-                const valid = type === "list" ? Array.isArray(parsed) : isPlainObject(parsed);
-                if (!valid) throw new Error(type === "list" ? "JSON-Array verwenden." : "JSON-Objekt verwenden.");
-                control.classList.remove("invalid");
-                updateValue(parsed);
-              } catch (_) {
-                control.classList.add("invalid");
-              }
-            };
-          } else {
-            control = document.createElement("input");
-            control.type = type === "password" ? "password" : type === "email" ? "email" : type === "url" || type === "image" ? "url" : "text";
-            control.value = String(value ?? "");
-            if (type === "number") {
-              control.type = "text";
-              control.inputMode = "decimal";
-              control.value = String(value ?? 0);
-              control.oninput = () => {
-                const nextNumber = Number(control.value);
-                if (!Number.isFinite(nextNumber)) {
-                  control.classList.add("invalid");
-                  return;
-                }
-                control.classList.remove("invalid");
-                updateValue(nextNumber);
-              };
-            } else {
-              control.oninput = () => updateValue(control.value);
-            }
-          }
-          control.classList.add("state-variable-value-field");
-          control.dataset.stateVariableValue = "true";
-          return control;
-        };
-        entries.forEach(({ path, value }) => {
-          const row = document.createElement("div");
-          row.className = "state-variable-row";
-          row.dataset.variablePath = path;
-          const name = document.createElement("input");
-          name.value = path;
-          name.dataset.stateVariableName = "true";
-          name.setAttribute("aria-label", "Variablenname");
-          name.onchange = () => {
-            const nextPath = stateVariableLocalPath({ id: template.rootStateId || template.id }, name.value);
-            const next = normalizeStateDataObject(template.data);
-            if (!nextPath || nextPath !== path && dataObjectHasPath(next, nextPath)) {
-              name.value = path;
-              name.classList.add("invalid");
-              return;
-            }
-            name.classList.remove("invalid");
-            if (nextPath === path) return;
-            const nextTypes = normalizeDataTypes(template.dataTypes, next);
-            if (Object.prototype.hasOwnProperty.call(nextTypes, path)) {
-              nextTypes[nextPath] = nextTypes[path];
-              delete nextTypes[path];
-            }
-            const currentValue = dataObjectValueAtPath(next, path);
-            const nextData = setDataObjectPath(deleteDataObjectPath(next, path), nextPath, currentValue);
-            syncTemplateDataObject(nextData, "template:data-variable-rename:" + template.id + ":" + path, true, nextTypes);
-          };
-          const typeSelect = makeTypeSelect(path, value);
-          const remove = document.createElement("button");
-          remove.type = "button";
-          remove.className = "danger state-variable-remove";
-          remove.textContent = "x";
-          remove.title = "Variable entfernen";
-          remove.setAttribute("aria-label", "Variable entfernen " + path);
-          remove.onclick = () => {
-            const next = deleteDataObjectPath(normalizeStateDataObject(template.data), path);
-            const nextTypes = Object.fromEntries(Object.entries(normalizeDataTypes(template.dataTypes, next))
-              .filter(([key]) => key !== path && !key.startsWith(path + ".")));
-            syncTemplateDataObject(next, "template:data-variable-remove:" + template.id + ":" + path, true, nextTypes);
-          };
-          const valueControl = makeValueControl(path, value, typeSelect.value);
-          row.append(name, typeSelect, remove, valueControl);
-          stateVariableList.appendChild(row);
-        });
-      };
-      const addTemplateStateVariable = () => {
-        const next = normalizeStateDataObject(template.data);
-        const type = normalizeStateVariableType(stateVariableType.value);
-        const requestedPath = stateVariableLocalPath({ id: template.rootStateId || template.id }, stateVariableName.value);
-        const path = requestedPath || defaultStateVariablePath(type, next);
-        if (!path || dataObjectHasPath(next, path)) {
-          stateVariableName.classList.add("invalid");
-          return;
-        }
-        stateVariableName.classList.remove("invalid");
-        const nextTypes = normalizeDataTypes(template.dataTypes, next);
-        const nextData = setDataObjectPath(next, path, defaultStateVariableValue(type));
-        nextTypes[path] = type;
-        syncTemplateDataObject(nextData, "template:data-variable-add:" + template.id + ":" + path, true, nextTypes);
-        stateVariableName.value = "";
-        setupEditorAccessibility(root, false);
-      };
-      const updateDataPreview = (persist = true, opts = {}) => {
-        try {
-          const parsed = JSON.parse(data.value || "{}");
-          if (!isPlainObject(parsed)) throw new Error("Daten müssen ein JSON-Objekt sein.");
-          validateStateDataValue(parsed, "template.data");
-          template.data = normalizeStateDataObject(parsed);
-          template.dataTypes = normalizeDataTypes(template.dataTypes, template.data);
-          dataPreview.textContent = Object.keys(template.data).length ? "Vorlage bereitet diese gemeinsamen Werte beim Eintritt vor." : "Keine Startwerte.";
-          dataPreview.classList.toggle("empty", !Object.keys(template.data).length);
-          if (persist) persistTemplate(opts.historyKey || "template:data:" + template.id);
-          if (opts.refreshVariables !== false) renderTemplateVariableList();
-        } catch (err) {
-          dataPreview.textContent = err.message || "Ungültiges JSON.";
-          dataPreview.classList.remove("empty");
-          if (advancedDataCard) advancedDataCard.open = true;
-        }
-      };
-      title.oninput = () => {
-        template.title = title.value || "Zustandsvorlage";
-        stateInspectorTitleEl.textContent = "Vorlage: " + template.title;
-        persistTemplate("template:title:" + template.id);
-      };
-      data.oninput = () => updateDataPreview(true);
-      let stateVariableTypeTouched = false;
-      const refreshStateVariableTypeOptions = () => {
-        const path = normalizeBindingPath(stateVariableName.value, "");
-        const inferred = path ? inferStateVariableType(path, "") : "text";
-        const selected = stateVariableTypeTouched ? stateVariableType.value : inferred;
-        appendStateVariableTypeOptions(stateVariableType, selected, { path, value: defaultStateVariableValue(selected) });
-      };
-      stateVariableType.onchange = () => { stateVariableTypeTouched = true; };
-      stateVariableAdd.onclick = addTemplateStateVariable;
-      stateVariableName.addEventListener("keydown", evt => {
-        if (evt.key !== "Enter") return;
-        evt.preventDefault();
-        addTemplateStateVariable();
-      });
-      stateVariableName.addEventListener("input", () => {
-        stateVariableName.classList.remove("invalid");
-        refreshStateVariableTypeOptions();
-      });
-      renderTemplateVariableSuggestions();
-      if (normalizeRepeatConfig(template.repeat).path && repeatCard) repeatCard.open = true;
-      updateDataPreview(false);
-      bindDataSourceEditor(template, root, historyKey => persistTemplate("template:" + template.id + ":" + historyKey), "template");
-      bindRepeatEditor(template, root, historyKey => persistTemplate("template:" + template.id + ":" + historyKey), "template");
-      const componentOptions = {
-        persistOwner: historyKey => persistTemplate("template:" + template.id + ":" + (historyKey || "components")),
-        skipLiveStateSync: true
-      };
-      renderComponentEditors(template, null, root, componentOptions);
-      root.querySelector("#pTemplateUse").onclick = () => addTemplateAtViewport(template);
-      root.querySelector("#pTemplateExport").onclick = () => exportTemplateComponentFile(template);
-      root.querySelector("#pTemplateImport").onclick = requestImportComponentFile;
-      root.querySelector("#pTemplateDelete").onclick = () => { void deleteStateTemplate(template.id); };
-      renderStateExplorer();
-      setupEditorAccessibility(root, opts.focus !== false, {
-        onCommit: showEmptyInspector,
-        selectFirstInput: Boolean(opts.selectTitle)
-      });
+      showPresetComposer(template);
     }
 
     function conditionInputSummary(condition) {
@@ -23723,6 +23300,7 @@
     }
 
     function runtimeModelPayloadForReload() {
+      if (!productContract) return null;
       const activeStateId = hostRuntimeStateView();
       const startStateId = activeStateId && byId(activeStateId) ? activeStateId : model.initial;
       return {
@@ -23736,7 +23314,8 @@
     }
 
     function reloadAppFrame(payload = null, opts = {}) {
-      if (payload?.type !== "STATE_BLUEPRINT_MODEL") queuePendingRuntimePayload(runtimeModelPayloadForReload());
+      const reloadPayload = runtimeModelPayloadForReload();
+      if (payload?.type !== "STATE_BLUEPRINT_MODEL" && reloadPayload) queuePendingRuntimePayload(reloadPayload);
       if (payload) queuePendingRuntimePayload(payload);
       const activeStateId = hostRuntimeStateView();
       if (!payload && opts.preserveCurrent && activeStateId && byId(activeStateId)) {
@@ -23830,6 +23409,7 @@
     }
 
     function syncToApp(reset) {
+      if (!productContract) return;
       clearPresetPreviewUi();
       syncStateEl.textContent = reset ? "neu" : "aktiv";
       if (reset) {
@@ -23848,6 +23428,7 @@
     }
 
     function startAppAtState(id, opts = {}) {
+      if (!productContract) return;
       if (!byId(id)) return;
       clearPresetPreviewUi();
       runtimeLayerFollowEnabled = Boolean(opts.allowLayerFollow);
@@ -23937,76 +23518,24 @@
     }
 
     function nextStateTemplateTitle() {
-      let index = stateTemplates.length + 1;
-      const titles = new Set(stateTemplates.map(template => String(template.title || "").toLowerCase()));
-      while (titles.has(("Zustandsvorlage " + index).toLowerCase())) index++;
-      return "Zustandsvorlage " + index;
+      return "Zustandsvorlage";
     }
 
     function addBlankStateTemplate() {
-      const template = {
-        id: uid("tpl"),
-        title: nextStateTemplateTitle(),
-        components: [],
-        data: {},
-        dataSource: null,
-        repeat: normalizeRepeatConfig(null)
-      };
-      template.dataSource = normalizeDataSource({ target: stateDataScopeForId(template.id) + ".fetch" });
-      stateTemplates = [template, ...stateTemplates].slice(0, 40);
-      editingTemplateId = template.id;
-      stateExplorerCollapsed = false;
-      saveStateTemplates("template:add:" + template.id);
-      applyStateExplorerCollapsed();
-      renderStateExplorer();
-      showTemplateInspector(template, { selectTitle: true });
+      modalAlert("Neue Presets werden zentral im Product Contract angelegt, nicht im Canvas gespeichert.", "Contract-Presets");
     }
 
     function addStateTemplateFromState(s) {
-      const template = stateTemplateFromState(s);
-      stateTemplates = [
-        template,
-        ...stateTemplates.filter(item => normalizeId(item.title) !== normalizeId(template.title))
-      ].slice(0, 40);
-      editingTemplateId = template.id;
-      saveStateTemplates("template:add:" + template.id);
-      stateExplorerCollapsed = false;
-      applyStateExplorerCollapsed();
-      renderStateExplorer();
-      showTemplateInspector(template, { focus: false });
+      modalAlert("Zustände werden nicht mehr als lokale Presets gespeichert. Presets kommen ausschließlich aus dem Product Contract.", "Contract-Presets");
     }
 
     function updateTemplateFromSelectedState(templateId) {
-      const selectedId = selectedNodeIdList()[0];
-      const source = selectedId ? byId(selectedId) : null;
-      if (!source) {
-        modalAlert("Wähle zuerst einen Zustand aus und aktualisiere danach die Vorlage daraus.", "Kein Zustand ausgewählt");
-        return;
-      }
-      const snapshot = stateTemplateFromState(source);
-      stateTemplates = stateTemplates.map(template => template.id === templateId ? { ...snapshot, id: template.id } : template);
-      editingTemplateId = templateId;
-      saveStateTemplates("template:update:" + templateId);
-      renderStateExplorer();
-      showTemplateInspector(stateTemplates.find(template => template.id === templateId), { focus: false });
+      modalAlert("Contract-Presets werden zentral verwaltet und können im Canvas nicht überschrieben werden.", "Contract-Presets");
     }
 
     async function deleteStateTemplate(templateId) {
-      const template = stateTemplates.find(item => item.id === templateId);
-      if (!template) return false;
-      const ok = await modalConfirm(
-        `Vorlage "${template.title || "Zustandsvorlage"}" löschen? Du kannst das bei Bedarf rückgängig machen.`,
-        "Vorlage löschen",
-        { confirmText: "Vorlage löschen", danger: true }
-      );
-      if (!ok) return false;
-      stateTemplates = stateTemplates.filter(template => template.id !== templateId);
-      const deletedActiveTemplate = editingTemplateId === templateId;
-      if (deletedActiveTemplate) editingTemplateId = null;
-      saveStateTemplates("template:delete:" + templateId);
-      renderStateExplorer();
-      if (deletedActiveTemplate) showEmptyInspector();
-      return true;
+      modalAlert("Contract-Presets werden am Contract-Server entfernt, nicht im Canvas.", "Contract-Presets");
+      return false;
     }
 
     function addTemplateAtViewport(template) {
@@ -24716,7 +24245,7 @@
       if (!rows.length) {
         const empty = document.createElement("div");
         empty.className = "preset-composer-note";
-        empty.textContent = "Noch keine Variablen. Lege eine an, wenn dieser Zustand beim Öffnen einen gemeinsamen Wert erzeugen soll.";
+        empty.textContent = "Dieses Contract-Preset bringt keine befüllbaren Felder mit.";
         section.appendChild(empty);
       }
       rows.forEach(rowData => {
@@ -24727,19 +24256,11 @@
         name.value = composerDisplayPath(template, rowData.path);
         name.setAttribute("list", variableListId);
         name.setAttribute("aria-label", "Variablenname");
-        name.onchange = () => {
-          if (!renameComposerVariable(template, rowData.path, name.value)) {
-            name.value = composerDisplayPath(template, rowData.path);
-            name.classList.add("invalid");
-            return;
-          }
-          renderPresetComposer();
-          schedulePresetComposerPreview();
-        };
-        name.oninput = () => name.classList.remove("invalid");
+        name.readOnly = true;
         const type = document.createElement("select");
         type.setAttribute("aria-label", "Variablentyp");
         appendStateVariableTypeOptions(type, rowData.type, { path: rowData.path, value: rowData.value });
+        type.disabled = true;
         const makeValueControl = () => {
           const currentType = normalizeStateVariableType(type.value);
           const value = dataObjectValueAtPath(template.data, rowData.path);
@@ -24802,64 +24323,16 @@
         remove.textContent = "x";
         remove.title = "Variable entfernen";
         remove.setAttribute("aria-label", "Variable entfernen " + composerDisplayPath(template, rowData.path));
-        remove.onclick = () => {
-          removeComposerVariable(template, rowData.path);
-          renderPresetComposer();
-          schedulePresetComposerPreview();
-        };
+        remove.hidden = true;
+        remove.disabled = true;
         row.append(name, type, valueControl, remove);
         section.appendChild(row);
       });
-      const addRow = document.createElement("div");
-      addRow.className = "preset-composer-add";
-      const addName = document.createElement("input");
-      addName.placeholder = "trackingId";
-      addName.setAttribute("list", variableListId);
-      addName.setAttribute("aria-label", "Neuer Variablenname");
-      const addType = document.createElement("select");
-      addType.setAttribute("aria-label", "Neuer Variablentyp");
-      appendStateVariableTypeOptions(addType, "text");
-      let addTypeTouched = false;
-      const refreshAddTypeOptions = () => {
-        const path = composerActualPath(template, addName.value || "");
-        const inferred = path ? inferStateVariableType(path, "") : "text";
-        const selected = addTypeTouched ? addType.value : inferred;
-        appendStateVariableTypeOptions(addType, selected, { path, value: defaultStateVariableValue(selected) });
-      };
-      addType.onchange = () => { addTypeTouched = true; };
-      const addVar = document.createElement("button");
-      addVar.type = "button";
-      addVar.textContent = "+ Var";
-      const addVariable = () => {
-        const type = normalizeStateVariableType(addType.value);
-        const path = composerActualPath(template, addName.value || defaultStateVariablePath(type, normalizeStateDataObject(template.data)));
-        if (!path || dataObjectHasPath(template.data, path)) {
-          addName.classList.add("invalid");
-          return;
-        }
-        addName.classList.remove("invalid");
-        writeComposerVariable(template, path, defaultStateVariableValue(type), type);
-        addName.value = "";
-        renderPresetComposer();
-        schedulePresetComposerPreview();
-      };
-      addVar.onclick = addVariable;
-      addName.addEventListener("keydown", evt => {
-        if (evt.key !== "Enter") return;
-        evt.preventDefault();
-        addVariable();
-      });
-      addName.addEventListener("input", () => {
-        addName.classList.remove("invalid");
-        refreshAddTypeOptions();
-      });
-      addRow.append(addName, addType, addVar);
-      section.appendChild(addRow);
       shell.appendChild(section);
 
       const note = document.createElement("div");
       note.className = "preset-composer-note";
-      note.textContent = "Werte werden zu state.data und dataTypes. Render-Zeilen lesen sie über dataWires; kein lokaler Schattenzustand.";
+      note.textContent = "Felder kommen aus dem Product Contract. Werte werden erst beim Hinzufügen in state.data und dataTypes materialisiert.";
       shell.appendChild(note);
       root.appendChild(shell);
       setupEditorAccessibility(root, false, {
@@ -25682,7 +25155,6 @@
         button.textContent = group.label;
         button.className = group.key === stateExplorerGroup ? "active" : "";
         button.dataset.explorerGroup = group.key;
-        if (group.key === "saved") button.setAttribute("aria-label", "Deine Vorlagen");
         button.setAttribute("aria-pressed", group.key === stateExplorerGroup ? "true" : "false");
         button.onclick = evt => {
           evt.stopPropagation();
@@ -25820,8 +25292,7 @@
         { key: "basics", label: "Grundlagen", cards: [] },
         { key: "forms", label: "Formulare", cards: [] },
         { key: "data", label: "Daten", cards: [] },
-        { key: "more", label: "Mehr", cards: [] },
-        { key: "saved", label: "Gespeichert", cards: [] }
+        { key: "more", label: "Mehr", cards: [] }
       ];
       builtinStateTemplates().forEach(template => {
         const group = explorerGroups.find(item => item.key === explorerGroupForTemplate(template)) || explorerGroups[explorerGroups.length - 1];
@@ -25868,69 +25339,7 @@
         group.cards.push(card);
       });
 
-      const userItems = [];
-      if (!stateTemplates.length && !searchQuery) {
-        const empty = document.createElement("div");
-        empty.className = "state-template-empty";
-        empty.textContent = "Ziehe einen Zustand hierher oder erstelle mit + Vorlage eine eigene Vorlage.";
-        userItems.push(empty);
-      }
-      for (const template of stateTemplates) {
-        const card = document.createElement("div");
-        card.className = "state-template-card";
-        card.dataset.templateKind = "user";
-        if (editingTemplateId === template.id) card.classList.add("editing");
-        card.innerHTML = `
-          <div class="template-title"></div>
-          <div class="template-body"></div>
-          <div class="template-actions">
-            <button class="template-use" type="button">Verwenden</button>
-            <button class="template-update" type="button">Aktualisieren</button>
-            <button class="template-delete danger" type="button">Löschen</button>
-          </div>
-        `;
-        const titleEl = card.querySelector(".template-title");
-        const bodyEl = card.querySelector(".template-body");
-        const title = template.title || "Zustandsvorlage";
-        const description = templateCardDescription(template);
-        card.dataset.presetSearch = presetSearchHaystack(template, "Gespeichert", description);
-        titleEl.textContent = title;
-        titleEl.title = title;
-        bodyEl.textContent = description;
-        bodyEl.title = description;
-        card.querySelectorAll("button").forEach(button => {
-          button.addEventListener("mousedown", stopAction);
-          button.addEventListener("pointerdown", stopAction);
-        });
-        card.querySelector(".template-use").onclick = evt => {
-          evt.stopPropagation();
-          addTemplateAtViewport(template);
-        };
-        card.querySelector(".template-update").onclick = evt => {
-          evt.stopPropagation();
-          updateTemplateFromSelectedState(template.id);
-        };
-        card.querySelector(".template-delete").onclick = evt => {
-          evt.stopPropagation();
-          void deleteStateTemplate(template.id);
-        };
-        card.addEventListener("click", evt => {
-          if (evt.target.closest("button, input, textarea")) return;
-          if (Date.now() < suppressTemplateClickUntil) return;
-          previewTemplateInGeneratedApp(template, { sourceId: template.id, showOnMobile: true });
-          showTemplateInspector(template, { focus: false, saveSelection: true });
-        });
-        wireDraggableTemplate(card, template);
-        card.addEventListener("dblclick", evt => {
-          if (evt.target.closest("button, input, textarea")) return;
-          addTemplateAtViewport(template);
-        });
-        userItems.push(card);
-      }
-      const savedGroup = explorerGroups.find(group => group.key === "saved");
-      if (savedGroup) savedGroup.cards.push(...userItems);
       explorerGroups.forEach(group => {
-        if (group.key === "saved") return;
         group.cards.sort((a, b) =>
           Number(a.dataset.usageRank || 1000) - Number(b.dataset.usageRank || 1000) ||
           String(a.querySelector(".template-title")?.textContent || "").localeCompare(String(b.querySelector(".template-title")?.textContent || ""))
@@ -25942,7 +25351,7 @@
         cards: group.cards.filter(card => presetCardMatchesSearch(card, searchQuery))
       }));
       visibleGroups.forEach(group => {
-        const kind = group.key === "saved" ? "user saved" : `core ${group.key}`;
+        const kind = `core ${group.key}`;
         appendSection(kind, group.label, group.cards);
       });
       if (searchQuery && !visibleGroups.some(group => group.cards.length)) {
@@ -27278,10 +26687,12 @@
 
     frameEl.addEventListener("load", () => {
       if (!appFrameContainsGeneratedApp()) {
+        if (!productContract) return;
         reloadAppFrame(null, { preserveCurrent: true });
         return;
       }
       appFrameReady = true;
+      if (!productContract) return;
       if (pendingFramePayloads.length) {
         flushPendingRuntimePayloads();
       } else if (pendingAppStartStateId && byId(pendingAppStartStateId)) startAppAtState(pendingAppStartStateId);
@@ -27297,51 +26708,62 @@
     wiresEl.style.width = WORLD_W + "px";
     wiresEl.style.height = WORLD_H + "px";
 
-    const demoEntry = requestedDemoEntryId();
-    if (demoEntry === "zustand" && !initialPersistedModelExists) {
-      model = normalizeModel(exampleWebsiteModel());
-      selected = null;
-      currentLayerId = null;
-      applyRuntimeStateView("");
-      consumeDemoEntryUrl();
-    }
-    normalizeModel(model);
-    applyPanelWidths({ persist: false, redraw: false });
-    applyPreviewCollapsed();
-    applyInspectorCollapsed({ persist: false });
-    applyMobileWorkspaceView();
-    applyStateExplorerCollapsed();
-    syncRuntimePauseButton();
-    syncRuntimeStateLabel();
-    renderStateExplorer();
-    persistStateTemplates();
-    ensureProductContractLoaded();
-    applyCamera();
-    draw();
-    initHistory();
-    persistModel(false);
-    setTimeout(() => {
-      if (isMobileWorkspaceLayout()) focusMobileCanvasState();
-      else fitView();
-    }, 50);
-    if (demoEntry && initialPersistedModelExists) {
-      consumeDemoEntryUrl();
-      setTimeout(async () => {
-        const demoLabel = demoLabelForId(demoEntry);
-        const ok = await modalConfirm(`Es gibt bereits eine gespeicherte Szene. ${demoLabel} trotzdem laden und aktuelle Szene ersetzen?`, demoLabel, {
-          confirmText: "Beispiel laden",
-          cancelText: "Aktuelle Szene behalten",
-          danger: false
-        });
-        if (ok) {
-          try {
-            await loadExampleEntryById(demoEntry, true);
-          } catch (error) {
-            reportDemoLoadFailure(error);
+    async function bootEditor() {
+      const contract = await ensureProductContractLoaded({ notify: false });
+      if (!contract) {
+        showProductContractUnavailable();
+        return;
+      }
+
+      applyPersistedEditorState(initialEditorState);
+      const demoEntry = requestedDemoEntryId();
+      if (demoEntry === "zustand" && !initialPersistedModelExists) {
+        model = normalizeModel(exampleWebsiteModel());
+        selected = null;
+        currentLayerId = null;
+        applyRuntimeStateView("");
+        consumeDemoEntryUrl();
+      }
+      normalizeModel(model);
+      applyPanelWidths({ persist: false, redraw: false });
+      applyPreviewCollapsed();
+      applyInspectorCollapsed({ persist: false });
+      applyMobileWorkspaceView();
+      applyStateExplorerCollapsed();
+      syncRuntimePauseButton();
+      syncRuntimeStateLabel();
+      renderStateExplorer();
+      persistStateTemplates();
+      applyCamera();
+      draw();
+      initHistory();
+      persistModel(false);
+      syncToApp(true);
+      setTimeout(() => {
+        if (isMobileWorkspaceLayout()) focusMobileCanvasState();
+        else fitView();
+      }, 50);
+      if (demoEntry && initialPersistedModelExists) {
+        consumeDemoEntryUrl();
+        setTimeout(async () => {
+          const demoLabel = demoLabelForId(demoEntry);
+          const ok = await modalConfirm(`Es gibt bereits eine gespeicherte Szene. ${demoLabel} trotzdem laden und aktuelle Szene ersetzen?`, demoLabel, {
+            confirmText: "Beispiel laden",
+            cancelText: "Aktuelle Szene behalten",
+            danger: false
+          });
+          if (ok) {
+            try {
+              await loadExampleEntryById(demoEntry, true);
+            } catch (error) {
+              reportDemoLoadFailure(error);
+            }
           }
-        }
-      }, 0);
+        }, 0);
+      }
     }
+
+    bootEditor();
 
 
 

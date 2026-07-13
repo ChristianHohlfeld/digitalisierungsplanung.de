@@ -462,8 +462,9 @@ Editoraktion
 - **PRE-013 Offizielle Klassen:** Daisy-Presets MÜSSEN die für ihre Variante
   vorgesehenen daisyUI-Klassen und strukturierten Datenformen verwenden.
   Entfernte Varianten und alte Navbar-Layouts DÜRFEN NICHT wieder erscheinen.
-- **PRE-014 Snapshots:** Gespeicherte Nutzer-Presets sind unabhängige Snapshots.
-  Sie DÜRFEN weder ihre Quelle noch andere Instanzen nachträglich mutieren.
+- **PRE-014 Server-Contract:** Presets kommen ausschließlich aus dem Product
+  Contract des Servers. Der Editor DARF keine lokalen Preset-Definitionen,
+  Katalogkopien oder exportierbaren Preset-Artefakte speichern.
 - **PRE-015 Transition-Drop:** Wird ein neuer Preset-Zustand auf eine vorhandene
   Transition gelegt, MUSS er in diese Transition eingesetzt werden. Die
   eingehende Transition behält ihre Identität; eine neue ausgehende
@@ -484,6 +485,10 @@ Editoraktion
 
 ## 11. Editor-Vertrag
 
+- **ED-000 Contract-Boot:** Der Editor MUSS `/contract` mit `no-store` laden,
+  bevor er Typen, Trigger, Presets oder Contract-Felder normalisiert. Ist der
+  Product Contract nicht erreichbar, DARF der Editor keine eigenen Defaults
+  erfinden und MUSS die contractrelevante Arbeit verweigern.
 - **ED-001 Gemeinsame Operationen:** Verschieben, Verbinden, Umverdrahten,
   Gruppieren, Entgruppieren, Löschen, Kopieren, Einfügen, Undo und Redo MÜSSEN
   dieselben kanonischen Modelloperationen verwenden wie API und MCP.
@@ -667,15 +672,16 @@ Editoraktion
 - **EXP-001 Formale Definition:** Eine gespeicherte Definition MUSS
   `kind: "state-blueprint-definition"`, `schemaVersion: 2` und das normalisierte
   Modell enthalten.
-- **EXP-002 Zulässige Metadaten:** Eine formale Definition DARF Kamera und
-  State-Presets enthalten. Sie DARF keine Undo-Historie, Zwischenablage,
+- **EXP-002 Zulässige Metadaten:** Eine formale Definition DARF Kamera
+  enthalten. Sie DARF keine Preset-Definitionen, Undo-Historie, Zwischenablage,
   Runtime-Werte oder flüchtige Panelzustände enthalten.
 - **EXP-003 Roundtrip:** Speichern und erneutes Laden MUSS dasselbe normalisierte
   Modell, dieselben Render-Referenzen, Daten, Typen und Transitionen
   wiederherstellen.
-- **EXP-004 Teilimport/-export:** Einzelne Zustandskomponenten, Presets und volle
+- **EXP-004 Teilimport/-export:** Einzelne Zustandskomponenten und volle
   Definitionen MÜSSEN ohne Verlust von Data Wires und Render-Reihenfolge
-  importier- und exportierbar sein.
+  importier- und exportierbar sein. Presets sind contract-managed und DÜRFEN
+  nicht als lokale Komponenten importiert oder exportiert werden.
 - **EXP-005 Standalone-HTML:** HTML-Export MUSS selbstenthalten, syntaktisch
   gültig und ohne Editor-Helfer lauffähig sein. Er MUSS das exportierte Modell
   verwenden und DARF nicht aus Local Storage auf ein anderes Modell fallen.
@@ -832,12 +838,12 @@ Editoraktion
   exklusiven Lock laufen, den freigegebenen Remote-Commit erzwingen und lokale
   Änderungen im Server-Checkout verwerfen. Secrets und produktive
   Umgebungswerte MÜSSEN außerhalb dieses Checkouts liegen.
-- **RT-022 Verifikation und Rollback:** Eine Release gilt erst nach erfolgreichem
+- **RT-022 Verifikation und Retry-only Deploy:** Eine Release gilt erst nach erfolgreichem
   PM2-Start mit aktualisierter Umgebung, `nginx -t` und einem Healthcheck mit
   exakt passender Release-ID als deployt. Vorher DARF der Erfolgsmarker nicht
-  fortgeschrieben werden. Schlägt das Update nach Retries fehl, MUSS der letzte
-  verifizierte Commit wiederhergestellt werden; ein späterer Timerlauf versucht
-  die neue Release erneut.
+  fortgeschrieben werden. Schlägt das Update nach Retries fehl, bleibt der
+  letzte Erfolgsmarker unverändert; ein späterer Timerlauf versucht denselben
+  freigegebenen Release-Stand erneut. Es gibt kein Rollback.
 - **RT-023 Versions-API:** Für jede neue `release-N`-Freigabe MÜSSEN `/version`
   und `/healthz` mit `no-store` exakt die vom Backend verwendete
   `releaseId`, Release-Sequenz,
@@ -1284,11 +1290,12 @@ einer Vertragsregel, ist er in Abschnitt 18 als offene Abweichung zu behandeln.
   Vanilla-JavaScript-Anwendung. Sie enthält Host-Oberfläche, Canvas, SVG-
   Routing, Inspektoren, Presets, Modelloperationen, Persistenz, Exportlogik und
   den escaped Quelltext der generierten Runtime.
-- **ARC-002 Editorzustand:** Der Host speichert Modell, Auswahl, aktive Ebene,
-  State-Presets und bearbeitetes Preset unter
-  `stateBlueprintHotLinked.model.v2.editor`. Kamera, UI-Zustand und
-  State-Explorer liegen getrennt unter `.camera`, `.ui` und `.stateExplorer`.
-  Runtime-Kontext wird nicht in State-Defaults zurückpersistiert.
+- **ARC-002 Editorzustand:** Der Host speichert Modell, Auswahl und aktive Ebene
+  unter `stateBlueprintHotLinked.model.v2.editor`. Kamera und UI-Zustand liegen
+  getrennt unter `.camera` und `.ui`. Presets, Trigger-Typen, Value-Types,
+  Datasets und Connectoren kommen aus `/contract` und werden nicht im Editor-
+  Snapshot oder im State-Explorer-Storage gespiegelt. Runtime-Kontext wird nicht
+  in State-Defaults zurückpersistiert.
 - **ARC-003 Historie:** Undo/Redo erfasst normalisierte Modell- und relevante
   Sitzungssnapshots, fasst zusammengehörige Dauerinteraktionen über einen
   History-Key zusammen und begrenzt die Historie auf 100 Einträge.
@@ -1616,8 +1623,8 @@ Damit sind **DEC-002**, **GAP-015** und **GAP-017** entschieden und umgesetzt.
   und Backend verwenden exakt `release-N`; `/version` und `/healthz` liefern
   `releaseId`. Es gibt keine Service-Worker-ID und keinen alten Payload-Alias.
 - CI erhöht die Release-ID erst nach allen Vertragsfällen. Auto-Deploy prüft
-  die exakte ID, PM2, Nginx und Health und rollt bei Fehlern auf die letzte
-  verifizierte Release zurück.
+  die exakte ID, PM2, Nginx und Health, schreibt den Erfolgsmarker nur danach
+  fort und wiederholt fehlgeschlagene Deploys ohne Rollback.
 
 Die Code- und Servergrenze für **GAP-027** ist umgesetzt. Die öffentliche
 Erstantwort bleibt operativ offen, solange DNS noch auf GitHub Pages zeigt;

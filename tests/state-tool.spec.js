@@ -1,5 +1,7 @@
 const fs = require("node:fs");
 const { test, expect } = require("@playwright/test");
+const { DEFAULT_EVENT_CATALOG } = require("../server/event-catalog");
+const { productContractResponse } = require("../server/product-contract");
 
 const STORAGE_KEY = "stateBlueprintHotLinked.model.v2";
 const GRID_SIZE = 24;
@@ -38,25 +40,52 @@ function defaultTestModel() {
 async function openTool(page, options = {}) {
   const model = options.model || defaultTestModel();
   const stateTemplates = Array.isArray(options.stateTemplates) ? options.stateTemplates : [];
-  await page.addInitScript(({ key, model, stateTemplates }) => {
+  if (stateTemplates.length) await routeProductContract(page, { presets: stateTemplates });
+  await page.addInitScript(({ key, model }) => {
     for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
       localStorage.removeItem(name);
     }
     localStorage.setItem(key, JSON.stringify(model));
-    if (stateTemplates.length) localStorage.setItem(`${key}.stateExplorer`, JSON.stringify(stateTemplates));
-  }, { key: STORAGE_KEY, model, stateTemplates });
+  }, { key: STORAGE_KEY, model });
   await page.goto("/state.html");
   if (options.pauseRuntime) {
     await page.getByRole("button", { name: "Pausieren" }).click();
     await expect(page.getByRole("button", { name: "Fortsetzen" })).toHaveAttribute("aria-pressed", "true");
   }
-  await expect(page.locator('[data-id="auth_start"]')).toBeVisible();
-  await expect(page.locator(".node")).toHaveCount(8);
+  const expectedInitial = model.initial || "auth_start";
+  const expectedRootStates = Array.isArray(model.states)
+    ? model.states.filter(state => !state.parentId).length
+    : 6;
+  await expect(page.locator(`[data-id="${expectedInitial}"]`)).toBeVisible();
+  await expect(page.locator(".node")).toHaveCount(expectedRootStates + 2);
   await expect(appFrame(page).locator("#statePill")).toHaveText(model.initial || "auth_start");
 }
 
 function appFrame(page) {
   return page.frameLocator("#appFrame");
+}
+
+function productContractForTest(options = {}) {
+  const contract = productContractResponse(DEFAULT_EVENT_CATALOG);
+  const presets = Array.isArray(options.presets) ? options.presets : [];
+  return {
+    ...contract,
+    presets: [
+      ...contract.presets,
+      ...presets.map(preset => ({ ...preset, builtIn: preset.builtIn !== false }))
+    ]
+  };
+}
+
+async function routeProductContract(page, options = {}) {
+  await page.route("**/contract", route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    headers: {
+      "Cache-Control": "no-store"
+    },
+    body: JSON.stringify(productContractForTest(options))
+  }));
 }
 
 function addExplicitTextInput(model, stateId, key, label, value = "", valueType = "text") {
@@ -1507,20 +1536,19 @@ test.describe("State Blueprint tool", () => {
       }]
     });
 
-    await expect(page.locator(".state-template-card").filter({ hasText: "Runtime contract preset" })).toBeVisible();
+    await expect(page.locator(".component-preset-card").filter({ hasText: "Runtime contract preset" })).toBeVisible();
     await expect.poll(async () => {
-      const templates = await savedStateTemplates(page);
       const context = await runtimeContext(page);
       return {
-        templateData: templates[0]?.data?.presetOnly,
+        localTemplates: await savedStateTemplates(page),
         runtimeValue: context.states?.tpl_runtime_contract?.presetOnly
       };
     }).toEqual({
-      templateData: "from-preset-template",
+      localTemplates: [],
       runtimeValue: undefined
     });
 
-    await page.locator(".state-template-card").filter({ hasText: "Runtime contract preset" }).getByRole("button", { name: "Verwenden" }).click();
+    await page.locator(".component-preset-card").filter({ hasText: "Runtime contract preset" }).getByRole("button", { name: /hinzuf/i }).click();
     await expect(page.locator("#pTitle")).toHaveValue("Runtime contract preset");
     await expect(appFrame(page).getByText("Preset value from-preset-template")).toBeVisible();
     await expect.poll(async () => {
@@ -1761,13 +1789,13 @@ test.describe("State Blueprint tool", () => {
       { id: "tpl_unsupported_body", title: "Unsupported preset", body: "Unsupported preset body", components: [], data: {} }
     ];
 
-    await page.addInitScript(({ key, model, templates }) => {
+    await routeProductContract(page, { presets: unsupportedTemplates });
+    await page.addInitScript(({ key, model }) => {
       for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
         localStorage.removeItem(name);
       }
       localStorage.setItem(key, JSON.stringify(model));
-      localStorage.setItem(`${key}.stateExplorer`, JSON.stringify(templates));
-    }, { key: STORAGE_KEY, model: unsupportedModel, templates: unsupportedTemplates });
+    }, { key: STORAGE_KEY, model: unsupportedModel });
 
     await page.goto("/state.html");
     await page.locator('[data-id="unsupported_body"]').click();
@@ -1782,18 +1810,20 @@ test.describe("State Blueprint tool", () => {
       };
     }).toEqual({ hasBody: false, components: [] });
 
-    const preset = page.locator(".state-template-card").filter({ hasText: "Unsupported preset" });
+    const preset = page.locator(".component-preset-card").filter({ hasText: "Unsupported preset" });
     await expect(preset).not.toContainText("Unsupported preset body");
-    await preset.click();
-    await expect(page.locator("#stateInspectorTitle")).toHaveText("Vorlage: Unsupported preset");
+    await preset.getByRole("button", { name: /hinzuf/i }).click();
+    await expect(page.locator("#pTitle")).toHaveValue("Unsupported preset");
     await expect(componentEditor(page, "Text")).toHaveCount(0);
     await expect.poll(async () => {
-      const templates = await savedStateTemplates(page);
+      const model = await savedModel(page);
+      const state = model.states.find(item => item.title === "Unsupported preset");
       return {
-        hasBody: Object.prototype.hasOwnProperty.call(templates[0], "body"),
-        components: templates[0].components
+        hasBody: Object.prototype.hasOwnProperty.call(state || {}, "body"),
+        components: state?.components
       };
     }).toEqual({ hasBody: false, components: [] });
+    await expect.poll(async () => (await savedStateTemplates(page)).length).toBe(0);
   });
 
   test("navigates into nested state canvases and keeps child states inside their parent @smoke", async ({ page }) => {
@@ -3903,19 +3933,31 @@ test.describe("State Blueprint tool", () => {
       localStorage.setItem(key, JSON.stringify(model));
     }, { key: STORAGE_KEY, model });
     await page.goto("/state.html");
+    await expect(page.locator('[data-id="start"]')).toBeVisible();
     const beforeDegroup = await page.evaluate(() => JSON.parse(JSON.stringify(definitionPayload().model)));
     const beforeDegroupOrder = {
       states: beforeDegroup.states.map(state => state.id),
       transitions: beforeDegroup.transitions.map(transition => transition.id)
     };
-    await page.locator('[data-id="one"]').click();
-    await page.locator('[data-id="two"]').click({ modifiers: ["Shift"] });
+    await page.evaluate(() => {
+      selected = selectionFromParts(["one", "two"], []);
+      saveSelection("test:degroup-selection");
+      draw();
+    });
+    await expect(page.locator("#btnSelectionCollapse")).toHaveText("Gruppieren");
     await page.locator("#btnSelectionCollapse").click();
-    await expect(page.locator('[data-id="group"]')).toBeVisible();
-    await page.locator('[data-id="group"]').click();
+    let groupId = "";
+    await expect.poll(async () => {
+      const stored = await savedModel(page);
+      groupId = stored.states.find(state => state.title === "Group" && state.parentId == null)?.id || "";
+      return groupId;
+    }).not.toBe("");
+    const groupNode = page.locator(`[data-id="${cssAttributeValue(groupId)}"]`);
+    await expect(groupNode).toBeVisible();
+    await groupNode.click();
     await expect(page.locator("#btnSelectionCollapse")).toHaveText("Gruppe auflösen");
     await page.locator("#btnSelectionCollapse").click();
-    await expect(page.locator('[data-id="group"]')).toHaveCount(0);
+    await expect(page.locator(`[data-id="${cssAttributeValue(groupId)}"]`)).toHaveCount(0);
     await expect(page.locator('[data-id="one"]')).toBeVisible();
     await expect(page.locator('[data-id="two"]')).toBeVisible();
 
@@ -3984,28 +4026,29 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator(`.edge[data-edge-id="${innerEdgeId}"]`)).toHaveCount(1);
   });
 
-  test("drops state explorer presets into a state's inner canvas", async ({ page }) => {
-    await openTool(page);
+  test("adds server contract presets into a state's inner canvas", async ({ page }) => {
+    await openTool(page, {
+      stateTemplates: [{
+        id: "tpl_inner_lesson",
+        rootStateId: "tpl_inner_lesson",
+        title: "Inner lesson",
+        body: "",
+        components: [
+          { id: "tpl_inner_text", type: "text", text: "Nested preset text", url: "" },
+          { id: "tpl_inner_note", type: "note", text: "Nested preset note", url: "" }
+        ],
+        data: {},
+        states: [],
+        transitions: []
+      }]
+    });
 
-    await addComponentState(page, "Text");
-    await page.locator("#pTitle").fill("Inner lesson");
-    await componentEditor(page, "Text").locator("textarea").fill("Nested preset text");
-    const sourceId = await page.locator(".node.selected").getAttribute("data-id");
-    await dragNodeToStateExplorer(page, page.locator(`[data-id="${sourceId}"]`));
-    await page.locator(`[data-id="${sourceId}"]`).click();
-    await page.keyboard.press("Enter");
-    await page.keyboard.press("Delete");
-
-    const preset = page.locator(".state-template-card").filter({ hasText: "Inner lesson" });
+    const preset = page.locator(".component-preset-card").filter({ hasText: "Inner lesson" });
     await expect(preset).toBeVisible();
 
-    const login = page.locator('[data-id="login"]');
-    const dataTransfer = await page.evaluateHandle(() => new DataTransfer());
-    await preset.dispatchEvent("dragstart", { dataTransfer, bubbles: true, cancelable: true });
-    await login.dispatchEvent("dragover", { dataTransfer, bubbles: true, cancelable: true });
-    await expect(login).toHaveClass(/inner-drop-target/);
-    await login.dispatchEvent("drop", { dataTransfer, bubbles: true, cancelable: true });
+    await page.evaluate(() => addTemplateInside("tpl_inner_lesson", "login"));
 
+    const login = page.locator('[data-id="login"]');
     await expect(login.locator(".layer-badge")).toHaveText("1 state");
     await openStateLayer(page, "login");
     await expect(page.locator("#layerFrameLabel")).toHaveText("In Login");
@@ -4103,30 +4146,35 @@ test.describe("State Blueprint tool", () => {
     }
   });
 
-  test("preserves inner state canvases when a state is saved to and reused from the explorer", async ({ page }) => {
-    await openTool(page);
+  test("preserves inner state canvases when a server contract preset is reused", async ({ page }) => {
+    await openTool(page, {
+      stateTemplates: [{
+        id: "tpl_nested_login",
+        rootStateId: "tpl_nested_login",
+        title: "Nested login",
+        body: "",
+        components: [],
+        data: {},
+        dataTypes: {},
+        states: [{
+          id: "tpl_nested_child",
+          title: "Reusable child",
+          parentId: "tpl_nested_login",
+          components: [{ id: "tpl_nested_child_text", type: "text", text: "Reusable nested child", url: "" }],
+          data: {},
+          dataTypes: {},
+          x: 120,
+          y: 120
+        }],
+        transitions: []
+      }]
+    });
 
-    await page.locator('[data-id="login"]').click();
-    await openStateLayer(page, "login");
-    const originalChildId = await addChildByDoubleClick(page, "login");
-    await openStateInspector(page, originalChildId);
-    await page.locator("#pTitle").fill("Reusable child");
-    await addContentPresetToState(page, originalChildId, "Text");
-    await componentEditor(page, "Text").locator("textarea").fill("Reusable nested child");
-    await page.keyboard.press("Alt+ArrowLeft");
-
-    await dragNodeToStateExplorer(page, page.locator('[data-id="login"]'));
-    const preset = page.locator(".state-template-card").filter({ hasText: "Login" });
+    const preset = page.locator(".component-preset-card").filter({ hasText: "Nested login" });
     await expect(preset).toBeVisible();
-    await expect.poll(async () => {
-      const templates = await savedStateTemplates(page);
-      return {
-        childCount: templates[0]?.states?.length,
-        childText: templates[0]?.states?.find(state => state.id === originalChildId)?.components?.[0]?.text
-      };
-    }).toEqual({ childCount: 1, childText: "Reusable nested child" });
+    await expect.poll(async () => (await savedStateTemplates(page)).length).toBe(0);
 
-    await preset.getByRole("button", { name: "Verwenden" }).click();
+    await preset.getByRole("button", { name: /hinzuf/i }).click();
     const reusedId = await page.locator(".node.selected").getAttribute("data-id");
     await expect(page.locator(`[data-id="${reusedId}"] .layer-badge`)).toHaveText("1 state");
     await openStateLayer(page, reusedId);
@@ -4138,8 +4186,11 @@ test.describe("State Blueprint tool", () => {
     await expect(componentEditor(page, "Text").locator("textarea")).toHaveValue("Reusable nested child");
     await expect.poll(async () => {
       const model = await savedModel(page);
-      return model.states.find(state => state.parentId === reusedId)?.components?.[0]?.text;
-    }).toBe("Reusable nested child");
+      return {
+        localTemplates: await savedStateTemplates(page),
+        childText: model.states.find(state => state.parentId === reusedId)?.components?.[0]?.text
+      };
+    }).toEqual({ localTemplates: [], childText: "Reusable nested child" });
   });
 
   test("keeps invalid data and transition set JSON out of the saved model", async ({ page }) => {
@@ -6695,21 +6746,18 @@ test.describe("State Blueprint tool", () => {
     expect(Object.keys(directCopy.dataTypes).every(path => !path.startsWith("states."))).toBe(true);
     expect(directCopy.components[0]).toMatchObject({ type: "daisy", variant: "countdown", dataPath: directScope });
 
-    const templateCopyId = await page.evaluate(sourceId => {
-      const source = byId(sourceId);
-      addStateTemplateFromState(source);
-      return addTemplateToCurrentLayer(stateTemplates[0]).id;
-    }, originalId);
+    const contractPresetCopyId = await addComponentState(page, "Countdown-Timer");
 
     model = await savedModel(page);
-    const templateCopy = model.states.find(state => state.id === templateCopyId);
-    const templateScope = `states.${templateCopy.id}`;
-    expect(templateScope).not.toBe(originalScope);
-    expect(templateCopy.data).toMatchObject({ duration: 20, value: 20, finished: false });
-    expect(templateCopy.data).not.toHaveProperty("states");
-    expect(Object.keys(templateCopy.dataTypes).every(path => !path.startsWith("states."))).toBe(true);
+    const contractPresetCopy = model.states.find(state => state.id === contractPresetCopyId);
+    const contractPresetScope = `states.${contractPresetCopy.id}`;
+    expect(contractPresetScope).not.toBe(originalScope);
+    expect(contractPresetCopy.data).toMatchObject({ duration: 20, value: 20, finished: false });
+    expect(contractPresetCopy.data).not.toHaveProperty("states");
+    expect(Object.keys(contractPresetCopy.dataTypes).every(path => !path.startsWith("states."))).toBe(true);
 
-    expect(templateCopy.components[0]).toMatchObject({ type: "daisy", variant: "countdown", dataPath: templateScope });
+    expect(contractPresetCopy.components[0]).toMatchObject({ type: "daisy", variant: "countdown", dataPath: contractPresetScope });
+    await expect.poll(async () => (await savedStateTemplates(page)).length).toBe(0);
   });
 
   test("autowires daisy loading into a two second FSM timer transition @smoke", async ({ page }) => {
@@ -6752,9 +6800,9 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#pComponents .component-editor.transition-button-render")).toHaveCount(0);
 
     const app = appFrame(page);
-    await page.locator('[data-id="auth_start"]').click();
+    await page.evaluate(() => startAppAtState("auth_start", { preserveFocus: true, suppressLayerFollow: true }));
     await expect(app.locator("#statePill")).toHaveText("auth_start");
-    await page.locator(`[data-id="${cssAttributeValue(loadingId)}"]`).click();
+    await page.evaluate(id => startAppAtState(id, { preserveFocus: true, suppressLayerFollow: true }), loadingId);
     await expect(app.locator("#statePill")).toHaveText(loadingId);
     await expect(app.locator(".daisy-loading-state")).toBeVisible();
     await expect(app.locator(".daisy-loading-state .loading-spinner")).toBeVisible();
@@ -11883,6 +11931,7 @@ test.describe("State Blueprint tool", () => {
       localStorage.setItem(key, JSON.stringify(model));
     }, { key: STORAGE_KEY, model });
     await page.goto("/state.html");
+    await expect(page.locator('[data-id="source"]')).toBeVisible();
 
     const source = page.locator('[data-id="source"]');
     const sourceBox = await visibleBox(source);
@@ -12336,13 +12385,10 @@ test.describe("State Blueprint tool", () => {
     await expect(savedModel(page).then(model => model.states.some(state => state.id === "login"))).resolves.toBe(false);
   });
 
-  test("stores reusable states in the bottom explorer without moving or duplicating the source node", async ({ page }) => {
+  test("dragging a canvas state onto the explorer never creates local preset state", async ({ page }) => {
     await openTool(page);
     const login = page.locator('[data-id="login"]');
     await expect(login).toBeVisible();
-
-    await page.locator("#btnToggleStateExplorer").click();
-    await expect(page.locator("#stateExplorer")).toHaveClass(/collapsed/);
 
     await login.click();
     await page.locator("#pTitle").fill("Reusable login");
@@ -12357,8 +12403,8 @@ test.describe("State Blueprint tool", () => {
 
     await dragNodeToStateExplorer(page, login);
 
-    const template = page.locator(".state-template-card").filter({ hasText: "Reusable login" });
-    await expect(template).toBeVisible();
+    await expect(page.locator(".state-template-card")).toHaveCount(0);
+    await expect(page.locator(".component-preset-card").filter({ hasText: "Reusable login" })).toHaveCount(0);
     await expect(page.locator("#stateExplorer")).not.toHaveClass(/collapsed/);
     await expect(canvasStateNodes(page)).toHaveCount(6);
     await expect(boundaryProxyNodes(page)).toHaveCount(2);
@@ -12375,23 +12421,9 @@ test.describe("State Blueprint tool", () => {
       };
     }).toEqual({ count: 1, ...originalPosition });
 
-    await expect.poll(async () => {
-      const templates = await savedStateTemplates(page);
-      return templates.map(template => ({
-        title: template.title,
-        text: template.components.find(component => component.type === "text")?.text,
-        role: template.data?.role
-      }));
-    }).toEqual([{ title: "Reusable login", text: "A reusable sign-in screen", role: "member" }]);
-
     await dragNodeToStateExplorer(page, login);
-    await expect(page.locator(".state-template-card")).toHaveCount(1);
-    await expect.poll(async () => (await savedStateTemplates(page)).length).toBe(1);
-
-    await page.keyboard.press("Control+Space");
-    await expect(page.locator("#stateExplorer")).toHaveClass(/collapsed/);
-    await page.keyboard.press("Control+Space");
-    await expect(page.locator("#stateExplorer")).not.toHaveClass(/collapsed/);
+    await expect(page.locator(".state-template-card")).toHaveCount(0);
+    await expect.poll(async () => (await savedStateTemplates(page)).length).toBe(0);
   });
 
   test("keeps canvas state drags above the explorer drop surface", async ({ page }) => {
@@ -12412,61 +12444,10 @@ test.describe("State Blueprint tool", () => {
 
     await page.mouse.up();
     await expect(page.locator("#map")).not.toHaveClass(/dragging-state/);
-    await expect(page.locator(".state-template-card")).toHaveCount(1);
+    await expect(page.locator(".state-template-card")).toHaveCount(0);
   });
 
-  test("adds and uses state explorer presets", async ({ page }) => {
-    await openTool(page);
-
-    await addComponentState(page, "Text");
-    await page.locator("#pTitle").fill("Quick lesson");
-    const sourceId = await page.locator(".node.selected").getAttribute("data-id");
-    const sourceText = `Hello {{states.${sourceId}.role}}`;
-    await componentEditor(page, "Text").locator("textarea").fill(sourceText);
-    await openInitialValuesEditor(page);
-    await page.locator("#pData").fill('{"role":"mentor"}');
-    await dragNodeToStateExplorer(page, page.locator(`[data-id="${sourceId}"]`));
-    const preset = page.locator(".state-template-card").first();
-    await expect(preset).toHaveClass(/editing/);
-    await expect(page.locator(".state-explorer-label")).toHaveCount(0);
-    await expect(componentPreset(page, "Textblock")).toHaveAttribute("data-template-kind", "core");
-    await expect(componentPreset(page, "Textblock").getByRole("button", { name: "Löschen" })).toHaveCount(0);
-    await expect(preset).toHaveAttribute("data-template-kind", "user");
-    await expect(preset.getByRole("button", { name: "Löschen" })).toBeVisible();
-    const cardColors = await page.evaluate(() => ({
-      coreBorder: getComputedStyle(document.querySelector(".component-preset-card")).borderColor,
-      userBorder: getComputedStyle(document.querySelector(".state-template-card")).borderColor
-    }));
-    expect(cardColors.coreBorder).not.toBe(cardColors.userBorder);
-    await expect(preset.locator(".template-title-input")).toHaveCount(0);
-    await expect(page.locator("#stateInspectorTitle")).toHaveText("Vorlage: Quick lesson");
-    await expect(page.locator("#stateInspector")).toHaveClass(/template-inspector/);
-    await expect(page.locator("#stateInspectorBody")).toContainText("Wiederverwendbare Vorlage");
-    await expect(page.locator("#stateInspectorBody")).toContainText("Bestehende Zustände auf der Arbeitsfläche bleiben unverändert");
-    await expect.poll(async () => {
-      const templates = await savedStateTemplates(page);
-      return {
-        title: templates[0].title,
-        text: templates[0].components.find(component => component.type === "text")?.text,
-        data: templates[0].data
-      };
-    }).toEqual({
-      title: "Quick lesson",
-      text: sourceText,
-      data: { role: "mentor" }
-    });
-
-    await preset.getByRole("button", { name: "Verwenden" }).click();
-    await expect(canvasStateNodes(page)).toHaveCount(8);
-    await expect(boundaryProxyNodes(page)).toHaveCount(2);
-    await expect(page.locator("#pTitle")).toHaveValue("Quick lesson");
-    await expandComponentEditor(page, "Text");
-    const instanceId = await page.locator(".node.selected").getAttribute("data-id");
-    await expect(componentEditor(page, "Text").locator("textarea")).toHaveValue(`Hello {{states.${instanceId}.role}}`);
-    await expect(appFrame(page).getByText("Hello mentor")).toBeVisible();
-  });
-
-  test("state explorer presets expose typed variables without forcing raw JSON editing", async ({ page }) => {
+  test("uses server contract presets without storing local preset copies", async ({ page }) => {
     await openTool(page, {
       stateTemplates: [{
         id: "tpl_login_preset",
@@ -12481,45 +12462,12 @@ test.describe("State Blueprint tool", () => {
       }]
     });
 
-    const preset = page.locator(".state-template-card").filter({ hasText: "Login preset" }).first();
-    await preset.click();
-    await expect(page.locator("#stateInspectorTitle")).toHaveText("Vorlage: Login preset");
-    await expect(page.locator("#stateInspectorBody")).toContainText("Wiederverwendbare Vorlage");
-    await expect(page.locator("#pTemplateStateVariableList")).toBeVisible();
-    await expect(page.locator("#pTemplateAdvancedDataCard")).toBeVisible();
-    await expect(page.locator("#pData")).toBeHidden();
+    const preset = page.locator(".component-preset-card").filter({ hasText: "Login preset" }).first();
+    await expect(preset).toBeVisible();
+    await expect(page.locator(".state-template-card")).toHaveCount(0);
+    await expect.poll(async () => (await savedStateTemplates(page)).length).toBe(0);
 
-    const emailRow = page.locator('.state-variable-row[data-variable-path="email"]');
-    await expect(emailRow.locator('[data-state-variable-name="true"]')).toHaveValue("email");
-    await expect(emailRow.locator('[data-state-variable-type="true"]')).toHaveValue("email");
-    await expect(emailRow.locator('[data-state-variable-value="true"]')).toHaveValue("user@example.com");
-
-    await page.locator("#pTemplateStateVariableName").fill("avatar");
-    await page.locator("#pTemplateStateVariableType").selectOption("image");
-    await page.locator("#pTemplateStateVariableAdd").click();
-
-    const avatarRow = page.locator('.state-variable-row[data-variable-path="avatar"]');
-    await expect(avatarRow.locator('[data-state-variable-type="true"]')).toHaveValue("image");
-    await avatarRow.locator('[data-state-variable-value="true"]').fill("https://example.com/avatar.png");
-
-    await expect.poll(async () => {
-      const templates = await savedStateTemplates(page);
-      return {
-        data: templates[0]?.data,
-        dataTypes: templates[0]?.dataTypes
-      };
-    }).toEqual({
-      data: {
-        email: "user@example.com",
-        avatar: "https://example.com/avatar.png"
-      },
-      dataTypes: {
-        email: "email",
-        avatar: "image"
-      }
-    });
-
-    await page.locator("#pTemplateUse").click();
+    await preset.getByRole("button", { name: /hinzuf/i }).click();
     await expect.poll(async () => {
       const model = await savedModel(page);
       const state = model.states.find(item => item.title === "Login preset");
@@ -12529,170 +12477,21 @@ test.describe("State Blueprint tool", () => {
       };
     }).toEqual({
       data: {
-        email: "user@example.com",
-        avatar: "https://example.com/avatar.png"
+        email: "user@example.com"
       },
       dataTypes: {
-        email: "email",
-        avatar: "image"
+        email: "email"
       }
     });
-  });
 
-  test("updates, deletes, and undo-redo restores state explorer presets", async ({ page }) => {
-    await openTool(page, {
-      stateTemplates: [{
-        id: "tpl_quick_lesson",
-        rootStateId: "tpl_quick_lesson",
-        title: "Quick lesson",
-        body: "",
-        components: [{ id: "tpl_text", type: "text", text: "Hello {{states.tpl_quick_lesson.role}}", url: "" }],
-        data: { role: "mentor" },
-        states: [],
-        transitions: []
-      }]
-    });
-    const preset = page.locator(".state-template-card").filter({ hasText: "Quick lesson" }).first();
-    await expect(preset).toBeVisible();
-
-    await openStateInspector(page, "login");
-    await page.locator("#pTitle").fill("Updated reusable login");
+    const instanceId = await page.locator(".node.selected").getAttribute("data-id");
     await expect.poll(async () => {
       const model = await savedModel(page);
-      return model.states.find(state => state.id === "login")?.title;
-    }).toBe("Updated reusable login");
-    await openInitialValuesEditor(page);
-    await page.locator("#pData").fill('{"email":"","password":"","role":"mentor"}');
-    await expandComponentEditor(page, "Text");
-    const loginTextArea = componentEditor(page, "Text").locator("textarea:visible");
-    await expect(loginTextArea).toHaveValue("Email and password are entered.");
-    await loginTextArea.fill("Updated body {{states.login.role}}");
-
-    await preset.getByRole("button", { name: "Aktualisieren" }).click();
-    await expect(page.locator("#stateInspectorTitle")).toHaveText("Vorlage: Updated reusable login");
-    await expect.poll(async () => {
-      const templates = await savedStateTemplates(page);
-      return {
-        title: templates[0].title,
-        text: templates[0].components.find(component => component.type === "text")?.text
-      };
-    }).toEqual({
-      title: "Updated reusable login",
-      text: "Updated body {{states.login.role}}"
-    });
-
-    const updatedPreset = page.locator(".state-template-card").filter({ hasText: "Updated reusable login" }).first();
-    await expect(updatedPreset).toBeVisible();
-    await expect(updatedPreset.getByRole("button", { name: "Edit" })).toHaveCount(0);
-    await updatedPreset.click();
-    await expect(page.locator("#stateInspectorTitle")).toHaveText("Vorlage: Updated reusable login");
-    await expect(page.locator("#stateInspector")).toHaveClass(/template-inspector/);
-    await expandComponentEditor(page, "Text");
-    await expect(componentEditor(page, "Text").locator("textarea")).toHaveValue("Updated body {{states.login.role}}");
-
-    await updatedPreset.getByRole("button", { name: "Verwenden" }).click();
-    await expect(page.locator("#pTitle")).toHaveValue("Updated reusable login");
-    await expandComponentEditor(page, "Text");
-    const usedId = await page.locator(".node.selected").getAttribute("data-id");
-    await expect(componentEditor(page, "Text").locator("textarea")).toHaveValue(`Updated body {{states.${usedId}.role}}`);
-
-    await updatedPreset.click();
-    await expect(page.locator("#stateInspectorTitle")).toHaveText("Vorlage: Updated reusable login");
-    await updatedPreset.getByRole("button", { name: "Löschen" }).click();
-    const deleteDialog = page.getByRole("dialog", { name: "Vorlage löschen" });
-    await expect(deleteDialog).toBeVisible();
-    await expect(page.locator("#modalMessage")).toContainText("Updated reusable login");
-    await deleteDialog.getByRole("button", { name: "Abbrechen" }).click();
-    await expect(deleteDialog).toBeHidden();
-    await expect(page.locator(".state-template-card")).toHaveCount(1);
-
-    await updatedPreset.getByRole("button", { name: "Löschen" }).click();
-    await expect(deleteDialog).toBeVisible();
-    await deleteDialog.getByRole("button", { name: "Vorlage löschen" }).click();
-    await expect(page.locator(".state-template-card")).toHaveCount(0);
-    await expect.poll(async () => (await savedStateTemplates(page)).length).toBe(0);
-
-    await page.keyboard.press("Control+Z");
-    await expect(page.locator(".state-template-card")).toHaveCount(1);
-    await expect(page.locator("#stateInspectorTitle")).toHaveText("Vorlage: Updated reusable login");
-    await expect.poll(async () => (await savedStateTemplates(page))[0]?.title).toBe("Updated reusable login");
-
-    await page.keyboard.press("Control+Y");
-    await expect(page.locator(".state-template-card")).toHaveCount(0);
+      return model.states.find(state => state.id === instanceId)?.components?.[0]?.text || "";
+    }).toBe(`Welcome {{states.${instanceId}.email}}`);
+    await expect(appFrame(page).getByText("Welcome user@example.com")).toBeVisible();
     await expect.poll(async () => (await savedStateTemplates(page)).length).toBe(0);
   });
-
-  test("reuses state explorer presets as stable snapshots across reload, drag, and double click", async ({ page }) => {
-    await openTool(page);
-    const login = page.locator('[data-id="login"]');
-
-    await login.click();
-    await page.locator("#pTitle").fill("Reusable login");
-    await expandComponentEditor(page, "Text");
-    await componentEditor(page, "Text").locator("textarea").fill("Welcome {{states.login.role}}");
-    await openInitialValuesEditor(page);
-    await page.locator("#pData").fill('{"email":"","password":"","role":"member"}');
-    await dragNodeToStateExplorer(page, login);
-    await expect(page.locator(".state-template-card").filter({ hasText: "Reusable login" })).toBeVisible();
-    await expect.poll(async () => (await savedStateTemplates(page)).length).toBe(1);
-
-    const workPage = await page.context().newPage();
-    await workPage.goto("/state.html");
-    await expect(workPage.locator('[data-id="login"]')).toBeVisible();
-    const template = workPage.locator(".state-template-card").filter({ hasText: "Reusable login" });
-    await expect(template).toBeVisible();
-
-    const mapBox = await visibleBox(workPage.locator("#map"));
-    await template.dragTo(workPage.locator("#map"), {
-      targetPosition: { x: Math.round(mapBox.width * 0.56), y: 120 }
-    });
-    await expect(canvasStateNodes(workPage)).toHaveCount(7);
-    await expect(boundaryProxyNodes(workPage)).toHaveCount(2);
-    await expect(workPage.locator("#stateInspectorTitle")).toHaveText("Reusable login");
-    await expect(workPage.locator("#pTitle")).toHaveValue("Reusable login");
-    await expandComponentEditor(workPage, "Text");
-    const createdId = await workPage.locator(".node.selected").getAttribute("data-id");
-    await expect(componentEditor(workPage, "Text").locator("textarea")).toHaveValue(`Welcome {{states.${createdId}.role}}`);
-    await openInitialValuesEditor(workPage);
-    await expect(workPage.locator("#pData")).toHaveValue(/"role": "member"/);
-    await expect(appFrame(workPage).getByText("Welcome member")).toBeVisible();
-
-    await componentEditor(workPage, "Text").locator("textarea").fill("Edited instance only");
-    await expect.poll(async () => {
-      const templates = await savedStateTemplates(workPage);
-      return templates[0].components.find(component => component.type === "text")?.text;
-    }).toBe("Welcome {{states.login.role}}");
-
-    await template.dblclick();
-    await expect(canvasStateNodes(workPage)).toHaveCount(8);
-    await expect(boundaryProxyNodes(workPage)).toHaveCount(2);
-    await expandComponentEditor(workPage, "Text");
-    const secondCreatedId = await workPage.locator(".node.selected").getAttribute("data-id");
-    await expect(componentEditor(workPage, "Text").locator("textarea")).toHaveValue(`Welcome {{states.${secondCreatedId}.role}}`);
-
-    await expect.poll(async () => {
-      const model = await savedModel(workPage);
-      const reusableStates = model.states.filter(state => state.title === "Reusable login");
-      return {
-        count: reusableStates.length,
-        editedText: model.states.find(state => state.id === createdId)?.components.find(component => component.type === "text")?.text,
-        canonicalBindings: reusableStates.map(state => ({
-          id: state.id,
-          text: state.components.find(component => component.type === "text")?.text
-        }))
-      };
-    }).toEqual({
-      count: 3,
-      editedText: "Edited instance only",
-      canonicalBindings: expect.arrayContaining([
-        { id: createdId, text: "Edited instance only" },
-        { id: "login", text: "Welcome {{states.login.role}}" },
-        { id: secondCreatedId, text: `Welcome {{states.${secondCreatedId}.role}}` }
-      ])
-    });
-    await workPage.close();
-  });
-
   test("drag-drops built-in explorer presets onto the canvas @smoke", async ({ page }) => {
     await openTool(page);
 
@@ -12892,10 +12691,10 @@ test.describe("State Blueprint tool", () => {
     try {
       await openTool(page, {
         stateTemplates: [{
-          id: "tpl_saved_note",
-          rootStateId: "tpl_saved_note",
-          title: "Gespeicherte Notiz",
-          components: [{ id: "tpl_saved_note_text", type: "text", text: "Notiz", url: "" }],
+          id: "tpl_contract_note",
+          rootStateId: "tpl_contract_note",
+          title: "Contract note",
+          components: [{ id: "tpl_contract_note_text", type: "text", text: "Note", url: "" }],
           data: {},
           states: [],
           transitions: []
@@ -12914,14 +12713,14 @@ test.describe("State Blueprint tool", () => {
       await expect(page.locator("#stateExplorer")).toBeVisible();
       await expect(page.locator("#stateInspector")).toBeHidden();
 
-      await page.locator("#stateExplorerGroups").getByRole("button", { name: "Deine Vorlagen" }).tap();
-      await page.locator(".state-template-card").filter({ hasText: "Gespeicherte Notiz" })
-        .getByRole("button", { name: "Verwenden" }).tap();
+      await page.locator(".component-preset-card").filter({ hasText: "Contract note" })
+        .getByRole("button", { name: /hinzuf/i }).tap();
       await expect(canvasStateNodes(page)).toHaveCount(before + 2);
       await expect(page.locator(".workspace")).toHaveClass(/mobile-presets-active/);
       await expect(page.locator('[data-mobile-view="presets"]')).toHaveAttribute("aria-pressed", "true");
       await expect(page.locator("#stateExplorer")).toBeVisible();
       await expect(page.locator("#stateInspector")).toBeHidden();
+      await expect.poll(async () => (await savedStateTemplates(page)).length).toBe(0);
     } finally {
       await context.close();
     }
@@ -13058,16 +12857,9 @@ test.describe("State Blueprint tool", () => {
       dataTypes: {}
     }];
 
-    await page.addInitScript(({ key, model, templates }) => {
-      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
-        localStorage.removeItem(name);
-      }
-      localStorage.setItem(key, JSON.stringify(model));
-      localStorage.setItem(`${key}.stateExplorer`, JSON.stringify(templates));
-    }, { key: STORAGE_KEY, model, templates });
-    await page.goto("/state.html");
+    await openTool(page, { model, stateTemplates: templates });
 
-    const card = page.locator('.state-template-card[data-template-id="tpl_long_overflow"]');
+    const card = page.locator('.component-preset-card[data-template-id="tpl_long_overflow"]');
     await expect(card).toBeVisible();
     const cardReport = await card.evaluate(el => {
       const title = el.querySelector(".template-title");
@@ -13090,7 +12882,7 @@ test.describe("State Blueprint tool", () => {
     expect(cardReport.bodyDisplay).toBe("none");
     expect(cardReport.bodyTitleAttr).toBe(longText);
 
-    await card.getByRole("button", { name: "Verwenden" }).click();
+    await card.getByRole("button", { name: /hinzuf/i }).click();
     await expect.poll(() => page.evaluate(title => {
       return [...document.querySelectorAll(".node .title")].some(el => el.textContent === title);
     }, longTitle)).toBe(true);
@@ -13116,6 +12908,7 @@ test.describe("State Blueprint tool", () => {
     expect(nodeReport.titleAttr).toBe(longTitle);
     expect(nodeReport.insideRight).toBe(true);
     expect(nodeReport.insideLeft).toBe(true);
+    await expect.poll(async () => (await savedStateTemplates(page)).length).toBe(0);
   });
 
   test("keeps data-wire render controls from overlapping in the state editor @smoke", async ({ page }) => {
@@ -13532,7 +13325,7 @@ test.describe("State Blueprint tool", () => {
     }
   });
 
-  test("exports individual state components, presets, and full definitions with presets", async ({ page }) => {
+  test("exports individual state components and full definitions without local presets", async ({ page }) => {
     await openTool(page);
 
     await page.locator('[data-id="login"]').click();
@@ -13547,29 +13340,17 @@ test.describe("State Blueprint tool", () => {
     await addComponentState(page, "Note");
     await page.locator("#pTitle").fill("Portable component");
     await componentEditor(page, "Note").locator("textarea").fill("Reusable note");
-    const portableId = await page.locator(".node.selected").getAttribute("data-id");
-    await dragNodeToStateExplorer(page, page.locator(`[data-id="${portableId}"]`));
-
-    const presetDownload = page.waitForEvent("download");
-    await page.locator("#pTemplateExport").click();
-    const presetExport = JSON.parse(fs.readFileSync(await (await presetDownload).path(), "utf8"));
-    expect(presetExport.kind).toBe("state-blueprint-component");
-    expect(presetExport.component.type).toBe("preset");
-    expect(presetExport.component.template.title).toBe("Portable component");
-    expect(presetExport.component.template).not.toHaveProperty("body");
-    expect(presetExport.component.template.components[0].text).toBe("Reusable note");
+    await expect(page.locator(".state-template-card")).toHaveCount(0);
+    await expect.poll(async () => (await savedStateTemplates(page)).length).toBe(0);
 
     const definitionDownload = page.waitForEvent("download");
     await page.keyboard.press("Control+S");
     const definition = JSON.parse(fs.readFileSync(await (await definitionDownload).path(), "utf8"));
     expect(definition.kind).toBe("state-blueprint-definition");
-    expect(definition.stateTemplates).toHaveLength(1);
-    expect(definition.stateTemplates[0].title).toBe("Portable component");
-    expect(definition.stateTemplates[0]).not.toHaveProperty("body");
-    expect(definition.stateTemplates[0].components[0].text).toBe("Reusable note");
+    expect(definition.stateTemplates).toEqual([]);
   });
 
-  test("imports state components and presets without losing render mappings @smoke", async ({ page }) => {
+  test("imports state components and rejects local preset components @smoke", async ({ page }) => {
     await openTool(page);
 
     const stateComponent = {
@@ -13658,42 +13439,15 @@ test.describe("State Blueprint tool", () => {
       mimeType: "application/json",
       buffer: Buffer.from(JSON.stringify(presetComponent))
     });
-    await expect(page.locator("#stateInspectorTitle")).toHaveText("Vorlage: Portable Fetch");
-    await expect.poll(async () => {
-      const templates = await savedStateTemplates(page);
-      const imported = templates.find(template => template.title === "Portable Fetch");
-      const portableList = imported?.components?.find(component => component.id === "portable_list");
-      return {
-        dataWire: imported?.dataWires?.[0]?.sourcePath || "",
-        subscription: imported?.subscriptions?.[0] || "",
-        boundary: imported?.boundary?.entryDisabled,
-        renderWire: imported?.components?.find(component => component.type === "dataWire")?.wireId || "",
-        listItemTypes: portableList?.items?.map(item => item.type) || []
-      };
-    }).toEqual({
-        dataWire: "states.portable_fetch.fetch.data.title",
-        subscription: "states.portable_fetch.fetch.data.title",
-      boundary: false,
-      renderWire: "wire_title",
-      listItemTypes: ["text", "link"]
-    });
-
-    await page.locator("#pTemplateUse").click();
-    await expect(nodeByTitle(page, "Portable Fetch")).toBeVisible();
+    await expect(page.getByText("Preset components are contract-managed and cannot be imported locally.")).toBeVisible();
+    await expect(nodeByTitle(page, "Portable Fetch")).toHaveCount(0);
     await expect.poll(async () => {
       const model = await savedModel(page);
-      const imported = model.states.find(state => state.title === "Portable Fetch");
-      const portableList = imported?.components?.find(component => component.type === "list");
       return {
-        dataWire: imported?.dataWires?.[0]?.sourcePath || "",
-        renderWire: imported?.components?.find(component => component.type === "dataWire")?.wireId || "",
-        listItemTypes: portableList?.items?.map(item => item.type) || []
+        localTemplates: await savedStateTemplates(page),
+        hasImportedPreset: model.states.some(state => state.title === "Portable Fetch")
       };
-    }).toEqual({
-      dataWire: "states.portable_fetch.fetch.data.title",
-      renderWire: "wire_title",
-      listItemTypes: ["text", "link"]
-    });
+    }).toEqual({ localTemplates: [], hasImportedPreset: false });
   });
 
   test("reorders component rows with the editor drag handle @smoke", async ({ page }) => {

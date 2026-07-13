@@ -197,7 +197,7 @@ async function waitForRuntimeRealtimeJoin(page) {
   await expect.poll(async () => (await runtimeContext(page)).realtime?.joined).toBe(true);
 }
 
-async function receiveRuntimeRealtimeEvent(page, event, detail = {}, roomId = "contract-room", emitterId = "") {
+async function receiveRuntimeRealtimeEvent(page, event, detail = {}, roomId = "contract-room", emitterId = "", options = {}) {
   await appFrame(page).locator("html").evaluate((_, payload) => {
     window.__fakeRealtimeSockets[0].receive(payload);
   }, {
@@ -208,7 +208,10 @@ async function receiveRuntimeRealtimeEvent(page, event, detail = {}, roomId = "c
     name: event.name,
     emitterId,
     detail,
-    event
+    event,
+    emitter: emitterId && options.includeEmitter !== false
+      ? { id: emitterId, label: emitterId, events: [event.name] }
+      : undefined
   });
 }
 
@@ -1006,56 +1009,25 @@ test.describe("Core source contracts", () => {
       const transitionId = baseDefinition();
       transitionId.model.transitions[0].id = "__runtime_enter_child:parent:child";
 
-      const presetTransitionId = baseDefinition();
-      presetTransitionId.stateTemplates = [{
+      const localPresetDefinition = baseDefinition();
+      localPresetDefinition.stateTemplates = [{
         id: "preset_root",
         title: "Reserved preset",
         components: [],
         data: {},
         dataTypes: {},
-        dataSource: { url: "", target: "states.preset_root.fetch", select: "", timeoutMs: 8000, retries: 2 },
-        repeat: { path: "", as: "item", index: "i" },
-        dataWires: [],
-        subscriptions: [],
-        boundary,
         rootStateId: "preset_root",
-        states: [{
-          id: "preset_child",
-          title: "Preset child",
-          components: [],
-          data: {},
-          dataTypes: {},
-          dataSource: { url: "", target: "states.preset_root.fetch", select: "", timeoutMs: 8000, retries: 2 },
-          repeat: { path: "", as: "item", index: "i" },
-          dataWires: [],
-          subscriptions: [],
-          boundary,
-          parentId: "preset_root",
-          x: 96,
-          y: 120
-        }],
-        transitions: [{
-          id: "__runtime_enter_child:preset_root:preset_child",
-          from: "preset_child",
-          to: "preset_child",
-          label: "Loop",
-          condition: "",
-          triggerType: "button",
-          triggerEvent: "button.loop.clicked",
-          timerMs: 3000,
-          set: {},
-          groupEntryId: "",
-          groupExitId: ""
-        }]
+        states: [],
+        transitions: []
       }];
 
-      return [validate(stateId), validate(transitionId), validate(presetTransitionId)];
+      return [validate(stateId), validate(transitionId), validate(localPresetDefinition)];
     });
 
     expect(messages).toEqual([
       expect.stringContaining("reserved runtime id namespace"),
       expect.stringContaining("reserved runtime id namespace"),
-      expect.stringContaining("reserved runtime id namespace")
+      expect.stringContaining("definition.stateTemplates is contract-managed")
     ]);
   });
 
@@ -1667,6 +1639,27 @@ test.describe("Core source contracts", () => {
     });
   });
 
+  test("runtime ignores emitter ids without a server-supplied emitter definition @smoke", async ({ page }) => {
+    const event = await installFakeRealtimeTransport(page, { catalogFailure: true });
+    await openWithModel(page, {
+      version: 2,
+      name: "Realtime emitter guard",
+      initial: "start",
+      states: [{ id: "start", title: "Start", components: [], data: {}, dataTypes: {}, x: 120, y: 140 }],
+      transitions: []
+    }, "/state.html?room=emitter-guard");
+
+    await waitForRuntimeRealtimeJoin(page);
+    await receiveRuntimeRealtimeEvent(page, event, { caller: "+491234" }, "emitter-guard", "sip.threecx", { includeEmitter: false });
+    await expect.poll(async () => {
+      const context = await runtimeContext(page);
+      return {
+        eventCount: context.events?.realtime?.sip?.call?.incoming?.count,
+        emitter: context.emitters?.sip?.threecx
+      };
+    }).toEqual({ eventCount: 1, emitter: undefined });
+  });
+
   test("daisy widgets cannot create undeclared bus data @smoke", async ({ page }) => {
     await openWithModel(page, {
       version: 2,
@@ -1833,6 +1826,9 @@ test.describe("Core source contracts", () => {
     const hostHtml = html.replace(/const APP_HTML = "((?:\\.|[^"\\])*)";/, 'const APP_HTML = "";');
 
     expect(hostHtml).toContain('fetch(PRODUCT_CONTRACT_URL, { method: "GET", cache: "no-store", credentials: "omit" })');
+    expect(hostHtml).toContain("const contract = await ensureProductContractLoaded({ notify: false });");
+    expect(hostHtml).toContain("if (!contract) {");
+    expect(hostHtml).toContain("showProductContractUnavailable();");
     expect(hostHtml).not.toContain("productContractPromise");
     expect(hostHtml).not.toContain("DEFAULT_STATE_VARIABLE_TYPES");
     expect(hostHtml).not.toContain("types.length ? types : [");
@@ -1882,9 +1878,8 @@ test.describe("Core source contracts", () => {
 
     expect(hostHtml).toContain('stateDataScopeForId(id) + ".fetch"');
     expect(hostHtml).toContain('fallbackTarget: stateDataScopeForId(id) + ".fetch"');
-    expect(hostHtml).toContain('fallbackTarget: stateDataScopeForId(stateId) + ".fetch"');
     expect(hostHtml).toContain('target: normalizeContextPath(source.target, fallbackTarget)');
-    expect(hostHtml).toContain('s.dataSource = normalizeDataSource(s.dataSource, "states." + s.id + ".fetch");');
+    expect(hostHtml).toContain('s.dataSource = normalizeDataSource(s.dataSource, stateDataScopeForId(s.id) + ".fetch");');
     expect(hostHtml).not.toContain("dataSource: normalizeDataSource(null)");
   });
 
@@ -2920,8 +2915,8 @@ test.describe("Core browser contracts", () => {
     expect(html).toContain('<summary class="inspector-collapse-summary">');
     expect(html).toContain('<div class="inspector-collapse-body">');
     expect(html).toContain('id="pStateVariableList"');
-    expect(html).toContain('id="pTemplateStateVariableList"');
-    expect(html).toContain('id="pTemplateAdvancedDataCard"');
+    expect(html).not.toContain('id="pTemplateStateVariableList"');
+    expect(html).not.toContain('id="pTemplateAdvancedDataCard"');
     expect(html).toContain(".state-action-grid");
     expect(html).toContain("function normalizeDataTypes");
     expect(html).toContain("dataTypes: normalizeDataTypes");
