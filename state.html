@@ -4175,6 +4175,42 @@
         box-shadow: 0 0 0 3px rgba(251,113,133,.16);
       }
 
+      .mobile-process-recording-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        min-width: 0;
+        max-width: 86px;
+        padding: 0 5px;
+        color: #fecdd3;
+        font-size: 10px;
+        font-weight: 850;
+        line-height: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .mobile-process-recording-status[hidden] {
+        display: none;
+      }
+
+      .mobile-process-recording-status .process-recording-dot {
+        width: 6px;
+        height: 6px;
+        box-shadow: 0 0 0 3px rgba(251,113,133,.12);
+      }
+
+      .mobile-process-recording-text {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .mobile-command-bar.recording .mobile-selection-count {
+        display: none;
+      }
+
       .mobile-action-icon {
         width: 18px;
         height: 18px;
@@ -5527,6 +5563,10 @@
         <svg class="mobile-action-icon process-record-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"></circle></svg>
         <svg class="mobile-action-icon process-stop-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1.5"></rect></svg>
       </button>
+      <span id="mobileProcessRecordingStatus" class="mobile-process-recording-status" role="status" aria-live="polite" hidden>
+        <span class="process-recording-dot" aria-hidden="true"></span>
+        <span id="mobileProcessRecordingStatusText" class="mobile-process-recording-text">Rec 00:00</span>
+      </span>
       <button id="btnMobileActionUndo" type="button" title="Rückgängig" aria-label="Rückgängig" disabled="">
         <svg class="mobile-action-icon" data-lucide="undo-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"></path><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5A5.5 5.5 0 0 1 14.5 20H11"></path></svg>
       </button>
@@ -9029,6 +9069,8 @@
     const mobileCommandBarEl = document.getElementById("mobileCommandBar");
     const mobileSelectionCountEl = document.getElementById("mobileSelectionCount");
     const btnMobileProcessRecord = document.getElementById("btnMobileProcessRecord");
+    const mobileProcessRecordingStatusEl = document.getElementById("mobileProcessRecordingStatus");
+    const mobileProcessRecordingStatusTextEl = document.getElementById("mobileProcessRecordingStatusText");
     const btnMobileActionUndo = document.getElementById("btnMobileActionUndo");
     const btnMobileActionRedo = document.getElementById("btnMobileActionRedo");
     const btnMobileActionCopy = document.getElementById("btnMobileActionCopy");
@@ -9861,6 +9903,8 @@
         button.setAttribute("aria-label", title);
       });
       processRecordingStatusEl.hidden = !active;
+      if (mobileProcessRecordingStatusEl) mobileProcessRecordingStatusEl.hidden = !active;
+      mobileCommandBarEl?.classList.toggle("recording", active);
       if (active) {
         const phase = recording.stopping
           ? "Wird abgeschlossen"
@@ -9868,8 +9912,12 @@
             ? "Agent zeichnet"
             : "Aufnahme";
         const count = recording.eventCount ? ` · ${recording.eventCount} Ereignisse` : "";
+        const mobilePhase = recording.stopping ? "Stoppt" : recording.agentBusy ? "Agent" : "Rec";
+        const mobileCount = recording.eventCount ? ` · ${recording.eventCount}` : "";
         processRecordingStatusTextEl.textContent = `${phase} ${processDurationLabel(recording.startedAt)}${count}`;
+        if (mobileProcessRecordingStatusTextEl) mobileProcessRecordingStatusTextEl.textContent = `${mobilePhase} ${processDurationLabel(recording.startedAt)}${mobileCount}`;
       }
+      updateSelectionActions();
       updateHistoryButtons();
     }
 
@@ -15060,6 +15108,7 @@
       const ids = selectedNodeIdList();
       const edges = selectedEdgeIdList();
       const visible = ids.length > 0 || edges.length > 0;
+      const selectionEnabled = visible && !processRecording;
       const compositeState = selectedCompositeStateForDegroup();
       const collapseLabel = compositeState ? "Gruppe auflösen" : "Gruppieren";
       const parts = [];
@@ -15069,19 +15118,19 @@
       const summary = visible ? parts.join(" + ") : "Keine Auswahl";
       selectionActionsEl.hidden = !visible;
       selectionActionsEl.classList.toggle("visible", visible);
-      btnSelectionCopy.disabled = !(ids.length || edges.length);
-      btnSelectionCollapse.disabled = !ids.length && !edges.length;
+      btnSelectionCopy.disabled = !selectionEnabled;
+      btnSelectionCollapse.disabled = !selectionEnabled;
       btnSelectionCollapse.textContent = collapseLabel;
-      btnSelectionDelete.disabled = !visible;
+      btnSelectionDelete.disabled = !selectionEnabled;
       if (visible) selectionCountEl.textContent = summary;
       if (mobileSelectionCountEl) mobileSelectionCountEl.textContent = summary;
-      if (btnMobileActionCopy) btnMobileActionCopy.disabled = !visible;
+      if (btnMobileActionCopy) btnMobileActionCopy.disabled = !selectionEnabled;
       if (btnMobileActionCollapse) {
-        btnMobileActionCollapse.disabled = !visible;
+        btnMobileActionCollapse.disabled = !selectionEnabled;
         btnMobileActionCollapse.title = collapseLabel;
         btnMobileActionCollapse.setAttribute("aria-label", collapseLabel);
       }
-      if (btnMobileActionDelete) btnMobileActionDelete.disabled = !visible;
+      if (btnMobileActionDelete) btnMobileActionDelete.disabled = !selectionEnabled;
     }
 
     function clipboardSelectionPayload() {

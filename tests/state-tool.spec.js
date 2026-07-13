@@ -5751,6 +5751,7 @@ test.describe("State Blueprint tool", () => {
       await expect(page.locator("#btnUndo, #btnRedo, #btnMobileUndo, #btnMobileRedo")).toHaveCount(0);
       await expect(page.locator("#btnMobileProcessRecord")).toBeVisible();
       await expect(page.locator("#btnMobileProcessRecord")).toHaveAttribute("aria-pressed", "false");
+      await expect(page.locator("#mobileProcessRecordingStatus")).toBeHidden();
       await expect(page.locator('#btnMobileActionUndo svg[data-lucide="undo-2"]')).toHaveCount(1);
       await expect(page.locator('#btnMobileActionRedo svg[data-lucide="redo-2"]')).toHaveCount(1);
       await expect.poll(() => page.evaluate(() => {
@@ -14309,10 +14310,15 @@ test.describe("State Blueprint tool", () => {
       await expect(page.getByRole("heading", { name: "Ablauf aufnehmen" })).toBeVisible();
       await page.getByRole("button", { name: "Aufnahme starten" }).tap();
       await expect(page.locator("#btnMobileProcessRecord")).toHaveAttribute("aria-pressed", "true");
+      await expect(page.locator("#mobileProcessRecordingStatus")).toBeVisible();
+      await expect(page.locator("#mobileProcessRecordingStatus")).toContainText("Rec");
 
       await page.locator('[data-id="login"]').tap();
+      await expect(page.locator("#btnMobileActionDelete")).toBeDisabled();
+      await expect(page.locator("#mobileProcessRecordingStatus")).toContainText("2");
       await page.locator("#btnMobileProcessRecord").tap();
       await expect(page.locator("#btnMobileProcessRecord")).toHaveAttribute("aria-pressed", "false");
+      await expect(page.locator("#mobileProcessRecordingStatus")).toBeHidden();
       await expect(page.locator('[data-id="mobile_start"]')).toBeVisible();
       await expect(page.locator("#btnMobileActionUndo")).toBeEnabled();
 
