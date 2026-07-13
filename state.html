@@ -8488,7 +8488,10 @@
 
     const GENERATED_APP_HTML = enhanceGeneratedAppHtml(APP_HTML);
     const APP_URL = URL.createObjectURL(new Blob([GENERATED_APP_HTML], { type: "text/html" }));
-    const REALTIME_EVENTS_URL = "https://realtime.digitalisierungsplanung.de/events";
+    const PRODUCT_CONTRACT_URL = window.ZUSTAND_PRODUCT_CONTRACT_URL ||
+      (location.hostname === "digitalisierungsplanung.de" || location.hostname === "www.digitalisierungsplanung.de"
+        ? "https://realtime.digitalisierungsplanung.de/contract"
+        : "/contract");
     const RUNTIME_MESSAGE_ORIGIN = window.location.origin;
     const RUNTIME_SESSION_FRAGMENT_KEY = "state-blueprint-session";
     const WORLD_MIN_X = -10000;
@@ -8670,7 +8673,20 @@
     const initialEditorState = loadEditorState();
     const initialStoredModel = initialEditorState?.model ? null : loadModel();
     const initialPersistedModelExists = Boolean(initialEditorState?.model || initialStoredModel);
-    let model = initialEditorState?.model ? normalizeModel(initialEditorState.model) : (initialStoredModel || blankModel());
+    const DEFAULT_STATE_VARIABLE_TYPES = [
+      { value: "text", id: "text", label: "Text", jsonType: "string", default: "", constraints: {} },
+      { value: "email", id: "email", label: "E-Mail", jsonType: "string", default: "", constraints: { format: "email" } },
+      { value: "password", id: "password", label: "Passwort", jsonType: "string", default: "", constraints: { sensitive: true } },
+      { value: "number", id: "number", label: "Zahl", jsonType: "number", default: 0, constraints: { finite: true } },
+      { value: "boolean", id: "boolean", label: "Wahr/Falsch", jsonType: "boolean", default: false, constraints: {} },
+      { value: "url", id: "url", label: "URL", jsonType: "string", default: "", constraints: { format: "url" } },
+      { value: "image", id: "image", label: "Bild", jsonType: "string", default: "", constraints: { format: "image-url-or-data-uri" } },
+      { value: "object", id: "object", label: "Objekt", jsonType: "object", default: {}, constraints: { plainObject: true } },
+      { value: "list", id: "list", label: "Liste", jsonType: "array", default: [], constraints: {} }
+    ];
+    let productContract = null;
+    let productContractPromise = null;
+    let model = initialEditorState?.model || initialStoredModel || blankModel();
     let camera = loadCamera() || { x: 32, y: 32, scale: 1 };
     const uiState = loadUiState();
     let previewCollapsed = uiState.previewCollapsed;
@@ -9363,7 +9379,7 @@
         const text = localStorage.getItem(STORAGE_KEY);
         if (!text) return null;
         const data = JSON.parse(text);
-        return normalizeModel(data && typeof data === "object" && "model" in data ? data.model : data);
+        return data && typeof data === "object" && "model" in data ? data.model : data;
       } catch (_) { return null; }
     }
 
@@ -10973,7 +10989,8 @@
 
     function normalizeStateVariableType(value, fallback = "text") {
       const type = String(value || "").trim();
-      return ["text", "email", "password", "number", "boolean", "url", "image", "object", "list"].includes(type) ? type : fallback;
+      const allowed = new Set(stateVariableTypes().map(item => item.value));
+      return allowed.has(type) ? type : fallback;
     }
 
     function normalizeDataTypePath(path, fallback = "") {
@@ -11053,6 +11070,143 @@
     function realtimeEventConfigByName(name, source = null) {
       const clean = normalizeTransitionEvent(name || "");
       return realtimeEventCatalog(source).find(event => event.name === clean) || null;
+    }
+
+    function normalizeProductContractValueType(value) {
+      if (!isPlainObject(value)) return null;
+      const id = String(value.id || "").trim().toLowerCase();
+      if (!id) return null;
+      return {
+        id,
+        value: id,
+        label: String(value.label || id).trim(),
+        jsonType: String(value.jsonType || "").trim(),
+        default: value.default,
+        constraints: isPlainObject(value.constraints) ? value.constraints : {}
+      };
+    }
+
+    function normalizeProductContractTriggerType(value) {
+      if (!isPlainObject(value)) return null;
+      const id = normalizeTransitionEvent(value.id || "");
+      if (!id) return null;
+      return {
+        id,
+        label: String(value.label || id).trim(),
+        description: String(value.description || "").trim(),
+        settings: isPlainObject(value.settings) ? value.settings : {},
+        events: Array.isArray(value.events)
+          ? value.events.map(event => id === "realtime" ? normalizeRealtimeEventConfig(event) : event).filter(Boolean)
+          : []
+      };
+    }
+
+    function normalizeProductContractPayload(value) {
+      const source = isPlainObject(value) ? value : {};
+      return {
+        schemaVersion: Number(source.schemaVersion) || 0,
+        provider: isPlainObject(source.provider) ? source.provider : null,
+        valueTypes: (Array.isArray(source.valueTypes) ? source.valueTypes : []).map(normalizeProductContractValueType).filter(Boolean),
+        connectorTypes: Array.isArray(source.connectorTypes) ? source.connectorTypes : [],
+        triggerTypes: (Array.isArray(source.triggerTypes) ? source.triggerTypes : []).map(normalizeProductContractTriggerType).filter(Boolean),
+        datasets: Array.isArray(source.datasets) ? source.datasets : [],
+        connectors: Array.isArray(source.connectors) ? source.connectors : [],
+        presets: Array.isArray(source.presets) ? source.presets : [],
+        stateContributions: Array.isArray(source.stateContributions) ? source.stateContributions : [],
+        release: isPlainObject(source.release) ? source.release : null
+      };
+    }
+
+    async function fetchProductContract(options = {}) {
+      const force = options.force === true;
+      if (!force && productContractPromise) return productContractPromise;
+      productContractPromise = fetch(PRODUCT_CONTRACT_URL, { method: "GET", cache: "no-store", credentials: "omit" })
+        .then(async response => {
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(payload.error || "Product contract failed");
+          productContract = normalizeProductContractPayload(payload);
+          return productContract;
+        });
+      try {
+        return await productContractPromise;
+      } catch (error) {
+        if (force) productContractPromise = null;
+        throw error;
+      }
+    }
+
+    function ensureProductContractLoaded() {
+      if (productContractPromise) return productContractPromise;
+      productContractPromise = fetchProductContract()
+        .then(contract => contract)
+        .catch(error => {
+          productContractPromise = null;
+          return null;
+        });
+      return productContractPromise;
+    }
+
+    function productContractTriggerTypes() {
+      return Array.isArray(productContract?.triggerTypes) ? productContract.triggerTypes : [];
+    }
+
+    function productContractTriggerType(id) {
+      const clean = normalizeTransitionEvent(id || "");
+      return productContractTriggerTypes().find(type => type.id === clean) || null;
+    }
+
+    function editorTriggerTypes(options = {}) {
+      const types = productContractTriggerTypes();
+      const source = types.length ? types : [
+        { id: "button", label: "Klick" },
+        { id: "timer", label: "Timer-Verzögerung" },
+        { id: "api", label: "API-Antwort" },
+        { id: "change", label: "Daten ändern sich" },
+        { id: "event", label: "Bus-Ereignis" },
+        { id: "realtime", label: "Realtime-Ereignis" },
+        { id: "auto", label: "Sofort" }
+      ];
+      const includeApi = options.includeApi !== false;
+      return source.filter(type => includeApi || type.id !== "api");
+    }
+
+    function populateTriggerTypeOptions(select, selected, options = {}) {
+      if (!select) return;
+      const types = editorTriggerTypes(options);
+      const current = String(selected || "button");
+      select.innerHTML = "";
+      for (const type of types) {
+        const option = document.createElement("option");
+        option.value = type.id;
+        option.textContent = type.label || type.id;
+        option.selected = type.id === current;
+        select.appendChild(option);
+      }
+      if (types.some(type => type.id === current)) select.value = current;
+    }
+
+    function productContractRealtimeEvents() {
+      return realtimeEventCatalog(productContractTriggerType("realtime")?.events || []);
+    }
+
+    function productContractStateContributionSuggestions() {
+      const out = [];
+      const contributions = Array.isArray(productContract?.stateContributions) ? productContract.stateContributions : [];
+      for (const contribution of contributions) {
+        if (!isPlainObject(contribution)) continue;
+        const source = String(contribution.source || contribution.id || "contract").trim();
+        const fieldTypes = isPlainObject(contribution.fieldTypes) ? contribution.fieldTypes : {};
+        for (const field of Array.isArray(contribution.fields) ? contribution.fields : []) {
+          const path = normalizeBindingPath(field, "");
+          if (!path) continue;
+          out.push({ path, source, type: fieldTypes[path] || "value", value: undefined });
+        }
+      }
+      return out;
+    }
+
+    function refreshProductContractConsumers() {
+      if (typeof refreshInspectorForSelection === "function") refreshInspectorForSelection();
     }
 
     function modelRealtimeTriggerEvents(sourceModel = model) {
@@ -11780,7 +11934,9 @@
 
     function normalizeTransitionTriggerType(transition) {
       const value = String(transition?.triggerType || "button").toLowerCase();
-      return ["button", "change", "event", "realtime", "timer", "auto"].includes(value) ? value : "button";
+      const contractIds = productContractTriggerTypes().map(type => type.id).filter(id => id && id !== "api");
+      const allowed = contractIds.length ? contractIds : ["button", "change", "event", "realtime", "timer", "auto"];
+      return allowed.includes(value) ? value : "button";
     }
 
     function transitionIsRenderButtonAction(transition) {
@@ -19035,11 +19191,9 @@
       }).filter(Boolean);
     }
 
-    async function fetchRealtimeEvents() {
-      const response = await fetch(REALTIME_EVENTS_URL, { method: "GET", cache: "no-store", credentials: "omit" });
-      if (!response.ok) throw new Error("Ereignisse konnten nicht geladen werden");
-      const catalog = await response.json();
-      const events = realtimeEventCatalog(catalog);
+    async function fetchRealtimeEvents(options = {}) {
+      await fetchProductContract({ force: options.force === true });
+      const events = productContractRealtimeEvents();
       if (!events.length) throw new Error("Ereigniskatalog ist leer");
       return events;
     }
@@ -19079,7 +19233,7 @@
         serverEvents.textContent = "Lädt...";
         renderLoading("Realtime-Ereignisse werden geladen...");
         try {
-          renderEvents(await fetchRealtimeEvents());
+          renderEvents(await fetchRealtimeEvents({ force: true }));
           serverEvents.textContent = "Realtime-Ereignisse neu laden";
         } catch (_) {
           renderLoading("Ereignisse konnten nicht geladen werden.");
@@ -19207,20 +19361,15 @@
       return `${friendlyDataSourceLabel(source)} - ${label} (${path})`;
     }
 
-    const STATE_VARIABLE_TYPES = [
-      { value: "text", label: "Text" },
-      { value: "email", label: "E-Mail" },
-      { value: "password", label: "Passwort" },
-      { value: "number", label: "Zahl" },
-      { value: "boolean", label: "Wahr/Falsch" },
-      { value: "url", label: "URL" },
-      { value: "image", label: "Bild" },
-      { value: "object", label: "Objekt" },
-      { value: "list", label: "Liste" }
-    ];
+    function stateVariableTypes() {
+      const contractTypes = Array.isArray(productContract?.valueTypes)
+        ? productContract.valueTypes.map(normalizeProductContractValueType).filter(Boolean)
+        : [];
+      return contractTypes.length ? contractTypes : DEFAULT_STATE_VARIABLE_TYPES;
+    }
 
     function stateVariableTypeLabel(type) {
-      return STATE_VARIABLE_TYPES.find(item => item.value === normalizeStateVariableType(type))?.label || "Text";
+      return stateVariableTypes().find(item => item.value === normalizeStateVariableType(type))?.label || "Text";
     }
 
     function stateVariableTypeFromSuggestion(path, type, value) {
@@ -19228,7 +19377,7 @@
       if (raw === "array") return "list";
       if (raw === "integer" || raw === "float") return "number";
       if (raw === "text" || raw === "value" || raw === "subscription" || raw === "all") return inferStateVariableType(path, value);
-      if (STATE_VARIABLE_TYPES.some(item => item.value === raw)) return raw;
+      if (stateVariableTypes().some(item => item.value === raw)) return raw;
       return inferStateVariableType(path, value);
     }
 
@@ -19277,7 +19426,7 @@
       const order = stateVariableTypeRecommendations(path, value);
       if (!order.includes(selected)) order.unshift(selected);
       const rank = new Map(order.map((type, index) => [type, index]));
-      return STATE_VARIABLE_TYPES
+      return stateVariableTypes()
         .slice()
         .sort((a, b) => (rank.get(a.value) ?? 99) - (rank.get(b.value) ?? 99) || a.label.localeCompare(b.label));
     }
@@ -20127,15 +20276,7 @@
               <div class="field"><label>Ausgehender Übergang</label><select id="pStateFlowTransition"></select></div>
               <div id="pStateFlowRoute" class="transition-route" aria-label="Verbindung" hidden></div>
               <div class="row">
-                <div class="field"><label>Bewegt sich bei</label><select id="pStateTriggerType">
-                  <option value="button">Klick</option>
-                  <option value="timer">Timer-Verzögerung</option>
-                  <option value="api">API-Antwort ok</option>
-                  <option value="change">Daten ändern sich</option>
-                  <option value="event">Bus-Ereignis</option>
-                  <option value="realtime">Realtime-Ereignis</option>
-                  <option value="auto">Sofort</option>
-                </select></div>
+                <div class="field"><label>Bewegt sich bei</label><select id="pStateTriggerType"></select></div>
                 <div class="field" id="pStateTriggerTimerField"><label>Verzögerung ms</label><input id="pStateTriggerTimer" type="number" min="100" max="300000" step="100" placeholder="2000"></div>
               </div>
               <div class="field" id="pStateTriggerEventField" hidden>
@@ -20825,6 +20966,7 @@
           flowTransitionRoute.hidden = !flowTransitionRoute.textContent;
         }
         const mode = stateFlowTriggerMode(selectedTransition);
+        populateTriggerTypeOptions(stateTriggerType, mode, { includeApi: true });
         stateTriggerType.disabled = false;
         stateTriggerType.value = mode;
         stateTriggerTimer.disabled = mode !== "timer";
@@ -21551,7 +21693,7 @@
           stateTriggerEventImport.disabled = true;
           stateTriggerEventImport.textContent = "Lädt...";
           try {
-            const events = await fetchRealtimeEvents();
+            const events = await fetchRealtimeEvents({ force: true });
             if (stateTriggerEvent) {
               const active = normalizeTransitionEvent(stateTriggerEvent.value || "");
               stateTriggerEvent.innerHTML = "";
@@ -22093,6 +22235,7 @@
         add(`events.${eventName}.lastAt`, `${eventName} realtime event`, "number");
         add(`events.${eventName}.detail`, `${eventName} detail`, "object");
       }
+      productContractStateContributionSuggestions().forEach(item => add(item.path, item.source, item.type));
       let includeKnownGlobalState = false;
       for (const state of conditionScopeStates(t)) {
         const label = state.id === t.from ? "from state" : state.id === t.to ? "target state" : "parent state";
@@ -22148,7 +22291,7 @@
         <h3>Übergang</h3>
         <div id="pTransitionRoute" class="transition-route" aria-label="Verbindung">${escapeHtml(fromLabel)} → ${escapeHtml(toLabel)}</div>
         <div class="field"><label>Beschriftung</label><input id="pLabel"></div>
-        <div class="field"><label>Startet wenn</label><select id="pTriggerType"><option value="button">Schaltfläche geklickt</option><option value="change">Datenwert ändert sich</option><option value="event">App-Ereignis passiert</option><option value="realtime">Realtime-Ereignis passiert</option><option value="timer">Nach Verzögerung</option><option value="auto">Sofort</option></select></div>
+        <div class="field"><label>Startet wenn</label><select id="pTriggerType"></select></div>
         <div class="data-source-panel transition-rule-panel">
           <div class="small"><b>Regel</b><br><span>Wähle, was wahr sein muss, damit dieser Übergang weiterlaufen darf.</span></div>
           <div class="transition-rule-grid">
@@ -22243,6 +22386,7 @@
       const setVariableAdd = root.querySelector("#pSetVariableAdd");
       const rawSetCard = root.querySelector("#pTransitionRawSetCard");
       label.value = transitionDisplayLabel(t);
+      populateTriggerTypeOptions(triggerType, transitionUsesRealtimeEvent(t) ? "realtime" : normalizeTransitionTriggerType(t), { includeApi: false });
       triggerType.value = transitionUsesRealtimeEvent(t) ? "realtime" : normalizeTransitionTriggerType(t);
       triggerEvent.value = t.triggerEvent || "";
       triggerTimer.value = String(normalizeTransitionTimerMs(t.timerMs));
@@ -26727,6 +26871,7 @@
     syncRuntimeStateLabel();
     renderStateExplorer();
     persistStateTemplates();
+    ensureProductContractLoaded();
     applyCamera();
     draw();
     initHistory();

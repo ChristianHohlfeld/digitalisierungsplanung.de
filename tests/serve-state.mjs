@@ -1,9 +1,13 @@
 import { createReadStream, existsSync, statSync } from "node:fs";
 import { createServer } from "node:http";
+import { createRequire } from "node:module";
 import { extname, join, normalize, resolve } from "node:path";
 
 const port = Number(process.env.PORT || 8124);
 const root = resolve(process.cwd());
+const require = createRequire(import.meta.url);
+const eventCatalog = require("../server/event-catalog.js");
+const productContract = require("../server/product-contract.js");
 
 const types = {
   ".html": "text/html; charset=utf-8",
@@ -18,6 +22,14 @@ const types = {
 
 createServer((req, res) => {
   const url = new URL(req.url || "/", `http://127.0.0.1:${port}`);
+  if (url.pathname === "/contract") {
+    res.writeHead(200, {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store"
+    });
+    res.end(JSON.stringify(productContract.productContractResponse(eventCatalog.DEFAULT_EVENT_CATALOG)));
+    return;
+  }
   const pathname = url.pathname === "/" ? "/index.html" : decodeURIComponent(url.pathname);
   const file = normalize(join(root, pathname));
 

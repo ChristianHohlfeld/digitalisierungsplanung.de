@@ -35,7 +35,7 @@ http://127.0.0.1:8788
 
 Browser-Origin ist in Produktion auf `https://digitalisierungsplanung.de` begrenzt. Konfiguriert wird das über `REALTIME_ALLOWED_ORIGINS`.
 
-`/events` und `/events/contract` erlauben:
+`/contract`, `/events` und `/events/contract` erlauben:
 
 - Anfragen ohne `Origin`, z.B. `curl` oder Server-zu-Server,
 - Anfragen mit erlaubtem `Origin`,
@@ -76,10 +76,10 @@ realtime.
 `/emit` und WSS-`runtime.event` akzeptieren nur Ereignisse, die im aktuellen `/events`-Katalog angeboten werden. `/emit` braucht zusätzlich eine angebotene `emitterId`; diese Quelle muss für das konkrete Ereignis freigeschaltet sein.
 
 Der harte Dataset-Contract kommt aus `server/event-catalog.json` und wird unter
-`/events/contract` ausgeliefert. Neue Event-Namen oder Detail-Felder entstehen
-nur über diesen Server-Contract: als `realtime.*`-Key mit festen Datentypen.
-Exakte ID-Kollisionen und Parent/Child-Pfadkollisionen im globalen State Tree
-werden serverseitig abgelehnt.
+`/contract` als Product Contract ausgeliefert. Neue Event-Namen oder
+Detail-Felder entstehen nur über diesen Server-Contract: als `realtime.*`-Key
+mit festen Datentypen. Exakte ID-Kollisionen und Parent/Child-Pfadkollisionen
+im globalen State Tree werden serverseitig abgelehnt.
 
 ## REST-Endpunkte
 
@@ -148,8 +148,8 @@ Secret-geschützte Admin-API für den Designer.
 - `POST ?validate=1` oder Body `{ "validateOnly": true }`: validiert ohne Git-Schreibvorgang
 
 Die UI braucht diese Admin-API nur für sicheren Load und Save. Lesen kann sie
-den öffentlichen Contract über `/events/contract` und den Live-Katalog über
-`/events`. Es gibt kein Pinning alter Contract-Versionen; die Release-ID ist
+den Product Contract über `/contract` und den Live-Katalog über `/events`.
+Es gibt kein Pinning alter Contract-Versionen; die Release-ID ist
 Nachvollziehbarkeit, nicht Laufzeit-Auswahl.
 
 Der Save-Pfad nutzt Git. Falls der Server-Checkout nicht mit seinen vorhandenen
@@ -159,11 +159,66 @@ Remote-Credentials pushen kann, muss `REALTIME_GIT_PUSH_TOKEN` gesetzt sein.
 
 Ereignisdefinitionen. Das ist die Live-Quelle für auswählbare Realtime-Ereignisse im Editor. Die Antwort enthält auch die aktuelle gemeinsame Release-Metainfo.
 
+### `GET /contract`
+
+Zentraler Product Contract für `state.html` und den Event Designer. Dieser
+Endpoint ist die frische Server-Wahrheit für vordefinierte Contract-Teile:
+Trigger-Typen, Value-Types mit Constraints, Realtime-Datasets, Connector-Quellen,
+Presets und State-Contribution-Pfade.
+
+Die App darf daraus UI-Optionen rendern und konkrete Referenzen speichern, aber
+keine Contract-Kopie in den Canvas schreiben.
+
+Antwort, gekürzt:
+
+```json
+{
+  "schemaVersion": 1,
+  "provider": {
+    "id": "digitalisierungsplanung.realtime",
+    "label": "Digitalisierungsplanung Realtime"
+  },
+  "valueTypes": [
+    {
+      "id": "text",
+      "label": "Text",
+      "jsonType": "string",
+      "default": "",
+      "constraints": { "maxLength": 20000 }
+    }
+  ],
+  "triggerTypes": [
+    {
+      "id": "realtime",
+      "label": "Realtime-Ereignis",
+      "settings": {},
+      "events": [
+        {
+          "name": "realtime.sip.call.incoming",
+          "detail": { "caller": "text", "callee": "text", "callId": "text" }
+        }
+      ]
+    }
+  ],
+  "datasets": [
+    {
+      "id": "realtime.sip.call.incoming",
+      "type": "realtime",
+      "key": "sip.call.incoming",
+      "fields": { "caller": "text", "callee": "text", "callId": "text" }
+    }
+  ],
+  "connectors": [],
+  "presets": [],
+  "stateContributions": []
+}
+```
+
 ### `GET /events/contract`
 
-Aktueller harter Server-Contract für den Designer: Event-Keys, feste
-Detail-Datentypen, Emitter und abgeleitete State-Contribution-Pfade. Die UI
-nutzt diesen Endpoint für Anzeige; die Autorität für Kollisionsfreiheit und
+Niedriger Realtime-Katalog-Contract: Event-Keys, feste Detail-Datentypen,
+Emitter und abgeleitete State-Contribution-Pfade. Neue Frontend-Verbraucher
+sollten `/contract` verwenden; die Autorität für Kollisionsfreiheit und
 Uniqueness bleibt `validateEventCatalog` auf dem Server.
 
 Antwort:
@@ -522,6 +577,7 @@ REALTIME_HOST=127.0.0.1
 REALTIME_PORT=8788
 REALTIME_PATH=/ws
 REALTIME_TOKEN_PATH=/token
+REALTIME_PRODUCT_CONTRACT_PATH=/contract
 REALTIME_EVENTS_PATH=/events
 REALTIME_EVENTS_CONTRACT_PATH=/events/contract
 REALTIME_EMIT_PATH=/emit

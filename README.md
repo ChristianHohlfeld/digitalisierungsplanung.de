@@ -103,8 +103,9 @@ Der Server in [`server/`](server/) ist nur Transport. Er speichert keine fachlic
 | --- | --- |
 | `GET /healthz` | Gesundheitsprüfung |
 | `GET /version` | gemeinsame Frontend-/Backend-Release-ID |
+| `GET /contract` | zentraler Product Contract: Trigger-Typen, Datentypen, Datasets, Quellen und State-Beiträge |
 | `GET /events` | aktueller Echtzeit-Contract mit Quellen |
-| `GET /events/contract` | aktueller Server-Contract mit Detail-Typen und State-Beiträgen |
+| `GET /events/contract` | niedriger Realtime-Katalog-Contract mit Detail-Typen und State-Beiträgen |
 | `GET /token` | signiertes Raum-Token für den Browser |
 | `GET /console.html` | Testoberfläche für Ereignisse |
 | `GET /events-admin.html` | einfacher Designer für Event-Type, Datensatz und Felder |
@@ -113,9 +114,10 @@ Der Server in [`server/`](server/) ist nur Transport. Er speichert keine fachlic
 | `WSS /ws` | WebSocket-Verbindung |
 
 Der harte Contract kommt aus [`server/event-catalog.json`](server/event-catalog.json)
-und wird vom Server unter `/events` und `/events/contract` ausgeliefert:
-`realtime.*`-Keys, Detail-Datentypen, Quellen und kollisionsfreie
-State-Beiträge. Der Canvas speichert keine Katalogkopie, sondern nur konkrete
+und wird vom Server unter `/contract` als Product Contract ausgeliefert:
+Trigger-Typen, Value-Types mit Constraints, `realtime.*`-Datasets, Quellen und
+kollisionsfreie State-Beiträge. `/events` bleibt der schlanke Live-Katalog für
+Realtime-Events. Der Canvas speichert keine Katalogkopie, sondern nur konkrete
 Referenzen wie `triggerType: realtime` und `triggerEvent`.
 
 Der Designer arbeitet in der gleichen Reihenfolge wie der Canvas-Vertrag:

@@ -51,11 +51,6 @@
     .chip-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(108px, 1fr)); gap: 8px; }
     .field-row { display: grid; grid-template-columns: minmax(0, 1fr) 140px auto; gap: 8px; align-items: end; }
     .readout { display: grid; gap: 8px; padding: 10px; border: 1px solid rgba(56,189,248,.24); border-radius: 6px; background: rgba(8,32,51,.62); }
-    .dataset-list { display: grid; gap: 8px; }
-    .dataset-item { display: grid; gap: 4px; width: 100%; min-height: 0; padding: 10px; text-align: left; border-color: var(--line); background: var(--field); }
-    .dataset-item.active { border-color: var(--accent); background: #08324b; }
-    .dataset-item strong { color: var(--text); font-size: 14px; }
-    .dataset-item span { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
     details { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
     summary { cursor: pointer; padding: 13px 15px; color: var(--text); font-weight: 850; }
     details > div { display: grid; gap: 12px; padding: 0 15px 15px; }
@@ -90,14 +85,6 @@
     </section>
 
     <section class="panel stack">
-      <div class="row between">
-        <h2>Existing datasets</h2>
-        <span id="datasetCount" class="muted"></span>
-      </div>
-      <div id="datasetOverview" class="dataset-list"></div>
-    </section>
-
-    <section class="panel stack">
       <h2>1. Event type</h2>
       <label>Type<select id="eventType"></select></label>
     </section>
@@ -105,11 +92,12 @@
     <section class="panel stack">
       <div class="row between">
         <h2>2. Dataset</h2>
-        <button id="newEvent" class="secondary" type="button">New dataset</button>
+        <button id="newEvent" class="secondary" type="button">New blank dataset</button>
       </div>
+      <label>Existing datasets<select id="datasetOverview"></select></label>
       <label>Edit dataset<select id="eventSelect"></select></label>
       <div class="grid">
-        <label>Dataset key<input id="datasetKey" autocomplete="off" placeholder="sip.call.incoming"></label>
+        <label>Dataset key<input id="datasetKey" autocomplete="off" placeholder="custom.dataset"></label>
         <label>Canvas label<input id="eventLabel" autocomplete="off" placeholder="Incoming call"></label>
       </div>
       <label>Description<textarea id="eventDescription" placeholder="Business fact that happened"></textarea></label>
@@ -175,9 +163,9 @@
   </main>
 
   <script>
-    const EVENT_TYPES = [{ id: "realtime", label: "Realtime" }];
-    const TYPES = ["text", "email", "password", "number", "boolean", "url", "image", "object", "list"];
-    const CONNECTOR_TYPES = ["sip", "email", "webhook", "data"];
+    let EVENT_TYPES = [{ id: "realtime", label: "Realtime" }];
+    let TYPES = ["text", "email", "password", "number", "boolean", "url", "image", "object", "list"];
+    let CONNECTOR_TYPES = ["sip", "email", "webhook", "data"];
     const DEFAULT_PROVIDER = { id: "digitalisierungsplanung.realtime", label: "Digitalisierungsplanung Realtime" };
     let catalog = {
       provider: DEFAULT_PROVIDER,
@@ -207,18 +195,35 @@
       } catch (_) {}
     });
 
-    for (const type of EVENT_TYPES) {
-      const option = document.createElement("option");
-      option.value = type.id;
-      option.textContent = type.label;
-      el("eventType").appendChild(option);
+    function populateEventTypes() {
+      const select = el("eventType");
+      const current = selectedEventType || select.value || "realtime";
+      select.innerHTML = "";
+      for (const type of EVENT_TYPES) {
+        const option = document.createElement("option");
+        option.value = type.id;
+        option.textContent = type.label || type.id;
+        select.appendChild(option);
+      }
+      selectedEventType = EVENT_TYPES.some(type => type.id === current) ? current : EVENT_TYPES[0]?.id || "realtime";
+      select.value = selectedEventType;
     }
-    for (const type of CONNECTOR_TYPES) {
-      const option = document.createElement("option");
-      option.value = type;
-      option.textContent = type;
-      el("connectorType").appendChild(option);
+
+    function populateConnectorTypes() {
+      const select = el("connectorType");
+      const current = select.value || selectedConnector()?.type || CONNECTOR_TYPES[0] || "webhook";
+      select.innerHTML = "";
+      for (const type of CONNECTOR_TYPES) {
+        const option = document.createElement("option");
+        option.value = type;
+        option.textContent = type;
+        select.appendChild(option);
+      }
+      select.value = CONNECTOR_TYPES.includes(current) ? current : CONNECTOR_TYPES[0] || "webhook";
     }
+
+    populateEventTypes();
+    populateConnectorTypes();
 
     function setStatus(text, type = "") {
       statusEl.className = "status " + type;
@@ -250,7 +255,7 @@
     function normalizeConnector(connector = {}) {
       return {
         id: String(connector.id || "webhook.endpoint").trim(),
-        type: CONNECTOR_TYPES.includes(connector.type) ? connector.type : "webhook",
+        type: CONNECTOR_TYPES.includes(connector.type) ? connector.type : CONNECTOR_TYPES[0] || "webhook",
         label: String(connector.label || "Webhook endpoint").trim(),
         description: String(connector.description || "").trim(),
         endpoint: "POST /emit",
@@ -293,10 +298,7 @@
     }
 
     function newDatasetBaseKey(sourceType) {
-      if (sourceType === "sip") return "sip.call.custom";
-      if (sourceType === "email") return "mail.received.custom";
-      if (sourceType === "data") return "data.updated.custom";
-      return "endpoint.updated.custom";
+      return "custom.dataset";
     }
 
     function uniqueDatasetKey(baseKey) {
@@ -319,6 +321,24 @@
 
     function selectedConnector() {
       return catalog.emitters[selectedConnectorIndex] || catalog.emitters[0];
+    }
+
+    function blankDatasetSourceIndex() {
+      const preferredIds = ["webhook.endpoint", "data.source"];
+      for (const id of preferredIds) {
+        const index = catalog.emitters.findIndex(source => source.id === id);
+        if (index >= 0) return index;
+      }
+      const webhookIndex = catalog.emitters.findIndex(source => source.type === "webhook" || source.type === "data");
+      if (webhookIndex >= 0) return webhookIndex;
+      catalog.emitters.push(normalizeConnector({
+        id: "webhook.endpoint",
+        type: "webhook",
+        label: "Webhook endpoint",
+        description: "Generic external source for a new dataset",
+        events: []
+      }));
+      return catalog.emitters.length - 1;
     }
 
     function ensureCatalog() {
@@ -402,32 +422,25 @@
     }
 
     function renderDatasetOverview() {
-      const box = el("datasetOverview");
-      box.innerHTML = "";
-      el("datasetCount").textContent = `${catalog.events.length} datasets`;
+      const select = el("datasetOverview");
+      select.innerHTML = "";
       catalog.events.forEach((event, index) => {
         const sourceIndex = sourceForEvent(event.name);
         const source = sourceIndex >= 0 ? catalog.emitters[sourceIndex] : null;
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "dataset-item";
-        button.classList.toggle("active", index === selectedEventIndex);
-        const title = document.createElement("strong");
-        title.textContent = event.label || datasetKeyFromEventName(event.name);
-        const meta = document.createElement("span");
+        const option = document.createElement("option");
+        option.value = String(index);
         const fieldCount = Object.keys(event.detail || {}).length;
-        meta.textContent = `${datasetKeyFromEventName(event.name)} - ${source?.label || source?.id || "No source"} - ${fieldCount} fields`;
-        const trigger = document.createElement("span");
-        trigger.textContent = event.name;
-        button.append(title, meta, trigger);
-        button.onclick = () => {
-          syncFromForm();
-          selectedEventIndex = index;
-          if (sourceIndex >= 0) selectedConnectorIndex = sourceIndex;
-          render();
-        };
-        box.appendChild(button);
+        option.textContent = `${event.label || datasetKeyFromEventName(event.name)} - ${datasetKeyFromEventName(event.name)} - ${source?.label || source?.id || "No source"} - ${fieldCount} fields`;
+        option.selected = index === selectedEventIndex;
+        select.appendChild(option);
       });
+      select.onchange = () => {
+        syncFromForm();
+        selectedEventIndex = Number(select.value) || 0;
+        const sourceIndex = sourceForEvent(selectedEvent()?.name);
+        if (sourceIndex >= 0) selectedConnectorIndex = sourceIndex;
+        render();
+      };
     }
 
     function renderSourceSelect() {
@@ -490,7 +503,7 @@
       const pathInput = document.createElement("input");
       pathInput.dataset.fieldPath = "true";
       pathInput.value = path;
-      pathInput.placeholder = "caller";
+      pathInput.placeholder = "fieldName";
       pathInput.oninput = () => {
         syncEventFromForm();
         renderReadouts();
@@ -536,7 +549,7 @@
       el("eventDescription").value = event.description;
       el("fields").innerHTML = "";
       for (const [path, type] of Object.entries(event.detail || {})) addFieldRow(path, type);
-      if (!Object.keys(event.detail || {}).length) addFieldRow("value", "text");
+      if (!Object.keys(event.detail || {}).length) addFieldRow("", "text");
       el("eventLabel").oninput = el("eventDescription").oninput = () => {
         syncEventFromForm();
         renderEventSelect();
@@ -664,15 +677,31 @@
 
     function applyContract(payload) {
       contract = payload || {};
-      const events = Array.isArray(contract.events) ? contract.events : [];
+      const realtimeTrigger = Array.isArray(contract.triggerTypes)
+        ? contract.triggerTypes.find(type => type?.id === "realtime")
+        : null;
+      EVENT_TYPES = realtimeTrigger
+        ? [{ id: realtimeTrigger.id, label: realtimeTrigger.label || "Realtime" }]
+        : [{ id: "realtime", label: "Realtime" }];
+      TYPES = Array.isArray(contract.valueTypes)
+        ? contract.valueTypes.map(type => String(type?.id || type || "").trim()).filter(Boolean)
+        : TYPES;
+      CONNECTOR_TYPES = Array.isArray(contract.connectorTypes)
+        ? contract.connectorTypes.map(type => String(type?.id || type || "").trim()).filter(Boolean)
+        : CONNECTOR_TYPES;
+      if (!TYPES.length) TYPES = ["text"];
+      if (!CONNECTOR_TYPES.length) CONNECTOR_TYPES = ["webhook"];
+      populateEventTypes();
+      populateConnectorTypes();
+      const events = Array.isArray(realtimeTrigger?.events) ? realtimeTrigger.events : [];
       defaultEventName = events[0]?.name || "";
-      contractEmitters = Array.isArray(contract.emitters) ? contract.emitters.map(normalizeConnector) : [];
+      contractEmitters = Array.isArray(contract.connectors) ? contract.connectors.map(normalizeConnector) : [];
       if (contract.state) catalog.state = contract.state;
       if (contract.provider) catalog.provider = contract.provider;
     }
 
     async function loadContract() {
-      const response = await fetch("/events/contract", { cache: "no-store" });
+      const response = await fetch("/contract", { cache: "no-store" });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Contract load failed");
       applyContract(payload);
@@ -743,7 +772,7 @@
         name: eventName,
         label: labelFromDatasetKey(datasetKey),
         description: "",
-        detail: { value: "text" },
+        detail: {},
         bindings: []
       });
     }
@@ -775,10 +804,10 @@
     }
 
     function newEvent() {
-      syncFromForm();
+      selectedConnectorIndex = blankDatasetSourceIndex();
       const source = selectedConnector();
       if (!source) return;
-      const datasetKey = uniqueDatasetKey(newDatasetBaseKey(source.type));
+      const datasetKey = uniqueDatasetKey(newDatasetBaseKey());
       const eventName = eventNameFromDatasetKey(datasetKey);
       catalog.events.push(createEventFromDatasetKey(datasetKey));
       if (!source.events.includes(eventName)) source.events.push(eventName);
@@ -786,7 +815,7 @@
       render();
       el("datasetKey").focus();
       el("datasetKey").select();
-      setStatus("Dataset created locally. Save to publish through the server contract.", "warn");
+      setStatus("Blank dataset created locally. Add fields, then save to publish through the server contract.", "warn");
     }
 
     function deleteEvent() {

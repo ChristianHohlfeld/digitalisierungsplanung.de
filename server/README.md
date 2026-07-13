@@ -11,6 +11,7 @@ GitHub Pages, not by this server deploy.
 - Token endpoint: `https://realtime.digitalisierungsplanung.de/token`
 - Test console: `https://realtime.digitalisierungsplanung.de/console.html`
 - Event designer: `https://realtime.digitalisierungsplanung.de/events-admin.html`
+- Product contract: `https://realtime.digitalisierungsplanung.de/contract`
 - Event definitions: `https://realtime.digitalisierungsplanung.de/events`
 - Shared release: `https://realtime.digitalisierungsplanung.de/version`
 - Local process: `127.0.0.1:8788`
@@ -63,8 +64,9 @@ Open `https://realtime.digitalisierungsplanung.de/console.html?room=<room-id>` f
 The event catalog is the server-side source of truth for offered realtime events and connector sources. Unknown `realtime.*` names are rejected on `/emit`, rejected on `/ws`, and ignored by the host bridge before they can enter the generated runtime. New datasets are created by editing this one catalog through the admin designer and saving it through the server.
 
 - `server/event-catalog.json`: single contract/catalog source in Git.
-- `/events/contract`: current server contract for event keys, detail types, and collision-free state contribution paths.
+- `/contract`: product contract for frontend trigger types, value types, datasets, connector sources, and collision-free state contribution paths.
 - `/events`: current event and connector definitions.
+- `/events/contract`: lower-level realtime catalog contract for event keys, detail types, and contribution paths.
 - `/ws`: WebSocket relay only.
 - `/emit`: authenticated server-to-server fire endpoint only.
 - `/console.html`: manual browser emitter for testing only.
@@ -85,8 +87,9 @@ Workspace automation or small mail bridge. For Outlook this is a Microsoft
 automation or Graph/mail bridge. The realtime server does not poll mailboxes or
 run a SIP stack.
 
-The designer shows the existing contract datasets first, then follows the canvas
-contract order: event type, dataset key, fields, source. The admin secret is
+The designer shows existing datasets as a dropdown, creates new datasets as
+blank `custom.dataset` entries, then follows the canvas contract order: event
+type, dataset key, fields, source. The admin secret is
 stored only in this browser's localStorage and is required when reloading or
 saving through the admin API. A save validates the
 same strict server contract, writes `server/event-catalog.json` and
@@ -95,7 +98,7 @@ There is no version selector and no old contract pinning; runtime always uses
 the latest green `release-N`. Release IDs are audit labels, not compatibility
 branches.
 
-All connector IDs are globally unique and path-safe. Runtime state is written under `events.<eventName>.*` and `emitters.<emitterId>.*`. Exact ID collisions and parent/child path collisions are rejected server-side. The canvas should store only concrete refs it uses, mainly `triggerType: realtime` and `triggerEvent`. It should not store preset contracts, endpoint definitions, catalog copies, or preset instances.
+All connector IDs are globally unique and path-safe. Runtime state is written under `events.<eventName>.*` and `emitters.<emitterId>.*`. Exact ID collisions and parent/child path collisions are rejected server-side. The canvas should load `/contract` fresh and store only concrete refs it uses, mainly `triggerType: realtime` and `triggerEvent`. It should not store preset contracts, endpoint definitions, catalog copies, or preset instances.
 
 Detailed payloads, error codes, curl examples, and WebSocket frame shapes are documented in [`../docs/realtime-api.md`](../docs/realtime-api.md).
 

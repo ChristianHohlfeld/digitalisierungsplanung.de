@@ -8,6 +8,7 @@ const path = require("node:path");
 const { URL } = require("node:url");
 const { WebSocketServer, WebSocket } = require("ws");
 const eventCatalog = require("./event-catalog");
+const productContract = require("./product-contract");
 const { loadReleaseInfo, parseReleaseSource } = require("./release");
 
 const DEFAULT_ALLOWED_ORIGINS = ["https://digitalisierungsplanung.de"];
@@ -15,6 +16,7 @@ const DEFAULT_PATH = "/ws";
 const DEFAULT_TOKEN_PATH = "/token";
 const DEFAULT_EVENTS_PATH = "/events";
 const DEFAULT_EVENTS_CONTRACT_PATH = "/events/contract";
+const DEFAULT_PRODUCT_CONTRACT_PATH = "/contract";
 const DEFAULT_EMIT_PATH = "/emit";
 const DEFAULT_CONSOLE_PATH = "/console.html";
 const DEFAULT_EVENTS_ADMIN_PATH = "/events-admin.html";
@@ -303,6 +305,7 @@ function loadConfig(options = {}) {
     tokenPath: options.tokenPath || env.REALTIME_TOKEN_PATH || DEFAULT_TOKEN_PATH,
     eventsPath: options.eventsPath || env.REALTIME_EVENTS_PATH || DEFAULT_EVENTS_PATH,
     eventsContractPath: options.eventsContractPath || env.REALTIME_EVENTS_CONTRACT_PATH || DEFAULT_EVENTS_CONTRACT_PATH,
+    productContractPath: options.productContractPath || env.REALTIME_PRODUCT_CONTRACT_PATH || DEFAULT_PRODUCT_CONTRACT_PATH,
     emitPath: options.emitPath || env.REALTIME_EMIT_PATH || DEFAULT_EMIT_PATH,
     consolePath: options.consolePath || env.REALTIME_CONSOLE_PATH || DEFAULT_CONSOLE_PATH,
     eventsAdminPath: options.eventsAdminPath || env.REALTIME_EVENTS_ADMIN_PATH || DEFAULT_EVENTS_ADMIN_PATH,
@@ -814,6 +817,15 @@ function createRealtimeServer(options = {}) {
       const prepared = prepareCatalogResponse(request, response);
       if (prepared.done) return;
       writeJson(response, 200, eventCatalogResponse(config), prepared.headers);
+      return;
+    }
+    if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.productContractPath) {
+      const prepared = prepareCatalogResponse(request, response);
+      if (prepared.done) return;
+      writeJson(response, 200, {
+        ...productContract.productContractResponse(config),
+        release: releaseResponse(config)
+      }, prepared.headers);
       return;
     }
     if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.emitPath) {

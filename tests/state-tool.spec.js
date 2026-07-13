@@ -6696,10 +6696,32 @@ test.describe("State Blueprint tool", () => {
         bindings: []
       }] : [])
     ]);
-    await page.route("https://realtime.digitalisierungsplanung.de/events", route => route.fulfill({
+    const contractPayload = () => ({
+      schemaVersion: 1,
+      valueTypes: [
+        { id: "text", label: "Text", jsonType: "string", default: "", constraints: {} },
+        { id: "number", label: "Number", jsonType: "number", default: 0, constraints: { finite: true } },
+        { id: "boolean", label: "Boolean", jsonType: "boolean", default: false, constraints: {} },
+        { id: "object", label: "Object", jsonType: "object", default: {}, constraints: { plainObject: true } }
+      ],
+      triggerTypes: [
+        { id: "button", label: "Klick", settings: {}, events: [] },
+        { id: "timer", label: "Timer", settings: { timerMs: { type: "number", min: 100, max: 300000 } }, events: [] },
+        { id: "api", label: "API", settings: {}, events: [{ name: "fetch.ok" }, { name: "fetch.error" }] },
+        { id: "change", label: "Change", settings: {}, events: [] },
+        { id: "event", label: "Event", settings: {}, events: [] },
+        { id: "realtime", label: "Realtime", settings: {}, events: eventsPayload() },
+        { id: "auto", label: "Auto", settings: {}, events: [] }
+      ],
+      stateContributions: [],
+      datasets: [],
+      connectors: [],
+      presets: []
+    });
+    await page.route("**/contract", route => route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ events: eventsPayload() })
+      body: JSON.stringify(contractPayload())
     }));
     await openTool(page);
     await page.evaluate(() => clearSelection());

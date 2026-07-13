@@ -209,6 +209,40 @@ test("serves the event and connector catalog only to allowed origins", async () 
       contractPayload.events.find(event => event.name === "realtime.sip.call.incoming").detail,
       { caller: "text", callee: "text", callId: "text" }
     );
+
+    const productContract = await fetch(httpUrl(realtime, "/contract"), {
+      headers: { Origin: ORIGIN }
+    });
+    assert.equal(productContract.status, 200);
+    assert.equal(productContract.headers.get("access-control-allow-origin"), ORIGIN);
+    const productContractPayload = await productContract.json();
+    assert.equal(productContractPayload.schemaVersion, 1);
+    assert.ok(productContractPayload.triggerTypes.some(type => type.id === "button"));
+    assert.ok(productContractPayload.triggerTypes.some(type => type.id === "timer"));
+    assert.ok(productContractPayload.triggerTypes.some(type => type.id === "api"));
+    const realtimeTrigger = productContractPayload.triggerTypes.find(type => type.id === "realtime");
+    assert.ok(realtimeTrigger);
+    assert.ok(realtimeTrigger.events.some(event => event.name === "realtime.sip.call.incoming"));
+    assert.ok(productContractPayload.valueTypes.some(type => type.id === "text" && type.jsonType === "string"));
+    assert.ok(productContractPayload.valueTypes.some(type =>
+      type.id === "number" &&
+      type.jsonType === "number" &&
+      type.constraints.finite === true
+    ));
+    assert.ok(productContractPayload.valueTypes.some(type =>
+      type.id === "email" &&
+      type.jsonType === "string" &&
+      type.constraints.format === "email"
+    ));
+    assert.ok(productContractPayload.datasets.some(dataset =>
+      dataset.id === "realtime.sip.call.incoming" &&
+      dataset.fields.callId === "text"
+    ));
+    assert.ok(productContractPayload.stateContributions.some(contribution =>
+      contribution.root === "events.realtime.sip.call.incoming" &&
+      contribution.fields.includes("events.realtime.sip.call.incoming.detail.callId") &&
+      contribution.fieldTypes["events.realtime.sip.call.incoming.detail.callId"] === "text"
+    ));
   });
 });
 
@@ -268,6 +302,7 @@ test("nginx proxies only lean public realtime routes", () => {
     "console.html",
     "events-admin.html",
     "/events-admin/catalog",
+    "/contract",
     "/events/contract",
     "/healthz",
     "/version",
@@ -310,12 +345,18 @@ test("serves an admin event designer that validates, commits, and pushes the cat
       assert.match(html, /Realtime Event Designer/);
       assert.match(html, /Save to GitHub/);
       assert.match(html, /fetch\("\/events"/);
-      assert.match(html, /fetch\("\/events\/contract"/);
+      assert.match(html, /fetch\("\/contract"/);
       assert.match(html, /localStorage\.setItem\(ADMIN_SECRET_STORAGE_KEY/);
       assert.match(html, /Existing datasets/);
       assert.match(html, /datasetOverview/);
-      assert.match(html, /New dataset/);
+      assert.match(html, /New blank dataset/);
+      assert.match(html, /placeholder="custom\.dataset"/);
+      assert.match(html, /pathInput\.placeholder = "fieldName"/);
+      assert.match(html, /return "custom\.dataset"/);
+      assert.match(html, /detail: \{\}/);
       assert.match(html, /Add field/);
+      assert.doesNotMatch(html, /placeholder="sip\.call\.incoming"/);
+      assert.doesNotMatch(html, /detail: \{ value: "text" \}/);
       assert.doesNotMatch(html, /admin-secret/);
 
       const unauthorized = await fetch(httpUrl(realtime, "/events-admin/catalog"));
