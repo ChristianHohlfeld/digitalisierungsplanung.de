@@ -9501,6 +9501,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#pTitle")).toBeVisible();
     let point = await emptyCanvasPoint(page);
     await page.mouse.click(point.x, point.y);
+    await page.waitForTimeout(450);
     await expect(page.locator("#pTitle")).toHaveCount(0);
     await expect(page.locator("#stateInspectorBody")).toContainText("Kein Zustand ausgewählt");
 

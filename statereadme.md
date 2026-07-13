@@ -591,7 +591,8 @@ Editoraktion
   sofort auswählen. Erst nach Ablauf des Doppelclick-Zeitfensters darf er als
   bestätigter Einzelclick die Runtime starten. Ein gültiger Doppelclick MUSS den
   ausstehenden Runtime-Start verwerfen und ausschließlich die innere State-Ebene
-  öffnen.
+  öffnen. Jede vorher beginnende weitere Canvas- oder Inspector-Interaktion
+  MUSS den ausstehenden Runtime-Start ebenfalls verwerfen.
 - **ED-023 Deterministischer Desktop-Abschluss:** State-, Canvas- und
   Transition-Gesten MÜSSEN beim zugehörigen `pointerup` genau einmal
   abgeschlossen werden. Ein nachfolgendes `mouseup` DARF dieselbe Geste weder

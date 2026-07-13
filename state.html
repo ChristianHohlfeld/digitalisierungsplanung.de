@@ -9032,6 +9032,7 @@
     let suppressCanvasTextSelectionUntil = 0;
     let lastNodeClick = null;
     let pendingNodeRuntimeStartTimer = 0;
+    let pendingNodeRuntimeStartToken = 0;
     let lastTouchNodeTap = null;
     let lastCreatedStateId = null;
     let lastCreatedStateTime = 0;
@@ -13481,6 +13482,8 @@
     function stopRuntimeLayerFollow(duration = 1600) {
       runtimeLayerFollowEnabled = false;
       suppressRuntimeLayerFollowUntil = Date.now() + duration;
+      pendingAppStartStateId = null;
+      pendingAppStartSuppressLayerFollow = false;
     }
 
     function enterStateLayer(stateId, opts = {}) {
@@ -15299,6 +15302,7 @@
     }
 
     function cancelPendingNodeRuntimeStart() {
+      pendingNodeRuntimeStartToken += 1;
       if (pendingNodeRuntimeStartTimer) clearTimeout(pendingNodeRuntimeStartTimer);
       pendingNodeRuntimeStartTimer = 0;
     }
@@ -15308,8 +15312,10 @@
       const id = String(stateId || "");
       const layerId = currentLayerId || null;
       if (!id || !byModelId(model, id)) return;
+      const token = pendingNodeRuntimeStartToken;
       pendingNodeRuntimeStartTimer = setTimeout(() => {
         pendingNodeRuntimeStartTimer = 0;
+        if (token !== pendingNodeRuntimeStartToken) return;
         if ((currentLayerId || null) !== layerId || singleSelectedNodeId() !== id || !byModelId(model, id)) return;
         startAppAtState(id, { preserveFocus: true, allowLayerFollow: true });
       }, DESKTOP_NODE_DOUBLE_CLICK_MS + 30);
@@ -15317,6 +15323,7 @@
 
     stateInspectorEl.addEventListener("pointerdown", cancelPendingNodeRuntimeStart, { capture: true });
     stateInspectorEl.addEventListener("focusin", cancelPendingNodeRuntimeStart);
+    mapEl.addEventListener("pointerdown", cancelPendingNodeRuntimeStart, { capture: true });
 
     function startNodeDrag(evt, s) {
       cancelPendingNodeRuntimeStart();
@@ -23844,6 +23851,7 @@
       if (!byId(id)) return;
       clearPresetPreviewUi();
       runtimeLayerFollowEnabled = Boolean(opts.allowLayerFollow);
+      if (opts.allowLayerFollow) suppressRuntimeLayerFollowUntil = 0;
       if (opts.suppressLayerFollow) suppressRuntimeLayerFollowUntil = Date.now() + 1200;
       pendingAppStartStateId = id;
       pendingAppStartSuppressLayerFollow = Boolean(opts.suppressLayerFollow);
@@ -26910,9 +26918,8 @@
         (previousAppState && stateChanged) ||
         firstRuntimeUpdateEntersAnotherLayer
       ));
-      if (shouldFollowRuntimeState) {
+      if (shouldFollowRuntimeState && Date.now() >= suppressRuntimeLayerFollowUntil) {
         runtimeLayerFollowEnabled = true;
-        suppressRuntimeLayerFollowUntil = 0;
       }
       const allowRuntimeLayerFollow = runtimeLayerFollowEnabled && Date.now() >= suppressRuntimeLayerFollowUntil;
       if (lastAppTransitionId || stateChanged) {
