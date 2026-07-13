@@ -12,6 +12,8 @@ GitHub Pages, not by this server deploy.
 - Test console: `https://realtime.digitalisierungsplanung.de/console.html`
 - Event designer: `https://realtime.digitalisierungsplanung.de/events-admin.html`
 - Product contract: `https://realtime.digitalisierungsplanung.de/contract`
+- Process recorder contract: `https://realtime.digitalisierungsplanung.de/process/contract`
+- Process analysis: `https://realtime.digitalisierungsplanung.de/process/analyze`
 - Event definitions: `https://realtime.digitalisierungsplanung.de/events`
 - Shared release: `https://realtime.digitalisierungsplanung.de/version`
 - Local process: `127.0.0.1:8788`
@@ -19,6 +21,32 @@ GitHub Pages, not by this server deploy.
 - Room auth: signed HMAC room token via `REALTIME_ROOM_SECRET`
 
 Full API reference: [`../docs/realtime-api.md`](../docs/realtime-api.md)
+
+## Process Recorder Agent
+
+`/process/analyze` accepts one redacted in-memory capture from the Windows
+companion and returns one model that has already passed the shared MCP model
+validator. The route is stateless: it stores neither captures, traces, models,
+nor sessions. Every response is `no-store`; Nginx streams the request without
+proxy buffering.
+
+Choose exactly one server-side agent configuration in
+`/etc/digitalisierungsplanung-realtime.env`:
+
+```text
+PROCESS_RECORDER_OPENAI_API_KEY=<secret>
+PROCESS_RECORDER_MODEL=gpt-5.6-luna
+
+# Or an organization-owned adapter with the documented trace response:
+PROCESS_RECORDER_ANALYZER_URL=https://<agent>/analyze
+PROCESS_RECORDER_ANALYZER_TOKEN=<secret>
+```
+
+The custom adapter receives `{ contract: "zustand-process-trace-v1", capture }`
+and returns `{ title, steps: [{ title, description, actionToNext }] }`. The
+server, not the adapter, creates IDs, layout, button events, and the canonical
+model. `PROCESS_RECORDER_MAX_CONCURRENT` defaults to `4`; request size is
+limited by `PROCESS_RECORDER_MAX_PAYLOAD_BYTES`.
 
 ## Message Types
 

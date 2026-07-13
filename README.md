@@ -202,6 +202,33 @@ npm run server:smoke:wss:prod
 npm run server:smoke:emit:prod
 ```
 
+## PC-Prozessaufnahme
+
+Der Aufnahmebutton oben rechts im Desktop-Canvas verbindet den Editor mit dem
+lokalen Windows-Begleiter. Während der Nutzer in anderen Anwendungen arbeitet,
+zeichnet der Agent den erkannten Ablauf live als States und Transitionen in
+dieselbe Arbeitsfläche. Stop schließt die Aufnahme als genau einen Undo-Schritt
+ab; Abbruch oder ein Fehler ohne gültiges Agentenergebnis lassen den vorherigen
+Stand unverändert.
+
+Beim ersten Einsatz `assets/Zustand-Prozessrecorder.zip` entpacken und
+`Zustand-Recorder.cmd` starten. Der sichtbare Begleiter läuft ausschließlich
+auf `127.0.0.1:43127`, persistiert nichts und liest keine Roh-Tasten,
+Passwörter oder konkreten Feldwerte als Ereignisdaten aus. Die ausdrücklich
+freigegebenen Kontextbilder zeigen den sichtbaren Desktop. Für den produktiven Agenten wird auf dem
+Server eine der beiden Konfigurationen in
+`/etc/digitalisierungsplanung-realtime.env` gesetzt:
+
+```text
+PROCESS_RECORDER_OPENAI_API_KEY=<server-secret>
+# oder
+PROCESS_RECORDER_ANALYZER_URL=https://<eigener-agent>/analyze
+PROCESS_RECORDER_ANALYZER_TOKEN=<server-secret>
+```
+
+Der Schlüssel bleibt serverseitig. Der Recorder ist eine Autorenoberfläche des
+Editors und wird nicht in Preview oder HTML-Export eingebaut.
+
 ## API und MCP
 
 Die Schnittstellen bearbeiten dasselbe Modell wie das Werkzeug. Sie klicken nicht die Oberfläche und halten keinen zweiten Speicher.

@@ -2,6 +2,7 @@ const fs = require("node:fs");
 const { test, expect } = require("@playwright/test");
 const { DEFAULT_EVENT_CATALOG } = require("../server/event-catalog");
 const { productContractResponse } = require("../server/product-contract");
+const { modelFromTrace } = require("../server/process-recorder");
 
 const STORAGE_KEY = "stateBlueprintHotLinked.model.v2";
 const GRID_SIZE = 24;
@@ -63,17 +64,6 @@ async function openTool(page, options = {}) {
 
 function appFrame(page) {
   return page.frameLocator("#appFrame");
-}
-
-async function clickRuntimeTransitionUntilState(page, button, targetStateId) {
-  const app = appFrame(page);
-  await expect(button).toBeVisible();
-  await expect.poll(async () => {
-    const current = await app.locator("#statePill").textContent().catch(() => "");
-    if (current === targetStateId) return current;
-    await button.click().catch(() => {});
-    return app.locator("#statePill").textContent().catch(() => "");
-  }).toBe(targetStateId);
 }
 
 function productContractForTest(options = {}) {
@@ -6054,7 +6044,8 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator(`[data-id="${buttonState.id}"]`).click();
     const app = appFrame(page);
-    await clickRuntimeTransitionUntilState(page, app.getByRole("button", { name: "Weiter" }), nextState.id);
+    await expect(app.getByRole("button", { name: "Weiter" })).toBeVisible();
+    await app.getByRole("button", { name: "Weiter" }).click();
     await expect(app.locator("#statePill")).toHaveText(nextState.id);
     await expect.poll(async () => scopePath.split(".").reduce((value, key) => value?.[key], await runtimeContext(page))).toMatchObject({
       label: "Weiter",
@@ -6062,6 +6053,8 @@ test.describe("State Blueprint tool", () => {
     });
 
     await page.locator(`[data-id="${buttonState.id}"]`).click();
+    await expect(page.locator("#layerFrameLabel")).toHaveText("Wurzel");
+    await expect(page.locator("#pTitle")).toHaveValue("Aktionsbutton");
     await page.locator("#pDelete").click();
     await expect(page.locator(`[data-id="${buttonState.id}"]`)).toHaveCount(0);
     await expect.poll(async () => scopePath.split(".").reduce((value, key) => value?.[key], await runtimeContext(page))).toBeUndefined();
@@ -7682,7 +7675,8 @@ test.describe("State Blueprint tool", () => {
     await expect(app.locator("#statePill")).toHaveText(cardState.id);
     await expect.poll(() => page.evaluate(() => window.__stateBlueprintOpenedUrls?.length || 0)).toBe(1);
     const buyButton = app.locator(`button[data-transition-id="${cardTransition.id}"]`, { hasText: "Jetzt kaufen" });
-    await clickRuntimeTransitionUntilState(page, buyButton, cardTarget.id);
+    await expect(buyButton).toBeVisible();
+    await buyButton.click();
     await expect(app.locator("#statePill")).toHaveText(cardTarget.id);
   });
 
@@ -14121,5 +14115,153 @@ test.describe("State Blueprint tool", () => {
     expect(definition.model.initial).toBe("");
     expect(definition.model.states).toEqual([]);
     expect(definition.model.transitions).toEqual([]);
+  });
+
+  test("draws an observed PC process live and commits the full recording as one undo step", async ({ page }) => {
+    const capture = {
+      sessionId: "desktop-session",
+      startedAt: Date.now(),
+      endedAt: 0,
+      events: [
+        { seq: 1, at: 1, kind: "application", app: "outlook", window: "Posteingang" },
+        { seq: 2, at: 2, kind: "click", app: "outlook", window: "Posteingang", button: "left", control: { name: "Rechnung öffnen", type: "Button", automationId: "open", password: false } },
+        { seq: 3, at: 3, kind: "application", app: "erp", window: "Rechnung prüfen" },
+        { seq: 4, at: 4, kind: "input", app: "erp", window: "Rechnung prüfen", keyCount: 8, control: { name: "Textfeld", type: "Edit", automationId: "comment", password: false } }
+      ],
+      frames: []
+    };
+    const recordedModel = modelFromTrace({
+      title: "Rechnung prüfen",
+      steps: [
+        { title: "Posteingang", description: "Eine Rechnung liegt vor.", actionToNext: "Rechnung öffnen" },
+        { title: "Rechnung prüfen", description: "Die Rechnung wird geprüft.", actionToNext: "Freigeben" },
+        { title: "Freigegeben", description: "Die Prüfung ist abgeschlossen.", actionToNext: "" }
+      ]
+    }).model;
+    let companionRecording = false;
+    let analyzeCalls = 0;
+    let analyzeBody = null;
+
+    await page.route("**/process/contract", route => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers: { "cache-control": "no-store" },
+      body: JSON.stringify({ ok: true, enabled: true, contract: "zustand-process-recorder-v1" })
+    }));
+    await page.route("http://127.0.0.1:43127/v1/**", async route => {
+      const url = new URL(route.request().url());
+      if (url.pathname.endsWith("/health")) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          headers: { "cache-control": "no-store" },
+          body: JSON.stringify({ ok: true, recording: companionRecording, ready: false, eventCount: companionRecording ? capture.events.length : 0, frameCount: 0 })
+        });
+        return;
+      }
+      if (url.pathname.endsWith("/start")) {
+        companionRecording = true;
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, recording: true, sessionId: capture.sessionId, startedAt: capture.startedAt }) });
+        return;
+      }
+      if (url.pathname.endsWith("/capture")) {
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(capture) });
+        return;
+      }
+      if (url.pathname.endsWith("/stop")) {
+        companionRecording = false;
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ...capture, endedAt: Date.now() }) });
+        return;
+      }
+      companionRecording = false;
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
+    });
+    await page.route("**/process/analyze", async route => {
+      analyzeCalls += 1;
+      analyzeBody = route.request().postDataJSON();
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers: { "cache-control": "no-store" },
+        body: JSON.stringify({ ok: true, contract: "zustand-process-model-v1", model: recordedModel, summary: { states: 3, transitions: 2 } })
+      });
+    });
+
+    await openTool(page);
+    await page.locator("#btnProcessRecord").click();
+    await expect(page.getByRole("heading", { name: "PC-Arbeit aufnehmen" })).toBeVisible();
+    await page.getByRole("button", { name: "Aufnahme starten" }).click();
+    await expect(page.locator("#btnProcessRecord")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#processRecordingStatus")).toBeVisible();
+
+    await expect(page.locator('[data-id="posteingang"]')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('[data-id="freigegeben"]')).toBeVisible();
+    await expect(page.locator("#btnProcessRecord")).toHaveAttribute("aria-pressed", "true");
+    expect(analyzeCalls).toBe(1);
+    expect(analyzeBody.events.map(item => item.kind)).toEqual(["application", "click", "application", "input"]);
+    expect(JSON.stringify(analyzeBody)).not.toContain("value");
+
+    await page.locator("#btnProcessRecord").click();
+    await expect(page.locator("#btnProcessRecord")).toHaveAttribute("aria-pressed", "false");
+    await expect(page.locator("#processRecordingStatus")).toBeHidden();
+    await expect(page.locator("#btnCanvasUndo")).toBeEnabled();
+
+    await page.locator("#btnCanvasUndo").click();
+    await expect(page.locator('[data-id="auth_start"]')).toBeVisible();
+    await expect(page.locator('[data-id="posteingang"]')).toHaveCount(0);
+    await page.locator("#btnCanvasRedo").click();
+    await expect(page.locator('[data-id="posteingang"]')).toBeVisible();
+    await expect(appFrame(page).locator("#statePill")).toHaveText("posteingang");
+    const exportedHtml = await page.evaluate(() => buildStandaloneAppHtml(GENERATED_APP_HTML, definitionPayload()));
+    expect(exportedHtml).not.toContain("43127");
+    expect(exportedHtml).not.toContain("btnProcessRecord");
+    expect(exportedHtml).not.toContain("PROCESS_COMPANION_URL");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.locator("#btnProcessRecord")).toBeHidden();
+    await expect(page.locator("#map")).toBeVisible();
+  });
+
+  test("leaves model and history unchanged when PC process analysis fails", async ({ page }) => {
+    const capture = {
+      sessionId: "failed-session",
+      startedAt: Date.now(),
+      endedAt: Date.now() + 1,
+      events: [
+        { seq: 1, at: 1, kind: "application", app: "erp", window: "Anfrage" },
+        { seq: 2, at: 2, kind: "click", app: "erp", window: "Anfrage", button: "left", control: { name: "Prüfen", type: "Button", password: false } }
+      ],
+      frames: []
+    };
+    let recording = false;
+    await page.route("**/process/contract", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, enabled: true }) }));
+    await page.route("http://127.0.0.1:43127/v1/**", async route => {
+      const path = new URL(route.request().url()).pathname;
+      if (path.endsWith("/health")) {
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, recording, ready: false, eventCount: 0 }) });
+      } else if (path.endsWith("/start")) {
+        recording = true;
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, recording: true, sessionId: capture.sessionId, startedAt: capture.startedAt }) });
+      } else if (path.endsWith("/stop")) {
+        recording = false;
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(capture) });
+      } else {
+        recording = false;
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
+      }
+    });
+    await page.route("**/process/analyze", route => route.fulfill({ status: 502, contentType: "application/json", body: JSON.stringify({ error: "process_analyzer_failed" }) }));
+
+    await openTool(page);
+    const before = await page.evaluate(() => modelSnapshot());
+    await expect(page.locator("#btnCanvasUndo")).toBeDisabled();
+    await page.locator("#btnProcessRecord").click();
+    await page.getByRole("button", { name: "Aufnahme starten" }).click();
+    await page.locator("#btnProcessRecord").click();
+    await expect(page.getByRole("heading", { name: "Aufnahme abgeschlossen" })).toBeVisible();
+    await page.getByRole("button", { name: "OK" }).click();
+    await expect(page.locator("#btnProcessRecord")).toHaveAttribute("aria-pressed", "false");
+    expect(await page.evaluate(() => modelSnapshot())).toBe(before);
+    await expect(page.locator("#btnCanvasUndo")).toBeDisabled();
+    await expect(page.locator('[data-id="auth_start"]')).toBeVisible();
   });
 });

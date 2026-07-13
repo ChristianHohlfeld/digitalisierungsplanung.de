@@ -9,6 +9,7 @@ const { URL } = require("node:url");
 const { WebSocketServer, WebSocket } = require("ws");
 const eventCatalog = require("./event-catalog");
 const productContract = require("./product-contract");
+const { createProcessAnalyzer, MAX_EVENTS: MAX_PROCESS_EVENTS, MAX_FRAMES: MAX_PROCESS_FRAMES } = require("./process-recorder");
 const { loadReleaseInfo, parseReleaseSource } = require("./release");
 
 const DEFAULT_ALLOWED_ORIGINS = ["https://digitalisierungsplanung.de"];
@@ -22,6 +23,8 @@ const DEFAULT_CONSOLE_PATH = "/console.html";
 const DEFAULT_EVENTS_ADMIN_PATH = "/events-admin.html";
 const DEFAULT_EVENTS_ADMIN_CATALOG_PATH = "/events-admin/catalog";
 const DEFAULT_VERSION_PATH = "/version";
+const DEFAULT_PROCESS_CONTRACT_PATH = "/process/contract";
+const DEFAULT_PROCESS_ANALYZE_PATH = "/process/analyze";
 const DEFAULT_ADMIN_COMMIT_MESSAGE = "Update realtime event catalog";
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 8788;
@@ -311,6 +314,8 @@ function loadConfig(options = {}) {
     eventsAdminPath: options.eventsAdminPath || env.REALTIME_EVENTS_ADMIN_PATH || DEFAULT_EVENTS_ADMIN_PATH,
     eventsAdminCatalogPath: options.eventsAdminCatalogPath || env.REALTIME_EVENTS_ADMIN_CATALOG_PATH || DEFAULT_EVENTS_ADMIN_CATALOG_PATH,
     versionPath: options.versionPath || env.REALTIME_VERSION_PATH || DEFAULT_VERSION_PATH,
+    processContractPath: options.processContractPath || env.PROCESS_RECORDER_CONTRACT_PATH || DEFAULT_PROCESS_CONTRACT_PATH,
+    processAnalyzePath: options.processAnalyzePath || env.PROCESS_RECORDER_ANALYZE_PATH || DEFAULT_PROCESS_ANALYZE_PATH,
     eventCatalogPath: path.resolve(options.eventCatalogPath || env.REALTIME_EVENT_CATALOG_PATH || eventCatalog.DEFAULT_EVENT_CATALOG_PATH),
     eventAdminHtmlPath: path.resolve(options.eventAdminHtmlPath || env.REALTIME_EVENT_ADMIN_HTML_PATH || path.join(__dirname, "events-admin.html")),
     repoDir,
@@ -323,6 +328,14 @@ function loadConfig(options = {}) {
       DEFAULT_ALLOWED_ORIGINS
     ),
     maxPayload: parseInteger(options.maxPayload ?? env.REALTIME_MAX_PAYLOAD_BYTES, 64 * 1024, 1024),
+    processMaxPayload: parseInteger(options.processMaxPayload ?? env.PROCESS_RECORDER_MAX_PAYLOAD_BYTES, 8 * 1024 * 1024, 1024, 12 * 1024 * 1024),
+    processAnalyzer: options.processAnalyzer,
+    processAnalyzerUrl: options.processAnalyzerUrl ?? env.PROCESS_RECORDER_ANALYZER_URL ?? "",
+    processAnalyzerToken: options.processAnalyzerToken ?? env.PROCESS_RECORDER_ANALYZER_TOKEN ?? "",
+    processOpenAiApiKey: options.processOpenAiApiKey ?? env.PROCESS_RECORDER_OPENAI_API_KEY ?? env.OPENAI_API_KEY ?? "",
+    processModel: options.processModel ?? env.PROCESS_RECORDER_MODEL ?? "gpt-5.6-luna",
+    processTimeoutMs: parseInteger(options.processTimeoutMs ?? env.PROCESS_RECORDER_TIMEOUT_MS, 90000, 5000, 120000),
+    processMaxConcurrent: parseInteger(options.processMaxConcurrent ?? env.PROCESS_RECORDER_MAX_CONCURRENT, 4, 1, 16),
     heartbeatMs: parseInteger(options.heartbeatMs ?? env.REALTIME_HEARTBEAT_MS, 30000, 1000),
     rateLimitWindowMs: parseInteger(options.rateLimitWindowMs ?? env.REALTIME_RATE_WINDOW_MS, 10000, 1000),
     rateLimitMax: parseInteger(options.rateLimitMax ?? env.REALTIME_RATE_LIMIT, 360, 1),
@@ -735,6 +748,16 @@ function sendError(socket, code, close = false) {
 
 function createRealtimeServer(options = {}) {
   const config = loadConfig(options);
+  const processAnalyzer = createProcessAnalyzer({
+    analyzer: config.processAnalyzer,
+    analyzerUrl: config.processAnalyzerUrl,
+    analyzerToken: config.processAnalyzerToken,
+    openAiApiKey: config.processOpenAiApiKey,
+    model: config.processModel,
+    timeoutMs: config.processTimeoutMs,
+    fetchImpl: options.fetchImpl
+  });
+  let processAnalysisActive = 0;
   const allowedOrigins = new Set(config.allowedOrigins);
   let offeredEventsByName = new Map();
   let offeredEmittersById = new Map();
@@ -826,6 +849,29 @@ function createRealtimeServer(options = {}) {
         ...productContract.productContractResponse(config),
         release: releaseResponse(config)
       }, prepared.headers);
+      return;
+    }
+    if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.processContractPath) {
+      const prepared = prepareCatalogResponse(request, response);
+      if (prepared.done) return;
+      writeJson(response, 200, {
+        ok: true,
+        contract: "zustand-process-recorder-v1",
+        enabled: processAnalyzer.enabled,
+        provider: processAnalyzer.provider,
+        model: processAnalyzer.model,
+        capture: {
+          source: "windows-companion",
+          values: "redacted",
+          persisted: false,
+          maxEvents: MAX_PROCESS_EVENTS,
+          maxFrames: MAX_PROCESS_FRAMES
+        }
+      }, prepared.headers);
+      return;
+    }
+    if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.processAnalyzePath) {
+      void handleProcessAnalyzeRequest(request, response);
       return;
     }
     if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.emitPath) {
@@ -1032,6 +1078,47 @@ function createRealtimeServer(options = {}) {
       name: emit.name,
       delivered
     }, headers);
+  }
+
+  async function handleProcessAnalyzeRequest(request, response) {
+    const origin = request.headers.origin || "";
+    const headers = origin ? corsHeadersForOrigin(origin, request) : {};
+    if (!headers) {
+      writeJson(response, 403, { error: "origin_not_allowed" });
+      return;
+    }
+    if (request.method === "OPTIONS") {
+      response.writeHead(204, headers);
+      response.end();
+      return;
+    }
+    if (!processAnalyzer.enabled) {
+      writeJson(response, 503, { error: "process_analyzer_not_configured" }, headers);
+      return;
+    }
+    if (processAnalysisActive >= config.processMaxConcurrent) {
+      writeJson(response, 429, { error: "process_analyzer_busy" }, headers);
+      return;
+    }
+    processAnalysisActive += 1;
+    let payload;
+    try {
+      payload = await readJsonBody(request, config.processMaxPayload);
+    } catch (error) {
+      processAnalysisActive -= 1;
+      const status = error.code === "payload_too_large" ? 413 : 400;
+      writeJson(response, status, { error: error.code || "invalid_json" }, headers);
+      return;
+    }
+    try {
+      const result = await processAnalyzer.analyze(payload);
+      writeJson(response, 200, result, headers);
+    } catch (error) {
+      writeJson(response, error.status || 502, { error: error.code || "process_analysis_failed" }, headers);
+    } finally {
+      processAnalysisActive -= 1;
+      payload = null;
+    }
   }
 
   function removeFromRoom(socket) {

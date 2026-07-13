@@ -321,11 +321,15 @@ test("nginx proxies only lean public realtime routes", () => {
     "/token",
     "/events",
     "/emit",
+    "/process/contract",
+    "/process/analyze",
     "/ws"
   ]) {
     assert.ok(normalized.includes(route), `${route} route is missing`);
   }
   assert.match(normalized, /location = \/ws/);
+  assert.match(normalized, /location = \/process\/analyze/);
+  assert.match(nginx, /location = \/process\/analyze[\s\S]*proxy_request_buffering off;/);
   assert.match(nginx, /proxy_pass\s+http:\/\/127\.0\.0\.1:8788;/);
 });
 
@@ -738,5 +742,102 @@ test("rejects removed presence and never broadcasts peer lifecycle messages", as
     assert.equal(error.code, "invalid_type");
     bob.close();
     await assertNoMessage(alice, message => message.type === "peer.leave");
+  });
+});
+
+test("serves stateless process-recorder capability and a validated no-store model", async () => {
+  let receivedCapture = null;
+  await withRealtimeServer({
+    processAnalyzer: async capture => {
+      receivedCapture = capture;
+      return {
+        title: "Anfrage bearbeiten",
+        steps: [
+          { title: "Anfrage", description: "Anfrage liegt vor.", actionToNext: "Prüfen" },
+          { title: "Geprüft", description: "Anfrage wurde geprüft.", actionToNext: "" }
+        ]
+      };
+    }
+  }, async realtime => {
+    const contract = await fetch(httpUrl(realtime, "/process/contract"), { headers: { Origin: ORIGIN } });
+    assert.equal(contract.status, 200);
+    assert.match(contract.headers.get("cache-control"), /no-store/);
+    const capability = await contract.json();
+    assert.equal(capability.enabled, true);
+    assert.equal(capability.capture.persisted, false);
+
+    const response = await fetch(httpUrl(realtime, "/process/analyze"), {
+      method: "POST",
+      headers: { Origin: ORIGIN, "content-type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "session",
+        startedAt: 1,
+        endedAt: 2,
+        events: [
+          { seq: 1, at: 1, kind: "application", app: "browser", window: "Anfrage" },
+          { seq: 2, at: 2, kind: "click", app: "browser", window: "Anfrage", button: "left", control: { name: "Prüfen", type: "Button", password: false } }
+        ],
+        frames: []
+      })
+    });
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get("cache-control"), /no-store/);
+    const body = await response.json();
+    assert.equal(body.contract, "zustand-process-model-v1");
+    assert.equal(body.model.states.length, 2);
+    assert.equal(body.model.transitions[0].triggerEvent, `button.${body.model.transitions[0].id}`);
+    assert.equal(receivedCapture.events.length, 2);
+
+    const forbidden = await fetch(httpUrl(realtime, "/process/analyze"), {
+      method: "POST",
+      headers: { Origin: "https://evil.example", "content-type": "application/json" },
+      body: "{}"
+    });
+    assert.equal(forbidden.status, 403);
+  });
+});
+
+test("bounds concurrent process agents and releases the slot after completion", async () => {
+  let releaseFirst;
+  let firstEntered;
+  const entered = new Promise(resolve => { firstEntered = resolve; });
+  const firstResult = new Promise(resolve => { releaseFirst = resolve; });
+  let calls = 0;
+  const trace = {
+    title: "Ablauf",
+    steps: [{ title: "Start", description: "Beginn", actionToNext: "" }]
+  };
+  const payload = {
+    sessionId: "session",
+    startedAt: 1,
+    endedAt: 2,
+    events: [{ seq: 1, at: 1, kind: "application", app: "browser", window: "Start" }],
+    frames: []
+  };
+  await withRealtimeServer({
+    processMaxConcurrent: 1,
+    processAnalyzer: async () => {
+      calls += 1;
+      if (calls === 1) {
+        firstEntered();
+        return firstResult;
+      }
+      return trace;
+    }
+  }, async realtime => {
+    const request = () => fetch(httpUrl(realtime, "/process/analyze"), {
+      method: "POST",
+      headers: { Origin: ORIGIN, "content-type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const first = request();
+    await entered;
+    const busy = await request();
+    assert.equal(busy.status, 429);
+    assert.deepEqual(await busy.json(), { error: "process_analyzer_busy" });
+    releaseFirst(trace);
+    assert.equal((await first).status, 200);
+    assert.equal((await request()).status, 200);
+    assert.equal(calls, 2);
   });
 });

@@ -807,8 +807,10 @@ Editoraktion
 - **RT-014 Keine Modellwrites:** Nachrichten wie `graph.patch` und `snapshot`
   MÜSSEN abgelehnt werden. Kanonische Modellwrites gehören ausschließlich zur
   Modell-API.
-- **RT-015 Öffentliche Routen:** Nginx darf nur `/console.html`, `/healthz`,
-  `/version`, `/token`, `/events`, `/emit` und `/ws` an den lokalen Prozess auf
+- **RT-015 Öffentliche Routen:** Nginx darf nur `/console.html`,
+  `/events-admin.html`, `/events-admin/catalog`, `/healthz`, `/version`,
+  `/token`, `/contract`, `/events`, `/events/contract`, `/emit`,
+  `/process/contract`, `/process/analyze` und `/ws` an den lokalen Prozess auf
   `127.0.0.1:8788` weiterleiten. Nicht definierte Kernrouten wie `/`,
   `/catalog`, `/schema` und `/api` liefern 404.
 - **RT-016 Transportierte Definition:** Der Server MUSS einem akzeptierten
@@ -855,6 +857,59 @@ Editoraktion
   für Integrationen und Testkonsole. Ein fachlicher App-Emitter wäre eine neue
   Vertragsfunktion und dürfte erst gemeinsam mit Payloadschema, Reihenfolge,
   Autorisierung, ACK und Fehlersemantik eingeführt werden.
+
+### 15.1 Vertrag der PC-Prozessaufnahme
+
+- **REC-001 Explizite Aufnahme:** Die PC-Aufnahme DARF nur durch eine
+  ausdrückliche Nutzeraktion im Desktop-Canvas beginnen. Der lokale Begleiter
+  MUSS währenddessen sichtbar im Windows-Infobereich laufen und MUSS seine
+  globalen Hooks bei Stop, Abbruch, Browserende oder Prozessende sofort lösen.
+- **REC-002 Echte Ereignisse:** Der Ablauf MUSS aus echten Anwendungs- und
+  Fensterwechseln, globalen Klicks, semantischen UI-Elementen,
+  Eingabeaktionen, ausdrücklichen Navigationstasten und Scroll-Aktionen
+  entstehen. Kontextbilder ergänzen diese Ereignisse und DÜRFEN nicht die
+  alleinige Quelle für Klicks oder Eingaben sein.
+- **REC-003 Datenminimierung:** Roh-Tasten, Passwörter und konkrete Feldwerte
+  DÜRFEN nicht als strukturierte Ereignisdaten ausgelesen werden. Textfelder
+  werden nur als redigierte Eingabeaktion mit Feldbezug und Zeichenanzahl
+  beschrieben. Ausdrücklich freigegebene Kontextbilder dürfen den sichtbaren
+  Desktop enthalten; Agent und Modell DÜRFEN daraus keine personenbezogenen
+  Werte übernehmen.
+- **REC-004 Keine Persistenz:** Begleiter und Analyse-Endpunkt DÜRFEN
+  Aufnahme, Bilder, Ereignisse, Prozessspur oder Modell weder in Dateien,
+  Registry, Local Storage, IndexedDB, Cache Storage, Server-Sessions,
+  Datenbanken noch Logs persistieren. Aufnahmeinhalte leben nur für die aktive
+  Übergabe im Arbeitsspeicher; HTTP-Antworten MÜSSEN `no-store` sein.
+- **REC-005 Lokale Grenze:** Der Begleiter MUSS ausschließlich an
+  `127.0.0.1` gebunden sein und Browserzugriffe gegen die feste Editor-Origin
+  prüfen. Er besitzt keinen Remote-Listener, kein Autostart- und kein
+  Hintergrundaufnahmeverhalten.
+- **REC-006 Zustandsloser Agent:** Jeder Agentenlauf erhält den bisherigen
+  redigierten Aufnahmeverlauf vollständig und gibt ausschließlich eine
+  fachliche Prozessspur zurück. Der Server MUSS daraus IDs, Layout, States,
+  Transitionen und Trigger deterministisch erzeugen und das Ergebnis mit dem
+  gemeinsamen MCP-Core validieren. Agent und Server besitzen kein zweites
+  Modell und keine fortgeführte Aufnahmesession.
+- **REC-007 Live dieselbe Wahrheit:** Jedes gültige Zwischenergebnis MUSS
+  unmittelbar das kanonische Editormodell ersetzen, normalisieren,
+  persistieren, rendern und an dieselbe Preview-Runtime senden. Ein Draft-,
+  Shadow-, Cache- oder Recorder-Modell ist verboten.
+- **REC-008 Atomare History:** Alle gültigen Live-Ersetzungen einer Aufnahme
+  bilden zusammen genau eine Undo-Einheit. Undo stellt den exakten
+  Editor-Snapshot vor Aufnahmebeginn wieder her; Redo stellt das abgeschlossene
+  Aufnahmemodell wieder her. Abbruch oder ein Fehler ohne gültiges Ergebnis
+  verändern die vorhandene History und das Modell nicht.
+- **REC-009 Konfliktverbot:** Manuelle Modelländerungen während einer laufenden
+  Agentenaufnahme DÜRFEN nicht still überschrieben oder gemischt werden. Ein
+  erkannter Konflikt MUSS die Übernahme stoppen und den Vorzustand erhalten.
+- **REC-010 Exportgrenze:** Recorder, Begleiter und Agent sind ausschließlich
+  Autorenfunktionen des Desktop-Editors. Preview und finaler HTML-Export
+  enthalten davon keinen Code. Ein übernommenes Aufnahmemodell verwendet
+  anschließend ohne Sonderbehandlung dieselbe Runtime und denselben Export wie
+  jedes andere kanonische Modell.
+- **REC-011 V1-Plattform:** Die erste Version unterstützt Windows-Desktop.
+  Der Aufnahmebutton MUSS in mobilen Layouts verborgen bleiben und DARF den
+  mobilen Canvas nicht verkleinern oder überdecken.
 
 ## 16. Öffentliche Demo und Produkt-Abnahme
 

@@ -11,7 +11,8 @@ Der globale JSON-Zustands-/Ereignisbus bleibt die einzige fachliche Wahrheit. De
 - Connector-Katalog für echte Ereignisquellen,
 - zustandsloser Sende-Endpunkt für externe Systeme,
 - Browser-Testkonsole für manuelles Emitten,
-- Admin-Designer für Katalogänderungen per Git.
+- Admin-Designer für Katalogänderungen per Git,
+- zustandslose Analyse redigierter PC-Prozessaufnahmen für den Editor.
 
 Zusätzlich veröffentlicht der Server lesend die gemeinsame
 Frontend-/Backend-Release-ID. Er besitzt dafür keinen zweiten Versionszähler.
@@ -652,7 +653,31 @@ REALTIME_REPO_DIR=/path/to/repo
 REALTIME_RATE_LIMIT=360
 REALTIME_RATE_WINDOW_MS=10000
 REALTIME_MAX_PAYLOAD_BYTES=65536
+PROCESS_RECORDER_CONTRACT_PATH=/process/contract
+PROCESS_RECORDER_ANALYZE_PATH=/process/analyze
+PROCESS_RECORDER_MAX_PAYLOAD_BYTES=8388608
+PROCESS_RECORDER_MAX_CONCURRENT=4
+PROCESS_RECORDER_TIMEOUT_MS=90000
+PROCESS_RECORDER_OPENAI_API_KEY=<optional-server-secret>
+PROCESS_RECORDER_MODEL=gpt-5.6-luna
+PROCESS_RECORDER_ANALYZER_URL=<optional-custom-agent-url>
+PROCESS_RECORDER_ANALYZER_TOKEN=<optional-server-secret>
 ```
+
+## PC-Prozessaufnahme
+
+`GET /process/contract` meldet, ob ein Agent konfiguriert ist, und veröffentlicht
+nur nicht geheime Grenzen. `POST /process/analyze` akzeptiert einen
+redigierten Ereignisstrom des Windows-Begleiters mit höchstens 4000 Ereignissen
+und 36 ereignisbezogenen JPEG-Kontextbildern. Passwörter, konkrete Feldwerte
+und Roh-Tasten sind nicht Teil der strukturierten Ereignisdaten; die
+ausdrücklich freigegebenen Kontextbilder zeigen den sichtbaren Desktop.
+
+Der Endpunkt führt keine Session und persistiert weder Eingabe noch Ergebnis.
+Er gibt ausschließlich ein vollständiges, vom gemeinsamen MCP-Core validiertes
+Modell zurück. OpenAI-Anfragen setzen `store: false` und strukturiertes JSON;
+ein eigener Agent darf nur die Prozessspur liefern. IDs, Layout, Transitionen
+und Trigger werden immer deterministisch auf dem Zustand-Server erzeugt.
 
 ## Externer SIP-Call als Beispiel
 

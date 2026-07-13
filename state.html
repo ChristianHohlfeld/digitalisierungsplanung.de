@@ -1765,6 +1765,12 @@
       background: white;
     }
 
+    iframe.runtime-sync-pending {
+      pointer-events: none;
+      cursor: progress;
+      filter: saturate(.72);
+    }
+
     .preset-composer {
       min-height: 0;
       overflow: auto;
@@ -3028,6 +3034,47 @@
       height: 40px;
       min-height: 40px;
       padding: 0;
+    }
+
+    .process-recording-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-width: 0;
+      padding: 0 7px;
+      color: #fecdd3;
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .process-recording-status[hidden] { display: none; }
+
+    .process-recording-dot {
+      width: 9px;
+      height: 9px;
+      flex: 0 0 auto;
+      border-radius: 999px;
+      background: #fb7185;
+      box-shadow: 0 0 0 4px rgba(251,113,133,.15);
+      animation: process-recording-pulse 1.35s ease-in-out infinite;
+    }
+
+    #btnProcessRecord { color: #fda4af; }
+
+    #btnProcessRecord[aria-pressed="true"] {
+      border-color: rgba(251,113,133,.65);
+      background: rgba(127,29,29,.56);
+      color: #fff1f2;
+    }
+
+    #btnProcessRecord .process-stop-icon,
+    #btnProcessRecord[aria-pressed="true"] .process-record-icon { display: none; }
+    #btnProcessRecord[aria-pressed="true"] .process-stop-icon { display: block; }
+
+    @keyframes process-recording-pulse {
+      0%, 100% { opacity: .58; transform: scale(.84); }
+      50% { opacity: 1; transform: scale(1); }
     }
 
     .history-action-icon {
@@ -4334,6 +4381,8 @@
         padding: 0;
       }
 
+      .process-recording-control { display: none !important; }
+
       .workspace.mobile-canvas-active .history-action-icon {
         width: 22px;
         height: 22px;
@@ -5376,6 +5425,14 @@
       </div>
       <div id="selectRect" class="select-rect"></div>
       <div id="canvasHistoryActions" class="canvas-history-actions" aria-label="Arbeitsflächen-Verlauf">
+        <span id="processRecordingStatus" class="process-recording-status process-recording-control" role="status" aria-live="polite" hidden>
+          <span class="process-recording-dot" aria-hidden="true"></span>
+          <span id="processRecordingStatusText">Aufnahme 00:00</span>
+        </span>
+        <button id="btnProcessRecord" class="process-recording-control" type="button" title="PC-Arbeit aufnehmen" aria-label="PC-Arbeit aufnehmen" aria-pressed="false">
+          <svg class="history-action-icon process-record-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"></circle></svg>
+          <svg class="history-action-icon process-stop-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1.5"></rect></svg>
+        </button>
         <button id="btnCanvasUndo" type="button" title="Rückgängig" aria-label="Rückgängig" disabled="">
           <svg class="history-action-icon" data-lucide="undo-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"></path><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5A5.5 5.5 0 0 1 14.5 20H11"></path></svg>
         </button>
@@ -5464,6 +5521,7 @@
     const RUNTIME_HOST_WINDOW = RUNTIME_SESSION_ID && /^[a-f0-9]{32}$/.test(RUNTIME_SESSION_ID)
       ? (window.parent && window.parent !== window ? window.parent : null)
       : null;
+    let runtimeHostModelSyncId = "";
 
     function hasHostWindow() {
       return Boolean(!IS_STANDALONE_EXPORT && RUNTIME_HOST_WINDOW && RUNTIME_HOST_ORIGIN && RUNTIME_HOST_ORIGIN !== "null");
@@ -7254,6 +7312,7 @@
       const payload = {
         type: "STATE_BLUEPRINT_RUNTIME_STATE",
         current,
+        syncId: runtimeHostModelSyncId,
         paused: runtimeIsPaused(),`;
       const runtimeMessageHandlerJs = `    window.addEventListener("message", evt => {
       const data = evt.data || {};
@@ -7271,6 +7330,7 @@
         return;
       }
       if (data.type !== "STATE_BLUEPRINT_MODEL") return;
+      runtimeHostModelSyncId = String(data.syncId || "");
       const previousModel = model;`;
       const runtimeModelContextJs = `      const oldContext = context;
       pruneRemovedStateDataDefaults(previousModel, nextModel, oldContext);
@@ -8828,6 +8888,16 @@
       (location.hostname === "digitalisierungsplanung.de" || location.hostname === "www.digitalisierungsplanung.de"
         ? "https://realtime.digitalisierungsplanung.de/contract"
         : "/contract");
+    const PROCESS_CONTRACT_URL = window.ZUSTAND_PROCESS_CONTRACT_URL ||
+      (location.hostname === "digitalisierungsplanung.de" || location.hostname === "www.digitalisierungsplanung.de"
+        ? "https://realtime.digitalisierungsplanung.de/process/contract"
+        : "/process/contract");
+    const PROCESS_ANALYZE_URL = window.ZUSTAND_PROCESS_ANALYZE_URL ||
+      (location.hostname === "digitalisierungsplanung.de" || location.hostname === "www.digitalisierungsplanung.de"
+        ? "https://realtime.digitalisierungsplanung.de/process/analyze"
+        : "/process/analyze");
+    const PROCESS_COMPANION_URL = "http://127.0.0.1:43127/v1";
+    const PROCESS_RECORDER_DOWNLOAD_URL = "/assets/Zustand-Prozessrecorder.zip";
     const RUNTIME_MESSAGE_ORIGIN = window.location.origin;
     const RUNTIME_SESSION_FRAGMENT_KEY = "state-blueprint-session";
     const WORLD_MIN_X = -10000;
@@ -8881,6 +8951,9 @@
     const nodesEl = document.getElementById("nodes");
     const selectRectEl = document.getElementById("selectRect");
     const canvasHistoryActionsEl = document.getElementById("canvasHistoryActions");
+    const btnProcessRecord = document.getElementById("btnProcessRecord");
+    const processRecordingStatusEl = document.getElementById("processRecordingStatus");
+    const processRecordingStatusTextEl = document.getElementById("processRecordingStatusText");
     const btnCanvasUndo = document.getElementById("btnCanvasUndo");
     const btnCanvasRedo = document.getElementById("btnCanvasRedo");
     const selectionActionsEl = document.getElementById("selectionActions");
@@ -8977,6 +9050,8 @@
     let syncTimer = null;
     let appFrameReady = false;
     let pendingFramePayloads = [];
+    let runtimeModelSyncSequence = 0;
+    let pendingRuntimeModelSyncId = "";
     let refreshInspectorGlobalStateTree = null;
     let pendingAppStartStateId = null;
     let pendingAppStartSuppressLayerFollow = false;
@@ -9049,6 +9124,7 @@
     let historyActionId = 0;
     let lastHistoryGroup = null;
     let historyPointerActive = false;
+    let processRecording = null;
     let activePointerId = null;
     let lastTouchAt = 0;
     let suppressCanvasTextSelectionUntil = 0;
@@ -9694,6 +9770,258 @@
         closeModal(true);
       }
     });
+
+    function processDurationLabel(startedAt) {
+      const seconds = Math.max(0, Math.floor((Date.now() - Number(startedAt || Date.now())) / 1000));
+      return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+    }
+
+    function updateProcessRecordingUi() {
+      const recording = processRecording;
+      const active = Boolean(recording);
+      btnProcessRecord.setAttribute("aria-pressed", active ? "true" : "false");
+      btnProcessRecord.disabled = Boolean(recording?.stopping);
+      btnProcessRecord.title = active ? "PC-Aufnahme stoppen" : "PC-Arbeit aufnehmen";
+      btnProcessRecord.setAttribute("aria-label", btnProcessRecord.title);
+      processRecordingStatusEl.hidden = !active;
+      if (active) {
+        const phase = recording.stopping
+          ? "Wird abgeschlossen"
+          : recording.agentBusy
+            ? "Agent zeichnet"
+            : "Aufnahme";
+        const count = recording.eventCount ? ` · ${recording.eventCount} Ereignisse` : "";
+        processRecordingStatusTextEl.textContent = `${phase} ${processDurationLabel(recording.startedAt)}${count}`;
+      }
+      updateHistoryButtons();
+    }
+
+    async function processFetch(url, options = {}, timeoutMs = 10000) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetch(url, {
+          cache: "no-store",
+          credentials: "omit",
+          ...options,
+          signal: controller.signal
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const error = new Error(payload.error || `HTTP ${response.status}`);
+          error.code = payload.error || "process_request_failed";
+          error.status = response.status;
+          throw error;
+        }
+        return payload;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    function downloadProcessRecorder() {
+      const link = document.createElement("a");
+      link.href = PROCESS_RECORDER_DOWNLOAD_URL;
+      link.download = "Zustand-Prozessrecorder.zip";
+      link.hidden = true;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    }
+
+    function applyProcessAgentModel(payload, recording) {
+      if (processRecording !== recording || recording.stopping && !recording.finalizing) return;
+      if (!isPlainObject(payload) || payload.contract !== "zustand-process-model-v1") throw new Error("Ungültige Agentenantwort.");
+      if (modelSnapshot() !== recording.lastAppliedModelSnapshot) {
+        const error = new Error("Das Diagramm wurde während der Aufnahme manuell verändert.");
+        error.code = "editor_changed_during_recording";
+        throw error;
+      }
+      const validated = validateModelDefinition(payload.model);
+      loadEditorModel(validated, true, { processRecording: true });
+      recording.lastAppliedModelSnapshot = modelSnapshot();
+      recording.applied = true;
+    }
+
+    async function analyzeProcessCapture(capture, recording, final = false) {
+      if (processRecording !== recording) return false;
+      if (recording.agentPromise) {
+        if (!final) return false;
+        await recording.agentPromise.catch(() => {});
+      }
+      if (!Array.isArray(capture?.events) || capture.events.length < 2) return false;
+      if (!final && capture.events.length === recording.lastAnalyzedEventCount) return false;
+      recording.agentBusy = true;
+      updateProcessRecordingUi();
+      const run = processFetch(PROCESS_ANALYZE_URL, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(capture)
+      }, 120000).then(payload => {
+        if (processRecording !== recording) return false;
+        applyProcessAgentModel(payload, recording);
+        recording.lastAnalyzedEventCount = capture.events.length;
+        recording.lastAgentError = "";
+        return true;
+      }).catch(error => {
+        recording.lastAgentError = error.code || error.message || "process_analysis_failed";
+        if (error.code === "editor_changed_during_recording") recording.modelConflict = true;
+        if (final) throw error;
+        return false;
+      }).finally(() => {
+        if (processRecording === recording) {
+          recording.agentBusy = false;
+          recording.agentPromise = null;
+          updateProcessRecordingUi();
+        }
+        capture = null;
+      });
+      recording.agentPromise = run;
+      return run;
+    }
+
+    async function processRecordingTick(recording) {
+      if (processRecording !== recording || recording.stopping || recording.agentBusy) return;
+      try {
+        const health = await processFetch(`${PROCESS_COMPANION_URL}/health`, { method: "GET" }, 3500);
+        if (processRecording !== recording) return;
+        recording.eventCount = Number(health.eventCount) || recording.eventCount || 0;
+        updateProcessRecordingUi();
+        if (!health.recording) {
+          if (health.ready) void stopProcessRecording({ companionAlreadyStopped: true });
+          else await cancelProcessRecording("Der lokale Recorder wurde beendet, bevor die Aufnahme übernommen werden konnte.");
+          return;
+        }
+        if (recording.eventCount < 2 || recording.eventCount === recording.lastAnalyzedEventCount) return;
+        if (Date.now() - recording.lastAgentStartAt < 6000) return;
+        recording.lastAgentStartAt = Date.now();
+        const capture = await processFetch(`${PROCESS_COMPANION_URL}/capture`, { method: "GET" }, 15000);
+        await analyzeProcessCapture(capture, recording, false);
+      } catch (error) {
+        if (processRecording !== recording) return;
+        recording.lastAgentError = error.code || error.message || "recorder_unavailable";
+      }
+    }
+
+    function commitProcessRecordingHistory(recording) {
+      const current = editorSnapshot();
+      if (current !== recording.originalHistorySnapshot) {
+        undoStack.push(recording.originalHistorySnapshot);
+        if (undoStack.length > 100) undoStack.shift();
+        redoStack = [];
+      }
+      historyCurrent = current;
+      beginHistoryAction();
+      persistModel();
+      updateHistoryButtons();
+    }
+
+    async function cancelProcessRecording(message = "") {
+      const recording = processRecording;
+      if (!recording) return;
+      clearInterval(recording.pollTimer);
+      clearInterval(recording.clockTimer);
+      try {
+        await processFetch(`${PROCESS_COMPANION_URL}/cancel`, { method: "POST" }, 3500);
+      } catch (_) {}
+      if (recording.applied) restoreHistorySnapshot(recording.originalHistorySnapshot);
+      processRecording = null;
+      updateProcessRecordingUi();
+      if (message) await modalAlert(message, "Aufnahme beendet");
+    }
+
+    async function startProcessRecording() {
+      if (processRecording || isMobileWorkspaceLayout()) return;
+      let contract;
+      try {
+        contract = await processFetch(PROCESS_CONTRACT_URL, { method: "GET" }, 10000);
+      } catch (_) {
+        await modalAlert("Der Prozess-Agent ist nicht erreichbar.", "Aufnahme nicht verfügbar");
+        return;
+      }
+      if (!contract.enabled) {
+        await modalAlert("Der Prozess-Agent ist am Server noch nicht konfiguriert.", "Aufnahme nicht verfügbar");
+        return;
+      }
+      try {
+        await processFetch(`${PROCESS_COMPANION_URL}/health`, { method: "GET" }, 2500);
+      } catch (_) {
+        const download = await modalConfirm(
+          "Der Windows-Recorder läuft noch nicht. Lade ihn einmal, entpacke ihn und starte Zustand-Recorder.cmd. Danach genügt künftig der Aufnahmebutton im Canvas.",
+          "Windows-Recorder erforderlich",
+          { confirmText: "Recorder laden", cancelText: "Abbrechen" }
+        );
+        if (download) downloadProcessRecorder();
+        return;
+      }
+      const replaces = model.states.length ? " Das aktuelle Diagramm wird dabei live ersetzt und bleibt mit Rückgängig vollständig wiederherstellbar." : "";
+      const confirmed = await modalConfirm(
+        `Während der Aufnahme erfasst der sichtbare Windows-Recorder Anwendungs- und Fensterwechsel, Klicks, Eingabeaktionen und ereignisbezogene Kontextbilder.${replaces} Roh-Tasten, Passwörter und Feldwerte werden nicht als Ereignisdaten ausgelesen; Kontextbilder zeigen den während der Aufnahme sichtbaren Desktop.`,
+        "PC-Arbeit aufnehmen",
+        { confirmText: "Aufnahme starten", cancelText: "Abbrechen" }
+      );
+      if (!confirmed) return;
+      try {
+        const started = await processFetch(`${PROCESS_COMPANION_URL}/start`, { method: "POST" }, 5000);
+        processRecording = {
+          sessionId: started.sessionId,
+          startedAt: started.startedAt || Date.now(),
+          originalHistorySnapshot: historyCurrent || editorSnapshot(),
+          lastAppliedModelSnapshot: modelSnapshot(),
+          lastAnalyzedEventCount: 0,
+          lastAgentStartAt: 0,
+          eventCount: 0,
+          applied: false,
+          agentBusy: false,
+          agentPromise: null,
+          stopping: false,
+          finalizing: false,
+          modelConflict: false,
+          lastAgentError: ""
+        };
+        const recording = processRecording;
+        recording.clockTimer = setInterval(updateProcessRecordingUi, 1000);
+        recording.pollTimer = setInterval(() => void processRecordingTick(recording), 2500);
+        updateProcessRecordingUi();
+      } catch (_) {
+        await modalAlert("Der Windows-Recorder konnte die Aufnahme nicht starten.", "Aufnahme nicht gestartet");
+      }
+    }
+
+    async function stopProcessRecording(options = {}) {
+      const recording = processRecording;
+      if (!recording || recording.stopping) return;
+      recording.stopping = true;
+      recording.finalizing = true;
+      clearInterval(recording.pollTimer);
+      clearInterval(recording.clockTimer);
+      updateProcessRecordingUi();
+      try {
+        if (recording.agentPromise) await recording.agentPromise.catch(() => {});
+        const capture = await processFetch(`${PROCESS_COMPANION_URL}/stop`, { method: "POST" }, 30000);
+        recording.eventCount = Array.isArray(capture.events) ? capture.events.length : 0;
+        if (recording.modelConflict) throw Object.assign(new Error("Das Diagramm wurde während der Aufnahme manuell verändert."), { code: "editor_changed_during_recording" });
+        if (recording.eventCount >= 2 && recording.lastAnalyzedEventCount !== recording.eventCount) {
+          await analyzeProcessCapture(capture, recording, true);
+        }
+        if (!recording.applied) throw new Error("Der Agent konnte aus der Aufnahme noch keinen Ablauf bilden.");
+        commitProcessRecordingHistory(recording);
+        processRecording = null;
+        updateProcessRecordingUi();
+      } catch (error) {
+        const hasStableResult = recording.applied && !recording.modelConflict;
+        if (hasStableResult) commitProcessRecordingHistory(recording);
+        else if (recording.applied) restoreHistorySnapshot(recording.originalHistorySnapshot);
+        processRecording = null;
+        updateProcessRecordingUi();
+        await modalAlert(
+          hasStableResult
+            ? "Die letzte vollständig verstandene Fassung wurde übernommen; der abschließende Agentenlauf ist fehlgeschlagen."
+            : error.message || "Die Aufnahme konnte nicht übernommen werden.",
+          "Aufnahme abgeschlossen"
+        );
+      }
+    }
 
     layerBackEl.addEventListener("mousedown", evt => evt.stopPropagation());
     layerBackEl.addEventListener("pointerdown", evt => {
@@ -10358,8 +10686,8 @@
     }
 
     function updateHistoryButtons() {
-      const canUndo = Boolean(undoStack.length);
-      const canRedo = Boolean(redoStack.length);
+      const canUndo = !processRecording && Boolean(undoStack.length);
+      const canRedo = !processRecording && Boolean(redoStack.length);
       if (btnCanvasUndo) btnCanvasUndo.disabled = !canUndo;
       if (btnCanvasRedo) btnCanvasRedo.disabled = !canRedo;
     }
@@ -13988,8 +14316,7 @@
       if (start.canRewire) {
         startEdgeRewire(eventFromPoint(start, evt), start.transition);
       } else {
-        suppressEdgeClickUntil = Date.now() + 650;
-        startPanning(eventFromPoint(start, evt));
+        startPanning(eventFromPoint(start, evt), { suppressEdgeClickMs: 120 });
       }
       handleCanvasMove(evt);
       return true;
@@ -14016,7 +14343,9 @@
       start.moved = true;
       clearLongPress();
       clearTouchNodeFeedback();
-      startPanning(eventFromPoint(start, evt));
+      startPanning(eventFromPoint(start, evt), {
+        suppressEdgeClickMs: start.transition ? 650 : 0
+      });
       handleCanvasMove(evt);
       return true;
     }
@@ -15230,11 +15559,17 @@
       applyCamera();
     }
 
-    function startPanning(evt) {
+    function startPanning(evt, opts = {}) {
       stopRuntimeLayerFollow();
       evt.preventDefault();
       evt.stopPropagation();
-      panning = { startX: evt.clientX, startY: evt.clientY, cameraX: camera.x, cameraY: camera.y };
+      panning = {
+        startX: evt.clientX,
+        startY: evt.clientY,
+        cameraX: camera.x,
+        cameraY: camera.y,
+        suppressEdgeClickMs: Number(opts.suppressEdgeClickMs) || 0
+      };
       mapEl.classList.add("panning");
     }
 
@@ -15242,6 +15577,7 @@
       pendingNodeRuntimeStartToken += 1;
       if (pendingNodeRuntimeStartTimer) clearTimeout(pendingNodeRuntimeStartTimer);
       pendingNodeRuntimeStartTimer = 0;
+      refreshRuntimeInteractionState();
     }
 
     function scheduleNodeRuntimeStart(stateId) {
@@ -15252,10 +15588,12 @@
       const token = pendingNodeRuntimeStartToken;
       pendingNodeRuntimeStartTimer = setTimeout(() => {
         pendingNodeRuntimeStartTimer = 0;
+        refreshRuntimeInteractionState();
         if (token !== pendingNodeRuntimeStartToken) return;
         if ((currentLayerId || null) !== layerId || singleSelectedNodeId() !== id || !byModelId(model, id)) return;
         startAppAtState(id, { preserveFocus: true, allowLayerFollow: true });
       }, DESKTOP_NODE_DOUBLE_CLICK_MS + 30);
+      refreshRuntimeInteractionState();
     }
 
     stateInspectorEl.addEventListener("pointerdown", cancelPendingNodeRuntimeStart, { capture: true });
@@ -17830,17 +18168,6 @@
             startPendingNodeTouch(evt, s);
           });
 
-          el.addEventListener("dblclick", evt => {
-            const s = el.__state;
-            suppressCanvasTextSelection();
-            evt.preventDefault();
-            evt.stopPropagation();
-            evt.stopImmediatePropagation();
-            if (s.virtualProxy) return;
-            if (s.id === lastCreatedStateId && Date.now() - lastCreatedStateTime < 500) return;
-            cancelPendingNodeRuntimeStart();
-            enterStateLayer(s.id, { source: "node-dblclick", explicit: true });
-          });
         }
 
         if (isNewNode) nodesEl.appendChild(el);
@@ -23287,8 +23614,23 @@
       }
     }
 
+    function refreshRuntimeInteractionState() {
+      const pending = Boolean(pendingNodeRuntimeStartTimer || pendingRuntimeModelSyncId);
+      frameEl.classList.toggle("runtime-sync-pending", pending);
+      frameEl.setAttribute("aria-busy", String(pending));
+    }
+
+    function prepareRuntimePayload(payload) {
+      if (!payload || typeof payload !== "object" || payload.type !== "STATE_BLUEPRINT_MODEL") return payload;
+      const syncId = String(payload.syncId || ++runtimeModelSyncSequence);
+      pendingRuntimeModelSyncId = syncId;
+      refreshRuntimeInteractionState();
+      return payload.syncId === syncId ? payload : { ...payload, syncId };
+    }
+
     function queuePendingRuntimePayload(payload) {
       if (!payload || typeof payload !== "object") return;
+      payload = prepareRuntimePayload(payload);
       const type = String(payload.type || "");
       if (type === "STATE_BLUEPRINT_MODEL") {
         pendingFramePayloads = pendingFramePayloads.filter(item => item?.type !== type);
@@ -23354,6 +23696,7 @@
     }
 
     function postRuntimePayload(payload) {
+      payload = prepareRuntimePayload(payload);
       if (appFrameReady && frameEl.contentWindow) {
         if (!appFrameContainsGeneratedApp()) {
           reloadAppFrame(payload);
@@ -25484,12 +25827,10 @@
         return;
       }
       if (panning) {
+        const suppressEdgeClickMs = Math.max(650, Number(panning.suppressEdgeClickMs) || 0);
         panning = null;
         mapEl.classList.remove("panning");
-        suppressEdgeClickUntil = Math.max(suppressEdgeClickUntil, Date.now() + 650);
-        setTimeout(() => {
-          if (!panning && Date.now() >= suppressEdgeClickUntil) suppressEdgeClickUntil = 0;
-        }, 0);
+        suppressEdgeClickUntil = Math.max(suppressEdgeClickUntil, Date.now() + suppressEdgeClickMs);
       }
       if (dragging) {
         const s = byId(dragging.id);
@@ -26329,6 +26670,10 @@
         return;
       }
       if (data.type !== "STATE_BLUEPRINT_RUNTIME_STATE") return;
+      if (pendingRuntimeModelSyncId && String(data.syncId || "") === pendingRuntimeModelSyncId) {
+        pendingRuntimeModelSyncId = "";
+        refreshRuntimeInteractionState();
+      }
       const previousAppState = hostRuntimeStateView();
       const runtimeStateId = String(data.current || "");
       const runtimeEventContext = isPlainObject(data.context) ? data.context : {};
@@ -26345,6 +26690,12 @@
         pendingAppStartSuppressLayerFollow = false;
       }
       lastAppTransitionId = data.transitionId || null;
+      if (lastAppTransitionId) {
+        lastNodeClick = null;
+        lastTouchNodeTap = null;
+      } else if (stateChanged) {
+        lastNodeClick = null;
+      }
       const runtimeState = byId(runtimeStateId);
       const runtimeLayerId = runtimeState?.parentId || null;
       const firstRuntimeUpdateEntersAnotherLayer = Boolean(!previousAppState && stateChanged && runtimeLayerId !== (currentLayerId || null));
@@ -26400,10 +26751,18 @@
     });
 
     window.addEventListener("beforeunload", () => {
+      if (processRecording) {
+        fetch(`${PROCESS_COMPANION_URL}/cancel`, {
+          method: "POST",
+          cache: "no-store",
+          credentials: "omit",
+          keepalive: true
+        }).catch(() => {});
+      }
       persistModel(false);
     });
 
-    function loadEditorModel(nextModel, shouldFit = true) {
+    function loadEditorModel(nextModel, shouldFit = true, options = {}) {
       cancelQueuedCanvasMove();
       model = normalizeModel(nextModel);
       selected = null;
@@ -26449,8 +26808,14 @@
         }
       }
       draw();
-      initHistory();
-      persistModel();
+      if (options.processRecording === true) {
+        historyCurrent = editorSnapshot();
+        persistModel();
+        updateHistoryButtons();
+      } else {
+        initHistory();
+        persistModel();
+      }
       syncToApp(true);
     }
 
@@ -26579,12 +26944,13 @@
     fileLoadEl.onchange = () => loadBlueprintFile(fileLoadEl.files?.[0]);
     btnCanvasUndo.onclick = undoModel;
     btnCanvasRedo.onclick = redoModel;
+    btnProcessRecord.onclick = () => processRecording ? void stopProcessRecording() : void startProcessRecording();
     canvasHistoryActionsEl.addEventListener("pointerdown", evt => evt.stopPropagation());
     btnSelectionCopy.onclick = copySelectedNodes;
     btnSelectionCollapse.onclick = groupOrDegroupSelected;
     btnSelectionDelete.onclick = deleteSelectedItems;
     const rememberSelectionActionTarget = () => {
-      selectionActionDegroupTargetId = selectedCompositeStateForDegroup()?.id || manualDegroupTargetId || "";
+      selectionActionDegroupTargetId = manualDegroupTargetId || selectedCompositeStateForDegroup()?.id || "";
       cancelPendingNodeRuntimeStart();
       stopRuntimeLayerFollow(4000);
     };
