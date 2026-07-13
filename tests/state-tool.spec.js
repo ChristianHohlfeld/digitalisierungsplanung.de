@@ -10565,6 +10565,24 @@ test.describe("State Blueprint tool", () => {
     await expectElementAboveMobileTabs("#map");
     await expectCanvasFillsWorkspace(page);
     await expectPanelOverlay(page, ".preview");
+    await expect.poll(() => page.evaluate(() => {
+      const frame = document.querySelector("#appFrame");
+      const doc = frame?.contentDocument;
+      const body = doc?.body;
+      const commandHeight = document.querySelector("#mobileCommandBar")?.getBoundingClientRect().height || 0;
+      const tabsHeight = document.querySelector("#mobileTabs")?.getBoundingClientRect().height || 0;
+      const inset = Number.parseFloat(doc?.documentElement?.style.getPropertyValue("--zustand-host-bottom-inset") || "0");
+      const paddingBottom = body && doc?.defaultView
+        ? Number.parseFloat(doc.defaultView.getComputedStyle(body).paddingBottom || "0")
+        : 0;
+      return {
+        insetCoversControls: inset >= commandHeight + tabsHeight - 2,
+        paddingIncludesInset: paddingBottom >= inset + 12
+      };
+    })).toEqual({
+      insetCoversControls: true,
+      paddingIncludesInset: true
+    });
     await expectCamera(page, canvasCamera);
     await expect(page.locator("#map")).toHaveCSS("pointer-events", "auto");
     const workspaceBox = await page.locator("#workspace").boundingBox();

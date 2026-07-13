@@ -5753,10 +5753,12 @@
       return true;
     }`;
       const runtimeViewportCss = `    html {
+      --zustand-host-bottom-inset: 0px;
       min-height: 100%;
       overflow-x: hidden;
       overflow-y: auto;
       -webkit-overflow-scrolling: auto;
+      scroll-padding-bottom: calc(max(18px, env(safe-area-inset-bottom)) + var(--zustand-host-bottom-inset, 0px));
     }
     body {
       width: 100%;
@@ -5764,6 +5766,8 @@
       min-height: 100dvh;
       overflow: visible;
       -webkit-overflow-scrolling: auto;
+      padding-bottom: calc(max(18px, env(safe-area-inset-bottom)) + var(--zustand-host-bottom-inset, 0px));
+      scroll-padding-bottom: calc(max(18px, env(safe-area-inset-bottom)) + var(--zustand-host-bottom-inset, 0px));
     }
     button,
     input,
@@ -9191,6 +9195,7 @@
     const btnMobileActionCollapse = document.getElementById("btnMobileActionCollapse");
     const btnMobileActionDelete = document.getElementById("btnMobileActionDelete");
     const frameEl = document.getElementById("appFrame");
+    const mobileTabsEl = document.getElementById("mobileTabs");
     const presetComposerEl = document.getElementById("presetComposer");
     const previewTitleTextEl = document.querySelector(".preview-title-text");
     const syncStateEl = document.getElementById("syncState");
@@ -10723,9 +10728,39 @@
       return Boolean(window.matchMedia?.("(max-width: 899px) and (pointer: coarse) and (orientation: landscape)")?.matches);
     }
 
+    function visibleRectHeight(rect) {
+      if (!rect || rect.width <= 0 || rect.height <= 0) return 0;
+      const top = Math.max(0, Math.min(window.innerHeight || rect.bottom, rect.top));
+      const bottom = Math.max(0, Math.min(window.innerHeight || rect.bottom, rect.bottom));
+      return Math.max(0, bottom - top);
+    }
+
+    function mobilePreviewRuntimeBottomInsetPx() {
+      if (!isMobileWorkspaceLayout() || mobileWorkspaceView !== "app") return 0;
+      const commandInset = visibleRectHeight(mobileCommandBarEl?.getBoundingClientRect());
+      const tabsInset = visibleRectHeight(mobileTabsEl?.getBoundingClientRect());
+      const visualViewportBottom = window.visualViewport
+        ? window.visualViewport.offsetTop + window.visualViewport.height
+        : window.innerHeight;
+      const browserInset = Math.max(0, (window.innerHeight || 0) - visualViewportBottom);
+      return Math.max(0, Math.round(commandInset + tabsInset + browserInset + 16));
+    }
+
+    function applyMobilePreviewRuntimeInset() {
+      const inset = mobilePreviewRuntimeBottomInsetPx();
+      workspaceEl.style.setProperty("--mobile-runtime-preview-bottom-inset", inset + "px");
+      try {
+        const doc = frameEl?.contentDocument;
+        if (!doc?.documentElement) return;
+        const value = inset + "px";
+        doc.documentElement.style.setProperty("--zustand-host-bottom-inset", value);
+        doc.body?.style.setProperty("--zustand-host-bottom-inset", value);
+      } catch (_) {}
+    }
+
     function mobileWorkspaceAvailableHeight() {
       const topbarBottom = document.querySelector(".topbar")?.getBoundingClientRect().bottom || 0;
-      const tabsTop = document.getElementById("mobileTabs")?.getBoundingClientRect().top || window.innerHeight || 720;
+      const tabsTop = mobileTabsEl?.getBoundingClientRect().top || window.innerHeight || 720;
       return Math.max(workspacePanelHeight(), tabsTop - topbarBottom);
     }
 
@@ -10792,12 +10827,16 @@
     function applyMobileSheetGeometry(opts = {}) {
       if (!isMobileWorkspaceLayout() || mobileWorkspaceView === "canvas") {
         workspaceEl.style.removeProperty("--mobile-sheet-top");
+        applyMobilePreviewRuntimeInset();
         return;
       }
       const top = mobileSheetTopPxFromRatio();
       workspaceEl.style.setProperty("--mobile-sheet-top", top + "px");
       if (opts.persist === true) saveUiState();
-      requestAnimationFrame(() => updateStateExplorerSearchDragMode());
+      requestAnimationFrame(() => {
+        updateStateExplorerSearchDragMode();
+        applyMobilePreviewRuntimeInset();
+      });
     }
 
     function applyWorkspaceSplitStyle() {
@@ -10805,6 +10844,7 @@
         workspaceEl.style.gridTemplateColumns = "";
         workspaceEl.style.gridTemplateRows = "";
         workspaceEl.style.removeProperty("--mobile-sheet-top");
+        applyMobilePreviewRuntimeInset();
         return;
       }
       workspaceEl.style.gridTemplateColumns = "1fr";
@@ -11002,9 +11042,11 @@
         button.setAttribute("aria-pressed", String(active));
       });
       updateMobileRuntimeFollowButton();
+      applyMobilePreviewRuntimeInset();
       saveUiState();
       requestAnimationFrame(() => {
         updateStateExplorerSearchDragMode();
+        applyMobilePreviewRuntimeInset();
         applyCamera({ persist: false });
         draw();
       });
@@ -27572,7 +27614,14 @@
     }, { capture: true, passive: false });
     window.addEventListener("resize", () => {
       applyPanelWidths({ persist: false });
+      requestAnimationFrame(applyMobilePreviewRuntimeInset);
     });
+    window.visualViewport?.addEventListener("resize", () => {
+      requestAnimationFrame(applyMobilePreviewRuntimeInset);
+    }, { passive: true });
+    window.visualViewport?.addEventListener("scroll", () => {
+      requestAnimationFrame(applyMobilePreviewRuntimeInset);
+    }, { passive: true });
     btnToggleStateExplorer.onclick = () => {
       stateExplorerCollapsed = !stateExplorerCollapsed;
       applyStateExplorerCollapsed();
@@ -27653,6 +27702,7 @@
         return;
       }
       appFrameReady = true;
+      applyMobilePreviewRuntimeInset();
       if (!productContract) return;
       if (pendingFramePayloads.length) {
         flushPendingRuntimePayloads();
