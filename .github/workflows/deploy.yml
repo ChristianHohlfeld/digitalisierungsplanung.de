@@ -60,6 +60,12 @@ jobs:
           RELEASE_INCREMENT: "1"
           RELEASE_SOURCE_COMMIT: ${{ github.sha }}
         run: |
+          git fetch origin main
+          REMOTE_HEAD="$(git rev-parse origin/main)"
+          if [ "$REMOTE_HEAD" != "${GITHUB_SHA}" ]; then
+            echo "Stale deploy run for ${GITHUB_SHA}; origin/main is ${REMOTE_HEAD}. Skipping release stamp."
+            exit 0
+          fi
           RELEASE_BUILT_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")" node scripts/write-release-version.mjs
           if git diff --quiet -- release-version.js; then
             echo "Release stamp is current."
