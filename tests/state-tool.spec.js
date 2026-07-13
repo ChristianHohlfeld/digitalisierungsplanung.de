@@ -8642,6 +8642,22 @@ test.describe("State Blueprint tool", () => {
     await expect.poll(() => page.locator(".quick-title-input").evaluate(el => document.activeElement === el)).toBe(true);
   });
 
+  test("does not create a state from a short output-port drag", async ({ page }) => {
+    await openTool(page);
+    const before = await savedModel(page);
+    const output = await centerOf(statePort(page, "auth_start", "out"));
+
+    await page.mouse.move(output.x, output.y);
+    await page.mouse.down();
+    await page.mouse.move(output.x + 24, output.y + 4, { steps: 2 });
+    await page.mouse.up();
+
+    await expect(page.locator("#map")).not.toHaveClass(/connecting/);
+    const after = await savedModel(page);
+    expect(after.states).toHaveLength(before.states.length);
+    expect(after.transitions).toHaveLength(before.transitions.length);
+  });
+
   test("single-clicking a transition handle selects it without creating a state @smoke", async ({ page }) => {
     await openTool(page);
     const before = await savedModel(page);

@@ -8513,6 +8513,8 @@
     const MOUSE_PORT_START_OUTSIDE_PX = 32;
     const MOUSE_PORT_START_INSIDE_PX = 8;
     const MOUSE_PORT_START_VERTICAL_PX = 22;
+    const DESKTOP_DRAG_ACTIVATION_PX = 7;
+    const CONNECTION_EMPTY_TARGET_CREATE_PX = GRID_SIZE * 2;
     const TOUCH_PORT_START_INSIDE_PX = 18;
     const TOUCH_PORT_START_OUTSIDE_PX = 48;
     const TOUCH_PORT_START_VERTICAL_PX = 38;
@@ -13339,7 +13341,7 @@
     function updatePendingCanvasMouse(evt) {
       if (!pendingCanvasMouse || boxSelecting) return false;
       const distance = Math.hypot(evt.clientX - pendingCanvasMouse.clientX, evt.clientY - pendingCanvasMouse.clientY);
-      if (distance <= 7) return true;
+      if (distance <= DESKTOP_DRAG_ACTIVATION_PX) return true;
       const start = pendingCanvasMouse;
       pendingCanvasMouse = null;
       start.moved = true;
@@ -13368,6 +13370,7 @@
       if (pendingCanvasMouse.portCandidate) {
         pendingCanvasMouse = null;
         clearLongPress();
+        if (selectedNodeIdList().length || selectedEdgeIdList().length) clearSelection("selection:canvas");
         return true;
       }
       lastEmptyCanvasClick = {
@@ -13459,7 +13462,7 @@
     function updatePendingEdgeMouse(evt) {
       if (!pendingEdgeMouse) return false;
       const distance = Math.hypot(evt.clientX - pendingEdgeMouse.clientX, evt.clientY - pendingEdgeMouse.clientY);
-      if (distance <= 7) return true;
+      if (distance <= DESKTOP_DRAG_ACTIVATION_PX) return true;
       const start = pendingEdgeMouse;
       pendingEdgeMouse = null;
       startEdgeRewire(eventFromPoint(start, evt), start.transition);
@@ -25456,10 +25459,8 @@
       }
       if (connecting) {
         stopRuntimeLayerFollow();
-        if (connecting.touch) {
-          connecting.moved = connecting.moved ||
-            Math.hypot(evt.clientX - connecting.startClientX, evt.clientY - connecting.startClientY) > 7;
-        }
+        connecting.moved = connecting.moved ||
+          Math.hypot(evt.clientX - connecting.startClientX, evt.clientY - connecting.startClientY) > DESKTOP_DRAG_ACTIVATION_PX;
         connecting.to = screenToWorld(evt);
         const target = connectionTargetAtWorldPoint(connecting.to);
         const nextTargetId = target?.id || null;
@@ -25557,10 +25558,9 @@
       }
       if (connecting) {
         blockLayerEntryAfterPointerAction(1000);
-        const touchDistance = connecting.touch
-          ? Math.hypot(evt.clientX - connecting.startClientX, evt.clientY - connecting.startClientY)
-          : Infinity;
-        if (connecting.touch && !connecting.moved && touchDistance <= 7) {
+        const connectionDistance = Math.hypot(evt.clientX - connecting.startClientX, evt.clientY - connecting.startClientY);
+        const connectionMoved = connecting.moved || connectionDistance > DESKTOP_DRAG_ACTIVATION_PX;
+        if (!connectionMoved) {
           connecting = null;
           connectingTargetId = null;
           mapEl.classList.remove("connecting");
@@ -25689,6 +25689,13 @@
           return;
         }
         if (!targetId) {
+          if (connectionDistance < CONNECTION_EMPTY_TARGET_CREATE_PX) {
+            connecting = null;
+            connectingTargetId = null;
+            mapEl.classList.remove("connecting");
+            draw();
+            return;
+          }
           const title = nextStateTitle();
           const s = makeState(dropPoint.x - nodeWidth({ title }) / 2, dropPoint.y - NODE_H / 2, title);
           s.parentId = currentLayerId || null;
