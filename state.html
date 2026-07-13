@@ -15315,6 +15315,9 @@
       }, DESKTOP_NODE_DOUBLE_CLICK_MS + 30);
     }
 
+    stateInspectorEl.addEventListener("pointerdown", cancelPendingNodeRuntimeStart, { capture: true });
+    stateInspectorEl.addEventListener("focusin", cancelPendingNodeRuntimeStart);
+
     function startNodeDrag(evt, s) {
       cancelPendingNodeRuntimeStart();
       stopRuntimeLayerFollow();

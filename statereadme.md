@@ -521,7 +521,10 @@ Editoraktion
 - **ED-010 Fokus und Tabfolge:** Zustands-, Transition- und Runtime-Editoren
   MÜSSEN eine vorhersehbare Tabfolge, Enter-Commit- und Escape-Semantik besitzen.
   Ein aktiver Inline-Titeleditor MUSS den Fokus behalten; verzögerte
-  Canvas-Fokussierung DARF ihn nicht übernehmen.
+  Canvas-Fokussierung DARF ihn nicht übernehmen. Sobald der Nutzer den
+  Inspector per Pointer oder Fokus bedient, MUSS ein noch geplanter
+  Canvas-Runtime-Start abgebrochen werden; Eingabefelder dürfen dadurch weder
+  ersetzt noch geschlossen werden.
 - **ED-011 Lokale UI:** Panelbreiten, Explorerzustand, Preview-Collapse und mobile
   Arbeitsansicht dürfen lokal persistieren, ohne das Modell zu verändern.
 - **ED-012 Responsive Bedienung:** Desktop, Tablet und Mobile MÜSSEN Canvas,
