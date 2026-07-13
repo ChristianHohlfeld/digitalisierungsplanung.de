@@ -106,7 +106,7 @@ Der Server in [`server/`](server/) ist nur Transport. Er speichert keine fachlic
 | `GET /events` | erlaubte Echtzeit-Ereignisse |
 | `GET /token` | signiertes Raum-Token für den Browser |
 | `GET /console.html` | Testoberfläche für Ereignisse |
-| `GET /events-admin.html` | Adminoberfläche für Events und Connectoren |
+| `GET /events-admin.html` | einfacher Designer für Event-Type, Datensatz und Felder |
 | `GET/POST /events-admin/catalog` | validieren, committen und pushen von `server/event-catalog.json` |
 | `POST /emit` | authentifiziertes Ereignis von außen |
 | `WSS /ws` | WebSocket-Verbindung |
@@ -116,6 +116,12 @@ Er definiert angebotene `realtime.*`-Events, erlaubte Connectoren wie 3CX,
 Gmail, Outlook, Webhook und Datenquelle, die Detail-Payloads und den Beitrag zum
 globalen State Tree. Der Canvas speichert keine Katalogkopie, sondern nur
 konkrete Referenzen wie `triggerType: realtime` und `triggerEvent`.
+
+Der Designer arbeitet in der gleichen Reihenfolge wie der Canvas-Vertrag:
+Event-Type, Datensatz, Felder, Quelle. Er lädt den aktuellen `/events`-Katalog
+direkt ohne Secret. Das Admin-Secret wird nur zum Speichern genutzt; beim
+Speichern validiert der Server den Contract, committet
+`server/event-catalog.json` und pusht nach GitHub.
 
 Ein Ereignis von außen senden:
 

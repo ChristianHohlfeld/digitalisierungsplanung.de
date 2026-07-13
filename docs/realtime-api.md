@@ -124,7 +124,9 @@ HTML-Testkonsole für `/emit`. Die Seite speichert serverseitig nichts. Das Emit
 
 ### `GET /events-admin.html`
 
-Admin-Designer für `server/event-catalog.json`. Er verwaltet Events, Connectoren, Payload-Felder und den daraus entstehenden globalen State-Beitrag.
+Einfacher Designer für `server/event-catalog.json`. Er folgt dem Canvas-Vertrag:
+Event-Type, Datensatz, Felder, Quelle. Er lädt den aktuellen `/events`-Katalog
+ohne Secret. Der globale State-Beitrag wird aus Datensatz und Quelle abgeleitet.
 
 ### `GET/POST /events-admin/catalog`
 
@@ -133,6 +135,9 @@ Secret-geschützte Admin-API für den Designer.
 - Auth: `Authorization: Bearer <REALTIME_ADMIN_SECRET>`
 - `GET`: lädt den Katalog aus `server/event-catalog.json`
 - `POST`: validiert, schreibt, committet und pusht den Katalog
+
+Die UI braucht diese Admin-API nur für sicheren Load und Save. Lesen kann sie
+den öffentlichen Live-Katalog über `/events`.
 
 Der Save-Pfad nutzt Git. Falls der Server-Checkout nicht mit seinen vorhandenen
 Remote-Credentials pushen kann, muss `REALTIME_GIT_PUSH_TOKEN` gesetzt sein.

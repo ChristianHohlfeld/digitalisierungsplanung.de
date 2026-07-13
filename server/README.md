@@ -67,7 +67,7 @@ The event catalog is the server-side source of truth for offered realtime events
 - `/ws`: WebSocket relay only.
 - `/emit`: authenticated server-to-server fire endpoint only.
 - `/console.html`: manual browser emitter for testing only.
-- `/events-admin.html`: admin designer for events, connector sources, payloads, and global-state contribution.
+- `/events-admin.html`: simple event designer for event type, dataset, fields, source, and global-state contribution.
 
 Default connector sources are deliberately practical:
 
@@ -83,6 +83,12 @@ is a phone-system webhook or call-flow bridge. For Gmail this is a Google
 Workspace automation or small mail bridge. For Outlook this is a Microsoft
 automation or Graph/mail bridge. The realtime server does not poll mailboxes or
 run a SIP stack.
+
+The designer follows the canvas contract order: event type, dataset, fields,
+source. It loads the live `/events` catalog without an admin secret. The admin
+secret is required only when saving. A save validates the strict catalog
+contract, writes `server/event-catalog.json`, commits it, and pushes it to
+GitHub.
 
 All connector IDs are globally unique and path-safe. Runtime state is written under `events.<eventName>.*` and `emitters.<emitterId>.*`. The canvas should store only concrete refs it uses, mainly `triggerType: realtime` and `triggerEvent`. It should not store preset contracts, endpoint definitions, catalog copies, or preset instances.
 

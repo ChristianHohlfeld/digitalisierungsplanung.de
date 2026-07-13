@@ -5,152 +5,169 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Realtime Event Designer</title>
   <style>
-    :root { color-scheme: dark; --bg: #07111d; --panel: #0b1b2a; --line: #20425f; --text: #e6f2ff; --muted: #9fb6cc; --accent: #38bdf8; --ok: #34d399; --bad: #fb7185; --warn: #f59e0b; }
+    :root {
+      color-scheme: dark;
+      --bg: #07111d;
+      --panel: #0b1b2a;
+      --field: #06111f;
+      --line: #20425f;
+      --text: #e6f2ff;
+      --muted: #9fb6cc;
+      --accent: #38bdf8;
+      --ok: #34d399;
+      --bad: #fb7185;
+      --warn: #f59e0b;
+    }
     * { box-sizing: border-box; }
-    body { margin: 0; min-height: 100vh; font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--text); }
-    main { width: min(1280px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 42px; }
-    header { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
-    h1 { margin: 0; font-size: 28px; line-height: 1.1; }
-    h2 { margin: 0 0 12px; font-size: 16px; }
-    p { margin: 0; color: var(--muted); line-height: 1.5; }
-    code { color: #bae6fd; }
+    body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--text); font-family: "Segoe UI", system-ui, sans-serif; }
+    main { width: min(820px, calc(100% - 28px)); margin: 0 auto; padding: 24px 0 38px; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 14px; }
+    h1 { margin: 0; font-size: 25px; line-height: 1.1; }
+    h2 { margin: 0; font-size: 16px; }
     a { color: var(--accent); font-weight: 850; text-decoration: none; }
-    .shell { display: grid; grid-template-columns: minmax(270px, 340px) minmax(0, 1fr); gap: 14px; align-items: start; }
-    .main-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 420px); gap: 14px; align-items: start; }
-    .panel { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); padding: 14px; }
-    .stack { display: grid; gap: 12px; }
-    .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-    label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
-    input, select, textarea, button { border: 1px solid var(--line); border-radius: 6px; background: #06111f; color: var(--text); font: inherit; }
-    input, select { height: 40px; padding: 0 10px; }
-    textarea { min-height: 84px; padding: 10px; resize: vertical; }
-    textarea[readonly] { color: #cfe8ff; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; line-height: 1.45; }
+    code { color: #bae6fd; }
+    label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 850; letter-spacing: .04em; text-transform: uppercase; }
+    input, select, textarea, button { border: 1px solid var(--line); border-radius: 6px; background: var(--field); color: var(--text); font: inherit; }
+    input, select { height: 42px; padding: 0 10px; }
+    textarea { min-height: 82px; padding: 10px; resize: vertical; }
+    textarea[readonly], input[readonly] { color: #cfe8ff; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; line-height: 1.45; }
     button { min-height: 40px; padding: 0 13px; border-color: #23729b; background: #0b3a55; color: #dff7ff; font-weight: 850; cursor: pointer; }
-    button.secondary { border-color: var(--line); background: #06111f; color: var(--text); }
+    button.secondary { border-color: var(--line); background: var(--field); color: var(--text); }
     button.danger { border-color: #7f1d1d; background: #3f1018; color: #ffe4e6; }
-    button.preset { min-height: 34px; padding: 0 10px; }
-    button:disabled { opacity: .55; cursor: not-allowed; }
-    .item-list { display: grid; gap: 8px; }
-    .item-card { display: grid; gap: 4px; width: 100%; min-height: 56px; padding: 9px 10px; text-align: left; border: 1px solid var(--line); border-radius: 6px; background: #06111f; }
-    .item-card.active { border-color: var(--accent); background: #082033; }
-    .item-card strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .item-card span { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .field-row { display: grid; grid-template-columns: minmax(0, 1fr) 150px auto; gap: 8px; align-items: end; }
-    .contract { display: grid; gap: 8px; padding: 10px; border: 1px solid rgba(56,189,248,.24); border-radius: 6px; background: rgba(8,32,51,.62); }
-    .contract ul { margin: 0; padding-left: 20px; color: #cfe8ff; }
-    .contract li { margin: 3px 0; }
-    .check-list { display: grid; gap: 7px; padding: 10px; border: 1px solid var(--line); border-radius: 6px; background: #06111f; }
-    .check-row { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 9px; align-items: start; color: var(--text); font-size: 13px; text-transform: none; letter-spacing: 0; font-weight: 650; }
-    .check-row input { width: 18px; height: 18px; padding: 0; }
-    .check-row span { color: var(--muted); display: block; font-size: 12px; margin-top: 2px; }
-    .muted { color: var(--muted); }
-    .status { color: var(--muted); font-size: 13px; white-space: pre-wrap; }
+    button.chip { min-height: 38px; padding: 0 12px; }
+    button.active { border-color: var(--accent); background: #08324b; }
+    .panel { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); padding: 15px; }
+    .stack { display: grid; gap: 13px; }
+    .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .between { justify-content: space-between; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .topbar { display: grid; grid-template-columns: minmax(220px, 1fr) auto auto; gap: 10px; align-items: end; }
+    .status { grid-column: 1 / -1; color: var(--muted); font-size: 13px; white-space: pre-wrap; }
+    .muted { color: var(--muted); font-size: 13px; line-height: 1.45; }
     .ok { color: var(--ok); }
     .bad { color: var(--bad); }
     .warn { color: var(--warn); }
-    .two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-    @media (max-width: 980px) { .shell, .main-grid, .two, header, .field-row { grid-template-columns: 1fr; display: grid; } .toolbar button { width: 100%; } }
+    .chip-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(108px, 1fr)); gap: 8px; }
+    .field-row { display: grid; grid-template-columns: minmax(0, 1fr) 140px auto; gap: 8px; align-items: end; }
+    .readout { display: grid; gap: 8px; padding: 10px; border: 1px solid rgba(56,189,248,.24); border-radius: 6px; background: rgba(8,32,51,.62); }
+    details { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+    summary { cursor: pointer; padding: 13px 15px; color: var(--text); font-weight: 850; }
+    details > div { display: grid; gap: 12px; padding: 0 15px 15px; }
+    ul { margin: 0; padding-left: 20px; color: #cfe8ff; }
+    li { margin: 3px 0; overflow-wrap: anywhere; }
+    #emitPayload { min-height: 165px; }
+    @media (max-width: 720px) {
+      main { width: min(100% - 18px, 820px); padding-top: 14px; }
+      header, .topbar, .grid, .field-row { display: grid; grid-template-columns: 1fr; }
+      .row button, .topbar button { width: 100%; }
+    }
   </style>
 </head>
 <body>
-  <main>
+  <main class="stack">
     <header>
       <div>
-        <h1>Realtime Event Designer</h1>
-        <p>Events, connectors, payloads, and global-state contribution for the live <code>/events</code> contract.</p>
+        <h1>Event Designer</h1>
+        <div class="muted">Event type, dataset, fields. Same contract as the canvas.</div>
       </div>
-      <a href="/console.html">Open console</a>
+      <div class="row">
+        <a href="/console.html">Console</a>
+        <a href="/events">Catalog</a>
+      </div>
     </header>
 
-    <div class="panel stack" style="margin-bottom: 14px;">
-      <div class="two">
-        <label>Admin secret<input id="secret" type="password" autocomplete="off" placeholder="REALTIME_ADMIN_SECRET"></label>
+    <section class="panel topbar">
+      <label>Admin secret<input id="secret" type="password" autocomplete="off" placeholder="REALTIME_ADMIN_SECRET"></label>
+      <button id="load" class="secondary" type="button">Reload</button>
+      <button id="save" type="button">Save to GitHub</button>
+      <div id="status" class="status">Loading public catalog...</div>
+    </section>
+
+    <section class="panel stack">
+      <h2>1. Event type</h2>
+      <label>Type<select id="eventType"></select></label>
+    </section>
+
+    <section class="panel stack">
+      <div class="row between">
+        <h2>2. Dataset</h2>
+        <button id="newEvent" class="secondary" type="button">New dataset</button>
+      </div>
+      <label>Edit dataset<select id="eventSelect"></select></label>
+      <div class="grid">
+        <label>Dataset key<input id="datasetKey" autocomplete="off" placeholder="sip.call.incoming"></label>
+        <label>Canvas label<input id="eventLabel" autocomplete="off" placeholder="Incoming call"></label>
+      </div>
+      <label>Description<textarea id="eventDescription" placeholder="Business fact that happened"></textarea></label>
+    </section>
+
+    <section class="panel stack">
+      <div class="row between">
+        <h2>3. Fields</h2>
+        <button id="addField" class="secondary" type="button">Add field</button>
+      </div>
+      <div id="fields" class="stack"></div>
+    </section>
+
+    <section class="panel stack">
+      <h2>4. Emits from</h2>
+      <div class="chip-grid">
+        <button class="chip" type="button" data-preset="threecx">3CX</button>
+        <button class="chip" type="button" data-preset="gmail">Gmail</button>
+        <button class="chip" type="button" data-preset="outlook">Outlook</button>
+        <button class="chip" type="button" data-preset="webhook">Webhook</button>
+        <button class="chip" type="button" data-preset="data">Data</button>
+      </div>
+      <div id="sourceHint" class="muted"></div>
+    </section>
+
+    <section class="panel stack">
+      <h2>Use in canvas</h2>
+      <div class="readout">
+        <label>Realtime trigger<input id="triggerEvent" readonly></label>
+        <div class="muted">State inspector: <code>Moves when</code> = <code>Realtime event</code>, then choose this trigger.</div>
+      </div>
+    </section>
+
+    <details>
+      <summary>Emit payload</summary>
+      <div>
+        <div class="row between">
+          <div class="muted">Bridge, webhook, Gmail/Outlook automation, or 3CX integration posts this to <code>/emit</code>.</div>
+          <button id="copyEmit" class="secondary" type="button">Copy</button>
+        </div>
+        <textarea id="emitPayload" readonly></textarea>
+      </div>
+    </details>
+
+    <details>
+      <summary>State contribution</summary>
+      <div id="statePaths"></div>
+    </details>
+
+    <details>
+      <summary>Source settings</summary>
+      <div>
+        <div class="grid">
+          <label>Source<select id="sourceSelect"></select></label>
+          <label>Source type<select id="connectorType"></select></label>
+        </div>
+        <div class="grid">
+          <label>Source ID<input id="connectorId" autocomplete="off" placeholder="sip.threecx"></label>
+          <label>Source label<input id="connectorLabel" autocomplete="off" placeholder="3CX / SIP phone system"></label>
+        </div>
+        <label>Source description<textarea id="connectorDescription" placeholder="External system that emits this dataset"></textarea></label>
         <label>Commit message<input id="message" autocomplete="off" value="Update realtime event catalog"></label>
+        <div class="row">
+          <button id="deleteEvent" class="danger" type="button">Delete dataset</button>
+          <button id="deleteConnector" class="danger" type="button">Delete source</button>
+        </div>
       </div>
-      <div class="toolbar">
-        <button id="load" type="button">Load catalog</button>
-        <button id="save" type="button">Validate, commit, push</button>
-        <span id="status" class="status">Not loaded.</span>
-      </div>
-    </div>
-
-    <div class="shell">
-      <aside class="stack">
-        <div class="panel stack">
-          <div class="toolbar">
-            <button id="newEvent" type="button">New event</button>
-            <button id="deleteEvent" class="danger" type="button">Delete</button>
-          </div>
-          <div id="events" class="item-list"></div>
-        </div>
-
-        <div class="panel stack">
-          <div class="toolbar">
-            <button id="newConnector" type="button">New connector</button>
-            <button id="deleteConnector" class="danger" type="button">Delete</button>
-          </div>
-          <div class="toolbar">
-            <button class="preset" type="button" data-preset="threecx">3CX</button>
-            <button class="preset" type="button" data-preset="gmail">Gmail</button>
-            <button class="preset" type="button" data-preset="outlook">Outlook</button>
-            <button class="preset" type="button" data-preset="webhook">Webhook</button>
-            <button class="preset" type="button" data-preset="data">Data</button>
-          </div>
-          <div id="connectors" class="item-list"></div>
-        </div>
-      </aside>
-
-      <section class="main-grid">
-        <div class="stack">
-          <div class="panel stack">
-            <h2>Event</h2>
-            <div class="two">
-              <label>Name<input id="eventName" autocomplete="off" placeholder="realtime.sip.call.incoming"></label>
-              <label>Label<input id="eventLabel" autocomplete="off" placeholder="Incoming call"></label>
-            </div>
-            <label>Description<textarea id="eventDescription" placeholder="What external fact does this event represent?"></textarea></label>
-            <div class="toolbar">
-              <button id="addField" type="button">Add detail field</button>
-              <span class="muted">Detail fields are required for /emit and WSS runtime.event.</span>
-            </div>
-            <div id="fields" class="stack"></div>
-          </div>
-
-          <div class="panel stack">
-            <h2>Connector / event source</h2>
-            <div class="two">
-              <label>ID<input id="connectorId" autocomplete="off" placeholder="sip.threecx"></label>
-              <label>Type<select id="connectorType"></select></label>
-            </div>
-            <label>Label<input id="connectorLabel" autocomplete="off" placeholder="3CX / SIP phone system"></label>
-            <label>Description<textarea id="connectorDescription" placeholder="What real system emits these events?"></textarea></label>
-            <label>Allowed events<div id="connectorEvents" class="check-list"></div></label>
-          </div>
-        </div>
-
-        <div class="stack">
-          <div class="panel stack">
-            <h2>Provider state contribution</h2>
-            <div id="providerContract" class="contract"></div>
-          </div>
-          <div class="panel stack">
-            <h2>Event state contribution</h2>
-            <div id="eventContract" class="contract"></div>
-          </div>
-          <div class="panel stack">
-            <h2>Connector state contribution</h2>
-            <div id="connectorContract" class="contract"></div>
-          </div>
-          <div class="panel stack">
-            <h2>Emit payload</h2>
-            <textarea id="emitPayload" readonly></textarea>
-          </div>
-        </div>
-      </section>
-    </div>
+    </details>
   </main>
 
   <script>
+    const EVENT_TYPES = [{ id: "realtime", label: "Realtime" }];
     const TYPES = ["text", "email", "password", "number", "boolean", "url", "image", "object", "list"];
     const CONNECTOR_TYPES = ["sip", "email", "webhook", "data"];
     const DEFAULT_STATE = {
@@ -166,12 +183,26 @@
         error: "text"
       }
     };
+    const EVENT_TEMPLATES = {
+      "realtime.sip.call.incoming": { name: "realtime.sip.call.incoming", label: "Incoming call", description: "SIP phone call started", detail: { caller: "text", callee: "text", callId: "text" }, bindings: [] },
+      "realtime.sip.call.answered": { name: "realtime.sip.call.answered", label: "Call answered", description: "SIP phone call was answered", detail: { callId: "text", agent: "text" }, bindings: [] },
+      "realtime.sip.call.ended": { name: "realtime.sip.call.ended", label: "Call ended", description: "SIP phone call ended", detail: { callId: "text", duration: "number" }, bindings: [] },
+      "realtime.mail.received": { name: "realtime.mail.received", label: "Mail received", description: "Inbound email arrived", detail: { from: "email", subject: "text", messageId: "text" }, bindings: [] },
+      "realtime.endpoint.updated": { name: "realtime.endpoint.updated", label: "Endpoint updated", description: "External endpoint reported a new status", detail: { endpoint: "url", status: "number", changedAt: "text" }, bindings: [] },
+      "realtime.data.updated": { name: "realtime.data.updated", label: "Data updated", description: "External data source reported an update", detail: { key: "text", value: "object" }, bindings: [] }
+    };
     const PRESETS = {
       threecx: { id: "sip.threecx", type: "sip", label: "3CX / SIP phone system", description: "Business phone bridge for real call events", events: ["realtime.sip.call.incoming", "realtime.sip.call.answered", "realtime.sip.call.ended"] },
       gmail: { id: "mail.gmail", type: "email", label: "Gmail inbox", description: "Gmail bridge for new email events", events: ["realtime.mail.received"] },
       outlook: { id: "mail.outlook", type: "email", label: "Outlook inbox", description: "Microsoft Outlook bridge for new email events", events: ["realtime.mail.received"] },
       webhook: { id: "webhook.endpoint", type: "webhook", label: "Webhook endpoint", description: "External systems calling a webhook bridge", events: ["realtime.endpoint.updated"] },
       data: { id: "data.source", type: "data", label: "Data source", description: "Data connector bridge for changed business data", events: ["realtime.data.updated"] }
+    };
+    const NEW_EVENT_BY_SOURCE = {
+      sip: "sip.call.custom",
+      email: "mail.custom",
+      webhook: "endpoint.custom",
+      data: "data.custom"
     };
     let catalog = {
       provider: { id: "digitalisierungsplanung.realtime", label: "Digitalisierungsplanung Realtime" },
@@ -181,10 +212,17 @@
     };
     let selectedEventIndex = 0;
     let selectedConnectorIndex = 0;
+    let selectedEventType = "realtime";
 
     const el = id => document.getElementById(id);
     const statusEl = el("status");
 
+    for (const type of EVENT_TYPES) {
+      const option = document.createElement("option");
+      option.value = type.id;
+      option.textContent = type.label;
+      el("eventType").appendChild(option);
+    }
     for (const type of CONNECTOR_TYPES) {
       const option = document.createElement("option");
       option.value = type;
@@ -210,8 +248,8 @@
 
     function normalizeEvent(event = {}) {
       return {
-        name: String(event.name || "realtime.custom.event").trim(),
-        label: String(event.label || "Custom event").trim(),
+        name: String(event.name || "realtime.custom").trim(),
+        label: String(event.label || "Custom dataset").trim(),
         description: String(event.description || "").trim(),
         detail: event.detail && typeof event.detail === "object" && !Array.isArray(event.detail) ? event.detail : {},
         bindings: Array.isArray(event.bindings) ? event.bindings : []
@@ -220,34 +258,33 @@
 
     function normalizeConnector(connector = {}) {
       return {
-        id: String(connector.id || "webhook.custom").trim(),
+        id: String(connector.id || "webhook.endpoint").trim(),
         type: CONNECTOR_TYPES.includes(connector.type) ? connector.type : "webhook",
-        label: String(connector.label || "Custom connector").trim(),
+        label: String(connector.label || "Webhook endpoint").trim(),
         description: String(connector.description || "").trim(),
-        endpoint: String(connector.endpoint || "POST /emit").trim() || "POST /emit",
+        endpoint: "POST /emit",
         events: Array.isArray(connector.events) ? connector.events.map(String) : []
       };
     }
 
-    function ensureCatalog() {
-      catalog.provider = catalog.provider || { id: "digitalisierungsplanung.realtime", label: "Digitalisierungsplanung Realtime" };
-      catalog.state = catalog.state || DEFAULT_STATE;
-      catalog.events = Array.isArray(catalog.events) ? catalog.events.map(normalizeEvent) : [];
-      catalog.emitters = Array.isArray(catalog.emitters) ? catalog.emitters.map(normalizeConnector) : [];
-      if (!catalog.events.length) catalog.events.push(normalizeEvent({ name: "realtime.custom.event", detail: { value: "text" } }));
-      if (!catalog.emitters.length) catalog.emitters.push(normalizeConnector({ ...PRESETS.webhook, events: [catalog.events[0].name] }));
-      if (selectedEventIndex < 0 || selectedEventIndex >= catalog.events.length) selectedEventIndex = 0;
-      if (selectedConnectorIndex < 0 || selectedConnectorIndex >= catalog.emitters.length) selectedConnectorIndex = 0;
+    function cleanCatalog(input) {
+      return {
+        provider: input.provider || { id: "digitalisierungsplanung.realtime", label: "Digitalisierungsplanung Realtime" },
+        state: input.state || DEFAULT_STATE,
+        events: (input.events || []).map(normalizeEvent),
+        emitters: (input.emitters || []).map(normalizeConnector)
+      };
     }
 
-    function selectedEvent() {
-      ensureCatalog();
-      return catalog.events[selectedEventIndex];
+    function datasetKeyFromEventName(name) {
+      const prefix = selectedEventType + ".";
+      const text = String(name || "").trim();
+      return text.startsWith(prefix) ? text.slice(prefix.length) : text;
     }
 
-    function selectedConnector() {
-      ensureCatalog();
-      return catalog.emitters[selectedConnectorIndex];
+    function eventNameFromDatasetKey(key) {
+      const clean = String(key || "custom").trim().replace(/^realtime\./, "");
+      return selectedEventType + "." + clean;
     }
 
     function uniqueId(base, existing) {
@@ -260,9 +297,43 @@
       return clean + "." + Date.now();
     }
 
+    function sourceForEvent(eventName) {
+      return catalog.emitters.findIndex(source => (source.events || []).includes(eventName));
+    }
+
+    function selectedEvent() {
+      return catalog.events[selectedEventIndex] || catalog.events[0];
+    }
+
+    function selectedConnector() {
+      return catalog.emitters[selectedConnectorIndex] || catalog.emitters[0];
+    }
+
+    function ensureCatalog() {
+      catalog = cleanCatalog(catalog);
+      catalog.events = catalog.events.filter(event => event.name.startsWith(selectedEventType + "."));
+      if (!catalog.events.length) catalog.events.push(normalizeEvent({ name: "realtime.custom", label: "Custom dataset", detail: { value: "text" } }));
+      if (!catalog.emitters.length) catalog.emitters.push(normalizeConnector({ ...PRESETS.webhook, events: [catalog.events[0].name] }));
+      selectedEventIndex = Math.max(0, Math.min(selectedEventIndex, catalog.events.length - 1));
+      selectedConnectorIndex = Math.max(0, Math.min(selectedConnectorIndex, catalog.emitters.length - 1));
+      const event = selectedEvent();
+      const source = selectedConnector();
+      if (event && source && !source.events.includes(event.name)) source.events.push(event.name);
+    }
+
+    function replaceEventName(oldName, newName) {
+      if (!oldName || oldName === newName) return;
+      for (const source of catalog.emitters) {
+        source.events = source.events.map(name => name === oldName ? newName : name);
+        source.events = [...new Set(source.events)];
+      }
+    }
+
     function syncEventFromForm() {
       const event = selectedEvent();
-      event.name = el("eventName").value.trim();
+      if (!event) return;
+      const oldName = event.name;
+      event.name = eventNameFromDatasetKey(el("datasetKey").value);
       event.label = el("eventLabel").value.trim();
       event.description = el("eventDescription").value.trim();
       const detail = {};
@@ -272,16 +343,21 @@
         if (path) detail[path] = type;
       }
       event.detail = detail;
+      replaceEventName(oldName, event.name);
+      const source = selectedConnector();
+      if (source && event.name && !source.events.includes(event.name)) source.events.push(event.name);
     }
 
     function syncConnectorFromForm() {
-      const connector = selectedConnector();
-      connector.id = el("connectorId").value.trim();
-      connector.type = el("connectorType").value;
-      connector.label = el("connectorLabel").value.trim();
-      connector.description = el("connectorDescription").value.trim();
-      connector.endpoint = "POST /emit";
-      connector.events = [...el("connectorEvents").querySelectorAll("input[type='checkbox']:checked")].map(input => input.value);
+      const source = selectedConnector();
+      if (!source) return;
+      source.id = el("connectorId").value.trim();
+      source.type = el("connectorType").value;
+      source.label = el("connectorLabel").value.trim();
+      source.description = el("connectorDescription").value.trim();
+      source.endpoint = "POST /emit";
+      const event = selectedEvent();
+      if (event && event.name && !source.events.includes(event.name)) source.events.push(event.name);
     }
 
     function syncFromForm() {
@@ -289,58 +365,64 @@
       syncConnectorFromForm();
     }
 
-    function renderItems(list, items, selectedIndex, onSelect) {
-      list.innerHTML = "";
-      items.forEach((item, index) => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "item-card" + (index === selectedIndex ? " active" : "");
-        button.innerHTML = "<strong></strong><span></span>";
-        button.querySelector("strong").textContent = item.label || item.name || item.id || "Untitled";
-        button.querySelector("span").textContent = item.name || item.id || "";
-        button.onclick = () => {
-          syncFromForm();
-          onSelect(index);
-          render();
-        };
-        list.appendChild(button);
+    function eventsForSelectedSource() {
+      const source = selectedConnector();
+      const names = new Set(source?.events || []);
+      return catalog.events.filter(event => names.has(event.name));
+    }
+
+    function renderSourceSelect() {
+      const select = el("sourceSelect");
+      select.innerHTML = "";
+      catalog.emitters.forEach((source, index) => {
+        const option = document.createElement("option");
+        option.value = String(index);
+        option.textContent = `${source.label || source.id} (${source.id})`;
+        option.selected = index === selectedConnectorIndex;
+        select.appendChild(option);
       });
+      select.onchange = () => {
+        syncFromForm();
+        selectedConnectorIndex = Number(select.value) || 0;
+        const sourceEvents = eventsForSelectedSource();
+        if (sourceEvents.length) selectedEventIndex = catalog.events.indexOf(sourceEvents[0]);
+        render();
+      };
     }
 
-    function renderLists() {
-      renderItems(el("events"), catalog.events, selectedEventIndex, index => { selectedEventIndex = index; });
-      renderItems(el("connectors"), catalog.emitters, selectedConnectorIndex, index => { selectedConnectorIndex = index; });
-    }
-
-    function renderProviderContract() {
-      const box = el("providerContract");
-      const state = catalog.state || DEFAULT_STATE;
-      const schema = state.schema || {};
-      box.innerHTML = "";
-      const title = document.createElement("p");
-      title.innerHTML = "Provider <code></code> contributes root <code></code>.";
-      title.querySelectorAll("code")[0].textContent = catalog.provider?.id || "digitalisierungsplanung.realtime";
-      title.querySelectorAll("code")[1].textContent = state.path || "realtime";
-      const list = document.createElement("ul");
-      for (const [path, type] of Object.entries(schema)) {
-        const item = document.createElement("li");
-        item.textContent = `${state.path}.${path}: ${type}`;
-        list.appendChild(item);
+    function renderEventSelect() {
+      const select = el("eventSelect");
+      const options = eventsForSelectedSource();
+      if (!options.includes(selectedEvent())) options.push(selectedEvent());
+      select.innerHTML = "";
+      for (const event of options) {
+        const index = catalog.events.indexOf(event);
+        const option = document.createElement("option");
+        option.value = String(index);
+        option.textContent = `${event.label || datasetKeyFromEventName(event.name)} (${datasetKeyFromEventName(event.name)})`;
+        option.selected = index === selectedEventIndex;
+        select.appendChild(option);
       }
-      box.append(title, list);
+      select.onchange = () => {
+        syncFromForm();
+        selectedEventIndex = Number(select.value) || 0;
+        render();
+      };
     }
 
     function addFieldRow(path = "", type = "text") {
       const row = document.createElement("div");
       row.className = "field-row";
       row.dataset.fieldRow = "true";
+
       const pathLabel = document.createElement("label");
-      pathLabel.textContent = "Detail path";
+      pathLabel.textContent = "Field";
       const pathInput = document.createElement("input");
       pathInput.dataset.fieldPath = "true";
       pathInput.value = path;
       pathInput.placeholder = "caller";
       pathLabel.appendChild(pathInput);
+
       const typeLabel = document.createElement("label");
       typeLabel.textContent = "Type";
       const typeSelect = document.createElement("select");
@@ -353,6 +435,7 @@
         typeSelect.appendChild(option);
       }
       typeLabel.appendChild(typeSelect);
+
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "danger";
@@ -360,12 +443,12 @@
       remove.onclick = () => {
         row.remove();
         syncEventFromForm();
-        renderContracts();
+        renderReadouts();
       };
       pathInput.oninput = typeSelect.onchange = () => {
         syncEventFromForm();
-        renderLists();
-        renderContracts();
+        renderEventSelect();
+        renderReadouts();
       };
       row.append(pathLabel, typeLabel, remove);
       el("fields").appendChild(row);
@@ -373,69 +456,59 @@
 
     function renderEventEditor() {
       const event = selectedEvent();
-      el("eventName").value = event.name;
+      renderEventSelect();
+      el("eventType").value = selectedEventType;
+      el("datasetKey").value = datasetKeyFromEventName(event.name);
       el("eventLabel").value = event.label;
       el("eventDescription").value = event.description;
       el("fields").innerHTML = "";
       for (const [path, type] of Object.entries(event.detail || {})) addFieldRow(path, type);
       if (!Object.keys(event.detail || {}).length) addFieldRow("value", "text");
-      el("eventName").oninput = el("eventLabel").oninput = el("eventDescription").oninput = () => {
+      el("datasetKey").oninput = () => {
         syncEventFromForm();
-        renderConnectorEvents();
-        renderLists();
-        renderContracts();
+        renderEventSelect();
+        renderReadouts();
       };
-    }
-
-    function renderConnectorEvents() {
-      const connector = selectedConnector();
-      const box = el("connectorEvents");
-      box.innerHTML = "";
-      const allowed = new Set(connector.events || []);
-      for (const event of catalog.events) {
-        const label = document.createElement("label");
-        label.className = "check-row";
-        const input = document.createElement("input");
-        input.type = "checkbox";
-        input.value = event.name;
-        input.checked = allowed.has(event.name);
-        input.onchange = () => {
-          syncConnectorFromForm();
-          renderContracts();
-        };
-        const text = document.createElement("div");
-        text.textContent = event.label || event.name;
-        const sub = document.createElement("span");
-        sub.textContent = event.name;
-        text.appendChild(sub);
-        label.append(input, text);
-        box.appendChild(label);
-      }
+      el("eventLabel").oninput = el("eventDescription").oninput = () => {
+        syncEventFromForm();
+        renderEventSelect();
+        renderReadouts();
+      };
     }
 
     function renderConnectorEditor() {
-      const connector = selectedConnector();
-      el("connectorId").value = connector.id;
-      el("connectorType").value = connector.type;
-      el("connectorLabel").value = connector.label;
-      el("connectorDescription").value = connector.description;
-      renderConnectorEvents();
+      const source = selectedConnector();
+      renderSourceSelect();
+      el("connectorId").value = source.id;
+      el("connectorType").value = source.type;
+      el("connectorLabel").value = source.label;
+      el("connectorDescription").value = source.description;
+      el("sourceHint").textContent = source.description || source.label || source.id;
       el("connectorId").oninput = el("connectorLabel").oninput = el("connectorDescription").oninput = () => {
         syncConnectorFromForm();
-        renderLists();
-        renderContracts();
+        renderSourceSelect();
+        renderReadouts();
       };
       el("connectorType").onchange = () => {
         syncConnectorFromForm();
-        renderContracts();
+        renderReadouts();
       };
+    }
+
+    function renderPresetButtons() {
+      const source = selectedConnector();
+      for (const button of document.querySelectorAll("[data-preset]")) {
+        const preset = PRESETS[button.dataset.preset];
+        button.classList.toggle("active", Boolean(preset && preset.id === source.id));
+      }
     }
 
     function sampleValue(path, type) {
       const key = String(path || "").toLowerCase();
       if (key.includes("caller")) return "+491234";
       if (key.includes("callee")) return "100";
-      if (key.includes("callid") || key.includes("messageid")) return key.includes("message") ? "mail-123" : "call-123";
+      if (key.includes("callid")) return "call-123";
+      if (key.includes("messageid")) return "mail-123";
       if (key === "from") return "customer@example.com";
       if (key.includes("subject")) return "New request";
       if (key.includes("endpoint")) return "https://example.com/api/status";
@@ -445,7 +518,7 @@
       if (type === "boolean") return true;
       if (type === "object") return { value: "updated" };
       if (type === "list") return [];
-      return "";
+      return "value";
     }
 
     function sampleDetail(event) {
@@ -454,148 +527,222 @@
       return detail;
     }
 
-    function renderContracts() {
-      const event = selectedEvent();
-      const connector = selectedConnector();
-      const eventRoot = event.name ? "events." + event.name : "events.<event>";
-      const emitterRoot = connector.id ? "emitters." + connector.id : "emitters.<connector>";
-
-      const eventBox = el("eventContract");
-      eventBox.innerHTML = "";
-      const trigger = document.createElement("p");
-      trigger.innerHTML = "Canvas stores only <code></code>.";
-      trigger.querySelector("code").textContent = `triggerType: realtime, triggerEvent: ${event.name || "<event>"}`;
-      const eventList = document.createElement("ul");
-      for (const item of [`${eventRoot}.count`, `${eventRoot}.lastAt`, `${eventRoot}.detail`]) {
-        const li = document.createElement("li");
-        li.textContent = item;
-        eventList.appendChild(li);
-      }
-      for (const [path, type] of Object.entries(event.detail || {})) {
-        const li = document.createElement("li");
-        li.textContent = `${eventRoot}.detail.${path}: ${type}`;
-        eventList.appendChild(li);
-      }
-      eventBox.append(trigger, eventList);
-
-      const connectorBox = el("connectorContract");
-      connectorBox.innerHTML = "";
-      const source = document.createElement("p");
-      source.innerHTML = "Connector <code></code> may emit selected events and contributes root <code></code>.";
-      source.querySelectorAll("code")[0].textContent = connector.id || "<connector>";
-      source.querySelectorAll("code")[1].textContent = emitterRoot;
-      const connectorList = document.createElement("ul");
-      for (const item of [`${emitterRoot}.count`, `${emitterRoot}.lastAt`, `${emitterRoot}.lastEvent`, `${emitterRoot}.lastDetail`, `${emitterRoot}.status`, `${emitterRoot}.error`]) {
-        const li = document.createElement("li");
-        li.textContent = item;
-        connectorList.appendChild(li);
-      }
-      connectorBox.append(source, connectorList);
-
-      const firstAllowedEvent = catalog.events.find(item => (connector.events || []).includes(item.name)) || event;
-      el("emitPayload").value = JSON.stringify({
+    function emitExample(event, source) {
+      const payload = {
         roomId: "sales-floor",
-        clientId: connector.id || "connector",
-        emitterId: connector.id || "connector",
-        name: firstAllowedEvent.name || event.name,
-        detail: sampleDetail(firstAllowedEvent)
-      }, null, 2);
+        clientId: source.id || "connector",
+        emitterId: source.id || "connector",
+        name: event.name,
+        detail: sampleDetail(event)
+      };
+      return [
+        "curl -X POST https://realtime.digitalisierungsplanung.de/emit \\",
+        "  -H \"authorization: Bearer $REALTIME_EMIT_SECRET\" \\",
+        "  -H \"content-type: application/json\" \\",
+        `  -d '${JSON.stringify(payload)}'`
+      ].join("\n");
+    }
+
+    function renderReadouts() {
+      const event = selectedEvent();
+      const source = selectedConnector();
+      const eventRoot = event.name ? "events." + event.name : "events.<event>";
+      const sourceRoot = source.id ? "emitters." + source.id : "emitters.<source>";
+
+      el("triggerEvent").value = event.name || "";
+      el("emitPayload").value = emitExample(event, source);
+
+      const box = el("statePaths");
+      box.innerHTML = "";
+      const list = document.createElement("ul");
+      const paths = [
+        `${eventRoot}.count`,
+        `${eventRoot}.lastAt`,
+        `${eventRoot}.detail`,
+        ...Object.entries(event.detail || {}).map(([path, type]) => `${eventRoot}.detail.${path}: ${type}`),
+        `${sourceRoot}.lastEvent`,
+        `${sourceRoot}.lastDetail`,
+        `${sourceRoot}.status`,
+        `${sourceRoot}.error`
+      ];
+      for (const path of paths) {
+        const item = document.createElement("li");
+        item.textContent = path;
+        list.appendChild(item);
+      }
+      box.appendChild(list);
     }
 
     function render() {
       ensureCatalog();
-      renderProviderContract();
-      renderEventEditor();
       renderConnectorEditor();
-      renderLists();
-      renderContracts();
+      renderEventEditor();
+      renderPresetButtons();
+      renderReadouts();
     }
 
-    async function loadCatalog() {
-      if (!el("secret").value.trim()) {
-        setStatus("Admin secret is required.", "bad");
+    async function loadPublicCatalog() {
+      const response = await fetch("/events", { cache: "no-store" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setStatus(payload.error || "Public catalog load failed", "bad");
+        render();
         return;
       }
-      setStatus("Loading...");
+      catalog = cleanCatalog(payload);
+      selectedEventIndex = 0;
+      const sourceIndex = sourceForEvent(catalog.events[0]?.name);
+      selectedConnectorIndex = sourceIndex >= 0 ? sourceIndex : 0;
+      render();
+      setStatus("Loaded. Add admin secret only when saving.", "warn");
+    }
+
+    async function loadSecureCatalog() {
+      if (!el("secret").value.trim()) {
+        setStatus("Admin secret is required for reload.", "bad");
+        return;
+      }
+      setStatus("Loading secure catalog...");
       const response = await fetch("/events-admin/catalog", { headers: authHeaders(), cache: "no-store" });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         setStatus(payload.error || "Load failed", "bad");
         return;
       }
-      catalog = payload.catalog;
+      catalog = cleanCatalog(payload.catalog);
       selectedEventIndex = 0;
-      selectedConnectorIndex = 0;
+      const sourceIndex = sourceForEvent(catalog.events[0]?.name);
+      selectedConnectorIndex = sourceIndex >= 0 ? sourceIndex : 0;
       render();
-      setStatus("Catalog loaded.", "ok");
+      setStatus("Secure catalog loaded.", "ok");
     }
 
     async function saveCatalog() {
       syncFromForm();
       if (!el("secret").value.trim()) {
-        setStatus("Admin secret is required.", "bad");
+        setStatus("Admin secret is required for saving.", "bad");
         return;
       }
-      setStatus("Validating and committing...");
+      setStatus("Validating and pushing...");
       const response = await fetch("/events-admin/catalog", {
         method: "POST",
         headers: authHeaders(),
-        body: JSON.stringify({ catalog, message: el("message").value.trim() })
+        body: JSON.stringify({ catalog: cleanCatalog(catalog), message: el("message").value.trim() })
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         setStatus(payload.error || "Save failed", "bad");
         return;
       }
-      const suffix = payload.changed ? `Commit ${payload.commit || "created"} pushed. Waiting for CI release.` : "No changes.";
-      setStatus(suffix, payload.changed ? "ok" : "warn");
+      setStatus(payload.changed ? `Saved. Commit ${payload.commit || "created"} pushed.` : "No changes.", payload.changed ? "ok" : "warn");
     }
 
-    function addPresetConnector(name) {
+    function createEventFromDatasetKey(datasetKey) {
+      const eventName = eventNameFromDatasetKey(datasetKey);
+      const template = EVENT_TEMPLATES[eventName] || { name: eventName, label: "Custom dataset", description: "", detail: { value: "text" }, bindings: [] };
+      const existing = new Set(catalog.events.map(event => event.name));
+      return normalizeEvent({ ...clone(template), name: uniqueId(template.name, existing) });
+    }
+
+    function selectEventByName(name) {
+      const index = catalog.events.findIndex(event => event.name === name);
+      if (index >= 0) selectedEventIndex = index;
+    }
+
+    function addPresetSource(name) {
       syncFromForm();
       const preset = clone(PRESETS[name] || PRESETS.webhook);
-      preset.id = uniqueId(preset.id, new Set(catalog.emitters.map(item => item.id)));
-      catalog.emitters.push(normalizeConnector(preset));
-      selectedConnectorIndex = catalog.emitters.length - 1;
+      const existingSourceIndex = catalog.emitters.findIndex(source => source.id === preset.id);
+      if (existingSourceIndex >= 0) {
+        selectedConnectorIndex = existingSourceIndex;
+      } else {
+        preset.id = uniqueId(preset.id, new Set(catalog.emitters.map(source => source.id)));
+        catalog.emitters.push(normalizeConnector(preset));
+        selectedConnectorIndex = catalog.emitters.length - 1;
+      }
+      const source = catalog.emitters[selectedConnectorIndex];
+      for (const eventName of preset.events) {
+        if (!catalog.events.some(event => event.name === eventName)) catalog.events.push(createEventFromDatasetKey(datasetKeyFromEventName(eventName)));
+        if (!source.events.includes(eventName)) source.events.push(eventName);
+      }
+      selectEventByName(preset.events[0]);
       render();
+      setStatus(`${source.label || source.id} selected. Save when done.`, "ok");
     }
 
-    el("load").onclick = () => loadCatalog().catch(error => setStatus(error.message, "bad"));
-    el("save").onclick = () => saveCatalog().catch(error => setStatus(error.message, "bad"));
-    el("newEvent").onclick = () => {
+    function newEvent() {
       syncFromForm();
-      const name = uniqueId("realtime.custom.event", new Set(catalog.events.map(item => item.name)));
-      catalog.events.push(normalizeEvent({ name, label: "Custom event", detail: { value: "text" } }));
+      const source = selectedConnector();
+      const event = createEventFromDatasetKey(NEW_EVENT_BY_SOURCE[source.type] || "custom");
+      catalog.events.push(event);
       selectedEventIndex = catalog.events.length - 1;
-      selectedConnector().events.push(name);
+      source.events.push(event.name);
       render();
-    };
-    el("deleteEvent").onclick = () => {
+      setStatus("New dataset ready. Rename it and save.", "warn");
+    }
+
+    function deleteEvent() {
       syncFromForm();
-      if (!catalog.events.length) return;
+      if (catalog.events.length <= 1) {
+        setStatus("At least one dataset is required.", "bad");
+        return;
+      }
       const [removed] = catalog.events.splice(selectedEventIndex, 1);
-      for (const connector of catalog.emitters) connector.events = connector.events.filter(name => name !== removed.name);
+      for (const source of catalog.emitters) source.events = source.events.filter(name => name !== removed.name);
       selectedEventIndex = Math.max(0, selectedEventIndex - 1);
+      const sourceIndex = sourceForEvent(catalog.events[selectedEventIndex]?.name);
+      if (sourceIndex >= 0) selectedConnectorIndex = sourceIndex;
       render();
-    };
-    el("newConnector").onclick = () => addPresetConnector("webhook");
-    el("deleteConnector").onclick = () => {
+      setStatus("Dataset removed. Save to publish.", "warn");
+    }
+
+    function deleteSource() {
       syncFromForm();
-      if (!catalog.emitters.length) return;
-      catalog.emitters.splice(selectedConnectorIndex, 1);
-      selectedConnectorIndex = Math.max(0, selectedConnectorIndex - 1);
+      if (catalog.emitters.length <= 1) {
+        setStatus("At least one source is required.", "bad");
+        return;
+      }
+      const [removed] = catalog.emitters.splice(selectedConnectorIndex, 1);
+      const stillOffered = new Set(catalog.emitters.flatMap(source => source.events || []));
+      catalog.events = catalog.events.filter(event => stillOffered.has(event.name));
+      if (!catalog.events.length) {
+        catalog.events.push(normalizeEvent({ name: "realtime.custom", label: "Custom dataset", detail: { value: "text" } }));
+        catalog.emitters[0].events.push(catalog.events[0].name);
+      }
+      selectedEventIndex = 0;
+      selectedConnectorIndex = Math.max(0, Math.min(selectedConnectorIndex, catalog.emitters.length - 1));
+      render();
+      setStatus(`${removed.label || removed.id} removed. Save to publish.`, "warn");
+    }
+
+    el("eventType").onchange = () => {
+      selectedEventType = el("eventType").value;
       render();
     };
+    el("load").onclick = () => loadSecureCatalog().catch(error => setStatus(error.message, "bad"));
+    el("save").onclick = () => saveCatalog().catch(error => setStatus(error.message, "bad"));
+    el("newEvent").onclick = newEvent;
+    el("deleteEvent").onclick = deleteEvent;
+    el("deleteConnector").onclick = deleteSource;
     el("addField").onclick = () => {
       addFieldRow("value", "text");
       syncEventFromForm();
-      renderContracts();
+      renderReadouts();
+    };
+    el("copyEmit").onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(el("emitPayload").value);
+        setStatus("Emit payload copied.", "ok");
+      } catch (error) {
+        setStatus(error.message, "bad");
+      }
     };
     for (const button of document.querySelectorAll("[data-preset]")) {
-      button.onclick = () => addPresetConnector(button.dataset.preset);
+      button.onclick = () => addPresetSource(button.dataset.preset);
     }
 
     render();
+    loadPublicCatalog().catch(error => setStatus(error.message, "bad"));
   </script>
 </body>
 </html>

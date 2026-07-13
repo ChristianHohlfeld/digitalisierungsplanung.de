@@ -296,6 +296,8 @@ test("serves an admin event designer that validates, commits, and pushes the cat
       assert.equal(htmlResponse.status, 200);
       const html = await htmlResponse.text();
       assert.match(html, /Realtime Event Designer/);
+      assert.match(html, /Save to GitHub/);
+      assert.match(html, /fetch\("\/events"/);
       assert.doesNotMatch(html, /admin-secret/);
 
       const unauthorized = await fetch(httpUrl(realtime, "/events-admin/catalog"));
