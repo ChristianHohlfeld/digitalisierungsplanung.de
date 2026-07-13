@@ -905,13 +905,14 @@ async function traverseWebsiteDemoShard(page, shardIndex, shardCount) {
       await resetRuntimeTo(sourceId);
       await prepare(transition);
       const trigger = clickTargetsFor(transition.id).first();
-      await trigger.scrollIntoViewIfNeeded();
-      const isFirstHit = await trigger.evaluate(element => {
-        const rect = element.getBoundingClientRect();
-        const hit = element.ownerDocument.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-        return hit === element || element.contains(hit);
-      });
-      expect(isFirstHit, `${transition.id}: trigger center is not the first hit target`).toBe(true);
+      await expect.poll(async () => {
+        await trigger.scrollIntoViewIfNeeded();
+        return trigger.evaluate(element => {
+          const rect = element.getBoundingClientRect();
+          const hit = element.ownerDocument.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+          return hit === element || element.contains(hit);
+        });
+      }, { message: `${transition.id}: trigger center is not the first hit target` }).toBe(true);
       await trigger.click();
       const actual = await frame.evaluate(() => {
         const state = context?.state || {};
