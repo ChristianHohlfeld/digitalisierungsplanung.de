@@ -6626,7 +6626,8 @@ test.describe("State Blueprint tool", () => {
     });
     await expect(page.locator("#pStateTriggerEventLabel")).toHaveText("Realtime-/WSS-Ereignis");
     await expect(triggerEvent).toBeVisible();
-    await expect(triggerEvent).toHaveJSProperty("length", 0);
+    await expect(triggerEvent).toContainText("Incoming call - realtime.sip.call.incoming");
+    await expect(triggerEvent).toHaveValue("");
     await expect(page.locator("#pStateTriggerEventImport")).toBeVisible();
     await expect(appFrame(page).locator('button[data-transition-id="t_auth_login"]')).toHaveCount(0);
     await expect(page.locator("#pStateTriggerPreview")).toContainText("Realtime-Raumereignis");
@@ -6741,6 +6742,9 @@ test.describe("State Blueprint tool", () => {
     await page.locator("#pStateFlowTransition").selectOption("t_auth_login");
     await page.locator("#pStateTriggerType").selectOption("realtime");
     await expect(page.locator("#pStateTriggerEvent")).toBeVisible();
+    await expect(page.locator("#pStateTriggerEvent")).toContainText("Incoming call - realtime.sip.call.incoming");
+    await expect(page.locator("#pStateTriggerEvent")).toHaveValue("");
+    await page.locator("#pStateTriggerEvent").selectOption("realtime.sip.call.incoming");
     await expect(page.locator("#pStateTriggerEvent")).toHaveValue("realtime.sip.call.incoming");
     await expect(page.locator("#pStateTriggerEventImport")).toBeVisible();
     await expect(page.locator("#pStateTriggerEventImport")).toHaveText("Realtime-Ereignisse neu laden");

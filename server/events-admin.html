@@ -464,20 +464,19 @@
 
     function renderEventSelect() {
       const select = el("eventSelect");
-      const options = eventsForSelectedSource();
-      if (!options.includes(selectedEvent())) options.push(selectedEvent());
       select.innerHTML = "";
-      for (const event of options) {
-        const index = catalog.events.indexOf(event);
+      catalog.events.forEach((event, index) => {
         const option = document.createElement("option");
         option.value = String(index);
         option.textContent = `${event.label || datasetKeyFromEventName(event.name)} (${datasetKeyFromEventName(event.name)})`;
         option.selected = index === selectedEventIndex;
         select.appendChild(option);
-      }
+      });
       select.onchange = () => {
         syncFromForm();
         selectedEventIndex = Number(select.value) || 0;
+        const sourceIndex = sourceForEvent(selectedEvent()?.name);
+        if (sourceIndex >= 0) selectedConnectorIndex = sourceIndex;
         render();
       };
     }

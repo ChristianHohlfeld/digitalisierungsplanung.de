@@ -20904,6 +20904,10 @@
             };
             events.forEach(event => addLive(event.name, event.label ? `${event.label} - ${event.name}` : event.name));
             stateTriggerEvent.innerHTML = "";
+            const emptyOption = document.createElement("option");
+            emptyOption.value = "";
+            emptyOption.textContent = "Realtime-Ereignis wählen";
+            stateTriggerEvent.appendChild(emptyOption);
             liveOptions.forEach(optionConfig => {
               const option = document.createElement("option");
               option.value = optionConfig.value;
@@ -20911,9 +20915,8 @@
               stateTriggerEvent.appendChild(option);
             });
             if (liveOptions.length) {
-              const selectedLive = liveOptions.some(option => option.value === active) ? active : liveOptions[0].value;
+              const selectedLive = liveOptions.some(option => option.value === active) ? active : "";
               stateTriggerEvent.value = selectedLive;
-              if (row.transition.triggerEvent !== selectedLive) persistStateFlowTrigger();
             }
             if (stateTriggerEventImport) stateTriggerEventImport.textContent = "Realtime-Ereignisse neu laden";
           }).catch(() => {
@@ -21075,7 +21078,6 @@
         addGlobalStateSuggestion(map, "*", "global", "all");
         addGlobalStateSuggestion(map, "state.current", "screen flow", "text");
         normalizeSubscriptions(s.subscriptions).forEach(path => addGlobalStateSuggestion(map, path, "active", "subscription", dataWirePathValue(s, path)));
-        conditionDataSuggestions({ from: s.id, to: s.id }).forEach(item => addGlobalStateSuggestion(map, item.path, item.source, item.type, item.value));
         const bucket = [];
         const contextIds = new Set();
         const addContextState = state => {
@@ -21133,6 +21135,7 @@
         bucket
           .filter(item => !isRuntimeBookkeepingPath(item.path))
           .forEach(item => addGlobalStateSuggestion(map, item.path, item.source, item.type, item.value));
+        conditionDataSuggestions({ from: s.id, to: s.id }).forEach(item => addGlobalStateSuggestion(map, item.path, item.source, item.type, item.value));
         return Array.from(map.values()).sort((a, b) => {
           if (a.path === "*") return -1;
           if (b.path === "*") return 1;
@@ -22169,7 +22172,7 @@
     }
 
     function collectDataPathSuggestions(value, prefix, sourceLabel, out, depth = 0) {
-      if (!prefix || out.length > 80 || depth > 5) return out;
+      if (!prefix || depth > 5) return out;
       if (Array.isArray(value)) {
         out.push({ path: prefix, source: sourceLabel, type: "array", value });
         if (value.length) {
@@ -22235,7 +22238,6 @@
         add(`events.${eventName}.lastAt`, `${eventName} realtime event`, "number");
         add(`events.${eventName}.detail`, `${eventName} detail`, "object");
       }
-      productContractStateContributionSuggestions().forEach(item => add(item.path, item.source, item.type));
       let includeKnownGlobalState = false;
       for (const state of conditionScopeStates(t)) {
         const label = state.id === t.from ? "from state" : state.id === t.to ? "target state" : "parent state";
@@ -22258,6 +22260,7 @@
           }
         }
       }
+      productContractStateContributionSuggestions().forEach(item => add(item.path, item.source, item.type));
       return suggestions.sort((a, b) => a.path.localeCompare(b.path));
     }
 
@@ -22468,6 +22471,21 @@
         const state = stateForRulePath(item?.path || "");
         return state ? `${state.title || state.id} / ${type}` : type;
       };
+      const transitionRuleSuggestionScore = item => {
+        const path = normalizeBindingPath(item?.path || "", "");
+        const source = String(item?.source || "");
+        let score = 0;
+        if (path.startsWith(stateDataScopeForId(t.from) + ".")) score += 300;
+        if (path.startsWith(stateDataScopeForId(t.to) + ".")) score += 260;
+        if (path.startsWith("states.")) score += 180;
+        if (source.includes("from state")) score += 120;
+        if (source.includes("target state")) score += 110;
+        if (source.includes("parent state")) score += 90;
+        if (path.startsWith("events.") || path.startsWith("emitters.")) score -= 80;
+        if (path.startsWith("realtime.")) score -= 60;
+        score -= Math.min(60, path.split(".").length * 4);
+        return score;
+      };
       const transitionRuleSuggestions = () => {
         const seen = new Set();
         return conditionDataSuggestions(t)
@@ -22479,7 +22497,7 @@
             return { ...item, path, type, label: ruleFieldLabel({ ...item, path }) };
           })
           .filter(Boolean)
-          .slice(0, 48);
+          .sort((a, b) => transitionRuleSuggestionScore(b) - transitionRuleSuggestionScore(a) || a.path.localeCompare(b.path))
       };
       const ruleOperatorsForType = type => {
         const clean = normalizeStateVariableType(type);
