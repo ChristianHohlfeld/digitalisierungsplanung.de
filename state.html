@@ -8673,19 +8673,7 @@
     const initialEditorState = loadEditorState();
     const initialStoredModel = initialEditorState?.model ? null : loadModel();
     const initialPersistedModelExists = Boolean(initialEditorState?.model || initialStoredModel);
-    const DEFAULT_STATE_VARIABLE_TYPES = [
-      { value: "text", id: "text", label: "Text", jsonType: "string", default: "", constraints: { minLength: 0, maxLength: 20000 } },
-      { value: "email", id: "email", label: "E-Mail", jsonType: "string", default: "", constraints: { format: "email", minLength: 0, maxLength: 320 } },
-      { value: "password", id: "password", label: "Passwort", jsonType: "string", default: "", constraints: { sensitive: true, minLength: 0, maxLength: 4096 } },
-      { value: "number", id: "number", label: "Zahl", jsonType: "number", default: 0, constraints: { finite: true, min: -9007199254740991, max: 9007199254740991 } },
-      { value: "boolean", id: "boolean", label: "Wahr/Falsch", jsonType: "boolean", default: false, constraints: { enum: [true, false] } },
-      { value: "url", id: "url", label: "URL", jsonType: "string", default: "", constraints: { format: "url", protocols: ["http", "https"], minLength: 0, maxLength: 2048 } },
-      { value: "image", id: "image", label: "Bild", jsonType: "string", default: "", constraints: { format: "image-url-or-data-uri", protocols: ["http", "https", "data"], minLength: 0, maxLength: 1000000 } },
-      { value: "object", id: "object", label: "Objekt", jsonType: "object", default: {}, constraints: { plainObject: true, maxDepth: 8, maxProperties: 200 } },
-      { value: "list", id: "list", label: "Liste", jsonType: "array", default: [], constraints: { maxDepth: 8, maxItems: 1000 } }
-    ];
     let productContract = null;
-    let productContractPromise = null;
     let model = initialEditorState?.model || initialStoredModel || blankModel();
     let camera = loadCamera() || { x: 32, y: 32, scale: 1 };
     const uiState = loadUiState();
@@ -10990,7 +10978,8 @@
     function normalizeStateVariableType(value, fallback = "text") {
       const type = String(value || "").trim();
       const allowed = new Set(stateVariableTypes().map(item => item.value));
-      return allowed.has(type) ? type : fallback;
+      if (!allowed.size) return type || fallback;
+      return allowed.has(type) ? type : (allowed.has(fallback) ? fallback : "");
     }
 
     function normalizeDataTypePath(path, fallback = "") {
@@ -11091,10 +11080,8 @@
     function normalizeProductContractFieldSchema(value) {
       if (!isPlainObject(value)) return null;
       const rawType = String(value.type || "").trim().toLowerCase();
-      const allowed = new Set(DEFAULT_STATE_VARIABLE_TYPES.map(item => item.value));
-      const type = allowed.has(rawType) ? rawType : "text";
       return {
-        type,
+        type: rawType || "text",
         jsonType: String(value.jsonType || "").trim(),
         default: value.default,
         constraints: isPlainObject(value.constraints) ? value.constraints : {}
@@ -11211,34 +11198,21 @@
     }
 
     async function fetchProductContract(options = {}) {
-      const force = options.force === true;
       const notify = options.notify !== false;
-      if (!force && productContractPromise) return productContractPromise;
-      productContractPromise = fetch(PRODUCT_CONTRACT_URL, { method: "GET", cache: "no-store", credentials: "omit" })
-        .then(async response => {
-          const payload = await response.json().catch(() => ({}));
-          if (!response.ok) throw new Error(payload.error || "Product contract failed");
-          productContract = normalizeProductContractPayload(payload);
-          if (notify) refreshProductContractConsumers();
-          return productContract;
-        });
-      try {
-        return await productContractPromise;
-      } catch (error) {
-        if (force) productContractPromise = null;
-        throw error;
-      }
+      const response = await fetch(PRODUCT_CONTRACT_URL, { method: "GET", cache: "no-store", credentials: "omit" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Product contract failed");
+      productContract = normalizeProductContractPayload(payload);
+      if (notify) refreshProductContractConsumers();
+      return productContract;
     }
 
     function ensureProductContractLoaded() {
-      if (productContractPromise) return productContractPromise;
-      productContractPromise = fetchProductContract()
+      return fetchProductContract()
         .then(contract => contract)
         .catch(error => {
-          productContractPromise = null;
           return null;
         });
-      return productContractPromise;
     }
 
     function productContractTriggerTypes() {
@@ -11251,16 +11225,7 @@
     }
 
     function editorTriggerTypes(options = {}) {
-      const types = productContractTriggerTypes();
-      const source = types.length ? types : [
-        { id: "button", label: "Klick" },
-        { id: "timer", label: "Timer-Verzögerung" },
-        { id: "api", label: "API-Antwort" },
-        { id: "change", label: "Daten ändern sich" },
-        { id: "event", label: "Bus-Ereignis" },
-        { id: "realtime", label: "Realtime-Ereignis" },
-        { id: "auto", label: "Sofort" }
-      ];
+      const source = productContractTriggerTypes();
       const includeApi = options.includeApi !== false;
       return source.filter(type => includeApi || type.id !== "api");
     }
@@ -12032,8 +11997,8 @@
     function normalizeTransitionTriggerType(transition) {
       const value = String(transition?.triggerType || "button").toLowerCase();
       const contractIds = productContractTriggerTypes().map(type => type.id).filter(id => id && id !== "api");
-      const allowed = contractIds.length ? contractIds : ["button", "change", "event", "realtime", "timer", "auto"];
-      return allowed.includes(value) ? value : "button";
+      if (contractIds.length) return contractIds.includes(value) ? value : (contractIds.includes("button") ? "button" : contractIds[0]);
+      return normalizeTransitionEvent(value, "button");
     }
 
     function transitionIsRenderButtonAction(transition) {
@@ -19266,11 +19231,12 @@
       const contractTypes = Array.isArray(productContract?.valueTypes)
         ? productContract.valueTypes.map(normalizeProductContractValueType).filter(Boolean)
         : [];
-      return contractTypes.length ? contractTypes : DEFAULT_STATE_VARIABLE_TYPES;
+      return contractTypes;
     }
 
     function stateVariableTypeLabel(type) {
-      return stateVariableTypes().find(item => item.value === normalizeStateVariableType(type))?.label || "Text";
+      const clean = String(type || "").trim().toLowerCase();
+      return stateVariableTypes().find(item => item.value === clean)?.label || clean || "Wert";
     }
 
     function stateVariableTypeFromSuggestion(path, type, value) {

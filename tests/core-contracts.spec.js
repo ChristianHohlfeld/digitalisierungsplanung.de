@@ -1156,6 +1156,9 @@ test.describe("Core source contracts", () => {
 
   test("component data rendering stays wired through global-state paths @smoke", () => {
     const html = stateHtml();
+    const { productContractResponse } = require("../server/product-contract");
+    const { DEFAULT_EVENT_CATALOG } = require("../server/event-catalog");
+    const productContract = productContractResponse(DEFAULT_EVENT_CATALOG);
 
     expect(html).toContain(".global-state-json");
     expect(html).toContain(".global-state-json-toggle");
@@ -1163,7 +1166,8 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("toggleSubscriptionPath");
     expect(html).toContain("toggleRenderPath");
     expect(html).toContain("pTransitionKeyGrid");
-    expect(html).toContain("Daten ändern sich");
+    expect(productContract.triggerTypes.some(type => type.id === "change" && type.label === "Daten aendern sich")).toBe(true);
+    expect(html).not.toContain('label: "Daten aendern sich"');
     expect(html).toContain(".data-wire-row");
     expect(html).toContain("Sichtbare Felder");
     expect(html).toContain("Alle Pfade");
@@ -1824,6 +1828,17 @@ test.describe("Core source contracts", () => {
     expect(hostHtml).not.toContain("setEditorContextPath");
     expect(hostHtml).not.toContain('localStorage.setItem("stateBlueprint.realtime');
     expect(hostHtml).not.toContain("window.__stateBlueprintRealtime");
+  });
+
+  test("host consumes product contract without local contract caches or fallback catalogs @smoke", () => {
+    const html = stateHtml();
+    const hostHtml = html.replace(/const APP_HTML = "((?:\\.|[^"\\])*)";/, 'const APP_HTML = "";');
+
+    expect(hostHtml).toContain('fetch(PRODUCT_CONTRACT_URL, { method: "GET", cache: "no-store", credentials: "omit" })');
+    expect(hostHtml).not.toContain("productContractPromise");
+    expect(hostHtml).not.toContain("DEFAULT_STATE_VARIABLE_TYPES");
+    expect(hostHtml).not.toContain("types.length ? types : [");
+    expect(hostHtml).not.toContain('{ id: "button", label: "Klick" }');
   });
 
   test("canonical JSON and runtime contracts do not keep removed aliases @smoke", () => {
