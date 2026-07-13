@@ -199,7 +199,7 @@ deploy_checked_out_release() {
     log "Deploy attempt ${attempt}/${UPDATE_ATTEMPTS} for ${expected}."
     if APP_DIR="$APP_DIR" BRANCH="$BRANCH" REPO_URL="$REPO_URL" ENV_FILE="$ENV_FILE" \
       PM2_APP="$PM2_APP" HEALTH_ATTEMPTS="$HEALTH_ATTEMPTS" HEALTH_RETRY_DELAY="$HEALTH_RETRY_DELAY" \
-      DEPLOY_SKIP_GIT_SYNC=1 bash "$DEPLOY_RUNNER" &&
+      DEPLOY_SKIP_GIT_SYNC=1 DEPLOY_SKIP_AUTO_DEPLOY=1 bash "$DEPLOY_RUNNER" &&
       verify_release "$expected"; then
       return 0
     fi

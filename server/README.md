@@ -88,10 +88,11 @@ If the repository is not cloned yet, bootstrap it first:
 ```sh
 git clone --branch main https://github.com/ChristianHohlfeld/digitalisierungsplanung.de.git /var/www/digitalisierungsplanung.de
 cd /var/www/digitalisierungsplanung.de
-bash server/deploy.sh
+sudo bash server/deploy.sh
 ```
 
-For an already installed server, install the automatic release watcher once:
+For an already installed server, rerun the same command. It also installs or
+refreshes the automatic release watcher:
 
 ```sh
 cd /var/www/digitalisierungsplanung.de
@@ -99,7 +100,6 @@ git fetch --prune --force origin +refs/heads/main:refs/remotes/origin/main
 git reset --hard origin/main
 git clean -ffd
 sudo bash server/deploy.sh
-sudo bash server/auto-deploy.sh --install
 ```
 
 The systemd timer checks `origin/main` every minute. It deploys only when CI has
@@ -126,20 +126,17 @@ curl -fsS https://realtime.digitalisierungsplanung.de/version
 is never removed by the force sync. Do not keep manual production changes
 inside `/var/www/digitalisierungsplanung.de`; `origin/main` intentionally wins.
 
-`deploy.sh` remains the bootstrap and manual recovery command. It installs only
-missing runtime packages, runs `npm ci --omit=dev`, starts or reloads PM2 with
-`--update-env`, saves PM2 for reboot, validates the shared release, and reloads
-Nginx.
+`deploy.sh` remains the bootstrap and manual recovery command. It installs
+missing runtime packages, validates that the checkout contains only the green
+release source plus `release-version.js`, runs `npm ci --omit=dev`, starts or
+reloads PM2 with `--update-env`, saves PM2 for reboot, reloads Nginx, and
+installs or refreshes the watcher unless `DEPLOY_SKIP_AUTO_DEPLOY=1`.
 
-If you update manually instead:
+Manual recovery uses the same release-gated path:
 
 ```sh
 cd /var/www/digitalisierungsplanung.de
-git pull --ff-only origin main
-npm ci --omit=dev
-pm2 restart digitalisierungsplanung-realtime --update-env
-cp server/nginx/realtime.digitalisierungsplanung.de.conf /etc/nginx/sites-available/realtime.digitalisierungsplanung.de
-nginx -t && systemctl reload nginx
+sudo bash server/deploy.sh
 ```
 
 If TLS is not installed yet, create DNS first and then run:

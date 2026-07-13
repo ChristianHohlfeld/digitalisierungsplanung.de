@@ -139,7 +139,7 @@ Wichtige Dateien:
 - [`server/nginx/realtime.digitalisierungsplanung.de.conf`](server/nginx/realtime.digitalisierungsplanung.de.conf): produktive Nginx-Datei
 - [`server/nginx/realtime.digitalisierungsplanung.de.bootstrap.conf`](server/nginx/realtime.digitalisierungsplanung.de.bootstrap.conf): erste HTTP-Konfiguration für Zertifikate
 
-Automatische Aktualisierung einmalig installieren:
+Server deployen und automatische Aktualisierung installieren oder auffrischen:
 
 ```bash
 cd /var/www/digitalisierungsplanung.de
@@ -147,10 +147,10 @@ git fetch --prune --force origin +refs/heads/main:refs/remotes/origin/main
 git reset --hard origin/main
 git clean -ffd
 sudo bash server/deploy.sh
-sudo bash server/auto-deploy.sh --install
 ```
 
-Danach prüft ein Systemd-Timer jede Minute `origin/main`. Er reagiert erst auf
+`deploy.sh` installiert oder aktualisiert den Systemd-Timer am Ende automatisch.
+Danach prüft der Timer jede Minute `origin/main`. Er reagiert erst auf
 eine nach vollständigem CI-Lauf hochgezählte `release-N`-ID, verwirft lokale
 Änderungen im Server-Checkout, deployt exakt den freigegebenen Commit und prüft
 PM2, Nginx sowie die gleiche ID in `/healthz`. Bei einem Fehlschlag wird der

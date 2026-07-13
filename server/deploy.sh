@@ -11,6 +11,8 @@ REPO_URL="${REPO_URL:-https://github.com/ChristianHohlfeld/digitalisierungsplanu
 ENV_FILE="${ENV_FILE:-/etc/digitalisierungsplanung-realtime.env}"
 PM2_APP="${PM2_APP:-digitalisierungsplanung-realtime}"
 DEPLOY_SKIP_GIT_SYNC="${DEPLOY_SKIP_GIT_SYNC:-0}"
+DEPLOY_SKIP_AUTO_DEPLOY="${DEPLOY_SKIP_AUTO_DEPLOY:-0}"
+AUTO_DEPLOY_INSTALL="${AUTO_DEPLOY_INSTALL:-1}"
 HEALTH_ATTEMPTS="${HEALTH_ATTEMPTS:-20}"
 HEALTH_RETRY_DELAY="${HEALTH_RETRY_DELAY:-1}"
 NGINX_AVAILABLE="/etc/nginx/sites-available/${DOMAIN}"
@@ -83,7 +85,6 @@ elif [[ "$DEPLOY_SKIP_GIT_SYNC" != "1" ]]; then
 fi
 
 cd "$APP_DIR"
-retry 3 5 npm ci --omit=dev
 
 export ZUSTAND_RELEASE_FILE="$APP_DIR/release-version.js"
 export ZUSTAND_RELEASE_ID
@@ -102,7 +103,16 @@ if [[ "$ZUSTAND_RELEASE_ID" == "dev-local" || ! "$ZUSTAND_RELEASE_ID" =~ ^[a-zA-
   printf 'Refusing a production deploy without a valid shared release ID.\n' >&2
   exit 1
 fi
+if [[ -z "$ZUSTAND_RELEASE_SOURCE" ]] || ! git cat-file -e "${ZUSTAND_RELEASE_SOURCE}^{commit}" 2>/dev/null; then
+  printf 'Refusing a production deploy without a valid release source commit.\n' >&2
+  exit 1
+fi
+if ! git diff --quiet "$ZUSTAND_RELEASE_SOURCE" -- . ':(exclude)release-version.js'; then
+  printf 'Refusing a production deploy because this checkout contains code beyond green source %s.\n' "$ZUSTAND_RELEASE_SOURCE" >&2
+  exit 1
+fi
 log "Deploying ${ZUSTAND_RELEASE_ID} from ${ZUSTAND_DEPLOY_COMMIT}."
+retry 3 5 npm ci --omit=dev
 
 if [[ ! -f "$ENV_FILE" ]]; then
   install -m 600 /dev/null "$ENV_FILE"
@@ -181,4 +191,11 @@ if [[ -f "/etc/letsencrypt/live/${FRONTEND_DOMAIN}/fullchain.pem" ]]; then
   log "Static frontend ${ZUSTAND_RELEASE_ID} is live at https://${FRONTEND_DOMAIN} with no-store."
 else
   log "Static no-store boundary is staged for ${FRONTEND_DOMAIN}; issue its certificate after DNS points here."
+fi
+
+if [[ "$DEPLOY_SKIP_GIT_SYNC" != "1" && "$DEPLOY_SKIP_AUTO_DEPLOY" != "1" && "$AUTO_DEPLOY_INSTALL" == "1" && -f "$APP_DIR/server/auto-deploy.sh" ]]; then
+  log "Installing or refreshing the automatic green-release watcher."
+  APP_DIR="$APP_DIR" BRANCH="$BRANCH" REPO_URL="$REPO_URL" ENV_FILE="$ENV_FILE" \
+    PM2_APP="$PM2_APP" HEALTH_ATTEMPTS="$HEALTH_ATTEMPTS" HEALTH_RETRY_DELAY="$HEALTH_RETRY_DELAY" \
+    bash "$APP_DIR/server/auto-deploy.sh" --install
 fi

@@ -96,6 +96,7 @@ test("keeps automatic deployment locked, release-gated, force-synced, verified, 
   assert.match(autoDeploy, /Waiting for the green CI release stamp/);
   assert.match(autoDeploy, /prepare_deploy_runner/);
   assert.match(autoDeploy, /bash "\$DEPLOY_RUNNER"/);
+  assert.match(autoDeploy, /DEPLOY_SKIP_AUTO_DEPLOY=1/);
   assert.match(autoDeploy, /Marker remains on/);
   assert.doesNotMatch(autoDeploy, /running_release_id|commit_for_release|previous_release_commit/);
   assert.doesNotMatch(autoDeploy, /Rollback|rollback|failed\. Restoring/);
@@ -108,6 +109,10 @@ test("keeps automatic deployment locked, release-gated, force-synced, verified, 
   assert.match(deploy, /pm2 startOrReload .* --update-env/);
   assert.match(deploy, /nginx -t/);
   assert.match(deploy, /releaseId !== expected/);
+  assert.match(deploy, /git cat-file -e "\$\{ZUSTAND_RELEASE_SOURCE\}\^\{commit\}"/);
+  assert.match(deploy, /git diff --quiet "\$ZUSTAND_RELEASE_SOURCE" -- \. ':\(exclude\)release-version\.js'/);
+  assert.match(deploy, /AUTO_DEPLOY_INSTALL/);
+  assert.match(deploy, /auto-deploy\.sh" --install/);
   assert.doesNotMatch(deploy, /legacyRollback|deploy-\d/);
   assert.doesNotMatch(autoDeploy, /legacyRollback|deploy-\d/);
   assert.match(ecosystem, /process\.env\.APP_DIR/);
