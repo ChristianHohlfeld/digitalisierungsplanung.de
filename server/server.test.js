@@ -307,16 +307,24 @@ test("exposes one shared frontend and backend release without caching it", async
 
 test("returns not_found for non-core realtime routes", async () => {
   await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
-    for (const path of ["/", "/catalog", "/schema", "/api"]) {
+    for (const path of ["/", "/catalog", "/schema", "/api", "/process/contract", "/process/analyze"]) {
       const response = await fetch(httpUrl(realtime, path), { headers: { Origin: ORIGIN } });
       assert.equal(response.status, 404, `${path} should stay out of the lean realtime API`);
       assert.deepEqual(await response.json(), { error: "not_found" });
     }
+    const removedAnalyzer = await fetch(httpUrl(realtime, "/process/analyze"), {
+      method: "POST",
+      headers: { Origin: ORIGIN, "content-type": "application/json" },
+      body: "{}"
+    });
+    assert.equal(removedAnalyzer.status, 404);
+    assert.deepEqual(await removedAnalyzer.json(), { error: "not_found" });
   });
 });
 
 test("nginx proxies only lean public realtime routes", () => {
   const nginx = fs.readFileSync(NGINX_CONFIG_PATH, "utf8");
+  const serverSource = fs.readFileSync(path.join(__dirname, "server.js"), "utf8");
   const normalized = nginx.replace(/\\\./g, ".");
   for (const route of [
     "console.html",
@@ -329,15 +337,13 @@ test("nginx proxies only lean public realtime routes", () => {
     "/token",
     "/events",
     "/emit",
-    "/process/contract",
-    "/process/analyze",
     "/ws"
   ]) {
     assert.ok(normalized.includes(route), `${route} route is missing`);
   }
   assert.match(normalized, /location = \/ws/);
-  assert.match(normalized, /location = \/process\/analyze/);
-  assert.match(nginx, /location = \/process\/analyze[\s\S]*proxy_request_buffering off;/);
+  assert.doesNotMatch(normalized, /\/process\//);
+  assert.doesNotMatch(serverSource, /PROCESS_RECORDER|OPENAI_API_KEY|\/process\/analyze/);
   assert.match(nginx, /proxy_pass\s+http:\/\/127\.0\.0\.1:8788;/);
 });
 
@@ -750,135 +756,5 @@ test("rejects removed presence and never broadcasts peer lifecycle messages", as
     assert.equal(error.code, "invalid_type");
     bob.close();
     await assertNoMessage(alice, message => message.type === "peer.leave");
-  });
-});
-
-test("serves stateless process-recorder capability and a validated no-store model", async () => {
-  let receivedCapture = null;
-  await withRealtimeServer({
-    processAnalyzer: async capture => {
-      receivedCapture = capture;
-      return {
-        title: "Anfrage bearbeiten",
-        steps: [
-          { title: "Anfrage", description: "Anfrage liegt vor.", actionToNext: "Prüfen" },
-          { title: "Geprüft", description: "Anfrage wurde geprüft.", actionToNext: "" }
-        ]
-      };
-    }
-  }, async realtime => {
-    const contract = await fetch(httpUrl(realtime, "/process/contract"), { headers: { Origin: ORIGIN } });
-    assert.equal(contract.status, 200);
-    assert.match(contract.headers.get("cache-control"), /no-store/);
-    const capability = await contract.json();
-    assert.equal(capability.enabled, true);
-    assert.deepEqual(capability.capture.sources, ["browser-display"]);
-    assert.equal(capability.capture.persisted, false);
-    assert.equal(capability.capture.maxLiveAnalyses, 12);
-    assert.equal(capability.capture.idlePauseMs, 5000);
-
-    const response = await fetch(httpUrl(realtime, "/process/analyze"), {
-      method: "POST",
-      headers: { Origin: ORIGIN, "content-type": "application/json" },
-      body: JSON.stringify({
-        sessionId: "session",
-        startedAt: 1,
-        endedAt: 2,
-        events: [
-          { seq: 1, at: 1, kind: "visual", app: "Freigegebenes Fenster", window: "Anfrage" },
-          { seq: 2, at: 2, kind: "visual", app: "Freigegebenes Fenster", window: "Anfrage geprüft" }
-        ],
-        frames: []
-      })
-    });
-    assert.equal(response.status, 200);
-    assert.match(response.headers.get("cache-control"), /no-store/);
-    const body = await response.json();
-    assert.equal(body.contract, "zustand-process-model-v1");
-    assert.equal(body.model.states.length, 2);
-    assert.equal(body.model.transitions[0].triggerEvent, `button.${body.model.transitions[0].id}`);
-    assert.equal(receivedCapture.events.length, 2);
-
-    const forbidden = await fetch(httpUrl(realtime, "/process/analyze"), {
-      method: "POST",
-      headers: { Origin: "https://evil.example", "content-type": "application/json" },
-      body: "{}"
-    });
-    assert.equal(forbidden.status, 403);
-  });
-});
-
-test("returns safe provider diagnostics without provider messages", async () => {
-  await withRealtimeServer({
-    processAnalyzer: async () => {
-      const error = new Error("sensitive provider message");
-      error.status = 502;
-      error.code = "process_provider_unauthorized";
-      error.providerStatus = 401;
-      error.providerCode = "invalid_api_key";
-      error.providerRequestId = "req-safe-123";
-      throw error;
-    }
-  }, async realtime => {
-    const response = await fetch(httpUrl(realtime, "/process/analyze"), {
-      method: "POST",
-      headers: { Origin: ORIGIN, "content-type": "application/json" },
-      body: JSON.stringify({
-        events: [{ seq: 1, at: 1, kind: "visual", app: "Browser", window: "Start" }],
-        frames: []
-      })
-    });
-    assert.equal(response.status, 502);
-    assert.deepEqual(await response.json(), {
-      error: "process_provider_unauthorized",
-      providerStatus: 401,
-      providerCode: "invalid_api_key",
-      providerRequestId: "req-safe-123"
-    });
-  });
-});
-
-test("bounds concurrent process agents and releases the slot after completion", async () => {
-  let releaseFirst;
-  let firstEntered;
-  const entered = new Promise(resolve => { firstEntered = resolve; });
-  const firstResult = new Promise(resolve => { releaseFirst = resolve; });
-  let calls = 0;
-  const trace = {
-    title: "Ablauf",
-    steps: [{ title: "Start", description: "Beginn", actionToNext: "" }]
-  };
-  const payload = {
-    sessionId: "session",
-    startedAt: 1,
-    endedAt: 2,
-    events: [{ seq: 1, at: 1, kind: "visual", app: "Freigegebenes Fenster", window: "Start" }],
-    frames: []
-  };
-  await withRealtimeServer({
-    processMaxConcurrent: 1,
-    processAnalyzer: async () => {
-      calls += 1;
-      if (calls === 1) {
-        firstEntered();
-        return firstResult;
-      }
-      return trace;
-    }
-  }, async realtime => {
-    const request = () => fetch(httpUrl(realtime, "/process/analyze"), {
-      method: "POST",
-      headers: { Origin: ORIGIN, "content-type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-    const first = request();
-    await entered;
-    const busy = await request();
-    assert.equal(busy.status, 429);
-    assert.deepEqual(await busy.json(), { error: "process_analyzer_busy" });
-    releaseFirst(trace);
-    assert.equal((await first).status, 200);
-    assert.equal((await request()).status, 200);
-    assert.equal(calls, 2);
   });
 });

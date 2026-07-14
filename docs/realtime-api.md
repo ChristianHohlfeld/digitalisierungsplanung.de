@@ -11,8 +11,7 @@ Der globale JSON-Zustands-/Ereignisbus bleibt die einzige fachliche Wahrheit. De
 - Connector-Katalog für echte Ereignisquellen,
 - zustandsloser Sende-Endpunkt für externe Systeme,
 - Browser-Testkonsole für manuelles Emitten,
-- Admin-Designer für Katalogänderungen per Git,
-- zustandslose Analyse explizit freigegebener Browser-Prozessaufnahmen für den Editor.
+- Admin-Designer für Katalogänderungen per Git.
 
 Zusätzlich veröffentlicht der Server lesend die gemeinsame
 Frontend-/Backend-Release-ID. Er besitzt dafür keinen zweiten Versionszähler.
@@ -653,39 +652,7 @@ REALTIME_REPO_DIR=/path/to/repo
 REALTIME_RATE_LIMIT=360
 REALTIME_RATE_WINDOW_MS=10000
 REALTIME_MAX_PAYLOAD_BYTES=65536
-PROCESS_RECORDER_CONTRACT_PATH=/process/contract
-PROCESS_RECORDER_ANALYZE_PATH=/process/analyze
-PROCESS_RECORDER_MAX_PAYLOAD_BYTES=8388608
-PROCESS_RECORDER_MAX_CONCURRENT=4
-PROCESS_RECORDER_TIMEOUT_MS=90000
-PROCESS_RECORDER_OPENAI_API_KEY=<optional-server-secret>
-PROCESS_RECORDER_MODEL=gpt-5.6-luna
-PROCESS_RECORDER_ANALYZER_URL=<optional-custom-agent-url>
-PROCESS_RECORDER_ANALYZER_TOKEN=<optional-server-secret>
 ```
-
-## Browser-Prozessaufnahme
-
-`GET /process/contract` meldet, ob ein Agent konfiguriert ist, und veröffentlicht
-nur nicht geheime Grenzen. `POST /process/analyze` akzeptiert höchstens 4000
-neutrale `visual`-Ereignisse und 36 zeitlich ausgedünnte
-JPEG-Kontextbilder stabiler Änderungen aus der ausdrücklich freigegebenen
-Browseroberfläche. Es gibt keinen lokalen Begleiter und keine nativen Hooks.
-Die Kontextbilder können alle sichtbaren Inhalte der gewählten Oberfläche
-enthalten; personenbezogene Werte dürfen nicht in die Prozessdefinition
-übernommen werden.
-
-Der veröffentlichte Vertrag begrenzt eine Sitzung auf zwölf Live-Analysen mit
-mindestens 15 Sekunden Abstand. Nach fünf Sekunden ohne relevante Änderung
-pausieren neue Ereignisse, Kontextbilder und Agentenaufrufe automatisch. Ein
-abschließender Lauf bei Stop ist nur erlaubt, wenn seit der letzten Analyse
-neue stabile Zustände hinzugekommen sind.
-
-Der Endpunkt führt keine Session und persistiert weder Eingabe noch Ergebnis.
-Er gibt ausschließlich ein vollständiges, vom gemeinsamen MCP-Core validiertes
-Modell zurück. OpenAI-Anfragen setzen `store: false` und strukturiertes JSON;
-ein eigener Agent darf nur die Prozessspur liefern. IDs, Layout, Transitionen
-und Trigger werden immer deterministisch auf dem Zustand-Server erzeugt.
 
 ## Externer SIP-Call als Beispiel
 
