@@ -5829,7 +5829,7 @@ test.describe("State Blueprint tool", () => {
 
     await expect(historyActions).toBeVisible();
     await assertVisibleInViewport(page, "#canvasHistoryActions");
-    await expect(page.locator('#btnUndo, #btnRedo, #btnMobileUndo, #btnMobileRedo, [data-topbar-proxy="btnUndo"], [data-topbar-proxy="btnRedo"]')).toHaveCount(0);
+    await expect(page.locator('#btnUndo, #btnRedo, #btnMobileUndo, #btnMobileRedo, #btnMobileActionUndo, #btnMobileActionRedo, [data-topbar-proxy="btnUndo"], [data-topbar-proxy="btnRedo"]')).toHaveCount(0);
     await expect(undo.locator('svg[data-lucide="undo-2"]')).toHaveCount(1);
     await expect(redo.locator('svg[data-lucide="redo-2"]')).toHaveCount(1);
     await expect(undo).toHaveText("");
@@ -5862,7 +5862,7 @@ test.describe("State Blueprint tool", () => {
     await expect(redo).toBeDisabled();
   });
 
-  test("keeps compact mobile actions available across workspace tabs without covering the canvas @smoke", async ({ browser }) => {
+  test("keeps one correctly oriented history pair on the mobile canvas across workspace tabs @smoke", async ({ browser }) => {
     const context = await browser.newContext({
       baseURL: "http://localhost:8124",
       viewport: { width: 390, height: 820 },
@@ -5874,19 +5874,18 @@ test.describe("State Blueprint tool", () => {
       await openTool(page);
       await expect(page.locator("#mobileCommandBar")).toBeVisible();
       await assertVisibleInViewport(page, "#mobileCommandBar");
-      await expect(page.locator("#canvasHistoryActions")).toBeHidden();
+      await expect(page.locator("#canvasHistoryActions")).toBeVisible();
+      await assertVisibleInViewport(page, "#canvasHistoryActions");
       await expect(page.locator("#selectionActions")).toBeHidden();
-      await expect(page.locator("#btnUndo, #btnRedo, #btnMobileUndo, #btnMobileRedo")).toHaveCount(0);
-      await expect(page.locator("#btnMobileProcessRecord")).toBeVisible();
-      await expect(page.locator("#btnMobileProcessRecord")).toHaveAttribute("aria-pressed", "false");
+      await expect(page.locator("#btnUndo, #btnRedo, #btnMobileUndo, #btnMobileRedo, #btnMobileActionUndo, #btnMobileActionRedo, #btnMobileProcessRecord")).toHaveCount(0);
+      await expect(page.locator("#btnProcessRecord")).toBeHidden();
       await expect(page.locator("#btnMobileRuntimeFollow")).toBeVisible();
       await expect(page.locator("#btnMobileRuntimeFollow")).toHaveAttribute("aria-pressed", "true");
-      await expect(page.locator("#mobileProcessRecordingStatus")).toBeHidden();
-      await expect(page.locator('#btnMobileActionUndo svg[data-lucide="undo-2"]')).toHaveCount(1);
-      await expect(page.locator('#btnMobileActionRedo svg[data-lucide="redo-2"]')).toHaveCount(1);
+      await expect(page.locator('#btnCanvasUndo svg[data-lucide="undo-2"]')).toHaveCount(1);
+      await expect(page.locator('#btnCanvasRedo svg[data-lucide="redo-2"]')).toHaveCount(1);
       await expect.poll(() => page.evaluate(() => {
-        const undo = document.querySelector('#btnMobileActionUndo svg[data-lucide="undo-2"]');
-        const redo = document.querySelector('#btnMobileActionRedo svg[data-lucide="redo-2"]');
+        const undo = document.querySelector('#btnCanvasUndo svg[data-lucide="undo-2"]');
+        const redo = document.querySelector('#btnCanvasRedo svg[data-lucide="redo-2"]');
         return {
           undoArrow: undo?.querySelector("path")?.getAttribute("d") || "",
           redoArrow: redo?.querySelector("path")?.getAttribute("d") || "",
@@ -5922,6 +5921,8 @@ test.describe("State Blueprint tool", () => {
       for (const mobileView of ["presets", "edit", "app", "canvas"]) {
         await page.locator(`[data-mobile-view="${mobileView}"]`).tap();
         await expect(page.locator("#mobileCommandBar")).toBeVisible();
+        await expect(page.locator("#canvasHistoryActions")).toBeVisible();
+        await assertVisibleInViewport(page, "#canvasHistoryActions");
         await expect(page.locator("#mobileSelectionCount")).toHaveText("1 Zustand");
         await expect(page.locator("#btnMobileActionCopy")).toBeEnabled();
         await expect(page.locator("#btnMobileActionDelete")).toBeEnabled();
@@ -5934,11 +5935,11 @@ test.describe("State Blueprint tool", () => {
         draw();
       });
       await expect(page.locator('[data-id="login"] .title')).toHaveText("Sign in");
-      await expect(page.locator("#btnMobileActionUndo")).toBeEnabled();
+      await expect(page.locator("#btnCanvasUndo")).toBeEnabled();
 
-      await page.locator("#btnMobileActionUndo").tap();
+      await page.locator("#btnCanvasUndo").tap();
       await expect(page.locator('[data-id="login"] .title')).toHaveText("Login");
-      await expect(page.locator("#btnMobileActionRedo")).toBeEnabled();
+      await expect(page.locator("#btnCanvasRedo")).toBeEnabled();
     } finally {
       await context.close();
     }
@@ -10450,7 +10451,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#mobileSplitResizeHandle")).toHaveCount(0);
     await expectMobileSheetHandle(page, false);
     await expect(page.locator("#mobileCommandBar")).toBeVisible();
-    await expect(page.locator("#canvasHistoryActions")).toBeHidden();
+    await expect(page.locator("#canvasHistoryActions")).toBeVisible();
     await expect.poll(() => page.evaluate(() => {
       const box = document.querySelector('[data-id="auth_start"]')?.getBoundingClientRect();
       return {
@@ -10510,7 +10511,7 @@ test.describe("State Blueprint tool", () => {
     )).toBeGreaterThan(3);
     await expectElementAboveMobileTabs("#stateExplorer");
     await expect(page.locator("#selectionActions")).toBeHidden();
-    await expect(page.locator("#canvasHistoryActions")).toBeHidden();
+    await expect(page.locator("#canvasHistoryActions")).toBeVisible();
     await expect(page.locator("#mobileCommandBar")).toBeVisible();
     await expect(page.locator("#stateInspector")).toBeHidden();
     await expect(page.locator(".preview")).toBeHidden();
@@ -14562,87 +14563,16 @@ test.describe("State Blueprint tool", () => {
     expect(exportedHtml).not.toContain("43127");
     expect(exportedHtml).not.toContain("btnProcessRecord");
     expect(exportedHtml).not.toContain("PROCESS_COMPANION_URL");
+    const editorHtml = fs.readFileSync("state.html", "utf8");
+    expect(editorHtml).not.toContain("getDisplayMedia");
+    expect(editorHtml).not.toContain("startBrowserProcessRecording");
+    expect(editorHtml).not.toContain("btnMobileProcessRecord");
+    expect(editorHtml).not.toContain("btnMobileActionUndo");
+    expect(editorHtml).not.toContain("btnMobileActionRedo");
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.locator("#btnProcessRecord")).toBeHidden();
-    await expect(page.locator("#btnMobileProcessRecord")).toBeVisible();
+    await expect(page.locator("#btnMobileProcessRecord")).toHaveCount(0);
     await expect(page.locator("#map")).toBeVisible();
-  });
-
-  test("records a mobile browser process without the Windows companion", async ({ browser }) => {
-    const context = await browser.newContext({
-      baseURL: "http://localhost:8124",
-      viewport: { width: 390, height: 844 },
-      hasTouch: true,
-      isMobile: true
-    });
-    const page = await context.newPage();
-    await page.addInitScript(() => {
-      try {
-        if (navigator.mediaDevices) navigator.mediaDevices.getDisplayMedia = undefined;
-      } catch (_) {}
-    });
-    const recordedModel = modelFromTrace({
-      title: "Mobile Anfrage",
-      steps: [
-        { title: "Mobile Start", description: "Der mobile Ablauf beginnt.", actionToNext: "Weiter" },
-        { title: "Mobile Fertig", description: "Der mobile Ablauf ist erfasst.", actionToNext: "" }
-      ]
-    }).model;
-    let analyzeBody = null;
-    let companionTouched = false;
-
-    await page.route("**/process/contract", route => route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      headers: { "cache-control": "no-store" },
-      body: JSON.stringify({
-        ok: true,
-        enabled: true,
-        contract: "zustand-process-recorder-v1",
-        capture: { sources: ["windows-companion", "browser-recorder"], persisted: false, maxEvents: 4000, maxFrames: 36 }
-      })
-    }));
-    await page.route("http://127.0.0.1:43127/v1/**", route => {
-      companionTouched = true;
-      return route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: "unexpected_companion_call" }) });
-    });
-    await page.route("**/process/analyze", async route => {
-      analyzeBody = route.request().postDataJSON();
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        headers: { "cache-control": "no-store" },
-        body: JSON.stringify({ ok: true, contract: "zustand-process-model-v1", model: recordedModel, summary: { states: 2, transitions: 1 } })
-      });
-    });
-
-    try {
-      await openTool(page);
-      await expect(page.locator("#btnMobileProcessRecord")).toBeVisible();
-      await page.locator("#btnMobileProcessRecord").tap();
-      await expect(page.getByRole("heading", { name: "Ablauf aufnehmen" })).toBeVisible();
-      await page.getByRole("button", { name: "Aufnahme starten" }).tap();
-      await expect(page.locator("#btnMobileProcessRecord")).toHaveAttribute("aria-pressed", "true");
-      await expect(page.locator("#mobileProcessRecordingStatus")).toBeVisible();
-      await expect(page.locator("#mobileProcessRecordingStatus")).toContainText("Rec");
-
-      await page.locator('[data-id="login"]').tap();
-      await expect(page.locator("#btnMobileActionDelete")).toBeDisabled();
-      await expect(page.locator("#mobileProcessRecordingStatus")).toContainText("2");
-      await page.locator("#btnMobileProcessRecord").tap();
-      await expect(page.locator("#btnMobileProcessRecord")).toHaveAttribute("aria-pressed", "false");
-      await expect(page.locator("#mobileProcessRecordingStatus")).toBeHidden();
-      await expect(page.locator('[data-id="mobile_start"]')).toBeVisible();
-      await expect(page.locator("#btnMobileActionUndo")).toBeEnabled();
-
-      expect(companionTouched).toBe(false);
-      expect(analyzeBody).toBeTruthy();
-      expect(analyzeBody.events.map(event => event.kind)).toContain("application");
-      expect(analyzeBody.events.map(event => event.kind)).toContain("click");
-      expect(JSON.stringify(analyzeBody)).not.toContain("value");
-    } finally {
-      await context.close();
-    }
   });
 
   test("leaves model and history unchanged when PC process analysis fails", async ({ page }) => {

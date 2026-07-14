@@ -4,10 +4,10 @@ Status: normativ
 
 Schema: State Blueprint Version 2
 
-Stand: 2026-07-12
+Stand: 2026-07-14
 
-Auditbasis: Repository-Commit `6db6c54`, Produktquellen zuletzt geändert in
-`3ef5b0b`, gemeinsame Freigabe zu Auditbeginn `release-63`
+Auditbasis: Repository-Commit `d061538`, gemeinsame Freigabe zu Auditabschluss
+`release-96`
 
 Dieses Dokument ist der schriftliche Vertrag von Zustand / Digitalisierungsplanung.
 Es beschreibt die Invarianten, die Editor, Runtime, Export, API, MCP und
@@ -909,11 +909,14 @@ Editoraktion
   jedes andere kanonische Modell.
 - **REC-011 V1-Plattform:** Die erste Version unterstützt Windows-Desktop.
   Der Aufnahmebutton MUSS in mobilen Layouts verborgen bleiben und DARF den
-  mobilen Canvas nicht verkleinern oder überdecken.
+  mobilen Canvas nicht verkleinern oder überdecken. Mobile Layouts DÜRFEN
+  keinen Browser-Recorder, keine Aufnahme-Hooks und keinen
+  `getDisplayMedia`-Aufnahmepfad bereitstellen.
 
 ## 16. Öffentliche Demo und Produkt-Abnahme
 
-- **DEMO-001 Modell:** Die eingebaute Website-Demo heißt `Zustand-Beispiel`,
+- **DEMO-001 Modell:** Die eingebaute Website-Demo heißt
+  `Digitalisierungsplanung`,
   startet in `site_home` und besitzt exakt diese neun Zustände:
 
   ```text
@@ -946,8 +949,9 @@ Editoraktion
   seiner Kinder liefern; anschließend MUSS genau ein nicht erzwungener Click
   ohne Retry oder Fallback genügen.
 - **DEMO-006 Shell:** Die acht sichtbaren Seitenzustände verwenden eine
-  gemeinsame Navbar mit `Zustand`, `Start`, `Nutzen`, `Angebot`, `Kontakt` und
-  `Konto` sowie einen Footer mit `Zustand GmbH` und fünf gebundenen Aktionen.
+  gemeinsame Navbar mit `Digitalisierungsplanung`, `Start`, `Nutzen`,
+  `Angebot`, `Kontakt` und `Konto` sowie einen Footer mit
+  `Digitalisierungsplanung.de` und fünf gebundenen Aktionen.
 - **DEMO-007 Fachabläufe:** Start, Nutzen, Angebot, Anfrage, Kontakt, Danke,
   Konto und Profil MÜSSEN über echte FSM-Transitionen funktionieren.
   Checkout schreibt den gewählten Plan und Abschluss in
@@ -962,7 +966,7 @@ Editoraktion
   Share-Card laden und die getesteten Navigations-, Checkout- und Kontaktpfade
   ausführen.
 - **DEMO-010 Manifest:** Das Webmanifest MUSS den Namen
-  `Zustand Digitalisierungsplanung` ausliefern.
+  `Digitalisierungsplanung.de` ausliefern.
 - **DEMO-011 Kein Cache:** Editor, Root-Demo, Exporte und statische Assets
   DÜRFEN weder einen App-Shell-/Asset-Cache anlegen noch Stale-while-revalidate
   verwenden. Die App DARF keinen Service Worker registrieren. Ein ausschließlich

@@ -280,7 +280,10 @@ test.describe("Core source contracts", () => {
       ["Zust", "aende"].join(""),
       ["Rueck", "gaengig"].join(""),
       ["Fuss", "zeile"].join(""),
-      ["Schlies", "sen"].join("")
+      ["Schlies", "sen"].join(""),
+      ["Ueber", "schrift"].join(""),
+      ["aen", "dern"].join(""),
+      ["schlies", "sen"].join("")
     ];
 
     expect(html).not.toMatch(mojibakePattern);
@@ -292,6 +295,9 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("Rückgängig");
     expect(html).toContain("Fußzeile");
     expect(html).toContain("Schließen");
+    expect(html).toContain("Überschrift");
+    expect(html).toContain("ändern");
+    expect(html).toContain("schließen");
     expect(html).toContain("flushRuntimeEvents");
     expect(html).not.toContain("flushRuntimeEreignisse");
   });

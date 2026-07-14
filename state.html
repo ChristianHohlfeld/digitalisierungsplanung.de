@@ -3125,22 +3125,17 @@
       animation: process-recording-pulse 1.35s ease-in-out infinite;
     }
 
-    #btnProcessRecord,
-    #btnMobileProcessRecord { color: #fda4af; }
+    #btnProcessRecord { color: #fda4af; }
 
-    #btnProcessRecord[aria-pressed="true"],
-    #btnMobileProcessRecord[aria-pressed="true"] {
+    #btnProcessRecord[aria-pressed="true"] {
       border-color: rgba(251,113,133,.65);
       background: rgba(127,29,29,.56);
       color: #fff1f2;
     }
 
     #btnProcessRecord .process-stop-icon,
-    #btnMobileProcessRecord .process-stop-icon,
-    #btnProcessRecord[aria-pressed="true"] .process-record-icon,
-    #btnMobileProcessRecord[aria-pressed="true"] .process-record-icon { display: none; }
-    #btnProcessRecord[aria-pressed="true"] .process-stop-icon,
-    #btnMobileProcessRecord[aria-pressed="true"] .process-stop-icon { display: block; }
+    #btnProcessRecord[aria-pressed="true"] .process-record-icon { display: none; }
+    #btnProcessRecord[aria-pressed="true"] .process-stop-icon { display: block; }
 
     @keyframes process-recording-pulse {
       0%, 100% { opacity: .58; transform: scale(.84); }
@@ -3596,6 +3591,11 @@
       line-height: 1;
     }
 
+    .preset-preview-close svg {
+      width: 18px;
+      height: 18px;
+    }
+
     .preset-preview-frame-wrap {
       min-height: 220px;
       height: min(330px, calc(100vh - 138px));
@@ -4036,7 +4036,6 @@
       }
 
       .workspace.mobile-app-active .state-explorer,
-      .workspace.mobile-app-active .canvas-history-actions,
       .workspace.mobile-app-active .selection-actions,
       .workspace.mobile-app-active .node-edit {
         display: none !important;
@@ -4291,51 +4290,11 @@
         background: rgba(127,29,29,.35);
       }
 
-      .mobile-process-record[aria-pressed="true"] {
-        box-shadow: 0 0 0 3px rgba(251,113,133,.16);
-      }
-
       .mobile-runtime-follow[aria-pressed="true"] {
         border-color: rgba(52,211,153,.65);
         color: #bbf7d0;
         background: rgba(6,78,59,.42);
         box-shadow: 0 0 0 3px rgba(52,211,153,.14);
-      }
-
-      .mobile-process-recording-status {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        min-width: 0;
-        max-width: 86px;
-        padding: 0 5px;
-        color: #fecdd3;
-        font-size: 10px;
-        font-weight: 850;
-        line-height: 1;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
-      .mobile-process-recording-status[hidden] {
-        display: none;
-      }
-
-      .mobile-process-recording-status .process-recording-dot {
-        width: 6px;
-        height: 6px;
-        box-shadow: 0 0 0 3px rgba(251,113,133,.12);
-      }
-
-      .mobile-process-recording-text {
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-
-      .mobile-command-bar.recording .mobile-selection-count {
-        display: none;
       }
 
       .mobile-action-icon {
@@ -4664,8 +4623,7 @@
         gap: 10px;
       }
 
-      .selection-actions,
-      .canvas-history-actions {
+      .selection-actions {
         display: none !important;
       }
 
@@ -5800,23 +5758,9 @@
     </aside>
   </div>
   <div id="mobileCommandBar" class="mobile-command-bar" aria-label="Mobile Aktionen">
-    <div class="mobile-command-history" aria-label="Arbeitsflächen-Verlauf">
-      <button id="btnMobileProcessRecord" class="mobile-process-record" type="button" title="Ablauf aufnehmen" aria-label="Ablauf aufnehmen" aria-pressed="false">
-        <svg class="mobile-action-icon process-record-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"></circle></svg>
-        <svg class="mobile-action-icon process-stop-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1.5"></rect></svg>
-      </button>
-      <span id="mobileProcessRecordingStatus" class="mobile-process-recording-status" role="status" aria-live="polite" hidden>
-        <span class="process-recording-dot" aria-hidden="true"></span>
-        <span id="mobileProcessRecordingStatusText" class="mobile-process-recording-text">Rec 00:00</span>
-      </span>
+    <div class="mobile-command-history" aria-label="Canvas-Steuerung">
       <button id="btnMobileRuntimeFollow" class="mobile-runtime-follow" type="button" title="Runtime folgen" aria-label="Runtime folgen" aria-pressed="true">
         <svg class="mobile-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7"></circle><path d="M12 3v3"></path><path d="M12 18v3"></path><path d="M3 12h3"></path><path d="M18 12h3"></path><circle cx="12" cy="12" r="2"></circle></svg>
-      </button>
-      <button id="btnMobileActionUndo" type="button" title="Rückgängig" aria-label="Rückgängig" disabled="">
-        <svg class="mobile-action-icon" data-lucide="undo-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"></path><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5A5.5 5.5 0 0 1 14.5 20H11"></path></svg>
-      </button>
-      <button id="btnMobileActionRedo" type="button" title="Wiederholen" aria-label="Wiederholen" disabled="">
-        <svg class="mobile-action-icon" data-lucide="redo-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5"></path><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5 5.5 5.5 0 0 0 9.5 20H13"></path></svg>
       </button>
     </div>
     <div class="mobile-command-selection" aria-label="Auswahlaktionen">
@@ -9326,12 +9270,7 @@
     const btnSelectionDelete = document.getElementById("btnSelectionDelete");
     const mobileCommandBarEl = document.getElementById("mobileCommandBar");
     const mobileSelectionCountEl = document.getElementById("mobileSelectionCount");
-    const btnMobileProcessRecord = document.getElementById("btnMobileProcessRecord");
-    const mobileProcessRecordingStatusEl = document.getElementById("mobileProcessRecordingStatus");
-    const mobileProcessRecordingStatusTextEl = document.getElementById("mobileProcessRecordingStatusText");
     const btnMobileRuntimeFollow = document.getElementById("btnMobileRuntimeFollow");
-    const btnMobileActionUndo = document.getElementById("btnMobileActionUndo");
-    const btnMobileActionRedo = document.getElementById("btnMobileActionRedo");
     const btnMobileActionCopy = document.getElementById("btnMobileActionCopy");
     const btnMobileActionCollapse = document.getElementById("btnMobileActionCollapse");
     const btnMobileActionDelete = document.getElementById("btnMobileActionDelete");
@@ -10165,7 +10104,7 @@
       const recording = processRecording;
       const active = Boolean(recording);
       const title = active ? "Ablaufaufnahme stoppen" : "Ablauf aufnehmen";
-      [btnProcessRecord, btnMobileProcessRecord].forEach(button => {
+      [btnProcessRecord].forEach(button => {
         if (!button) return;
         button.setAttribute("aria-pressed", active ? "true" : "false");
         button.disabled = Boolean(recording?.stopping);
@@ -10173,8 +10112,6 @@
         button.setAttribute("aria-label", title);
       });
       processRecordingStatusEl.hidden = !active;
-      if (mobileProcessRecordingStatusEl) mobileProcessRecordingStatusEl.hidden = !active;
-      mobileCommandBarEl?.classList.toggle("recording", active);
       if (active) {
         const phase = recording.stopping
           ? "Wird abgeschlossen"
@@ -10182,10 +10119,7 @@
             ? "Agent zeichnet"
             : "Aufnahme";
         const count = recording.eventCount ? ` · ${recording.eventCount} Ereignisse` : "";
-        const mobilePhase = recording.stopping ? "Stoppt" : recording.agentBusy ? "Agent" : "Rec";
-        const mobileCount = recording.eventCount ? ` · ${recording.eventCount}` : "";
         processRecordingStatusTextEl.textContent = `${phase} ${processDurationLabel(recording.startedAt)}${count}`;
-        if (mobileProcessRecordingStatusTextEl) mobileProcessRecordingStatusTextEl.textContent = `${mobilePhase} ${processDurationLabel(recording.startedAt)}${mobileCount}`;
       }
       updateSelectionActions();
       updateHistoryButtons();
@@ -10222,264 +10156,6 @@
       document.body.appendChild(link);
       link.click();
       link.remove();
-    }
-
-    function processSessionId(prefix) {
-      if (window.crypto?.randomUUID) return `${prefix}-${window.crypto.randomUUID()}`;
-      return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    }
-
-    function processText(value, max = 160) {
-      return String(value || "").replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
-    }
-
-    function browserProcessAppName(recording) {
-      if (recording?.platform === "ios") return "iOS Browser";
-      if (recording?.platform === "android") return "Android Browser";
-      return "Browser";
-    }
-
-    function browserProcessWindowName(source = "") {
-      const title = processText(document.title || "Zustand", 80);
-      return source ? `${title} · ${source}` : title;
-    }
-
-    function browserProcessPlatform() {
-      const ua = navigator.userAgent || "";
-      if (/android/i.test(ua)) return "android";
-      if (/iphone|ipad|ipod/i.test(ua) || navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1) return "ios";
-      return "browser";
-    }
-
-    function processControlTarget(target) {
-      if (!target?.closest) return null;
-      return target.closest("button, a, input, textarea, select, [role='button'], [role='link'], [contenteditable='true'], .node, .edge-label, .component-field, .daisy-widget");
-    }
-
-    function processControlSnapshot(target) {
-      const control = processControlTarget(target);
-      if (!control) return null;
-      const text = control.getAttribute("aria-label") ||
-        control.getAttribute("title") ||
-        control.getAttribute("placeholder") ||
-        control.innerText ||
-        control.textContent ||
-        control.tagName;
-      const tag = String(control.tagName || "").toLowerCase();
-      const role = control.getAttribute("role") || "";
-      const inputType = tag === "input" ? String(control.type || "text") : "";
-      const password = inputType === "password" || control.getAttribute("autocomplete") === "current-password";
-      return {
-        name: processText(text, 140),
-        type: processText(role || inputType || tag || "control", 80),
-        automationId: processText(control.id || control.dataset?.id || control.dataset?.transitionId || "", 100),
-        password
-      };
-    }
-
-    function browserProcessIgnoreTarget(target, source) {
-      if (source !== "editor") return false;
-      return Boolean(target?.closest?.(".topbar, .modal-backdrop, .mobile-command-bar, .canvas-history-actions, .selection-actions, .state-explorer, .inspector"));
-    }
-
-    function appendBrowserProcessEvent(recording, kind, data = {}) {
-      if (processRecording !== recording || recording.stopping) return null;
-      if (recording.events.length >= Number(recording.maxEvents || 4000)) return null;
-      const event = {
-        seq: ++recording.eventSeq,
-        at: Date.now() - recording.startedAt,
-        kind,
-        app: processText(data.app || browserProcessAppName(recording), 100),
-        window: processText(data.window || browserProcessWindowName(data.source || ""), 180),
-        control: data.control || null
-      };
-      if (kind === "click") event.button = data.button || "left";
-      if (kind === "input") event.keyCount = Math.max(1, Math.min(10000, Math.round(Number(data.keyCount) || 1)));
-      if (kind === "key") event.key = data.key || "";
-      if (kind === "scroll") event.direction = data.direction === "up" ? "up" : "down";
-      recording.events.push(event);
-      recording.eventCount = recording.events.length;
-      updateProcessRecordingUi();
-      return event;
-    }
-
-    function browserProcessCapture(recording, endedAt = Date.now()) {
-      return {
-        sessionId: recording.sessionId,
-        startedAt: recording.startedAt,
-        endedAt,
-        events: recording.events.map(event => ({ ...event, control: event.control ? { ...event.control } : null })),
-        frames: recording.frames.map(frame => ({ ...frame }))
-      };
-    }
-
-    function addBrowserProcessListener(recording, target, type, listener, options) {
-      target.addEventListener(type, listener, options);
-      recording.cleanup.push(() => target.removeEventListener(type, listener, options));
-    }
-
-    function attachBrowserProcessDocument(recording, doc, source) {
-      if (!doc?.addEventListener || recording.attachedDocuments.has(doc)) return;
-      recording.attachedDocuments.add(doc);
-      addBrowserProcessListener(recording, doc, "pointerdown", evt => {
-        if (evt.button && evt.button !== 0) return;
-        if (browserProcessIgnoreTarget(evt.target, source)) return;
-        appendBrowserProcessEvent(recording, "click", {
-          source,
-          button: evt.button === 2 ? "right" : evt.button === 1 ? "middle" : "left",
-          control: processControlSnapshot(evt.target)
-        });
-      }, { capture: true, passive: true });
-      addBrowserProcessListener(recording, doc, "input", evt => {
-        if (browserProcessIgnoreTarget(evt.target, source)) return;
-        appendBrowserProcessEvent(recording, "input", { source, keyCount: 1, control: processControlSnapshot(evt.target) });
-      }, { capture: true, passive: true });
-      addBrowserProcessListener(recording, doc, "keydown", evt => {
-        if (browserProcessIgnoreTarget(evt.target, source)) return;
-        const key = ["Enter", "Tab", "Escape", " ", "ArrowLeft", "ArrowUp", "ArrowRight", "ArrowDown", "PageUp", "PageDown", "Home", "End"].includes(evt.key) ? evt.key : "";
-        if (!key) return;
-        appendBrowserProcessEvent(recording, "key", { source, key: key === " " ? "Space" : key, control: processControlSnapshot(evt.target) });
-      }, { capture: true, passive: true });
-      let lastScrollAt = 0;
-      let lastScrollY = 0;
-      addBrowserProcessListener(recording, doc, "scroll", () => {
-        const now = Date.now();
-        if (now - lastScrollAt < 700) return;
-        const view = doc.defaultView || window;
-        const y = Number(view.scrollY || doc.documentElement?.scrollTop || 0);
-        appendBrowserProcessEvent(recording, "scroll", { source, direction: y < lastScrollY ? "up" : "down" });
-        lastScrollY = y;
-        lastScrollAt = now;
-      }, { capture: true, passive: true });
-    }
-
-    function attachBrowserProcessListeners(recording) {
-      attachBrowserProcessDocument(recording, document, "editor");
-      try {
-        if (frameEl?.contentDocument) attachBrowserProcessDocument(recording, frameEl.contentDocument, "preview");
-      } catch (_) {}
-      addBrowserProcessListener(recording, window, "focus", () => {
-        appendBrowserProcessEvent(recording, "application", { window: browserProcessWindowName("aktiv") });
-      }, { capture: true, passive: true });
-      addBrowserProcessListener(recording, window, "blur", () => {
-        appendBrowserProcessEvent(recording, "application", { window: browserProcessWindowName("verlassen") });
-      }, { capture: true, passive: true });
-      addBrowserProcessListener(recording, document, "visibilitychange", () => {
-        appendBrowserProcessEvent(recording, "application", { window: browserProcessWindowName(document.hidden ? "verdeckt" : "sichtbar") });
-      }, { capture: true, passive: true });
-    }
-
-    function stopBrowserProcessCapture(recording) {
-      clearInterval(recording.frameTimer);
-      recording.frameTimer = null;
-      for (const stop of recording.cleanup.splice(0)) {
-        try { stop(); } catch (_) {}
-      }
-      for (const track of recording.screenStream?.getTracks?.() || []) {
-        try { track.stop(); } catch (_) {}
-      }
-      recording.screenStream = null;
-      recording.videoEl = null;
-    }
-
-    function browserFrameDataUrl(recording) {
-      const video = recording.videoEl;
-      if (!video || !video.videoWidth || !video.videoHeight) return "";
-      const scale = Math.min(1, 720 / Math.max(video.videoWidth, video.videoHeight));
-      const width = Math.max(1, Math.round(video.videoWidth * scale));
-      const height = Math.max(1, Math.round(video.videoHeight * scale));
-      const canvas = recording.frameCanvas || document.createElement("canvas");
-      recording.frameCanvas = canvas;
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext("2d", { alpha: false });
-      if (!ctx) return "";
-      ctx.drawImage(video, 0, 0, width, height);
-      let quality = .62;
-      let image = canvas.toDataURL("image/jpeg", quality);
-      while (image.length > 180000 && quality > .38) {
-        quality -= .08;
-        image = canvas.toDataURL("image/jpeg", quality);
-      }
-      return image.length <= 190000 ? image : "";
-    }
-
-    function captureBrowserProcessFrame(recording) {
-      if (processRecording !== recording || recording.frames.length >= Number(recording.maxFrames || 36)) return;
-      const image = browserFrameDataUrl(recording);
-      if (!image) return;
-      recording.frames.push({
-        at: Date.now() - recording.startedAt,
-        eventSeq: recording.eventSeq,
-        image
-      });
-    }
-
-    async function startBrowserScreenFrames(recording) {
-      const getDisplayMedia = navigator.mediaDevices?.getDisplayMedia?.bind(navigator.mediaDevices);
-      if (typeof getDisplayMedia !== "function") return;
-      try {
-        const stream = await getDisplayMedia({ video: true, audio: false });
-        if (processRecording !== recording) {
-          stream.getTracks().forEach(track => track.stop());
-          return;
-        }
-        const video = document.createElement("video");
-        video.muted = true;
-        video.playsInline = true;
-        video.srcObject = stream;
-        await video.play().catch(() => {});
-        recording.screenStream = stream;
-        recording.videoEl = video;
-        recording.frameTimer = setInterval(() => captureBrowserProcessFrame(recording), 3500);
-        captureBrowserProcessFrame(recording);
-      } catch (_) {}
-    }
-
-    async function startBrowserProcessRecording(contract) {
-      const replaces = model.states.length ? " Das aktuelle Diagramm wird dabei live ersetzt und bleibt mit Rückgängig vollständig wiederherstellbar." : "";
-      const confirmed = await modalConfirm(
-        `Auf Android und iOS erfasst der Browser Tap-, Eingabe-, Scroll- und Sichtbarkeitsereignisse im geöffneten Werkzeug. Wenn dein Browser Bildschirmfreigabe erlaubt, werden zusätzlich wenige redigierte Kontextbilder mitgegeben.${replaces} Feldwerte, Roh-Tasten und Passwörter werden nicht als Ereignisdaten gespeichert.`,
-        "Ablauf aufnehmen",
-        { confirmText: "Aufnahme starten", cancelText: "Abbrechen" }
-      );
-      if (!confirmed || processRecording) return;
-      processRecording = {
-        provider: "browser",
-        platform: browserProcessPlatform(),
-        sessionId: processSessionId("browser"),
-        startedAt: Date.now(),
-        originalHistorySnapshot: historyCurrent || editorSnapshot(),
-        lastAppliedModelSnapshot: modelSnapshot(),
-        lastAnalyzedEventCount: 0,
-        lastAgentStartAt: 0,
-        eventCount: 0,
-        events: [],
-        frames: [],
-        eventSeq: 0,
-        maxEvents: contract?.capture?.maxEvents || 4000,
-        maxFrames: contract?.capture?.maxFrames || 36,
-        attachedDocuments: new Set(),
-        cleanup: [],
-        screenStream: null,
-        videoEl: null,
-        frameCanvas: null,
-        frameTimer: null,
-        applied: false,
-        agentBusy: false,
-        agentPromise: null,
-        stopping: false,
-        finalizing: false,
-        modelConflict: false,
-        lastAgentError: ""
-      };
-      const recording = processRecording;
-      attachBrowserProcessListeners(recording);
-      appendBrowserProcessEvent(recording, "application", { window: browserProcessWindowName("Start") });
-      recording.clockTimer = setInterval(updateProcessRecordingUi, 1000);
-      recording.pollTimer = setInterval(() => void processRecordingTick(recording), 2500);
-      updateProcessRecordingUi();
-      void startBrowserScreenFrames(recording);
     }
 
     function applyProcessAgentModel(payload, recording) {
@@ -10535,20 +10211,6 @@
 
     async function processRecordingTick(recording) {
       if (processRecording !== recording || recording.stopping || recording.agentBusy) return;
-      if (recording.provider === "browser") {
-        try {
-          recording.eventCount = recording.events.length;
-          updateProcessRecordingUi();
-          if (recording.eventCount < 2 || recording.eventCount === recording.lastAnalyzedEventCount) return;
-          if (Date.now() - recording.lastAgentStartAt < 6000) return;
-          recording.lastAgentStartAt = Date.now();
-          await analyzeProcessCapture(browserProcessCapture(recording), recording, false);
-        } catch (error) {
-          if (processRecording !== recording) return;
-          recording.lastAgentError = error.code || error.message || "browser_recorder_unavailable";
-        }
-        return;
-      }
       try {
         const health = await processFetch(`${PROCESS_COMPANION_URL}/health`, { method: "GET" }, 3500);
         if (processRecording !== recording) return;
@@ -10588,13 +10250,9 @@
       if (!recording) return;
       clearInterval(recording.pollTimer);
       clearInterval(recording.clockTimer);
-      if (recording.provider === "browser") {
-        stopBrowserProcessCapture(recording);
-      } else {
-        try {
-          await processFetch(`${PROCESS_COMPANION_URL}/cancel`, { method: "POST" }, 3500);
-        } catch (_) {}
-      }
+      try {
+        await processFetch(`${PROCESS_COMPANION_URL}/cancel`, { method: "POST" }, 3500);
+      } catch (_) {}
       if (recording.applied) restoreHistorySnapshot(recording.originalHistorySnapshot);
       processRecording = null;
       updateProcessRecordingUi();
@@ -10614,10 +10272,7 @@
         await modalAlert("Der Prozess-Agent ist am Server noch nicht konfiguriert.", "Aufnahme nicht verfügbar");
         return;
       }
-      if (isMobileWorkspaceLayout()) {
-        await startBrowserProcessRecording(contract);
-        return;
-      }
+      if (isMobileWorkspaceLayout()) return;
       try {
         await processFetch(`${PROCESS_COMPANION_URL}/health`, { method: "GET" }, 2500);
       } catch (_) {
@@ -10674,10 +10329,7 @@
       updateProcessRecordingUi();
       try {
         if (recording.agentPromise) await recording.agentPromise.catch(() => {});
-        const capture = recording.provider === "browser"
-          ? browserProcessCapture(recording)
-          : await processFetch(`${PROCESS_COMPANION_URL}/stop`, { method: "POST" }, 30000);
-        if (recording.provider === "browser") stopBrowserProcessCapture(recording);
+        const capture = await processFetch(`${PROCESS_COMPANION_URL}/stop`, { method: "POST" }, 30000);
         recording.eventCount = Array.isArray(capture.events) ? capture.events.length : 0;
         if (recording.modelConflict) throw Object.assign(new Error("Das Diagramm wurde während der Aufnahme manuell verändert."), { code: "editor_changed_during_recording" });
         if (recording.eventCount >= 2 && recording.lastAnalyzedEventCount !== recording.eventCount) {
@@ -10691,7 +10343,6 @@
         const hasStableResult = recording.applied && !recording.modelConflict;
         if (hasStableResult) commitProcessRecordingHistory(recording);
         else if (recording.applied) restoreHistorySnapshot(recording.originalHistorySnapshot);
-        if (recording.provider === "browser") stopBrowserProcessCapture(recording);
         processRecording = null;
         updateProcessRecordingUi();
         await modalAlert(
@@ -11357,8 +11008,6 @@
       const canRedo = !processRecording && Boolean(redoStack.length);
       if (btnCanvasUndo) btnCanvasUndo.disabled = !canUndo;
       if (btnCanvasRedo) btnCanvasRedo.disabled = !canRedo;
-      if (btnMobileActionUndo) btnMobileActionUndo.disabled = !canUndo;
-      if (btnMobileActionRedo) btnMobileActionRedo.disabled = !canRedo;
     }
 
     function historyTextEditTarget(target) {
@@ -19643,9 +19292,9 @@
       const appendContentQuickEditor = (component, body) => {
         const configs = {
           heading: {
-            hint: "Die sichtbare Ueberschrift dieses Presets.",
+            hint: "Die sichtbare Überschrift dieses Presets.",
             fields: [
-              { key: "text", label: "Titel", placeholder: "Ueberschrift" }
+              { key: "text", label: "Titel", placeholder: "Überschrift" }
             ]
           },
           text: {
@@ -19661,14 +19310,14 @@
             ]
           },
           image: {
-            hint: "Bildquelle und Beschreibung direkt aendern.",
+            hint: "Bildquelle und Beschreibung direkt ändern.",
             fields: [
               { key: "url", label: "Bild-URL", placeholder: "https://example.com/bild.jpg", url: true },
               { key: "text", label: "Alt-Text", placeholder: "Kurze Bildbeschreibung" }
             ]
           },
           link: {
-            hint: "Linktext und Ziel direkt aendern.",
+            hint: "Linktext und Ziel direkt ändern.",
             fields: [
               { key: "text", label: "Label", placeholder: "Linktext" },
               { key: "url", label: "URL", placeholder: "https://example.com", url: true }
@@ -24575,7 +24224,7 @@
       overlay.innerHTML = `
         <div class="preset-preview-head">
           <div class="preset-preview-title"></div>
-          <button class="preset-preview-close" id="presetPreviewClose" type="button" aria-label="Vorschau schliessen" title="Vorschau schliessen">x</button>
+          <button class="preset-preview-close" id="presetPreviewClose" type="button" aria-label="Vorschau schließen" title="Vorschau schließen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button>
           <div class="preset-preview-desc"></div>
         </div>
         <div class="preset-preview-frame-wrap">
@@ -27876,10 +27525,7 @@
     fileLoadEl.onchange = () => loadBlueprintFile(fileLoadEl.files?.[0]);
     btnCanvasUndo.onclick = undoModel;
     btnCanvasRedo.onclick = redoModel;
-    btnMobileActionUndo.onclick = undoModel;
-    btnMobileActionRedo.onclick = redoModel;
     btnProcessRecord.onclick = () => processRecording ? void stopProcessRecording() : void startProcessRecording();
-    btnMobileProcessRecord.onclick = () => processRecording ? void stopProcessRecording() : void startProcessRecording();
     btnMobileRuntimeFollow.onclick = () => {
       mobileRuntimeFollow = !mobileRuntimeFollow;
       updateMobileRuntimeFollowButton();

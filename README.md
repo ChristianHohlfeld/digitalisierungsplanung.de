@@ -216,13 +216,6 @@ auf `127.0.0.1:43127`, persistiert nichts und liest keine Roh-Tasten,
 Passwörter oder konkreten Feldwerte als Ereignisdaten aus. Die ausdrücklich
 freigegebenen Kontextbilder zeigen den sichtbaren Desktop.
 
-Auf Android und iOS nutzt derselbe Button den Browser-Recorder in der mobilen
-Aktionsleiste. Er erfasst redigierte Tap-, Eingabe-, Scroll- und
-Sichtbarkeitsereignisse im geöffneten Werkzeug und sendet sie über denselben
-`/process/analyze`-Contract. Wenn Browser und Betriebssystem Bildschirmfreigabe
-erlauben, werden zusätzlich wenige Kontextbilder mitgegeben. Es wird nichts im
-Browser oder auf dem Server persistiert.
-
 Für den produktiven Agenten wird auf dem Server eine der beiden Konfigurationen
 in `/etc/digitalisierungsplanung-realtime.env` gesetzt:
 
