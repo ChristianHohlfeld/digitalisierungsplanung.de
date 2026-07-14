@@ -394,6 +394,7 @@ test("nginx proxies only lean public realtime routes", () => {
     "presets-admin.html",
     "/presets-admin/catalog",
     "/presets-admin/parse",
+    "/presets-admin/import",
     "/contract",
     "/events/contract",
     "/healthz",
@@ -536,6 +537,7 @@ test("converts official Daisy snippets into managed contract presets and pushes 
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "preset-library-"));
   const libraryPath = path.join(tempDir, "server", "preset-library.json");
   const calls = [];
+  const importedUrls = [];
   fs.mkdirSync(path.dirname(libraryPath), { recursive: true });
   fs.copyFileSync(presetLibrary.DEFAULT_PRESET_LIBRARY_PATH, libraryPath);
 
@@ -552,13 +554,27 @@ test("converts official Daisy snippets into managed contract presets and pushes 
       adminSecret: "admin-secret",
       presetLibraryPath: libraryPath,
       repoDir: tempDir,
-      gitRunner
+      gitRunner,
+      presetApiFetcher: async url => {
+        importedUrls.push(url);
+        return {
+          id: "custom_api_card",
+          variant: "card",
+          title: "API Card",
+          description: "Imported from API.",
+          categoryId: "websuite-builder",
+          packageIds: ["website.builder"],
+          data: { title: "API Card", body: "Canonical response", image: "", imageAlt: "", actionLabel: "Weiter" }
+        };
+      }
     }, async realtime => {
       const htmlResponse = await fetch(httpUrl(realtime, "/presets-admin.html"));
       assert.equal(htmlResponse.status, 200);
       const html = await htmlResponse.text();
       assert.match(html, /Preset Designer/);
       assert.match(html, /DaisyUI-Snippet/);
+      assert.match(html, /Webhook\/API-URL/);
+      assert.match(html, /API abrufen/);
       assert.match(html, /In Contract speichern/);
       assert.match(html, /\+ Neue Kategorie/);
       assert.match(html, /\+ Neues Paket/);
@@ -574,6 +590,26 @@ test("converts official Daisy snippets into managed contract presets and pushes 
       const loaded = await load.json();
       assert.deepEqual(loaded.library.categories.map(category => category.id), ["websuite-builder"]);
       assert.equal(loaded.library.daisyVersion, "5.6.18");
+
+      const privateImport = await fetch(httpUrl(realtime, "/presets-admin/import"), {
+        method: "POST",
+        headers: { authorization: "Bearer admin-secret", "content-type": "application/json" },
+        body: JSON.stringify({ url: "https://127.0.0.1/preset", library: loaded.library })
+      });
+      assert.equal(privateImport.status, 400);
+      assert.deepEqual(await privateImport.json(), { error: "preset_api_target_not_public" });
+
+      const importedResponse = await fetch(httpUrl(realtime, "/presets-admin/import"), {
+        method: "POST",
+        headers: { authorization: "Bearer admin-secret", "content-type": "application/json" },
+        body: JSON.stringify({ url: "https://preset.example.test/card", library: loaded.library })
+      });
+      assert.equal(importedResponse.status, 200);
+      const imported = await importedResponse.json();
+      assert.equal(imported.preset.id, "custom_api_card");
+      assert.equal(imported.preset.variant, "card");
+      assert.deepEqual(importedUrls, ["https://preset.example.test/card"]);
+      assert.equal(Object.hasOwn(imported.preset, "url"), false);
 
       const snippet = '<footer class="footer sm:footer-horizontal bg-base-200 text-base-content p-10"><aside><p class="footer-title">ACME</p><p>Aus Erfahrung wird Software.</p></aside><nav><h6 class="footer-title">Produkt</h6><a class="link link-hover">Start</a><a class="link link-hover">Kontakt</a></nav></footer>';
       const parsedResponse = await fetch(httpUrl(realtime, "/presets-admin/parse"), {
@@ -634,6 +670,7 @@ test("converts official Daisy snippets into managed contract presets and pushes 
       loaded.library.categories.push({ id: "portal", label: "Portal", description: "Kundenportal", sort: 20 });
       loaded.library.packages.push({ id: "portal.pro", label: "Portal Pro", category: "package", description: "Portalbausteine", buyerValue: "Kundenportal", upsell: true, sort: 90 });
       loaded.library.presets.push(parsed.preset);
+      loaded.library.presets.push(imported.preset);
 
       const validateOnly = await fetch(httpUrl(realtime, "/presets-admin/catalog?validate=1"), {
         method: "POST",
@@ -657,6 +694,8 @@ test("converts official Daisy snippets into managed contract presets and pushes 
 
       const persisted = fs.readFileSync(libraryPath, "utf8");
       assert.match(persisted, /custom_acme_footer/);
+      assert.match(persisted, /custom_api_card/);
+      assert.doesNotMatch(persisted, /preset\.example\.test/);
       assert.doesNotMatch(persisted, /<footer|<script/);
 
       const contractResponse = await fetch(httpUrl(realtime, "/contract"));

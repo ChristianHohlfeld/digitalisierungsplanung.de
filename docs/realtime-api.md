@@ -196,6 +196,19 @@ gespeichert. Aktive Elemente, eingebettete Dokumente, Metadaten, Templates und
 `on*`-Attribute werden abgelehnt. Nicht unterstützte oder mehrdeutige
 Komponenten liefern einen 400-Fehler.
 
+### `POST /presets-admin/import`
+
+Secret-geschützter, nicht persistierender API-Import. Der Server ruft die
+angegebene öffentliche HTTPS-URL per `GET` ab. Die JSON-Antwort muss exakt die
+kanonischen Felder `id`, `variant`, `title`, `description`, `categoryId`,
+`packageIds` und `data` enthalten. Der Request enthält `url` und die aktuell
+vollständig zu validierende `library`.
+
+Private, lokale und reservierte Ziele, Redirects, Nicht-JSON-Antworten,
+Antworten über 64 KiB und Abrufe über acht Sekunden werden abgelehnt. Header
+oder Zugangsdaten können nicht mitgegeben werden. URL und Rohantwort werden
+nicht gespeichert; Persistenz erfolgt nur über `/presets-admin/catalog`.
+
 ### `GET/POST /presets-admin/catalog`
 
 Secret-geschützte API für die vollständige `server/preset-library.json`.
@@ -750,6 +763,7 @@ REALTIME_EVENTS_ADMIN_CATALOG_PATH=/events-admin/catalog
 REALTIME_PRESETS_ADMIN_PATH=/presets-admin.html
 REALTIME_PRESETS_ADMIN_CATALOG_PATH=/presets-admin/catalog
 REALTIME_PRESETS_ADMIN_PARSE_PATH=/presets-admin/parse
+REALTIME_PRESETS_ADMIN_IMPORT_PATH=/presets-admin/import
 REALTIME_PRESET_LIBRARY_PATH=/path/to/preset-library.json
 REALTIME_ALLOWED_ORIGINS=https://digitalisierungsplanung.de
 REALTIME_ROOM_SECRET=<secret>

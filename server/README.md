@@ -79,6 +79,7 @@ The event catalog is the server-side source of truth for offered realtime events
 - `/events-admin.html`: simple event designer for event type, dataset, fields, source, and global-state contribution.
 - `/presets-admin.html`: secret-protected DaisyUI snippet, category, package, and preset designer.
 - `/presets-admin/parse`: parse-only conversion from DaisyUI v5.6.18 markup to structured preset data; it never persists raw HTML.
+- `/presets-admin/import`: admin-only import of one exact canonical preset definition from a public HTTPS JSON endpoint; URL and response are never persisted.
 - `/presets-admin/catalog`: load, validate, commit, and push the complete managed preset library.
 
 Default connector sources are deliberately practical:

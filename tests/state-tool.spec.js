@@ -2176,6 +2176,12 @@ test.describe("State Blueprint tool", () => {
       initial: "site_home",
       loginHeroTransitionId: "site_login_submit"
     });
+
+    await page.goto("/state.html?demo=zustand");
+    await expect(page).toHaveURL(/\/state\.html$/);
+    await expect(page.getByRole("dialog", { name: "Digitalisierungsplanung" })).toBeHidden();
+    await page.evaluate(() => document.getElementById("btnWebsiteExample").click());
+    await expect(page.getByRole("dialog", { name: "Digitalisierungsplanung" })).toBeHidden();
   });
 
   test("loads the Zustand demo without asking over a single empty initial state @smoke", async ({ page }) => {

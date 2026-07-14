@@ -117,6 +117,7 @@ Der Server in [`server/`](server/) ist nur Transport. Er speichert keine fachlic
 | `GET /presets-admin.html` | Designer für offizielle DaisyUI-Snippets, Presets, Kategorien und Pakete |
 | `GET/POST /presets-admin/catalog` | vollständige Preset-Library laden, validieren, committen und pushen |
 | `POST /presets-admin/parse` | DaisyUI-Markup ohne Persistenz in eine strukturierte Preset-Definition übersetzen |
+| `POST /presets-admin/import` | kanonische Preset-Definition von einer öffentlichen HTTPS-API als Entwurf importieren |
 | `POST /emit` | authentifiziertes Ereignis von außen |
 | `WSS /ws` | WebSocket-Verbindung |
 
@@ -149,6 +150,8 @@ Im Editor liegen alle mitgelieferten Vorlagen zunächst gemeinsam unter
 anlegen. Ein eingefügtes DaisyUI-v5.6.18-Beispiel wird serverseitig strukturell
 geparst; gespeichert werden ausschließlich Variante und Defaultdaten, niemals
 der HTML-Snippet. `Definition erzeugen` verändert den Contract noch nicht.
+Alternativ lädt `Webhook/API-URL` eine exakte Preset-Definition als Entwurf.
+URL und Rohantwort werden nicht gespeichert.
 Erst `In Contract speichern` validiert die gesamte Library, schreibt
 `server/preset-library.json`, erhöht die gemeinsame Release-ID und pusht den
 Commit nach `main`.

@@ -2,8 +2,11 @@
 
 const crypto = require("node:crypto");
 const { spawnSync } = require("node:child_process");
+const dns = require("node:dns");
 const fs = require("node:fs");
 const http = require("node:http");
+const https = require("node:https");
+const net = require("node:net");
 const path = require("node:path");
 const { URL } = require("node:url");
 const { WebSocketServer, WebSocket } = require("ws");
@@ -28,6 +31,7 @@ const DEFAULT_EVENTS_ADMIN_CATALOG_PATH = "/events-admin/catalog";
 const DEFAULT_PRESETS_ADMIN_PATH = "/presets-admin.html";
 const DEFAULT_PRESETS_ADMIN_CATALOG_PATH = "/presets-admin/catalog";
 const DEFAULT_PRESETS_ADMIN_PARSE_PATH = "/presets-admin/parse";
+const DEFAULT_PRESETS_ADMIN_IMPORT_PATH = "/presets-admin/import";
 const DEFAULT_VERSION_PATH = "/version";
 const DEFAULT_ADMIN_COMMIT_MESSAGE = "Update realtime event catalog";
 const DEFAULT_PRESET_ADMIN_COMMIT_MESSAGE = "Update preset library";
@@ -36,6 +40,8 @@ const DEFAULT_PORT = 8788;
 const MAX_ID_LENGTH = 128;
 const MAX_EVENT_NAME_LENGTH = 160;
 const MAX_EMIT_BODY_BYTES = 64 * 1024;
+const MAX_PRESET_API_RESPONSE_BYTES = 64 * 1024;
+const PRESET_API_TIMEOUT_MS = 8000;
 const MESSAGE_TYPES = new Set(["runtime.event"]);
 const CONSOLE_HTML = `<!doctype html>
 <html lang="en">
@@ -282,6 +288,125 @@ function parseInteger(value, fallback, min = 0, max = Number.MAX_SAFE_INTEGER) {
   return Math.min(max, Math.max(min, parsed));
 }
 
+function presetApiError(code, status) {
+  const error = new Error(code);
+  error.code = code;
+  error.status = status;
+  return error;
+}
+
+function normalizedPresetApiUrl(value) {
+  let target;
+  try {
+    target = new URL(String(value || "").trim());
+  } catch (_) {
+    throw presetApiError("invalid_preset_api_url", 400);
+  }
+  if (target.protocol !== "https:" || !target.hostname || target.username || target.password || target.hash || target.href.length > 2048) {
+    throw presetApiError("invalid_preset_api_url", 400);
+  }
+  const literalHost = target.hostname.replace(/^\[|\]$/g, "");
+  if (net.isIP(literalHost) && !isPublicNetworkAddress(literalHost)) {
+    throw presetApiError("preset_api_target_not_public", 400);
+  }
+  return target;
+}
+
+function isPublicNetworkAddress(address) {
+  const value = String(address || "").toLowerCase().split("%")[0];
+  const family = net.isIP(value);
+  if (family === 4) {
+    const [a, b] = value.split(".").map(Number);
+    return !(a === 0 || a === 10 || a === 127 || a >= 224 ||
+      a === 100 && b >= 64 && b <= 127 ||
+      a === 169 && b === 254 ||
+      a === 172 && b >= 16 && b <= 31 ||
+      a === 192 && [0, 168].includes(b) ||
+      a === 198 && [18, 19].includes(b) ||
+      a === 198 && b === 51 ||
+      a === 203 && b === 0);
+  }
+  if (family === 6) {
+    return !(value === "::" || value === "::1" || value.startsWith("::ffff:") ||
+      value.startsWith("fc") || value.startsWith("fd") || /^fe[89ab]/.test(value) ||
+      value.startsWith("ff") || value.startsWith("2001:db8:"));
+  }
+  return false;
+}
+
+function publicPresetApiLookup(hostname, options, callback) {
+  const lookupOptions = typeof options === "number" ? { family: options } : { ...(options || {}) };
+  dns.lookup(hostname, { ...lookupOptions, all: true, verbatim: true }, (error, addresses) => {
+    if (error) {
+      callback(presetApiError("preset_api_host_unavailable", 502));
+      return;
+    }
+    const requestedFamily = Number(lookupOptions.family) || 0;
+    const candidates = addresses.filter(item => !requestedFamily || item.family === requestedFamily);
+    if (!candidates.length || candidates.some(item => !isPublicNetworkAddress(item.address))) {
+      callback(presetApiError("preset_api_target_not_public", 400));
+      return;
+    }
+    if (lookupOptions.all) callback(null, candidates);
+    else callback(null, candidates[0].address, candidates[0].family);
+  });
+}
+
+function fetchPresetApiDefinition(value) {
+  const target = normalizedPresetApiUrl(value);
+  return new Promise((resolve, reject) => {
+    const request = https.request(target, {
+      method: "GET",
+      headers: { accept: "application/json" },
+      lookup: publicPresetApiLookup
+    }, response => {
+      const status = Number(response.statusCode) || 0;
+      if (status >= 300 && status < 400) {
+        response.resume();
+        reject(presetApiError("preset_api_redirect_not_allowed", 502));
+        return;
+      }
+      if (status < 200 || status >= 300) {
+        response.resume();
+        reject(presetApiError("preset_api_upstream_failed", 502));
+        return;
+      }
+      if (!/^application\/(?:[a-z0-9.+-]+\+)?json(?:\s*;|$)/i.test(String(response.headers["content-type"] || ""))) {
+        response.resume();
+        reject(presetApiError("preset_api_json_required", 415));
+        return;
+      }
+      const declaredLength = Number(response.headers["content-length"] || 0);
+      if (declaredLength > MAX_PRESET_API_RESPONSE_BYTES) {
+        response.resume();
+        reject(presetApiError("preset_api_response_too_large", 413));
+        return;
+      }
+      const chunks = [];
+      let bytes = 0;
+      response.on("data", chunk => {
+        bytes += chunk.length;
+        if (bytes > MAX_PRESET_API_RESPONSE_BYTES) {
+          response.destroy(presetApiError("preset_api_response_too_large", 413));
+          return;
+        }
+        chunks.push(chunk);
+      });
+      response.on("end", () => {
+        try {
+          resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+        } catch (_) {
+          reject(presetApiError("invalid_preset_api_response", 422));
+        }
+      });
+      response.on("error", error => reject(error?.code ? error : presetApiError("preset_api_fetch_failed", 502)));
+    });
+    request.setTimeout(PRESET_API_TIMEOUT_MS, () => request.destroy(presetApiError("preset_api_timeout", 504)));
+    request.on("error", error => reject(error?.status ? error : presetApiError("preset_api_fetch_failed", 502)));
+    request.end();
+  });
+}
+
 function defaultGitRunner(args, options = {}) {
   return spawnSync("git", args, {
     cwd: options.cwd,
@@ -323,6 +448,7 @@ function loadConfig(options = {}) {
     presetsAdminPath: options.presetsAdminPath || env.REALTIME_PRESETS_ADMIN_PATH || DEFAULT_PRESETS_ADMIN_PATH,
     presetsAdminCatalogPath: options.presetsAdminCatalogPath || env.REALTIME_PRESETS_ADMIN_CATALOG_PATH || DEFAULT_PRESETS_ADMIN_CATALOG_PATH,
     presetsAdminParsePath: options.presetsAdminParsePath || env.REALTIME_PRESETS_ADMIN_PARSE_PATH || DEFAULT_PRESETS_ADMIN_PARSE_PATH,
+    presetsAdminImportPath: options.presetsAdminImportPath || env.REALTIME_PRESETS_ADMIN_IMPORT_PATH || DEFAULT_PRESETS_ADMIN_IMPORT_PATH,
     versionPath: options.versionPath || env.REALTIME_VERSION_PATH || DEFAULT_VERSION_PATH,
     eventCatalogPath: path.resolve(options.eventCatalogPath || env.REALTIME_EVENT_CATALOG_PATH || eventCatalog.DEFAULT_EVENT_CATALOG_PATH),
     adminHtmlPath: path.resolve(options.adminHtmlPath || env.REALTIME_ADMIN_HTML_PATH || path.join(__dirname, "admin.html")),
@@ -334,6 +460,7 @@ function loadConfig(options = {}) {
     adminSecret: options.adminSecret ?? env.REALTIME_ADMIN_SECRET ?? "",
     gitPushToken: options.gitPushToken ?? env.REALTIME_GIT_PUSH_TOKEN ?? "",
     gitRunner: options.gitRunner || defaultGitRunner,
+    presetApiFetcher: options.presetApiFetcher || fetchPresetApiDefinition,
     allowedOrigins: parseList(
       options.allowedOrigins ?? env.REALTIME_ALLOWED_ORIGINS,
       DEFAULT_ALLOWED_ORIGINS
@@ -889,6 +1016,10 @@ function createRealtimeServer(options = {}) {
       void handlePresetParseRequest(request, response);
       return;
     }
+    if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.presetsAdminImportPath) {
+      void handlePresetImportRequest(request, response);
+      return;
+    }
     if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.eventsPath) {
       const prepared = prepareCatalogResponse(request, response);
       if (prepared.done) return;
@@ -1103,6 +1234,26 @@ function createRealtimeServer(options = {}) {
       }, headers);
     } catch (error) {
       writeJson(response, error.status || 400, { error: error.code || "snippet_parse_failed" }, headers);
+    }
+  }
+
+  async function handlePresetImportRequest(request, response) {
+    const prepared = prepareAdminResponse(request, response);
+    if (prepared.done) return;
+    const headers = prepared.headers;
+    let payload;
+    try {
+      payload = await readJsonBody(request, config.maxPayload);
+      if (!isPlainObject(payload) || !isPlainObject(payload.library) || Object.keys(payload).some(key => !["url", "library"].includes(key))) {
+        throw presetApiError("invalid_preset_api_request", 400);
+      }
+      const target = normalizedPresetApiUrl(payload.url);
+      const library = presetLibrary.validatePresetLibrary(payload.library);
+      const imported = await config.presetApiFetcher(target.href);
+      const preset = presetLibrary.validatePresetDefinition(imported, library);
+      writeJson(response, 200, { ok: true, preset }, headers);
+    } catch (error) {
+      writeJson(response, error.status || 400, { error: error.code || "preset_api_import_failed" }, headers);
     }
   }
 

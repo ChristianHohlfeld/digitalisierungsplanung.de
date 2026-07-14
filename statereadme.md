@@ -517,6 +517,13 @@ Editoraktion
   Modell gespeichert werden. Parsen erzeugt nur eine Definition; erst die
   getrennte Speichern-Aktion validiert, schreibt, committet und pusht die
   vollständige Library gemeinsam mit der Release-ID.
+- **PRE-021 API-Preset-Import:** Der Preset Designer darf eine öffentliche
+  HTTPS-URL ausschließlich serverseitig und secret-geschützt als
+  nichtpersistierende Importquelle abrufen. Die JSON-Antwort MUSS exakt eine
+  kanonische Preset-Definition sein. Private oder reservierte Ziele, Redirects,
+  Nicht-JSON, Antworten über 64 KiB und Abrufe über acht Sekunden MÜSSEN
+  scheitern. URL, Header, Zugangsdaten und Rohantwort DÜRFEN nicht persistiert
+  werden. Erst der bestehende Catalog-Save darf den Entwurf veröffentlichen.
 
 ## 11. Editor-Vertrag
 
@@ -532,7 +539,8 @@ Editoraktion
   enthalten.
 - **ED-003 Demo-Laden:** Die Demo darf nur explizit oder über
   `?demo=zustand` geladen werden. Vorhandene Arbeit MUSS vor Ersetzen bestätigt
-  werden.
+  werden. Entspricht die aktuelle Szene bereits exakt der Demo, MUSS die URL
+  ohne Ersetzen konsumiert werden und es DARF kein Lade-Dialog erscheinen.
 - **ED-004 Tastatur:** `Ctrl+N` öffnet den App-Dialog und DARF keinen Browser-Tab
   öffnen. `Ctrl+S` speichert eine formale Definition.
 - **ED-005 Delete-Fokus:** `Delete` darf Graphentitäten nur löschen, wenn der
@@ -847,6 +855,7 @@ Editoraktion
 - **RT-015 Öffentliche Routen:** Nginx darf nur `/console.html`,
   `/events-admin.html`, `/events-admin/catalog`, `/healthz`, `/version`,
   `/presets-admin.html`, `/presets-admin/catalog`, `/presets-admin/parse`,
+  `/presets-admin/import`,
   `/token`, `/contract`, `/events`, `/events/contract`, `/emit` und `/ws` an den lokalen Prozess auf
   `127.0.0.1:8788` weiterleiten. Nicht definierte Kernrouten wie `/`,
   `/catalog`, `/schema`, `/api` und `/process/*` liefern 404.

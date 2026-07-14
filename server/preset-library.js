@@ -154,6 +154,15 @@ function validatePresetLibrary(value) {
   };
 }
 
+function validatePresetDefinition(value, library) {
+  const normalizedLibrary = validatePresetLibrary(library);
+  return validatePreset(
+    value,
+    new Set(normalizedLibrary.categories.map(item => item.id)),
+    new Set(normalizedLibrary.packages.map(item => item.id))
+  );
+}
+
 function loadPresetLibraryFile(filePath = DEFAULT_PRESET_LIBRARY_PATH) {
   let parsed;
   try {
@@ -405,5 +414,6 @@ module.exports = {
   loadPresetLibraryFile,
   parseDaisySnippet,
   serializePresetLibrary,
+  validatePresetDefinition,
   validatePresetLibrary
 };

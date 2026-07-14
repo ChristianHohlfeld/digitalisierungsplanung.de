@@ -7183,18 +7183,23 @@
       return JSON.stringify(model);
     }
 
-    function modelDefinitionSnapshot() {
-      normalizeModel(model);
+    function modelDefinitionValue(value) {
+      const normalized = normalizeModel(JSON.parse(JSON.stringify(value)));
       return {
         version: DEFINITION_SCHEMA_VERSION,
-        name: String(model.name || "Unbenannter Ablauf"),
-        initial: String(model.initial || ""),
-        boundary: normalizeBoundaryConfig(model.boundary),
-        states: model.states.map(stateExportSnapshot),
-        transitions: model.transitions
+        name: String(normalized.name || "Unbenannter Ablauf"),
+        initial: String(normalized.initial || ""),
+        boundary: normalizeBoundaryConfig(normalized.boundary),
+        states: normalized.states.map(stateExportSnapshot),
+        transitions: normalized.transitions
           .filter(transition => !isBoundaryFlowTransition(transition))
           .map(transitionExportSnapshot)
       };
+    }
+
+    function modelDefinitionSnapshot() {
+      normalizeModel(model);
+      return modelDefinitionValue(model);
     }
 
     function normalizeSelection(value = selected) {
@@ -22888,6 +22893,11 @@
       return normalizeModel(exampleWebsiteModel());
     }
 
+    function modelMatchesExampleEntry(entryId) {
+      if (entryId !== "zustand") return false;
+      return JSON.stringify(modelDefinitionValue(model)) === JSON.stringify(modelDefinitionValue(exampleWebsiteModel()));
+    }
+
     async function loadExampleEntryById(entryId, shouldFit = true) {
       const nextModel = await exampleEntryModelForId(entryId);
       loadEditorModel(nextModel, shouldFit);
@@ -22970,6 +22980,7 @@
     document.getElementById("btnNew").onclick = () => runTopbarAction(requestNewCanvas);
 
     document.getElementById("btnWebsiteExample").onclick = () => runTopbarAction(async () => {
+      if (modelMatchesExampleEntry("zustand")) return;
       const ok = await modalConfirm("Aktuelle Szene durch die Digitalisierungsplanung-Demo ersetzen?", "Digitalisierungsplanung", {
         confirmText: "Beispiel laden",
         danger: false
@@ -23166,8 +23177,11 @@
 
       applyPersistedEditorState(initialEditorState);
       const demoEntry = requestedDemoEntryId();
+      const demoAlreadyLoaded = Boolean(demoEntry) && modelMatchesExampleEntry(demoEntry);
       const canReplaceWithDemoWithoutPrompt = !initialPersistedModelExists || initialPersistedModelIsSingleEmptyInitialState;
-      if (demoEntry === "zustand" && canReplaceWithDemoWithoutPrompt) {
+      if (demoAlreadyLoaded) {
+        consumeDemoEntryUrl();
+      } else if (demoEntry === "zustand" && canReplaceWithDemoWithoutPrompt) {
         model = normalizeModel(exampleWebsiteModel());
         selected = null;
         currentLayerId = null;
@@ -23190,7 +23204,7 @@
       persistModel(false);
       syncToApp(true);
       if (isMobileWorkspaceLayout()) setTimeout(focusMobileCanvasState, 50);
-      if (demoEntry && initialPersistedModelExists && !initialPersistedModelIsSingleEmptyInitialState) {
+      if (demoEntry && !demoAlreadyLoaded && initialPersistedModelExists && !initialPersistedModelIsSingleEmptyInitialState) {
         consumeDemoEntryUrl();
         setTimeout(async () => {
           const demoLabel = demoLabelForId(demoEntry);

@@ -72,6 +72,25 @@ createServer(async (req, res) => {
     }
     return;
   }
+  if (url.pathname === "/presets-admin/import" && req.method === "POST") {
+    try {
+      const payload = await readJson(req);
+      if (payload.url !== "https://preset.example.test/card") throw Object.assign(new Error("preset_api_upstream_failed"), { code: "preset_api_upstream_failed", status: 502 });
+      const preset = presetLibrary.validatePresetDefinition({
+        id: "custom_api_card",
+        variant: "card",
+        title: "API Card",
+        description: "Aus einer API importiert.",
+        categoryId: "websuite-builder",
+        packageIds: ["website.builder"],
+        data: { title: "API Card", body: "Kanonische Antwort", image: "", imageAlt: "", actionLabel: "Weiter" }
+      }, payload.library);
+      writeJson(res, 200, { ok: true, preset });
+    } catch (error) {
+      writeJson(res, error.status || 400, { error: error.code || "preset_api_import_failed" });
+    }
+    return;
+  }
   if (url.pathname === "/contract") {
     res.writeHead(200, {
       "content-type": "application/json; charset=utf-8",

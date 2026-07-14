@@ -54,8 +54,14 @@
     <div class="workspace">
       <div class="stack">
         <section class="panel">
-          <h2>DaisyUI-Snippet</h2>
-          <textarea id="snippet" spellcheck="false" placeholder="DaisyUI-Beispiel hier einfügen"></textarea>
+          <h2>Preset-Quelle</h2>
+          <label>Quelle<select id="sourceMode"><option value="snippet">DaisyUI-Snippet</option><option value="api">Webhook/API-URL</option></select></label>
+          <div id="snippetSource">
+            <textarea id="snippet" spellcheck="false" placeholder="DaisyUI-Beispiel hier einfügen"></textarea>
+          </div>
+          <div id="apiSource" hidden>
+            <label>Webhook/API-URL<input id="apiUrl" type="url" inputmode="url" autocomplete="url" placeholder="https://api.example.com/preset"></label>
+          </div>
           <div class="grid">
             <label>Preset-ID<input id="presetId" placeholder="custom_mein_preset"></label>
             <label>Titel<input id="title" placeholder="Mein Preset"></label>
@@ -119,6 +125,13 @@
     function setStatus(message, type = "") { el("status").className = "status " + type; el("status").textContent = message; }
     function setDefinition(value) { draft = value ? clone(value) : null; el("definition").value = draft ? JSON.stringify(draft, null, 2) : ""; }
     function nextSort(items) { return Math.max(0, ...items.map(item => Number(item.sort) || 0)) + 10; }
+
+    function syncSourceMode() {
+      const api = el("sourceMode").value === "api";
+      el("snippetSource").hidden = api;
+      el("apiSource").hidden = !api;
+      el("parse").textContent = api ? "API abrufen" : "Definition erzeugen";
+    }
 
     try { el("secret").value = localStorage.getItem(ADMIN_SECRET_STORAGE_KEY) || ""; } catch (_) {}
     el("secret").addEventListener("input", () => {
@@ -221,14 +234,40 @@
       return draft;
     }
 
+    async function importApiPreset() {
+      if (!library) throw new Error("Preset-Library ist nicht geladen.");
+      if (el("category").value === "__new__") ensureCategory();
+      if (el("package").value === "__new__") ensurePackage();
+      const payload = await requestJson("/presets-admin/import", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ url: el("apiUrl").value.trim(), library })
+      });
+      setDefinition(payload.preset);
+      el("presetId").value = draft.id;
+      el("title").value = draft.title;
+      el("description").value = draft.description;
+      renderCatalog();
+      el("category").value = draft.categoryId;
+      el("package").value = draft.packageIds[0] || "";
+      setStatus(`API-Definition für ${draft.variant} erzeugt.`, "ok");
+      return draft;
+    }
+
+    function parseSource() {
+      return el("sourceMode").value === "api" ? importApiPreset() : parseSnippet();
+    }
+
     function currentDraft() {
       if (!draft) throw new Error("Zuerst eine Definition erzeugen oder ein Preset auswählen.");
       const next = clone(draft);
       next.id = el("presetId").value.trim() || next.id;
       next.title = el("title").value.trim() || next.title;
       next.description = el("description").value.trim();
-      next.categoryId = ensureCategory();
-      next.packageIds = [ensurePackage()];
+      const categoryId = ensureCategory();
+      const packageId = ensurePackage();
+      next.categoryId = categoryId;
+      if (next.packageIds?.[0] !== packageId) next.packageIds = [packageId];
       setDefinition(next);
       return next;
     }
@@ -251,7 +290,8 @@
     }
 
     async function savePreset() {
-      if (el("snippet").value.trim()) await parseSnippet();
+      if (el("sourceMode").value === "snippet" && el("snippet").value.trim()) await parseSnippet();
+      if (el("sourceMode").value === "api" && el("apiUrl").value.trim() && !draft) await importApiPreset();
       const preset = currentDraft();
       const index = library.presets.findIndex(item => item.id === preset.id);
       if (index >= 0) library.presets[index] = preset;
@@ -262,6 +302,7 @@
     function clearForm() {
       setDefinition(null);
       el("snippet").value = "";
+      el("apiUrl").value = "";
       el("presetId").value = "";
       el("title").value = "";
       el("description").value = "";
@@ -271,6 +312,7 @@
 
     el("category").addEventListener("change", () => { el("newCategory").hidden = el("category").value !== "__new__"; });
     el("package").addEventListener("change", () => { el("newPackage").hidden = el("package").value !== "__new__"; });
+    el("sourceMode").addEventListener("change", syncSourceMode);
     el("managedCategory").addEventListener("change", syncDeleteButtons);
     el("managedPackage").addEventListener("change", syncDeleteButtons);
     el("existingPreset").addEventListener("change", () => {
@@ -285,7 +327,7 @@
       el("existingPreset").value = preset.id;
       syncDeleteButtons();
     });
-    el("parse").onclick = () => parseSnippet().catch(error => setStatus(error.message, "bad"));
+    el("parse").onclick = () => parseSource().catch(error => setStatus(error.message, "bad"));
     el("save").onclick = () => savePreset().catch(error => setStatus(error.message, "bad"));
     el("validate").onclick = () => submitLibrary(true).catch(error => setStatus(error.message, "bad"));
     el("reload").onclick = () => loadCatalog().catch(error => setStatus(error.message, "bad"));
@@ -306,6 +348,7 @@
       submitLibrary(false).catch(error => setStatus(error.message, "bad"));
     };
 
+    syncSourceMode();
     loadCatalog().catch(error => setStatus(error.message, "bad"));
   </script>
 </body>

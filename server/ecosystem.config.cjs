@@ -26,6 +26,7 @@ module.exports = {
         REALTIME_ALLOWED_ORIGINS: "https://digitalisierungsplanung.de",
         REALTIME_EVENT_CATALOG_PATH: process.env.REALTIME_EVENT_CATALOG_PATH || `${appDir}/server/event-catalog.json`,
         REALTIME_PRESET_LIBRARY_PATH: process.env.REALTIME_PRESET_LIBRARY_PATH || `${appDir}/server/preset-library.json`,
+        REALTIME_PRESETS_ADMIN_IMPORT_PATH: "/presets-admin/import",
         REALTIME_REPO_DIR: process.env.REALTIME_REPO_DIR || appDir,
         REALTIME_MAX_PAYLOAD_BYTES: "65536",
         REALTIME_RATE_LIMIT: "360",

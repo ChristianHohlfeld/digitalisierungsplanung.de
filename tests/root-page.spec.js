@@ -195,5 +195,22 @@ test.describe("Preset designer", () => {
     await expect(page.locator("#existingPreset")).toContainText("ACME Footer");
     await expect(page.locator("#managedCategory")).toContainText("Portal");
     await expect(page.locator("#managedPackage")).toContainText("Portal Pro");
+
+    await page.getByRole("button", { name: "Neu", exact: true }).click();
+    await page.locator("#sourceMode").selectOption("api");
+    await page.locator("#apiUrl").fill("https://preset.example.test/card");
+    await page.getByRole("button", { name: "API abrufen" }).click();
+    await expect(page.locator("#status")).toContainText("API-Definition für card erzeugt");
+    const apiDefinition = JSON.parse(await page.locator("#definition").inputValue());
+    expect(apiDefinition).toMatchObject({
+      id: "custom_api_card",
+      variant: "card",
+      categoryId: "websuite-builder",
+      packageIds: ["website.builder"]
+    });
+    expect(JSON.stringify(apiDefinition)).not.toContain("preset.example.test");
+
+    await page.getByRole("button", { name: "In Contract speichern" }).click();
+    await expect(page.locator("#existingPreset")).toContainText("API Card");
   });
 });
