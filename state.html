@@ -20486,70 +20486,11 @@
       stateInspectorEl.classList.remove("template-inspector", "transition-inspector", "preset-composer-inspector");
       stateInspectorTitleEl.textContent = "Eigenschaften";
       stateInspectorBodyEl.innerHTML = `
-        <details class="inspector-collapse" id="pRealtimeCatalogCard" open>
-          <summary class="inspector-collapse-summary">
-            <span class="inspector-collapse-title">
-              <span>Realtime-Ereignisse</span>
-              <span>externer Ereignisvertrag</span>
-              </span>
-            </summary>
-            <div class="inspector-collapse-body">
-              <div class="state-variable-panel">
-                <div class="state-variable-head">
-                <div>Ereigniskatalog<span>Live-Ereignisse vom Realtime-Server</span></div>
-              </div>
-              <div id="pRealtimeEventList" class="state-variable-list"></div>
-              <div class="row">
-                <button id="pRealtimeServerEvents" type="button">Realtime-Ereignisse laden</button>
-              </div>
-            </div>
-          </div>
-        </details>
         <div class="inspector-empty">
           <strong>Kein Zustand ausgewählt</strong>
         </div>
       `;
-      renderRealtimeCatalogInspector();
       if (wasEditingTemplate) renderStateExplorer();
-    }
-
-    function realtimeDetailText(detail) {
-      return Object.entries(normalizeRealtimeDetailSchema(detail))
-        .map(([path, type]) => `${path}: ${type}`)
-        .join("\n");
-    }
-
-    function realtimeBindingsText(bindings) {
-      return normalizeRealtimeEventBindings(bindings)
-        .map(binding => `${binding.from} -> ${binding.to}`)
-        .join("\n");
-    }
-
-    function parseRealtimeDetailText(text) {
-      const detail = {};
-      String(text || "").split(/[\n,]+/).forEach(line => {
-        const clean = line.trim();
-        if (!clean) return;
-        const [rawPath, rawType = "text"] = clean.split(/[:=]/);
-        const path = normalizeBindingPath(rawPath, "");
-        if (!path) return;
-        detail[path] = normalizeStateVariableType(rawType, "text");
-      });
-      return detail;
-    }
-
-    function parseRealtimeBindingsText(text, detail = {}) {
-      const detailTypes = normalizeRealtimeDetailSchema(detail);
-      return String(text || "").split(/[\n,]+/).map(line => {
-        const clean = line.trim();
-        if (!clean) return null;
-        const [rawFrom, rawTo] = clean.split(/\s*(?:->|=>)\s*/);
-        const from = normalizeBindingPath(rawFrom, "");
-        const to = normalizeBindingPath(rawTo, "");
-        if (!from || !to) return null;
-        const sourceDetailPath = from.startsWith("detail.") ? from.slice("detail.".length) : from;
-        return { from, to, type: normalizeStateVariableType(detailTypes[sourceDetailPath] || "text") };
-      }).filter(Boolean);
     }
 
     async function fetchRealtimeEvents(options = {}) {
@@ -20557,55 +20498,6 @@
       const events = productContractRealtimeEvents();
       if (!events.length) throw new Error("Ereigniskatalog ist leer");
       return events;
-    }
-
-    function renderRealtimeCatalogInspector() {
-      const list = stateInspectorBodyEl.querySelector("#pRealtimeEventList");
-      const serverEvents = stateInspectorBodyEl.querySelector("#pRealtimeServerEvents");
-      if (!list || !serverEvents) return;
-      const renderLoading = text => {
-        list.innerHTML = "";
-        const empty = document.createElement("div");
-        empty.className = "state-variable-empty";
-        empty.textContent = text;
-        list.appendChild(empty);
-      };
-      const renderEvents = events => {
-        list.innerHTML = "";
-        events.forEach(event => {
-          const row = document.createElement("div");
-          row.className = "state-variable-row";
-          const main = document.createElement("div");
-          main.className = "state-variable-main";
-          const title = document.createElement("b");
-          title.textContent = event.label || event.name;
-          const meta = document.createElement("span");
-          const bindingCount = normalizeRealtimeEventBindings(event.bindings).length;
-          meta.textContent = `${event.name}${bindingCount ? " / " + bindingCount + " Bindungen" : ""}`;
-          main.append(title, meta);
-          row.appendChild(main);
-          list.appendChild(row);
-        });
-        if (!list.childElementCount) renderLoading("Der Ereigniskatalog enthält keine Realtime-Ereignisse.");
-      };
-      const load = async () => {
-        const previousLabel = serverEvents.textContent;
-        serverEvents.disabled = true;
-        serverEvents.textContent = "Lädt...";
-        renderLoading("Realtime-Ereignisse werden geladen...");
-        try {
-          renderEvents(await fetchRealtimeEvents({ force: true }));
-          serverEvents.textContent = "Realtime-Ereignisse neu laden";
-        } catch (_) {
-          renderLoading("Ereignisse konnten nicht geladen werden.");
-          serverEvents.textContent = "Laden fehlgeschlagen";
-          setTimeout(() => { if (serverEvents.isConnected) serverEvents.textContent = previousLabel; }, 1200);
-        } finally {
-          serverEvents.disabled = false;
-        }
-      };
-      serverEvents.onclick = load;
-      load();
     }
 
     function refreshInspectorForSelection() {

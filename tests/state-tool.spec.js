@@ -7173,14 +7173,10 @@ test.describe("State Blueprint tool", () => {
     }));
     await openTool(page);
     await page.evaluate(() => clearSelection());
-    await expect(page.locator("#pRealtimeServerEvents")).toHaveText(/Realtime-Ereignisse/i);
-    await expect(page.locator("#pRealtimeEventList")).toContainText("Incoming call");
-    await expect.poll(async () => page.locator("#stateInspectorBody").evaluate(root => {
-      const realtime = root.querySelector("#pRealtimeCatalogCard");
-      const empty = root.querySelector(".inspector-empty");
-      if (!realtime || !empty) return false;
-      return realtime.compareDocumentPosition(empty) & Node.DOCUMENT_POSITION_FOLLOWING ? true : false;
-    })).toBe(true);
+    await expect(page.locator("#pRealtimeCatalogCard")).toHaveCount(0);
+    await expect(page.locator("#pRealtimeServerEvents")).toHaveCount(0);
+    await expect(page.locator("#pRealtimeEventList")).toHaveCount(0);
+    await expect(page.locator("#stateInspectorBody .inspector-empty")).toContainText("Kein Zustand ausgewählt");
     await expect.poll(async () => (await savedModel(page)).realtime).toBeUndefined();
     expect(await page.evaluate(() => window.__stateBlueprintRealtime)).toBeUndefined();
     expect((await runtimeContext(page)).lastEvent || "").not.toBe("realtime.sip.call.incoming");
