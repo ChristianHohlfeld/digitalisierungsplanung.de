@@ -3422,7 +3422,8 @@
     }
 
     .state-template-card.previewing,
-    .component-preset-card.previewing {
+    .component-preset-card.previewing,
+    .component-preset-card.info-open {
       border-color: var(--accent);
       box-shadow: 0 0 0 3px rgba(56,189,248,.18);
     }
@@ -3514,6 +3515,99 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+
+    .template-actions .template-info {
+      flex: 0 0 27px;
+      width: 27px;
+      padding: 0;
+      border-color: rgba(125,211,252,.42);
+      color: #bae6fd;
+      font-size: 0;
+      font-weight: 950;
+    }
+
+    .template-info::before {
+      content: "i";
+      display: grid;
+      place-items: center;
+      font-size: 13px;
+      line-height: 1;
+      font-family: ui-serif, Georgia, serif;
+      font-style: italic;
+      font-weight: 950;
+    }
+
+    .preset-preview-popover {
+      position: fixed;
+      z-index: 420;
+      display: grid;
+      width: min(380px, calc(100vw - 20px));
+      max-height: calc(100vh - 20px);
+      overflow: hidden;
+      border: 1px solid rgba(56,189,248,.42);
+      border-radius: 8px;
+      background: #06111f;
+      box-shadow: 0 24px 70px rgba(0,0,0,.52), 0 0 0 1px rgba(255,255,255,.04) inset;
+      color: #dbeafe;
+    }
+
+    .preset-preview-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 34px;
+      gap: 10px;
+      align-items: start;
+      padding: 10px;
+      border-bottom: 1px solid rgba(56,189,248,.18);
+      background: rgba(8,24,39,.96);
+    }
+
+    .preset-preview-title {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: #f8fbff;
+      font-size: 13px;
+      font-weight: 950;
+      line-height: 1.2;
+    }
+
+    .preset-preview-desc {
+      grid-column: 1 / -1;
+      min-width: 0;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 750;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+
+    .preset-preview-close {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      min-width: 34px;
+      height: 34px;
+      min-height: 34px;
+      padding: 0;
+      border-radius: 8px;
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    .preset-preview-frame-wrap {
+      min-height: 220px;
+      height: min(330px, calc(100vh - 138px));
+      background: #020617;
+    }
+
+    .preset-preview-frame {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: #020617;
     }
 
     .state-template-empty {
@@ -4502,7 +4596,7 @@
       }
 
       .workspace.mobile-presets-active .component-preset-card {
-        grid-template-columns: minmax(0, 1fr) 44px;
+        grid-template-columns: minmax(0, 1fr) 92px;
         grid-template-rows: auto !important;
         align-items: center;
         min-height: 60px !important;
@@ -4513,10 +4607,13 @@
       }
 
       .workspace.mobile-presets-active .component-preset-card .template-actions {
+        display: grid;
+        grid-template-columns: 44px 44px;
         align-self: center;
         justify-content: end;
       }
 
+      .workspace.mobile-presets-active .component-preset-card .template-info,
       .workspace.mobile-presets-active .component-preset-card .template-use {
         flex: 0 0 44px;
         width: 44px;
@@ -4525,6 +4622,10 @@
         min-height: 44px;
         padding: 0;
         font-size: 0;
+      }
+
+      .workspace.mobile-presets-active .component-preset-card .template-info::before {
+        font-size: 18px;
       }
 
       .workspace.mobile-presets-active .component-preset-card .template-use::before {
@@ -9285,6 +9386,13 @@
       return url.href;
     }
 
+    function createDetachedRuntimeAppUrl(sessionId) {
+      const blobUrl = URL.createObjectURL(new Blob([GENERATED_APP_HTML], { type: "text/html" }));
+      const url = new URL(blobUrl);
+      url.hash = new URLSearchParams({ [RUNTIME_SESSION_FRAGMENT_KEY]: sessionId }).toString();
+      return url.href;
+    }
+
     function createStandaloneAppUrl() {
       const html = buildStandaloneAppHtml(GENERATED_APP_HTML, definitionPayload());
       const blobUrl = URL.createObjectURL(new Blob([html], { type: "text/html" }));
@@ -9384,6 +9492,10 @@
     let composingTemplateId = null;
     let previewTemplateId = "";
     let presetPreviewActive = false;
+    let presetInfoPreviewEl = null;
+    let presetInfoPreviewUrl = "";
+    let presetInfoPreviewAnchor = null;
+    let presetInfoPreviewSendTimer = null;
     let manualDegroupTargetId = "";
     let selectionActionDegroupTargetId = "";
     let suppressTemplateClickUntil = 0;
@@ -21498,6 +21610,7 @@
     function showNodeInspector(s, opts = {}) {
       const root = stateInspectorBodyEl;
       const wasEditingTemplate = Boolean(editingTemplateId);
+      closePresetInfoOverlay();
       if (presetComposerDraft) clearPresetComposerUi({ restoreApp: false });
       editingTemplateId = null;
       transitionInspectorKeyboardEditing = false;
@@ -24367,6 +24480,143 @@
       if (syncStateEl && syncStateEl.textContent === "Vorlage") syncStateEl.textContent = "aktiv";
     }
 
+    function presetInfoPreviewPayload(template) {
+      const previewTemplate = composerTemplateFrom(template);
+      if (!previewTemplate) return null;
+      ensureComposerVariableDataTypes(previewTemplate);
+      const instance = instantiateStateTemplate(previewTemplate, 120, 120, null);
+      return {
+        type: "STATE_BLUEPRINT_MODEL",
+        model: {
+          version: 2,
+          name: "",
+          initial: instance.root.id,
+          states: instance.states,
+          transitions: instance.transitions
+        },
+        reset: true,
+        startStateId: instance.root.id,
+        paused: false,
+        preserveFocus: true
+      };
+    }
+
+    function unbindPresetInfoPreviewDismiss() {
+      document.removeEventListener("pointerdown", handlePresetInfoPreviewOutside, true);
+      document.removeEventListener("keydown", handlePresetInfoPreviewKeydown, true);
+      window.removeEventListener("resize", closePresetInfoOverlay);
+      window.removeEventListener("scroll", closePresetInfoOverlay, true);
+    }
+
+    function closePresetInfoOverlay() {
+      if (presetInfoPreviewSendTimer) {
+        clearTimeout(presetInfoPreviewSendTimer);
+        presetInfoPreviewSendTimer = null;
+      }
+      unbindPresetInfoPreviewDismiss();
+      presetInfoPreviewAnchor?.classList?.remove("info-open");
+      presetInfoPreviewAnchor = null;
+      if (presetInfoPreviewEl) {
+        presetInfoPreviewEl.remove();
+        presetInfoPreviewEl = null;
+      }
+      if (presetInfoPreviewUrl) {
+        revokeRuntimeAppUrl(presetInfoPreviewUrl);
+        presetInfoPreviewUrl = "";
+      }
+    }
+
+    function handlePresetInfoPreviewOutside(evt) {
+      if (!presetInfoPreviewEl) return;
+      if (presetInfoPreviewEl.contains(evt.target)) return;
+      if (presetInfoPreviewAnchor?.contains?.(evt.target)) return;
+      closePresetInfoOverlay();
+    }
+
+    function handlePresetInfoPreviewKeydown(evt) {
+      if (evt.key === "Escape") closePresetInfoOverlay();
+    }
+
+    function positionPresetInfoOverlay(anchor, overlay) {
+      if (!anchor || !overlay) return;
+      const margin = 10;
+      const viewportW = window.innerWidth || document.documentElement.clientWidth || 1024;
+      const viewportH = window.innerHeight || document.documentElement.clientHeight || 768;
+      const mobile = isMobileWorkspaceLayout();
+      const width = Math.min(mobile ? 420 : 380, Math.max(260, viewportW - margin * 2));
+      overlay.style.width = width + "px";
+      const rect = anchor.getBoundingClientRect();
+      const height = Math.min(overlay.offsetHeight || 420, Math.max(260, viewportH - margin * 2));
+      const left = mobile
+        ? clamp((viewportW - width) / 2, margin, viewportW - width - margin)
+        : clamp(rect.left, margin, viewportW - width - margin);
+      const below = rect.bottom + margin;
+      const above = rect.top - height - margin;
+      const top = mobile
+        ? clamp(rect.top + rect.height / 2 - height / 2, margin, viewportH - height - margin)
+        : above >= margin
+          ? above
+          : clamp(below, margin, viewportH - height - margin);
+      overlay.style.left = left + "px";
+      overlay.style.top = top + "px";
+    }
+
+    function showPresetInfoOverlay(template, anchor) {
+      const payload = presetInfoPreviewPayload(template);
+      if (!payload) return false;
+      const title = String(template?.title || "Vorlage");
+      const description = templateCardDescription(template);
+      closePresetInfoOverlay();
+      const overlay = document.createElement("div");
+      overlay.id = "presetPreviewPopover";
+      overlay.className = "preset-preview-popover";
+      overlay.setAttribute("role", "dialog");
+      overlay.setAttribute("aria-label", title + " ansehen");
+      overlay.innerHTML = `
+        <div class="preset-preview-head">
+          <div class="preset-preview-title"></div>
+          <button class="preset-preview-close" id="presetPreviewClose" type="button" aria-label="Vorschau schliessen" title="Vorschau schliessen">x</button>
+          <div class="preset-preview-desc"></div>
+        </div>
+        <div class="preset-preview-frame-wrap">
+          <iframe class="preset-preview-frame" title="${escapeHtml(title)} Vorschau"></iframe>
+        </div>
+      `;
+      overlay.querySelector(".preset-preview-title").textContent = title;
+      overlay.querySelector(".preset-preview-desc").textContent = description;
+      overlay.querySelector(".preset-preview-close").onclick = evt => {
+        evt.preventDefault();
+        evt.stopPropagation();
+        closePresetInfoOverlay();
+      };
+      document.body.appendChild(overlay);
+      presetInfoPreviewEl = overlay;
+      presetInfoPreviewAnchor = anchor || null;
+      presetInfoPreviewAnchor?.classList?.add("info-open");
+      positionPresetInfoOverlay(anchor, overlay);
+
+      const frame = overlay.querySelector(".preset-preview-frame");
+      const sessionId = createRuntimeSessionId();
+      presetInfoPreviewUrl = createDetachedRuntimeAppUrl(sessionId);
+      const send = () => {
+        try {
+          postRuntimePayloadToWindow(frame.contentWindow, payload, sessionId);
+        } catch (_) {}
+      };
+      frame.addEventListener("load", () => {
+        send();
+        presetInfoPreviewSendTimer = setTimeout(send, 120);
+      }, { once: true });
+      frame.src = presetInfoPreviewUrl;
+      setTimeout(() => {
+        document.addEventListener("pointerdown", handlePresetInfoPreviewOutside, true);
+        document.addEventListener("keydown", handlePresetInfoPreviewKeydown, true);
+        window.addEventListener("resize", closePresetInfoOverlay);
+        window.addEventListener("scroll", closePresetInfoOverlay, true);
+      }, 0);
+      return true;
+    }
+
     function previewTemplateInGeneratedApp(template, opts = {}) {
       const previewTemplate = opts.prepared === true ? template : composerTemplateFrom(template);
       if (!previewTemplate) return false;
@@ -24602,6 +24852,7 @@
     }
 
     function addTemplateToCurrentLayer(template) {
+      closePresetInfoOverlay();
       const contentOwner = currentLayerId ? byId(currentLayerId) : null;
       if (contentOwner && addSimpleContentPresetToState(
         contentOwner,
@@ -26203,6 +26454,7 @@
     }
 
     function renderStateExplorer(opts = {}) {
+      closePresetInfoOverlay();
       const scrollSnapshot = opts.scrollToGroup ? null : stateExplorerScrollSnapshot();
       if (stateExplorerSearchEl && document.activeElement === stateExplorerSearchEl) {
         stateExplorerSearch = String(stateExplorerSearchEl.value || "");
@@ -26346,6 +26598,7 @@
           <div class="template-title"></div>
           <div class="template-body"></div>
           <div class="template-actions">
+            <button class="template-info" type="button" aria-label="${escapeHtml(template.title)} ansehen" title="${escapeHtml(template.title)} ansehen">i</button>
             <button class="template-use" type="button" aria-label="${escapeHtml(template.title)} hinzufügen" title="${escapeHtml(template.title)} hinzufügen">Hinzufügen</button>
           </div>
         `;
@@ -26362,6 +26615,12 @@
           button.addEventListener("mousedown", stopAction);
           button.addEventListener("pointerdown", stopAction);
         });
+        card.querySelector(".template-info").onclick = evt => {
+          evt.preventDefault();
+          evt.stopPropagation();
+          if (Date.now() < suppressTemplateClickUntil) return;
+          showPresetInfoOverlay(template, card);
+        };
         card.querySelector(".template-use").onclick = evt => {
           evt.stopPropagation();
           addTemplateToCurrentLayer(templateForImmediateAdd());
@@ -26369,10 +26628,11 @@
         card.addEventListener("click", evt => {
           if (evt.target.closest("button, input, textarea")) return;
           if (Date.now() < suppressTemplateClickUntil) return;
-          previewTemplateInGeneratedApp(template, { sourceId: template.id, showOnMobile: true });
+          showPresetInfoOverlay(template, card);
         });
         card.addEventListener("dblclick", evt => {
           if (evt.target.closest("button, input, textarea")) return;
+          closePresetInfoOverlay();
           addTemplateToCurrentLayer(templateForImmediateAdd());
         });
         wireDraggableTemplate(card, template);

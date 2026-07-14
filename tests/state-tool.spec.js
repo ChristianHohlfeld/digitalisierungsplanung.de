@@ -10573,10 +10573,14 @@ test.describe("State Blueprint tool", () => {
     }))).toEqual({ canScroll: true, scrolled: true });
 
     await componentPreset(page, "Textblock").locator(".template-title").tap();
-    await expect(page.locator('[data-mobile-view="app"]')).toHaveClass(/active/);
-    await expect(appFrame(page).locator("#screen")).toContainText("Textblock");
+    await expect(page.locator("#presetPreviewPopover")).toBeVisible();
+    await expect(page.locator('[data-mobile-view="presets"]')).toHaveClass(/active/);
+    await expect(page.frameLocator("#presetPreviewPopover iframe").locator("#screen")).toContainText("Textblock");
+    await expect(appFrame(page).locator("#screen")).not.toContainText("Textblock");
     await expectCanvasFillsWorkspace(page);
     await expectCamera(page, canvasCamera);
+    await page.locator("#presetPreviewClose").tap();
+    await expect(page.locator("#presetPreviewPopover")).toHaveCount(0);
 
     await page.locator('[data-mobile-view="edit"]').tap();
     await expect(page.locator("#stateInspector")).toBeVisible();
@@ -12922,17 +12926,20 @@ test.describe("State Blueprint tool", () => {
     await expectRenderedBreadcrumbs(appFrame(page), ["Start", "Projekte", "Aktuell"]);
   });
 
-  test("previews a built-in preset on single click and restores the generated app on state selection @smoke", async ({ page }) => {
+  test("shows a built-in preset info overlay without replacing the generated app @smoke", async ({ page }) => {
     await openTool(page);
 
     const before = await savedModel(page);
     const preset = componentPreset(page, "Externer Link");
+    await expect(preset.getByRole("button", { name: "Externer Link ansehen" })).toBeVisible();
     await preset.locator(".template-title").click();
 
     await expect(page.locator("#presetComposer")).toBeHidden();
-    await expect(page.locator(".preview-title-text")).toHaveText("Vorlagenvorschau");
-    await expect(preset).toHaveClass(/previewing/);
-    await expect(appFrame(page).getByRole("link", { name: "Dokumentation öffnen" })).toBeVisible();
+    await expect(page.locator(".preview-title-text")).toHaveText("Generierte App");
+    await expect(page.locator("#presetPreviewPopover")).toBeVisible();
+    await expect(preset).toHaveClass(/info-open/);
+    await expect(page.frameLocator("#presetPreviewPopover iframe").getByRole("link", { name: "Dokumentation öffnen" })).toBeVisible();
+    await expect(appFrame(page).getByRole("link", { name: "Dokumentation öffnen" })).toHaveCount(0);
     await expect.poll(async () => {
       const stored = await savedModel(page);
       return {
@@ -12948,7 +12955,8 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator('[data-id="login"]').click();
     await expect(page.locator(".preview-title-text")).toHaveText("Generierte App");
-    await expect(preset).not.toHaveClass(/previewing/);
+    await expect(page.locator("#presetPreviewPopover")).toHaveCount(0);
+    await expect(preset).not.toHaveClass(/info-open/);
     await expect(appFrame(page).locator("#statePill")).toHaveText("login");
     await expect(appFrame(page).getByRole("link", { name: "Dokumentation öffnen" })).toHaveCount(0);
   });
