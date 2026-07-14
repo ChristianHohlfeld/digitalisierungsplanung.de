@@ -27982,14 +27982,12 @@
       renderStateExplorer();
       persistStateTemplates();
       applyCamera();
+      if (!isMobileWorkspaceLayout()) fitView();
       draw();
       initHistory();
       persistModel(false);
       syncToApp(true);
-      setTimeout(() => {
-        if (isMobileWorkspaceLayout()) focusMobileCanvasState();
-        else fitView();
-      }, 50);
+      if (isMobileWorkspaceLayout()) setTimeout(focusMobileCanvasState, 50);
       if (demoEntry && initialPersistedModelExists) {
         consumeDemoEntryUrl();
         setTimeout(async () => {
