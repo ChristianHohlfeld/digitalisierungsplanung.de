@@ -5153,6 +5153,46 @@
       gap: 8px;
       margin-top: 8px;
     }
+    .component-quick-edit {
+      display: grid;
+      gap: 8px;
+      padding: 10px;
+      border: 1px solid rgba(56,189,248,.34);
+      border-radius: 12px;
+      background:
+        linear-gradient(135deg, rgba(56,189,248,.12), transparent 48%),
+        rgba(2, 10, 21, .36);
+    }
+    .component-quick-head {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+    }
+    .component-quick-title {
+      color: #e0f2fe;
+      font-size: 12px;
+      font-weight: 950;
+      line-height: 1.2;
+    }
+    .component-quick-hint {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.35;
+    }
+    .component-quick-fields {
+      display: grid;
+      gap: 8px;
+    }
+    .component-editor .field.component-quick-field {
+      grid-template-columns: minmax(82px, .28fr) minmax(0, 1fr);
+      align-items: start;
+    }
+    .component-editor .field.component-quick-field.wide {
+      grid-template-columns: 1fr;
+    }
+    .component-editor .field.component-quick-field textarea {
+      min-height: 96px;
+    }
     .component-editor-head > span:first-child,
     .component-editor-head .component-editor-title {
       min-width: 0;
@@ -19041,13 +19081,11 @@
           if (!component?.id) return;
           openComponentEditorIds.add(component.id);
           rerender({ componentId: component.id });
-          requestAnimationFrame(() => {
-            const editor = root.querySelector(`.component-editor[data-component-id="${cssEscapeValue(component.id)}"]`);
-            if (!editor) return;
-            editor.open = true;
-            editor.scrollIntoView({ block: "nearest", behavior: "smooth" });
-            editor.querySelector('.widget-data-editor input, .widget-data-editor textarea, .widget-data-editor select')?.focus({ preventScroll: true });
-          });
+          const editor = root.querySelector(`.component-editor[data-component-id="${cssEscapeValue(component.id)}"]`);
+          if (!editor) return;
+          editor.open = true;
+          editor.scrollIntoView({ block: "nearest" });
+          editor.querySelector('.component-quick-edit input, .component-quick-edit textarea, .component-quick-edit select, .widget-data-editor input, .widget-data-editor textarea, .widget-data-editor select')?.focus({ preventScroll: true });
         };
 
         const assignedList = document.createElement("div");
@@ -19443,6 +19481,101 @@
         }
         persistOwner("state:component:" + component.id);
       };
+      const appendQuickEditPanel = (container, title, hint, buildFields) => {
+        const panel = document.createElement("div");
+        panel.className = "component-quick-edit";
+        const head = document.createElement("div");
+        head.className = "component-quick-head";
+        const titleEl = document.createElement("div");
+        titleEl.className = "component-quick-title";
+        titleEl.textContent = title;
+        const hintEl = document.createElement("div");
+        hintEl.className = "component-quick-hint";
+        hintEl.textContent = hint;
+        head.append(titleEl, hintEl);
+        const fields = document.createElement("div");
+        fields.className = "component-quick-fields";
+        buildFields(fields);
+        if (!fields.childElementCount) return false;
+        panel.append(head, fields);
+        container.appendChild(panel);
+        return true;
+      };
+      const appendQuickComponentField = (container, labelText, control, opts = {}) => {
+        const field = document.createElement("div");
+        field.className = "field component-quick-field";
+        if (opts.wide) field.classList.add("wide");
+        const labelEl = document.createElement("label");
+        labelEl.textContent = labelText;
+        control.setAttribute("aria-label", labelText);
+        field.append(labelEl, control);
+        container.appendChild(field);
+        return control;
+      };
+      const quickComponentControl = (component, key, opts = {}) => {
+        const control = opts.multiline ? document.createElement("textarea") : document.createElement("input");
+        if (!opts.multiline) {
+          control.type = "text";
+          if (opts.url) control.inputMode = "url";
+        }
+        control.value = component[key] || "";
+        control.placeholder = opts.placeholder || "";
+        control.dataset.componentQuick = key;
+        control.oninput = () => {
+          component[key] = control.value;
+          saveComponent(component);
+        };
+        control.onblur = () => { draw(); };
+        return control;
+      };
+      const appendContentQuickEditor = (component, body) => {
+        const configs = {
+          heading: {
+            hint: "Die sichtbare Ueberschrift dieses Presets.",
+            fields: [
+              { key: "text", label: "Titel", placeholder: "Ueberschrift" }
+            ]
+          },
+          text: {
+            hint: "Der Haupttext, der in der Vorschau sofort sichtbar ist.",
+            fields: [
+              { key: "text", label: "Text", multiline: true, placeholder: "Text schreiben" }
+            ]
+          },
+          note: {
+            hint: "Der Hinweistext, der im Zustand angezeigt wird.",
+            fields: [
+              { key: "text", label: "Hinweis", multiline: true, placeholder: "Hinweis schreiben" }
+            ]
+          },
+          image: {
+            hint: "Bildquelle und Beschreibung direkt aendern.",
+            fields: [
+              { key: "url", label: "Bild-URL", placeholder: "https://example.com/bild.jpg", url: true },
+              { key: "text", label: "Alt-Text", placeholder: "Kurze Bildbeschreibung" }
+            ]
+          },
+          link: {
+            hint: "Linktext und Ziel direkt aendern.",
+            fields: [
+              { key: "text", label: "Label", placeholder: "Linktext" },
+              { key: "url", label: "URL", placeholder: "https://example.com", url: true }
+            ]
+          }
+        };
+        const config = configs[component.type];
+        if (!config) return false;
+        return appendQuickEditPanel(body, "Schnell bearbeiten", config.hint, fields => {
+          config.fields.forEach(field => {
+            appendQuickComponentField(
+              fields,
+              field.label,
+              quickComponentControl(component, field.key, field),
+              { wide: Boolean(field.multiline) }
+            );
+          });
+        });
+      };
       const changeComponentPreset = async (component, nextType, selectEl) => {
         const currentType = component.type;
         if (!componentPresetTypes().includes(nextType) || nextType === currentType) return;
@@ -19550,9 +19683,10 @@
         rerender({ componentId: component.id });
         return true;
       };
-      const appendWidgetScalarField = (container, component, dataPath, data, key, labelText) => {
+      const appendWidgetScalarField = (container, component, dataPath, data, key, labelText, opts = {}) => {
         const field = document.createElement("div");
         field.className = "field";
+        if (opts.quick) field.classList.add("component-quick-field");
         const labelEl = document.createElement("label");
         labelEl.textContent = labelText;
         let control;
@@ -19575,6 +19709,7 @@
           control.onblur = () => { draw(); };
         }
         control.setAttribute("aria-label", labelText);
+        if (opts.quick) control.dataset.widgetQuick = key;
         field.append(labelEl, control);
         container.appendChild(field);
       };
@@ -19715,7 +19850,6 @@
         };
         nameInput.onblur = () => { draw(); rerender({ componentId: component.id }); };
         nameField.append(nameLabel, nameInput);
-        editor.appendChild(nameField);
 
         const variant = daisyVariantName(component);
         const scalarLabels = {
@@ -19737,23 +19871,52 @@
           description: "Beschreibung",
           image: "Bild-URL",
           avatar: "Avatar-URL",
+          url: "URL",
           price: "Preis",
-          period: "Zeitraum"
+          period: "Zeitraum",
+          nextLabel: "Weiter-Text",
+          secondaryActionLabel: "Zweite Aktion",
+          status: "Status"
         };
         const preferred = {
           navbar: ["brand", "badge", "cartLabel", "subtotal", "actionLabel", "parent"],
           footer: ["brand", "note"],
-          hero: ["title", "body", "actionLabel", "url", "secondaryActionLabel", "secondaryTransitionId", "image"],
+          hero: ["title", "body", "image", "actionLabel", "url", "secondaryActionLabel"],
           card: ["title", "body", "actionLabel", "image"],
           alert: ["message"],
           avatar: ["name", "image", "status"],
           button: ["label"],
           loading: ["label", "nextLabel"]
         }[variant] || [];
+        const quickPreferred = {
+          navbar: ["brand", "search", "badge"],
+          footer: ["brand", "note"],
+          hero: ["title", "body", "image", "actionLabel"],
+          card: ["title", "body", "image", "price", "actionLabel"],
+          alert: ["message"],
+          avatar: ["image", "name", "status"],
+          button: ["label"],
+          loading: ["label", "nextLabel"],
+          mask: ["image", "alt"],
+          "feature-grid": ["title", "body", "image"]
+        }[variant] || ["title", "label", "body", "message", "image", "url", "name", "description"];
+        const quickScalarKeys = [...new Set([...quickPreferred, ...Object.keys(data)])]
+          .filter(key => Object.prototype.hasOwnProperty.call(data, key))
+          .filter(key => ["string", "number", "boolean"].includes(typeof data[key]))
+          .filter(key => !/transitionId$/i.test(key))
+          .slice(0, 4);
+        appendQuickEditPanel(editor, "Schnell bearbeiten", "Die wichtigsten Inhalte dieses Presets.", fields => {
+          quickScalarKeys.forEach(key => {
+            appendWidgetScalarField(fields, component, dataPath, data, key, scalarLabels[key] || dataPathLabel(key, "Feld"), { quick: true });
+          });
+        });
+        editor.appendChild(nameField);
+        const quickScalarKeySet = new Set(quickScalarKeys);
         const scalarKeys = [...new Set([...preferred, ...Object.keys(data)])]
           .filter(key => key !== "layout" && key !== "transitionId")
           .filter(key => Object.prototype.hasOwnProperty.call(data, key))
           .filter(key => ["string", "number", "boolean"].includes(typeof data[key]))
+          .filter(key => !quickScalarKeySet.has(key))
           .slice(0, 10);
         scalarKeys.forEach(key => appendWidgetScalarField(editor, component, dataPath, data, key, scalarLabels[key] || dataPathLabel(key, "Feld")));
 
@@ -20150,7 +20313,10 @@
         if (component.type === "daisy" && !isTransitionButtonComponent && !isDataWireComponent) {
           appendDaisyWidgetEditor(component, body);
         }
-        if (component.type !== "divider" && component.type !== "daisy" && !isTransitionButtonComponent && !isDataWireComponent) {
+        const contentQuickRendered = component.type !== "divider" && component.type !== "daisy" && !isTransitionButtonComponent && !isDataWireComponent
+          ? appendContentQuickEditor(component, body)
+          : false;
+        if (component.type !== "divider" && component.type !== "daisy" && !isTransitionButtonComponent && !isDataWireComponent && !contentQuickRendered) {
           if (component.type === "list") {
             const field = document.createElement("div");
             field.className = "field";
@@ -20277,7 +20443,7 @@
             body.appendChild(field);
           }
         }
-        if (component.type === "image" || component.type === "link") {
+        if ((component.type === "image" || component.type === "link") && !contentQuickRendered) {
           const field = document.createElement("div");
           field.className = "field";
           const fieldLabel = document.createElement("label");
@@ -24498,6 +24664,7 @@
       model.transitions.push(...instance.transitions);
       wireFreshLayerRootToBoundary(parent, instance.root, layerWasEmpty);
       selected = selectionFromParts([instance.root.id], []);
+      openPrimaryComponentEditor(instance.root);
       saveModel();
       draw();
       showNodeInspector(instance.root, { focus: false, pulse: true });
@@ -24515,11 +24682,25 @@
       return cloneComponents(components)[0] || null;
     }
 
+    function primaryEditableComponentId(state) {
+      const component = normalizeComponents(state?.components).find(component =>
+        ["heading", "text", "image", "link", "note", "list", "daisy"].includes(component.type)
+      );
+      return component?.id || "";
+    }
+
+    function openPrimaryComponentEditor(state) {
+      const componentId = primaryEditableComponentId(state);
+      if (componentId) openComponentEditorIds.add(componentId);
+      return componentId;
+    }
+
     function addSimpleContentPresetToState(state, template, historyKey) {
       const component = simpleContentPresetComponent(template);
       if (!state || state.virtualProxy || !component) return false;
       component.id = uid("c");
       state.components = [...normalizeComponents(state.components), component];
+      openComponentEditorIds.add(component.id);
       selected = selectionFromParts([state.id], []);
       saveModel(historyKey || ("state:component:add:" + state.id));
       draw();
@@ -24548,6 +24729,7 @@
       model.transitions.push(...instance.transitions);
       wireFreshLayerRootToBoundary(parent, instance.root, layerWasEmpty);
       selected = selectionFromParts([instance.root.id], []);
+      openPrimaryComponentEditor(instance.root);
       saveModel("layer:add-template:" + (currentLayerId || "root"));
       draw();
       showNodeInspector(instance.root, { focus: false, pulse: true });
@@ -24636,6 +24818,7 @@
       nextComponent.dataRole = nextComponent.dataRole || "widget";
       nextComponent.dataLabel = info.label;
       state.components = [...normalizeComponents(state.components), nextComponent];
+      openComponentEditorIds.add(nextComponent.id);
       state.data = setDataObjectPath(
         normalizeStateDataObject(state.data),
         targetLocalPath,
@@ -25864,6 +26047,7 @@
       wireFreshLayerRootToBoundary(parent, instance.root, layerWasEmpty);
       const split = splitTransitionWithInsertedState(splitTarget?.id || "", instance.root);
       selected = selectionFromParts([instance.root.id], []);
+      openPrimaryComponentEditor(instance.root);
       saveModel(split ? "template:insert-transition:" + splitTarget.id : "template:drop");
       draw();
       showNodeInspector(instance.root, { focus: false, pulse: true });

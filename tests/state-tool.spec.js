@@ -4465,12 +4465,50 @@ test.describe("State Blueprint tool", () => {
     await expect(appFrame(page).getByRole("button", { name: "Login" })).toBeVisible();
   });
 
+  test("surfaces primary preset settings in a quick editor @smoke", async ({ page }) => {
+    await openTool(page);
+
+    const textStateId = await addComponentState(page, "Text", { expandEditor: false });
+    const textEditor = componentEditor(page, "Text");
+    await expect(textEditor).toHaveAttribute("open", "");
+    await expect(textEditor.locator(".component-quick-edit")).toContainText("Schnell bearbeiten");
+    await textEditor.locator('[data-component-quick="text"]').fill("Schnell editierbarer Hilfetext");
+
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return model.states.find(state => state.id === textStateId)?.components.find(component => component.type === "text")?.text || "";
+    }).toBe("Schnell editierbarer Hilfetext");
+    await expect(appFrame(page).getByText("Schnell editierbarer Hilfetext")).toBeVisible();
+
+    const imageUrl = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjAiIGhlaWdodD0iNjAiPjxyZWN0IHdpZHRoPSIxMjAiIGhlaWdodD0iNjAiIGZpbGw9IiMwZWE1ZTkiLz48L3N2Zz4=";
+    const imageStateId = await addComponentState(page, "Image", { expandEditor: false });
+    const imageEditor = componentEditor(page, "Image");
+    await expect(imageEditor).toHaveAttribute("open", "");
+    await expect(imageEditor.locator(".component-quick-edit")).toContainText("Schnell bearbeiten");
+    await imageEditor.getByLabel("Bild-URL").fill(imageUrl);
+    await imageEditor.getByLabel("Alt-Text").fill("Schnell austauschbares Bild");
+
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      const imageComponent = model.states.find(state => state.id === imageStateId)?.components.find(component => component.type === "image");
+      return {
+        url: imageComponent?.url || "",
+        text: imageComponent?.text || ""
+      };
+    }).toEqual({
+      url: imageUrl,
+      text: "Schnell austauschbares Bild"
+    });
+    await expect(appFrame(page).locator(".component-image")).toHaveAttribute("src", imageUrl);
+    await expect(appFrame(page).locator(".component-image")).toHaveAttribute("alt", "Schnell austauschbares Bild");
+  });
+
   test("image component preset starts with a visible placeholder image @smoke", async ({ page }) => {
     await openTool(page);
     await openStateLayer(page, "login");
 
     const imageStateId = await addComponentState(page, "Image");
-    const imageUrl = await componentEditor(page, "Image").locator("input").nth(1).inputValue();
+    const imageUrl = await componentEditor(page, "Image").getByLabel("Bild-URL").inputValue();
     expect(imageUrl).toMatch(/^data:image\/svg\+xml;base64,/);
     expect(imageUrl).not.toBe("https://");
 
@@ -4508,8 +4546,8 @@ test.describe("State Blueprint tool", () => {
     await componentEditor(page, "Text").locator("textarea").fill("Body paragraph for {{states.login.userName}}");
 
     await addComponentState(page, "Image");
-    await componentEditor(page, "Image").locator("input").nth(0).fill("Chart for {{states.login.userName}}");
-    await componentEditor(page, "Image").locator("input").nth(1).fill(imageUrl);
+    await componentEditor(page, "Image").getByLabel("Alt-Text").fill("Chart for {{states.login.userName}}");
+    await componentEditor(page, "Image").getByLabel("Bild-URL").fill(imageUrl);
 
     await addComponentState(page, "List");
     const listEditor = componentEditor(page, "List");
@@ -4555,8 +4593,8 @@ test.describe("State Blueprint tool", () => {
 
     await expect(componentEditor(page, "Heading").locator("input")).toHaveValue("Account heading {{states.login.userName}}");
     await expect(componentEditor(page, "Text").locator("textarea")).toHaveValue("Body paragraph for {{states.login.userName}}");
-    await expect(componentEditor(page, "Image").locator("input").nth(0)).toHaveValue("Chart for {{states.login.userName}}");
-    await expect(componentEditor(page, "Image").locator("input").nth(1)).toHaveValue(imageUrl);
+    await expect(componentEditor(page, "Image").getByLabel("Alt-Text")).toHaveValue("Chart for {{states.login.userName}}");
+    await expect(componentEditor(page, "Image").getByLabel("Bild-URL")).toHaveValue(imageUrl);
     await expect(componentEditor(page, "List").locator(".list-item-editor input")).toHaveCount(5);
     await expect(componentEditor(page, "List").locator(".list-item-editor input").nth(0)).toHaveValue("First step for {{states.login.userName}}");
     await expect(componentEditor(page, "List").locator(".list-item-editor input").nth(1)).toHaveValue("Second step");
@@ -7690,7 +7728,9 @@ test.describe("State Blueprint tool", () => {
     await panel.getByRole("button", { name: "Baustein Benutzer-Avatar bearbeiten" }).click();
     const avatarEditor = componentEditor(page, "Baustein: Benutzer-Avatar");
     await expect(avatarEditor).toHaveJSProperty("open", true);
-    await expect(avatarEditor.getByLabel("Bausteinname")).toBeFocused();
+    await expect(avatarEditor.locator(".component-quick-edit")).toContainText("Schnell bearbeiten");
+    await expect(avatarEditor.getByLabel("Bild-URL")).toBeVisible();
+    await expect(avatarEditor.getByLabel("Bausteinname")).toBeVisible();
 
     const source = panel.locator('.widget-assigned-row[data-component-id]').filter({ hasText: "Status-Badge" });
     const target = panel.locator('.widget-assigned-row[data-component-id]').filter({ hasText: "Benutzer-Avatar" });
