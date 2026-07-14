@@ -1,8 +1,20 @@
 const fs = require("node:fs");
 const path = require("node:path");
+const crypto = require("node:crypto");
 const { spawn } = require("node:child_process");
 const { test, expect } = require("@playwright/test");
 const { normalizeModel, validateModel, applyActions, applyCommands, commandCatalog, definitionPayload } = require("../mcp/state-blueprint-core");
+
+function runtimeScript(html) {
+  const scripts = [...String(html).matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(match => match[1]);
+  const runtime = scripts.find(script => script.includes("IS_STANDALONE_EXPORT"));
+  if (!runtime) throw new Error("Could not find standalone runtime script.");
+  return runtime;
+}
+
+function sha256(value) {
+  return crypto.createHash("sha256").update(value).digest("hex");
+}
 
 function createMcpClient(modelPath) {
   const child = spawn(process.execPath, ["mcp/state-blueprint-server.js"], {
@@ -415,6 +427,18 @@ test.describe("State Blueprint MCP", () => {
       expect(exportedHtml.structuredContent.outputPath).toBe(exportPath);
       expect(exportedHtml.structuredContent.bytes).toBeGreaterThan(50000);
       const exportedText = fs.readFileSync(exportPath, "utf8");
+      await page.goto("/state.html");
+      const editorExportedText = await page.evaluate(
+        definition => buildStandaloneAppHtml(GENERATED_APP_HTML, definition),
+        exportedHtml.structuredContent.definition
+      );
+      expect({
+        bytes: Buffer.byteLength(runtimeScript(exportedText), "utf8"),
+        sha256: sha256(runtimeScript(exportedText))
+      }).toEqual({
+        bytes: Buffer.byteLength(runtimeScript(editorExportedText), "utf8"),
+        sha256: sha256(runtimeScript(editorExportedText))
+      });
       expect(exportedText).toContain("EXPORTED_STATE_BLUEPRINT");
       expect(exportedText).toContain("MCP Checkout");
       expect(exportedText).toContain("function normalizeStateDataObject(value)");
@@ -427,6 +451,7 @@ test.describe("State Blueprint MCP", () => {
       expect(exportedText).not.toContain("localStorage");
       expect(exportedText).not.toContain('window.addEventListener("storage"');
       expect(exportedText).not.toContain("window.__stateBlueprintRealtime");
+      await page.goto("about:blank");
       await page.setContent(exportedText, { waitUntil: "domcontentloaded" });
       await expect(page.locator("#appName")).toHaveText("MCP Checkout");
       await expect(page.locator("#statePill")).toHaveText("start");

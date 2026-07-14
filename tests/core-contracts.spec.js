@@ -1,5 +1,6 @@
 const fs = require("node:fs");
 const path = require("node:path");
+const crypto = require("node:crypto");
 const { test, expect } = require("@playwright/test");
 
 const STORAGE_KEY = "stateBlueprintHotLinked.model.v2";
@@ -60,6 +61,17 @@ function extractJsString(source, declaration) {
 
 function generatedAppHtml() {
   return extractJsString(stateHtml(), "const APP_HTML");
+}
+
+function editorHostSource() {
+  const source = stateHtml();
+  const hostSource = source.replace(/const APP_HTML = "(?:\\.|[^"\\])*";/, 'const APP_HTML = "";');
+  if (hostSource === source) throw new Error("Could not isolate editor host source from APP_HTML.");
+  return hostSource;
+}
+
+function sha256(value) {
+  return crypto.createHash("sha256").update(value).digest("hex");
 }
 
 function appFrame(page) {
@@ -277,6 +289,36 @@ test.describe("Core source contracts", () => {
     expect(html).not.toContain("enhanceGeneratedAppHtml");
     expect(html).not.toContain("removeGeneratedRange");
     expect(html).not.toContain("replaceGeneratedRange");
+  });
+
+  test("editor host has no declaration-only named functions @smoke", () => {
+    const source = editorHostSource();
+    const declarations = [...source.matchAll(/^[ \t]*(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/gm)]
+      .map(match => match[1]);
+    const declarationCounts = declarations.reduce((counts, name) => {
+      counts.set(name, (counts.get(name) || 0) + 1);
+      return counts;
+    }, new Map());
+    const declarationOnly = [...declarationCounts]
+      .filter(([name, count]) => (source.match(new RegExp(`\\b${name}\\b`, "g")) || []).length === count)
+      .map(([name]) => name)
+      .sort();
+
+    expect(declarationOnly, "named host functions need a product-source reference beyond their declaration").toEqual([]);
+  });
+
+  test("preview blob matches the current canonical runtime fingerprint @smoke", async ({ page }) => {
+    const canonicalRuntime = generatedAppHtml();
+    await page.goto("/state.html");
+    const previewRuntime = await generatedPreviewHtml(page);
+
+    expect({
+      bytes: Buffer.byteLength(previewRuntime, "utf8"),
+      sha256: sha256(previewRuntime)
+    }).toEqual({
+      bytes: Buffer.byteLength(canonicalRuntime, "utf8"),
+      sha256: sha256(canonicalRuntime)
+    });
   });
 
   test("state tool text uses clean UTF-8 and native German spelling @smoke", () => {

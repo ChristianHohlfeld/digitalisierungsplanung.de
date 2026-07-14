@@ -930,12 +930,12 @@ Editoraktion
 ## 17. Ausführbare Absicherung
 
 - **TST-001 Testbestand:** Am Stand dieses Dokuments umfasst die ausführbare
-  Spezifikation 345 expandierte Playwright-Fälle in fünf Spec-Dateien und 26
-  Node-Server-Tests, insgesamt 371 Fälle.
-- **TST-002 Smoke:** 246 Playwright-Fälle tragen `@smoke`. `npm test` prüft
-  zuerst die 26 Server-Tests und danach diese 246 Smoke-Fälle.
-- **TST-003 Vollständiger Lauf:** `npm run test:full` prüft zuerst alle 26
-  Server-Tests und danach alle 345 Playwright-Fälle. Der vollständige lokale
+  Spezifikation 357 expandierte Playwright-Fälle in sechs Spec-Dateien und 27
+  Node-Server-Tests, insgesamt 384 Fälle.
+- **TST-002 Smoke:** 260 Playwright-Fälle tragen `@smoke`. `npm test` prüft
+  zuerst die 27 Server-Tests und danach diese 260 Smoke-Fälle.
+- **TST-003 Vollständiger Lauf:** `npm run test:full` prüft zuerst alle 27
+  Server-Tests und danach alle 357 Playwright-Fälle. Der vollständige lokale
   Vertragslauf ist damit genau ein Befehl:
 
   ```bash
@@ -951,9 +951,9 @@ Editoraktion
   der vor dem Fix am beobachteten Verhalten scheitert und nach dem Fix ohne
   Retry, Force-Click oder Sonderpfad besteht.
 - **TST-007 CI-Freigabe:** GitHub Actions und Gitea MÜSSEN beide den
-  vollständigen Bestand von 26 Server- und 345 Playwright-Fällen ausführen.
+  vollständigen Bestand von 27 Server- und 357 Playwright-Fällen ausführen.
   Gitea verwendet `npm run test:full`. GitHub Actions DARF die Playwright-Fälle
-  in disjunkte Shards aufteilen, wenn deren Vereinigung exakt alle 345 Fälle
+  in disjunkte Shards aufteilen, wenn deren Vereinigung exakt alle 357 Fälle
   enthält, die Serverfälle genau einmal laufen und der Deploy von allen Shards
   abhängt. Kein Deploy darf nur durch den kleineren Smoke-Lauf freigegeben
   werden.
@@ -974,6 +974,13 @@ Editoraktion
   in disjunkte, parallel ausführbare Fälle geteilt werden. Längere
   Sondertimeouts, Retries, Force-Klicks und abgeschwächte Assertions sind
   verboten.
+- **TST-011 Lean- und Runtime-Drift:** Der Editor-Host DARF keine benannte
+  Funktion enthalten, die im Produktquelltext ausschließlich deklariert wird.
+  Die eingebettete Runtime ist bei diesem Host-Audit getrennt zu betrachten.
+  Preview, Editor-Export und MCP-Export MÜSSEN dieselbe aktuelle kanonische
+  Runtime verwenden. Der Nachweis berechnet Bytezahl und SHA-256 im jeweiligen
+  Testlauf aus `APP_HTML`; ein fester Release-Hash ist verboten, weil er
+  vertragskonforme gemeinsame Runtime-Änderungen künstlich blockieren würde.
 
 Abdeckungsbereiche:
 
@@ -1647,8 +1654,8 @@ auch extern erfüllt.
   lässt den Inspectorzustand unverändert und echte Touch-Taps bleiben unabhängig
   von asynchronen Runtime-Nachrichten deterministisch.
 - Vollständige lokale Abnahme vom 2026-07-14: 27/27 Node-Server-Tests sowie
-  355/355 Playwright-Fälle bestanden. Die Browserabnahme lief vollständig und
-  disjunkt als 258/258 Smoke- und 97/97 übrige Fälle mit vier Workern; kein Test
+  357/357 Playwright-Fälle bestanden. Die Browserabnahme lief vollständig und
+  disjunkt als 260/260 Smoke- und 97/97 übrige Fälle mit vier Workern; kein Test
   wurde ausgelassen oder durch Retry beziehungsweise Force ersetzt.
 - Lean-Audit vom 2026-07-14: Die Runtime-Enhancer-Kette und 54 nachweislich
   aufruferlose Hostfunktionen wurden entfernt. Der Produktcode in `state.html`
@@ -1658,6 +1665,13 @@ auch extern erfüllt.
   `736630e9aed63799603b28da28d6ac607f6d114db6c70cc218184f17b13ddcb7`
   bytegenau unverändert. Der statische Abschluss-Audit findet keine deklarierte
   Hostfunktion ohne Verwendung.
+- Ausführbarer Lean-Vertrag vom 2026-07-14: Der Core-Test isoliert den
+  Editor-Host von der eingebetteten Runtime und lehnt jede benannte Funktion ab,
+  die im Produktquelltext nur als Deklaration vorkommt. Preview, Editor-Export
+  und MCP-Export werden gegen die jeweils aktuelle kanonische `APP_HTML`-Quelle
+  per Bytezahl und zur Laufzeit berechnetem SHA-256 verglichen. Es gibt bewusst
+  keinen festgeschriebenen Release-Hash: Eine gemeinsam geänderte Runtime bleibt
+  grün, unbeabsichtigte Auslieferungsdrift nicht.
 
 ### 22.6 Weiterhin offen, ohne stillen Fallback
 
