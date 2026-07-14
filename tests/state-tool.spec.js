@@ -11616,9 +11616,9 @@ test.describe("State Blueprint tool", () => {
 
     const point = await emptyCanvasPoint(page);
     await page.mouse.move(point.x, point.y);
-    await page.mouse.down();
+    await page.mouse.down({ button: "middle" });
     await page.mouse.move(point.x - 120, point.y + 70, { steps: 8 });
-    await page.mouse.up();
+    await page.mouse.up({ button: "middle" });
 
     await expect.poll(() => worldTransform(page)).not.toBe(beforeDrag);
     await expect(edge).toHaveClass(/selected/);
