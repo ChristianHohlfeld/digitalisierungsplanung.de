@@ -12,7 +12,7 @@ Der globale JSON-Zustands-/Ereignisbus bleibt die einzige fachliche Wahrheit. De
 - zustandsloser Sende-Endpunkt für externe Systeme,
 - Browser-Testkonsole für manuelles Emitten,
 - Admin-Designer für Katalogänderungen per Git,
-- zustandslose Analyse redigierter PC-Prozessaufnahmen für den Editor.
+- zustandslose Analyse explizit freigegebener Browser-Prozessaufnahmen für den Editor.
 
 Zusätzlich veröffentlicht der Server lesend die gemeinsame
 Frontend-/Backend-Release-ID. Er besitzt dafür keinen zweiten Versionszähler.
@@ -664,14 +664,22 @@ PROCESS_RECORDER_ANALYZER_URL=<optional-custom-agent-url>
 PROCESS_RECORDER_ANALYZER_TOKEN=<optional-server-secret>
 ```
 
-## PC-Prozessaufnahme
+## Browser-Prozessaufnahme
 
 `GET /process/contract` meldet, ob ein Agent konfiguriert ist, und veröffentlicht
-nur nicht geheime Grenzen. `POST /process/analyze` akzeptiert einen
-redigierten Ereignisstrom des Windows-Begleiters mit höchstens 4000 Ereignissen
-und 36 ereignisbezogenen JPEG-Kontextbildern. Passwörter, konkrete Feldwerte
-und Roh-Tasten sind nicht Teil der strukturierten Ereignisdaten; die
-ausdrücklich freigegebenen Kontextbilder zeigen den sichtbaren Desktop.
+nur nicht geheime Grenzen. `POST /process/analyze` akzeptiert höchstens 4000
+neutrale `visual`-Ereignisse und 36 zeitlich ausgedünnte
+JPEG-Kontextbilder stabiler Änderungen aus der ausdrücklich freigegebenen
+Browseroberfläche. Es gibt keinen lokalen Begleiter und keine nativen Hooks.
+Die Kontextbilder können alle sichtbaren Inhalte der gewählten Oberfläche
+enthalten; personenbezogene Werte dürfen nicht in die Prozessdefinition
+übernommen werden.
+
+Der veröffentlichte Vertrag begrenzt eine Sitzung auf zwölf Live-Analysen mit
+mindestens 15 Sekunden Abstand. Nach fünf Sekunden ohne relevante Änderung
+pausieren neue Ereignisse, Kontextbilder und Agentenaufrufe automatisch. Ein
+abschließender Lauf bei Stop ist nur erlaubt, wenn seit der letzten Analyse
+neue stabile Zustände hinzugekommen sind.
 
 Der Endpunkt führt keine Session und persistiert weder Eingabe noch Ergebnis.
 Er gibt ausschließlich ein vollständiges, vom gemeinsamen MCP-Core validiertes

@@ -209,12 +209,14 @@ Transitionen in derselben Arbeitsfläche. Stop schließt die Aufnahme als genau
 einen Undo-Schritt ab; Abbruch oder ein Fehler ohne gültiges Agentenergebnis
 lassen den vorherigen Stand unverändert.
 
-Auf Desktop verbindet sich der Editor mit dem lokalen Windows-Begleiter. Beim
-ersten Einsatz `assets/Zustand-Prozessrecorder.zip` entpacken und
-`Zustand-Recorder.cmd` starten. Der sichtbare Begleiter läuft ausschließlich
-auf `127.0.0.1:43127`, persistiert nichts und liest keine Roh-Tasten,
-Passwörter oder konkreten Feldwerte als Ereignisdaten aus. Die ausdrücklich
-freigegebenen Kontextbilder zeigen den sichtbaren Desktop.
+Die Aufnahme läuft installationsfrei über die Bildschirmfreigabe des Browsers.
+Für tabübergreifende Abläufe wählt der Nutzer das ganze Browserfenster oder den
+Bildschirm. Zustand erkennt lokal nur stabile visuelle Änderungen. Nach fünf
+Sekunden Stillstand pausieren Erfassung und Agentenaufrufe automatisch; die
+nächste Bildänderung setzt die Aufnahme fort. Sichtbare Inhalte der Freigabe
+werden zur Analyse übertragen, aber weder im Browser noch auf dem Server als
+Aufnahme persistiert. Pro Sitzung sind höchstens zwölf Live-Analysen plus ein
+abschließender Lauf erlaubt.
 
 Für den produktiven Agenten wird auf dem Server eine der beiden Konfigurationen
 in `/etc/digitalisierungsplanung-realtime.env` gesetzt:

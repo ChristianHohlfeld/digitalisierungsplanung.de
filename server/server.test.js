@@ -772,8 +772,10 @@ test("serves stateless process-recorder capability and a validated no-store mode
     assert.match(contract.headers.get("cache-control"), /no-store/);
     const capability = await contract.json();
     assert.equal(capability.enabled, true);
-    assert.deepEqual(capability.capture.sources, ["windows-companion"]);
+    assert.deepEqual(capability.capture.sources, ["browser-display"]);
     assert.equal(capability.capture.persisted, false);
+    assert.equal(capability.capture.maxLiveAnalyses, 12);
+    assert.equal(capability.capture.idlePauseMs, 5000);
 
     const response = await fetch(httpUrl(realtime, "/process/analyze"), {
       method: "POST",
@@ -783,8 +785,8 @@ test("serves stateless process-recorder capability and a validated no-store mode
         startedAt: 1,
         endedAt: 2,
         events: [
-          { seq: 1, at: 1, kind: "application", app: "browser", window: "Anfrage" },
-          { seq: 2, at: 2, kind: "click", app: "browser", window: "Anfrage", button: "left", control: { name: "Prüfen", type: "Button", password: false } }
+          { seq: 1, at: 1, kind: "visual", app: "Freigegebenes Fenster", window: "Anfrage" },
+          { seq: 2, at: 2, kind: "visual", app: "Freigegebenes Fenster", window: "Anfrage geprüft" }
         ],
         frames: []
       })
@@ -806,6 +808,36 @@ test("serves stateless process-recorder capability and a validated no-store mode
   });
 });
 
+test("returns safe provider diagnostics without provider messages", async () => {
+  await withRealtimeServer({
+    processAnalyzer: async () => {
+      const error = new Error("sensitive provider message");
+      error.status = 502;
+      error.code = "process_provider_unauthorized";
+      error.providerStatus = 401;
+      error.providerCode = "invalid_api_key";
+      error.providerRequestId = "req-safe-123";
+      throw error;
+    }
+  }, async realtime => {
+    const response = await fetch(httpUrl(realtime, "/process/analyze"), {
+      method: "POST",
+      headers: { Origin: ORIGIN, "content-type": "application/json" },
+      body: JSON.stringify({
+        events: [{ seq: 1, at: 1, kind: "visual", app: "Browser", window: "Start" }],
+        frames: []
+      })
+    });
+    assert.equal(response.status, 502);
+    assert.deepEqual(await response.json(), {
+      error: "process_provider_unauthorized",
+      providerStatus: 401,
+      providerCode: "invalid_api_key",
+      providerRequestId: "req-safe-123"
+    });
+  });
+});
+
 test("bounds concurrent process agents and releases the slot after completion", async () => {
   let releaseFirst;
   let firstEntered;
@@ -820,7 +852,7 @@ test("bounds concurrent process agents and releases the slot after completion", 
     sessionId: "session",
     startedAt: 1,
     endedAt: 2,
-    events: [{ seq: 1, at: 1, kind: "application", app: "browser", window: "Start" }],
+    events: [{ seq: 1, at: 1, kind: "visual", app: "Freigegebenes Fenster", window: "Start" }],
     frames: []
   };
   await withRealtimeServer({
