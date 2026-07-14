@@ -11,6 +11,7 @@ GitHub Pages, not by this server deploy.
 - Token endpoint: `https://realtime.digitalisierungsplanung.de/token`
 - Test console: `https://realtime.digitalisierungsplanung.de/console.html`
 - Event designer: `https://realtime.digitalisierungsplanung.de/events-admin.html`
+- Preset designer: `https://realtime.digitalisierungsplanung.de/presets-admin.html`
 - Product contract: `https://realtime.digitalisierungsplanung.de/contract`
 - Event definitions: `https://realtime.digitalisierungsplanung.de/events`
 - Shared release: `https://realtime.digitalisierungsplanung.de/version`
@@ -64,7 +65,8 @@ Open `https://realtime.digitalisierungsplanung.de/console.html?room=<room-id>` f
 The event catalog is the server-side source of truth for offered realtime events and connector sources. Unknown `realtime.*` names are rejected on `/emit`, rejected on `/ws`, and ignored by the host bridge before they can enter the generated runtime. New datasets are created by editing this one catalog through the admin designer and saving it through the server.
 
 - `server/event-catalog.json`: single contract/catalog source in Git.
-- `server/preset-catalog.js`: single standard-preset source in Git.
+- `server/preset-catalog.js`: standard preset definitions and contract materialization.
+- `server/preset-library.json`: single managed source for preset categories, package metadata, and custom presets.
 - `/contract`: product contract for frontend trigger types, value types, datasets, connector sources, preset packages, subscription plans, and collision-free state contribution paths.
 - `/events`: current event and connector definitions.
 - `/events/contract`: lower-level realtime catalog contract for event keys, detail types, and contribution paths.
@@ -72,6 +74,9 @@ The event catalog is the server-side source of truth for offered realtime events
 - `/emit`: authenticated server-to-server fire endpoint only.
 - `/console.html`: manual browser emitter for testing only.
 - `/events-admin.html`: simple event designer for event type, dataset, fields, source, and global-state contribution.
+- `/presets-admin.html`: secret-protected DaisyUI snippet, category, package, and preset designer.
+- `/presets-admin/parse`: parse-only conversion from DaisyUI v5.6.18 markup to structured preset data; it never persists raw HTML.
+- `/presets-admin/catalog`: load, validate, commit, and push the complete managed preset library.
 
 Default connector sources are deliberately practical:
 
@@ -100,6 +105,15 @@ the latest green `release-N`. Release IDs are audit labels, not compatibility
 branches.
 
 Preset packages and subscription plans are commercial metadata in the same product contract. Presets keep their normal `stateContribution`; package IDs never become a second canvas state or a local catalog copy. `starter`, `business`, and `scale` are the default subscriptions. Add-on packages such as `bi.analytics`, `sales.crm`, `knowledge.portal`, and `integration.automation` stay upsellable even when `scale` is selected.
+
+The editor initially exposes one preset category, `websuite-builder`, containing
+all shipped website, basic, form, data, and additional presets. Categories are
+navigation; packages are separate commercial metadata. The Preset Designer may
+add categories, packages, and custom presets through the complete-library
+contract. Active markup, event attributes, unsupported or ambiguous components,
+and malformed structured defaults are rejected. Only the normalized variant and
+data are persisted in Git; snippets and raw HTML never enter `/contract` or a
+canvas model.
 
 All connector IDs are globally unique and path-safe. Runtime state is written under `events.<eventName>.*` and `emitters.<emitterId>.*`. Exact ID collisions and parent/child path collisions are rejected server-side. Every global-state contribution includes `fieldTypes` for compact display and `fieldSchemas` for hard validation: each field has a concrete value type, JSON type, default, and constraints such as length, range, format, protocol, max depth, or max items. `/emit` and WebSocket runtime events use the same schema validator, so a value can have the right JSON type and still be rejected when it violates the contract. The canvas loads `/contract` fresh with `no-store` before editor boot. If the Product Contract is unavailable, the editor must fail closed instead of inventing local trigger types, value types, preset contracts, endpoint definitions, catalog copies, or preset instances.
 

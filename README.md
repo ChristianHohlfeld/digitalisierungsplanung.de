@@ -110,13 +110,17 @@ Der Server in [`server/`](server/) ist nur Transport. Er speichert keine fachlic
 | `GET /console.html` | Testoberfläche für Ereignisse |
 | `GET /events-admin.html` | einfacher Designer für Event-Type, Datensatz und Felder |
 | `GET/POST /events-admin/catalog` | validieren, committen und pushen von `server/event-catalog.json` |
+| `GET /presets-admin.html` | Designer für offizielle DaisyUI-Snippets, Presets, Kategorien und Pakete |
+| `GET/POST /presets-admin/catalog` | vollständige Preset-Library laden, validieren, committen und pushen |
+| `POST /presets-admin/parse` | DaisyUI-Markup ohne Persistenz in eine strukturierte Preset-Definition übersetzen |
 | `POST /emit` | authentifiziertes Ereignis von außen |
 | `WSS /ws` | WebSocket-Verbindung |
 
 Der harte Contract kommt aus [`server/event-catalog.json`](server/event-catalog.json)
 und wird vom Server unter `/contract` als Product Contract ausgeliefert:
 Trigger-Typen, Value-Types mit Constraints, `realtime.*`-Datasets, Quellen,
-Standard-Presets aus `server/preset-catalog.js`, Preset-Pakete,
+Standard-Presets aus `server/preset-catalog.js`, verwaltete Presets und
+Kategorien aus `server/preset-library.json`, Preset-Pakete,
 Abo-Pläne und kollisionsfreie State-Beiträge. Jedes Contract-Feld liefert neben `fieldTypes`
 auch `fieldSchemas` mit `type`, `jsonType`, `default` und `constraints`
 wie `min`, `max`, `maxLength`, `format`, `protocols`, `maxDepth` oder
@@ -135,6 +139,15 @@ Die drei Standard-Abos sind `starter`, `business` und `scale`. Zusatzpakete
 wie `bi.analytics`, `sales.crm`, `knowledge.portal` und
 `integration.automation` bleiben auch neben dem größten Paket separat
 zubuchbar.
+
+Im Editor liegen alle mitgelieferten Vorlagen zunächst gemeinsam unter
+**Websuite Builder**. Der Preset Designer kann weitere Kategorien und Pakete
+anlegen. Ein eingefügtes DaisyUI-v5.6.18-Beispiel wird serverseitig strukturell
+geparst; gespeichert werden ausschließlich Variante und Defaultdaten, niemals
+der HTML-Snippet. `Definition erzeugen` verändert den Contract noch nicht.
+Erst `In Contract speichern` validiert die gesamte Library, schreibt
+`server/preset-library.json`, erhöht die gemeinsame Release-ID und pusht den
+Commit nach `main`.
 
 Der Designer arbeitet in der gleichen Reihenfolge wie der Canvas-Vertrag:
 Event-Type, Dataset-Key, Felder, Quelle. Das Admin-Secret bleibt lokal im

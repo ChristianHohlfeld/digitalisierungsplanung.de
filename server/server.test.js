@@ -7,6 +7,7 @@ const path = require("node:path");
 const test = require("node:test");
 const WebSocket = require("ws");
 const eventCatalog = require("./event-catalog");
+const presetLibrary = require("./preset-library");
 const {
   createRealtimeServer,
   createRoomToken,
@@ -352,6 +353,9 @@ test("nginx proxies only lean public realtime routes", () => {
     "console.html",
     "events-admin.html",
     "/events-admin/catalog",
+    "presets-admin.html",
+    "/presets-admin/catalog",
+    "/presets-admin/parse",
     "/contract",
     "/events/contract",
     "/healthz",
@@ -482,6 +486,152 @@ test("serves an admin event designer that validates, commits, and pushes the cat
       const refreshedContractPayload = await refreshedContract.json();
       assert.ok(refreshedContractPayload.events.some(event => event.name === "realtime.sip.call.missed"));
       assert.ok(calls.some(args => args[0] === "add" && args.includes("server/event-catalog.json") && args.includes("release-version.js")));
+      assert.ok(calls.some(args => args[0] === "commit" || args.includes("commit")));
+      assert.ok(calls.some(args => args[0] === "push" || args.includes("push")));
+    });
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("converts official Daisy snippets into managed contract presets and pushes them", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "preset-library-"));
+  const libraryPath = path.join(tempDir, "server", "preset-library.json");
+  const calls = [];
+  fs.mkdirSync(path.dirname(libraryPath), { recursive: true });
+  fs.copyFileSync(presetLibrary.DEFAULT_PRESET_LIBRARY_PATH, libraryPath);
+
+  const gitRunner = args => {
+    calls.push(args);
+    if (args[0] === "diff") return { status: 1, stdout: "", stderr: "" };
+    if (args[0] === "rev-parse") return { status: 0, stdout: "def456\n", stderr: "" };
+    return { status: 0, stdout: "", stderr: "" };
+  };
+
+  try {
+    await withRealtimeServer({
+      roomSecret: SECRET,
+      adminSecret: "admin-secret",
+      presetLibraryPath: libraryPath,
+      repoDir: tempDir,
+      gitRunner
+    }, async realtime => {
+      const htmlResponse = await fetch(httpUrl(realtime, "/presets-admin.html"));
+      assert.equal(htmlResponse.status, 200);
+      const html = await htmlResponse.text();
+      assert.match(html, /Preset Designer/);
+      assert.match(html, /DaisyUI-Snippet/);
+      assert.match(html, /In Contract speichern/);
+      assert.match(html, /\+ Neue Kategorie/);
+      assert.match(html, /\+ Neues Paket/);
+      assert.doesNotMatch(html, /admin-secret/);
+
+      const unauthorized = await fetch(httpUrl(realtime, "/presets-admin/catalog"));
+      assert.equal(unauthorized.status, 401);
+
+      const load = await fetch(httpUrl(realtime, "/presets-admin/catalog"), {
+        headers: { authorization: "Bearer admin-secret" }
+      });
+      assert.equal(load.status, 200);
+      const loaded = await load.json();
+      assert.deepEqual(loaded.library.categories.map(category => category.id), ["websuite-builder"]);
+      assert.equal(loaded.library.daisyVersion, "5.6.18");
+
+      const snippet = '<footer class="footer sm:footer-horizontal bg-base-200 text-base-content p-10"><aside><p class="footer-title">ACME</p><p>Aus Erfahrung wird Software.</p></aside><nav><h6 class="footer-title">Produkt</h6><a class="link link-hover">Start</a><a class="link link-hover">Kontakt</a></nav></footer>';
+      const parsedResponse = await fetch(httpUrl(realtime, "/presets-admin/parse"), {
+        method: "POST",
+        headers: { authorization: "Bearer admin-secret", "content-type": "application/json" },
+        body: JSON.stringify({
+          snippet,
+          title: "ACME Footer",
+          categoryId: "portal",
+          packageIds: ["portal.pro"]
+        })
+      });
+      assert.equal(parsedResponse.status, 200);
+      const parsed = await parsedResponse.json();
+      assert.equal(parsed.preset.id, "custom_acme_footer");
+      assert.equal(parsed.preset.variant, "footer");
+      assert.equal(parsed.preset.data.brand, "ACME");
+      assert.deepEqual(parsed.preset.data.columns[0].items, [
+        { label: "Start", transitionId: "" },
+        { label: "Kontakt", transitionId: "" }
+      ]);
+      assert.equal(Object.hasOwn(parsed.preset, "snippet"), false);
+
+      const accordionResponse = await fetch(httpUrl(realtime, "/presets-admin/parse"), {
+        method: "POST",
+        headers: { authorization: "Bearer admin-secret", "content-type": "application/json" },
+        body: JSON.stringify({
+          snippet: '<div class="collapse collapse-arrow bg-base-100 border border-base-300"><input type="radio" name="faq" checked><div class="collapse-title">Versand</div><div class="collapse-content">Zwei Werktage.</div></div><div class="collapse collapse-arrow bg-base-100 border border-base-300"><input type="radio" name="faq"><div class="collapse-title">Rückgabe</div><div class="collapse-content">Dreißig Tage.</div></div>',
+          title: "FAQ",
+          categoryId: "websuite-builder",
+          packageIds: ["knowledge.portal"]
+        })
+      });
+      assert.equal(accordionResponse.status, 200);
+      const accordion = await accordionResponse.json();
+      assert.equal(accordion.preset.variant, "accordion");
+      assert.deepEqual(accordion.preset.data.items, [
+        { label: "Versand", body: "Zwei Werktage." },
+        { label: "Rückgabe", body: "Dreißig Tage." }
+      ]);
+
+      const unsafeResponse = await fetch(httpUrl(realtime, "/presets-admin/parse"), {
+        method: "POST",
+        headers: { authorization: "Bearer admin-secret", "content-type": "application/json" },
+        body: JSON.stringify({ snippet: '<div class="card"><script>alert(1)</script></div>' })
+      });
+      assert.equal(unsafeResponse.status, 400);
+      assert.deepEqual(await unsafeResponse.json(), { error: "unsafe_snippet_element" });
+
+      const unsafeAttributeResponse = await fetch(httpUrl(realtime, "/presets-admin/parse"), {
+        method: "POST",
+        headers: { authorization: "Bearer admin-secret", "content-type": "application/json" },
+        body: JSON.stringify({ snippet: '<button class="btn" onclick="alert(1)">Weiter</button>' })
+      });
+      assert.equal(unsafeAttributeResponse.status, 400);
+      assert.deepEqual(await unsafeAttributeResponse.json(), { error: "unsafe_snippet_attribute" });
+
+      loaded.library.categories.push({ id: "portal", label: "Portal", description: "Kundenportal", sort: 20 });
+      loaded.library.packages.push({ id: "portal.pro", label: "Portal Pro", category: "package", description: "Portalbausteine", buyerValue: "Kundenportal", upsell: true, sort: 90 });
+      loaded.library.presets.push(parsed.preset);
+
+      const validateOnly = await fetch(httpUrl(realtime, "/presets-admin/catalog?validate=1"), {
+        method: "POST",
+        headers: { authorization: "Bearer admin-secret", "content-type": "application/json" },
+        body: JSON.stringify({ library: loaded.library, validateOnly: true })
+      });
+      assert.equal(validateOnly.status, 200);
+      assert.equal((await validateOnly.json()).ok, true);
+
+      const saved = await fetch(httpUrl(realtime, "/presets-admin/catalog"), {
+        method: "POST",
+        headers: { authorization: "Bearer admin-secret", "content-type": "application/json" },
+        body: JSON.stringify({ library: loaded.library, message: "Add portal footer preset" })
+      });
+      assert.equal(saved.status, 200);
+      const savedPayload = await saved.json();
+      assert.equal(savedPayload.ok, true);
+      assert.equal(savedPayload.changed, true);
+      assert.equal(savedPayload.commit, "def456");
+      assert.equal(savedPayload.releaseId, "release-1");
+
+      const persisted = fs.readFileSync(libraryPath, "utf8");
+      assert.match(persisted, /custom_acme_footer/);
+      assert.doesNotMatch(persisted, /<footer|<script/);
+
+      const contractResponse = await fetch(httpUrl(realtime, "/contract"));
+      assert.equal(contractResponse.status, 200);
+      const contract = await contractResponse.json();
+      assert.ok(contract.presetCategories.some(category => category.id === "portal"));
+      assert.ok(contract.presetPackages.some(pack => pack.id === "portal.pro"));
+      const preset = contract.presets.find(item => item.id === "custom_acme_footer");
+      assert.equal(preset.builtIn, false);
+      assert.equal(preset.categoryId, "portal");
+      assert.equal(preset.components[0].variant, "footer");
+      assert.equal(preset.components[0].dataPath, "states.custom_acme_footer");
+      assert.ok(calls.some(args => args[0] === "add" && args.includes("server/preset-library.json") && args.includes("release-version.js")));
       assert.ok(calls.some(args => args[0] === "commit" || args.includes("commit")));
       assert.ok(calls.some(args => args[0] === "push" || args.includes("push")));
     });

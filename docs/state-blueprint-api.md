@@ -333,6 +333,10 @@ Realtime-Übergang:
 Realtime event definitions stay on the Realtime API (`/events`). The model stores
 no `model.realtime` contract copy.
 
+Preset categories, package metadata, and managed preset definitions stay on the
+Product Contract (`/contract`). The model and MCP workspace store only the
+materialized states, components, transitions, and their canonical bus paths.
+
 ### `delete_transition`
 
 Delete one transition. Any render placeholder button for that transition is also

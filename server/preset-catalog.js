@@ -1,6 +1,7 @@
 "use strict";
 
 const valueTypes = require("./value-types");
+const presetLibrary = require("./preset-library");
 
 const DEFAULT_IMAGE_COMPONENT_URL = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iMzYwIiB2aWV3Qm94PSIwIDAgNjQwIDM2MCI+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCIgeDI9IjEiIHkxPSIwIiB5Mj0iMSI+PHN0b3Agc3RvcC1jb2xvcj0iIzBlYTVlOSIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2Y1OWUwYiIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSI2NDAiIGhlaWdodD0iMzYwIiByeD0iMzIiIGZpbGw9InVybCgjZykiLz48Y2lyY2xlIGN4PSI0NzIiIGN5PSIxMTIiIHI9IjUyIiBmaWxsPSIjZmZmZmZmIiBvcGFjaXR5PSIuMzIiLz48cGF0aCBkPSJNNzIgMjg2bDEyMi0xMjIgNzggNzggNDgtNDggMTc2IDkyeiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iLjQ4Ii8+PHRleHQgeD0iNDgiIHk9IjcwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMzQiIGZvbnQtd2VpZ2h0PSI3MDAiIGZpbGw9IiNmZmZmZmYiPkltYWdlIGJsb2NrPC90ZXh0Pjwvc3ZnPg==";
 
@@ -35,83 +36,6 @@ function stateDataScopeForId(id) {
   const clean = normalizeId(id || "state");
   return clean ? "states." + clean : "";
 }
-
-const PRESET_PACKAGES = Object.freeze([
-  {
-    id: "core.process",
-    label: "Process Core",
-    category: "base",
-    description: "Grundbausteine für Prozessaufnahme, Formulare, Entscheidungen und einfache Apps.",
-    buyerValue: "Startet jeden Digitalisierungsprozess ohne Zusatzpaket.",
-    upsell: false,
-    sort: 10
-  },
-  {
-    id: "website.builder",
-    label: "Website Builder",
-    category: "package",
-    description: "Landingpages, Portale, Navigation, Angebotsseiten und exportierbare Web-Apps.",
-    buyerValue: "Macht aus geklärten Abläufen sofort sichtbare Web-Oberflächen.",
-    upsell: false,
-    sort: 20
-  },
-  {
-    id: "approval.compliance",
-    label: "Freigabe & Compliance",
-    category: "package",
-    description: "Freigaben, Nachweise, Prüfschritte, Status und dokumentierte Entscheidungen.",
-    buyerValue: "Reduziert Rückfragen, E-Mail-Pingpong und unklare Verantwortlichkeiten.",
-    upsell: false,
-    sort: 30
-  },
-  {
-    id: "service.operations",
-    label: "Service & Operations",
-    category: "package",
-    description: "Servicefälle, Echtzeit-Ereignisse, Eskalationen, Aufgaben und operative Übersichten.",
-    buyerValue: "Verbindet reale Ereignisse wie Anruf, Mail oder Webhook mit dem Prozess.",
-    upsell: false,
-    sort: 40
-  },
-  {
-    id: "bi.analytics",
-    label: "BI & Analyse",
-    category: "addon",
-    description: "KPI-Karten, Tabellen, Charts, Pipeline- und Management-Auswertungen.",
-    buyerValue: "Macht Prozessdaten für Geschäftsführung und Bereichsleitung entscheidbar.",
-    upsell: true,
-    sort: 50
-  },
-  {
-    id: "sales.crm",
-    label: "Sales & CRM",
-    category: "addon",
-    description: "Lead-Status, Angebotsstrecken, Kundenservice, Pipeline und Follow-up-Prozesse.",
-    buyerValue: "Hilft Vertrieb und Service, Chancen und Kundenkontakte nachvollziehbar zu führen.",
-    upsell: true,
-    sort: 60
-  },
-  {
-    id: "knowledge.portal",
-    label: "Wissensportal",
-    category: "addon",
-    description: "FAQ, interne Portale, Onboarding, Prozesswissen und wiederverwendbare Inhalte.",
-    buyerValue: "Sichert Erfahrungswissen, bevor es bei Urlaub, Wechsel oder Wachstum fehlt.",
-    upsell: true,
-    sort: 70
-  },
-  {
-    id: "integration.automation",
-    label: "Integration & Automation",
-    category: "addon",
-    description: "Webhook-, Mail-, Telefonie- und Datenquellen für echte Business-Ereignisse.",
-    buyerValue: "Bringt reale Systeme in den Prozess, ohne den Canvas als Schattenbackend zu nutzen.",
-    upsell: true,
-    sort: 80
-  }
-]);
-
-const PACKAGE_BY_ID = new Map(PRESET_PACKAGES.map(item => [item.id, item]));
 
 const SUBSCRIPTION_PLANS = Object.freeze([
   {
@@ -156,11 +80,19 @@ function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-function normalizePackageIds(value, fallback = ["core.process"]) {
+function resolvedPresetLibrary(value) {
+  return value ? presetLibrary.validatePresetLibrary(value) : presetLibrary.loadPresetLibraryFile();
+}
+
+function packageMapForLibrary(library) {
+  return new Map(library.packages.map(item => [item.id, item]));
+}
+
+function normalizePackageIds(value, fallback = ["core.process"], packageById) {
   const out = [];
   const push = id => {
     const clean = String(id || "").trim();
-    if (PACKAGE_BY_ID.has(clean) && !out.includes(clean)) out.push(clean);
+    if (packageById.has(clean) && !out.includes(clean)) out.push(clean);
   };
   if (Array.isArray(value)) value.forEach(push);
   if (!out.length && Array.isArray(fallback)) fallback.forEach(push);
@@ -168,11 +100,11 @@ function normalizePackageIds(value, fallback = ["core.process"]) {
   return Array.isArray(fallback) && fallback.length === 0 ? [] : ["core.process"];
 }
 
-function inferPackageIdsForPreset(preset) {
+function inferPackageIdsForPreset(preset, packageById) {
   const variant = String((preset.components || []).find(component => component?.type === "daisy")?.variant || "");
   const haystack = `${preset.id || ""} ${preset.title || ""} ${variant}`.toLowerCase();
   const out = [];
-  const add = id => { if (!out.includes(id)) out.push(id); };
+  const add = id => { if (packageById.has(id) && !out.includes(id)) out.push(id); };
   if (/(?:^|[\s_-])(?:chart|kpi|stat|table|progress|radial|indicator|pipeline|analyse|analytics)(?:[\s_-]|$)/.test(haystack)) add("bi.analytics");
   if (/toast|loading|timeline|countdown/.test(haystack)) add("service.operations");
   if (/accordion|faq|body_copy|info_note|content_list/.test(haystack)) add("knowledge.portal");
@@ -183,7 +115,9 @@ function inferPackageIdsForPreset(preset) {
   return out.length ? out : ["core.process"];
 }
 
-function builtinStateTemplates() {
+function builtinStateTemplates(libraryValue) {
+  const library = resolvedPresetLibrary(libraryValue);
+  const packageById = packageMapForLibrary(library);
   const component = (id, type, text = "", url = "", extra = {}) => ({ id, type, text, url, ...extra });
   const daisy = (variant, title, key = variant) => component("builtin_daisy_" + normalizeId(key) + "_component", "daisy", "", "", {
     variant,
@@ -202,16 +136,19 @@ function builtinStateTemplates() {
   const daisyTemplate = spec => {
     const key = normalizeId(spec.id);
     const defaults = normalizeStateDataObject(spec.data);
+    const packageIds = normalizePackageIds(spec.packageIds, inferPackageIdsForPreset({
+      id: spec.id,
+      title: spec.title,
+      components: [{ type: "daisy", variant: spec.variant || spec.id }]
+    }, packageById), packageById);
     return template({
-      id: "builtin_daisy_" + key,
+      id: spec.managed ? spec.id : "builtin_daisy_" + key,
       rootStateId: key,
       title: spec.title,
       description: spec.description || "Komponente mit geteilten Daten dieses Zustands verbunden.",
-      packageIds: normalizePackageIds(spec.packageIds, inferPackageIdsForPreset({
-        id: spec.id,
-        title: spec.title,
-        components: [{ type: "daisy", variant: spec.variant || spec.id }]
-      })),
+      builtIn: spec.managed !== true,
+      categoryId: spec.categoryId || "websuite-builder",
+      packageIds,
       components: [daisy(spec.variant || spec.id, spec.title, spec.id)],
       data: defaults,
       dataTypes: {},
@@ -388,7 +325,13 @@ function builtinStateTemplates() {
       repeat: { path: contentListDataPath, as: "item", index: "i", manual: true }
     })
   ];
-  return [...daisySpecs.map(daisyTemplate), ...coreTemplates];
+  const builtins = [...daisySpecs.map(daisyTemplate), ...coreTemplates];
+  builtins.forEach(preset => {
+    preset.categoryId = "websuite-builder";
+    preset.packageIds = normalizePackageIds(preset.packageIds, inferPackageIdsForPreset(preset, packageById), packageById);
+  });
+  const managed = library.presets.map(spec => daisyTemplate({ ...spec, managed: true }));
+  return [...builtins, ...managed];
 }
 
 
@@ -452,14 +395,15 @@ function absoluteFieldTypes(rootStateId, localFieldTypes, hasData) {
   return out;
 }
 
-function normalizePreset(preset) {
+function normalizePreset(preset, library) {
+  const packageById = packageMapForLibrary(library);
   const rootStateId = normalizeId(preset.rootStateId || preset.id || "preset");
   const data = normalizeStateDataObject(preset.data);
   const dataTypes = collectLocalFieldTypes(data, preset.dataTypes);
   const hasData = Object.keys(data).length > 0;
   const fieldTypes = absoluteFieldTypes(rootStateId, dataTypes, hasData);
   const fields = Object.keys(fieldTypes);
-  const packageIds = normalizePackageIds(preset.packageIds, inferPackageIdsForPreset(preset));
+  const packageIds = normalizePackageIds(preset.packageIds, inferPackageIdsForPreset(preset, packageById), packageById);
   const primaryPackageId = packageIds[0] || "core.process";
   return {
     builtIn: true,
@@ -467,13 +411,14 @@ function normalizePreset(preset) {
     rootStateId,
     data,
     dataTypes,
+    categoryId: preset.categoryId,
     packageIds,
     primaryPackageId,
     commercial: {
       packageIds,
       primaryPackageId,
-      packageLabels: packageIds.map(id => PACKAGE_BY_ID.get(id)?.label || id),
-      addOn: packageIds.some(id => PACKAGE_BY_ID.get(id)?.upsell === true)
+      packageLabels: packageIds.map(id => packageById.get(id)?.label || id),
+      addOn: packageIds.some(id => packageById.get(id)?.upsell === true)
     },
     stateContribution: {
       id: String(preset.id || rootStateId),
@@ -486,19 +431,26 @@ function normalizePreset(preset) {
   };
 }
 
-function presetCatalogResponse() {
-  return builtinStateTemplates().map(normalizePreset);
+function presetCatalogResponse(libraryValue) {
+  const library = resolvedPresetLibrary(libraryValue);
+  return builtinStateTemplates(library).map(preset => normalizePreset(preset, library));
 }
 
-function presetPackagesResponse() {
-  const presets = presetCatalogResponse();
-  return PRESET_PACKAGES
+function presetCategoriesResponse(libraryValue) {
+  return resolvedPresetLibrary(libraryValue).categories.map(cloneJson);
+}
+
+function presetPackagesResponse(libraryValue) {
+  const library = resolvedPresetLibrary(libraryValue);
+  const packageById = packageMapForLibrary(library);
+  const presets = presetCatalogResponse(library);
+  return library.packages
     .map(item => {
       const presetIds = presets
         .filter(preset => Array.isArray(preset.packageIds) && preset.packageIds.includes(item.id))
         .map(preset => preset.id);
       const includedInPlanIds = SUBSCRIPTION_PLANS
-        .filter(plan => normalizePackageIds(plan.includedPackageIds, []).includes(item.id))
+        .filter(plan => normalizePackageIds(plan.includedPackageIds, [], packageById).includes(item.id))
         .map(plan => plan.id);
       return {
         ...cloneJson(item),
@@ -510,17 +462,19 @@ function presetPackagesResponse() {
     .sort((a, b) => a.sort - b.sort);
 }
 
-function subscriptionPlansResponse() {
+function subscriptionPlansResponse(libraryValue) {
+  const library = resolvedPresetLibrary(libraryValue);
+  const packageById = packageMapForLibrary(library);
   return SUBSCRIPTION_PLANS
     .map(plan => {
-      const includedPackageIds = normalizePackageIds(plan.includedPackageIds, []);
-      const recommendedAddOnPackageIds = normalizePackageIds(plan.recommendedAddOnPackageIds, []);
+      const includedPackageIds = normalizePackageIds(plan.includedPackageIds, [], packageById);
+      const recommendedAddOnPackageIds = normalizePackageIds(plan.recommendedAddOnPackageIds, [], packageById);
       return {
         ...cloneJson(plan),
         includedPackageIds,
         recommendedAddOnPackageIds,
-        includedPackages: includedPackageIds.map(id => cloneJson(PACKAGE_BY_ID.get(id))).filter(Boolean),
-        recommendedAddOns: recommendedAddOnPackageIds.map(id => cloneJson(PACKAGE_BY_ID.get(id))).filter(Boolean)
+        includedPackages: includedPackageIds.map(id => cloneJson(packageById.get(id))).filter(Boolean),
+        recommendedAddOns: recommendedAddOnPackageIds.map(id => cloneJson(packageById.get(id))).filter(Boolean)
       };
     })
     .sort((a, b) => a.sort - b.sort);
@@ -530,6 +484,7 @@ module.exports = {
   builtinStateTemplates,
   collectLocalFieldTypes,
   presetCatalogResponse,
+  presetCategoriesResponse,
   presetPackagesResponse,
   subscriptionPlansResponse
 };

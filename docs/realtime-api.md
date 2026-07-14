@@ -155,6 +155,49 @@ Nachvollziehbarkeit, nicht Laufzeit-Auswahl.
 Der Save-Pfad nutzt Git. Falls der Server-Checkout nicht mit seinen vorhandenen
 Remote-Credentials pushen kann, muss `REALTIME_GIT_PUSH_TOKEN` gesetzt sein.
 
+### `GET /presets-admin.html`
+
+Verwaltungsoberfläche für DaisyUI-v5.6.18-Snippets, Preset-Kategorien,
+kommerzielle Pakete und verwaltete Presets. Das Admin-Secret wird wie beim
+Event Designer nur im lokalen Browser gespeichert und ausschließlich als
+Bearer-Token an die beiden Admin-Endpunkte gesendet.
+
+### `POST /presets-admin/parse`
+
+Secret-geschützte, nicht persistierende Übersetzung eines DaisyUI-Snippets in
+eine Preset-Definition.
+
+```json
+{
+  "snippet": "<footer class=\"footer sm:footer-horizontal\">...</footer>",
+  "title": "Portal-Fußzeile",
+  "categoryId": "portal",
+  "packageIds": ["portal.pro"]
+}
+```
+
+Die Antwort enthält nur `id`, `variant`, `title`, `description`, `categoryId`,
+`packageIds` und strukturierte `data`. Rohes HTML wird nicht zurückgegeben oder
+gespeichert. Aktive Elemente, eingebettete Dokumente, Metadaten, Templates und
+`on*`-Attribute werden abgelehnt. Nicht unterstützte oder mehrdeutige
+Komponenten liefern einen 400-Fehler.
+
+### `GET/POST /presets-admin/catalog`
+
+Secret-geschützte API für die vollständige `server/preset-library.json`.
+
+- Auth: `Authorization: Bearer <REALTIME_ADMIN_SECRET>`
+- `GET`: lädt Kategorien, Pakete und verwaltete Presets.
+- `POST`: validiert die gesamte Library, schreibt sie zusammen mit
+  `release-version.js`, committet und pusht nach `main`.
+- `POST ?validate=1` oder Body `{ "validateOnly": true }`: validiert ohne
+  Schreib- oder Git-Vorgang.
+
+`websuite-builder` und die acht Produktpakete sind erforderliche geschützte
+Einträge. Weitere Kategorien und Pakete dürfen ergänzt werden. Parsen allein
+ändert weder Library noch Product Contract; erst ein erfolgreicher Save wird
+unmittelbar über `/contract` sichtbar.
+
 ### `GET /events`
 
 Ereignisdefinitionen. Das ist die Live-Quelle für auswählbare Realtime-Ereignisse im Editor. Die Antwort enthält auch die aktuelle gemeinsame Release-Metainfo.
@@ -164,7 +207,7 @@ Ereignisdefinitionen. Das ist die Live-Quelle für auswählbare Realtime-Ereigni
 Zentraler Product Contract für `state.html` und den Event Designer. Dieser
 Endpoint ist die frische Server-Wahrheit für vordefinierte Contract-Teile:
 Trigger-Typen, Value-Types mit Constraints, Realtime-Datasets, Connector-Quellen,
-Presets, Preset-Pakete, Abo-Pläne und State-Contribution-Pfade. Jedes Feld, das vom Contract in den
+Preset-Kategorien, Presets, Preset-Pakete, Abo-Pläne und State-Contribution-Pfade. Jedes Feld, das vom Contract in den
 globalen JSON-State geschrieben werden kann, hat neben dem kompakten Typstring
 ein `fieldSchemas`-Objekt mit `type`, `jsonType`, `default` und harten
 `constraints`.
@@ -172,7 +215,10 @@ ein `fieldSchemas`-Objekt mit `type`, `jsonType`, `default` und harten
 Die App darf daraus UI-Optionen rendern und konkrete Referenzen speichern, aber
 keine Contract-Kopie in den Canvas schreiben.
 
-`presetPackages` und `subscriptionPlans` sind Verkaufs- und Anzeige-Metadaten.
+`presetCategories` steuert ausschließlich die sichtbaren Gruppen im Editor.
+Initial enthält sie nur `websuite-builder`; alle mitgelieferten Presets gehören
+zu dieser Kategorie. `presetPackages` und `subscriptionPlans` sind davon
+getrennte Verkaufs- und Anzeige-Metadaten.
 Sie entscheiden nicht lokal im Canvas über Verhalten. Ein Preset bleibt
 contract-konform, weil sein fachlicher Beitrag ausschließlich über
 `stateContribution` im globalen State landet. Add-on-Pakete können auch dann
@@ -234,6 +280,13 @@ Antwort, gekürzt:
     }
   ],
   "connectors": [],
+  "presetCategories": [
+    {
+      "id": "websuite-builder",
+      "label": "Websuite Builder",
+      "sort": 10
+    }
+  ],
   "presetPackages": [
     {
       "id": "website.builder",
@@ -268,6 +321,7 @@ Antwort, gekürzt:
       "id": "builtin_daisy_button",
       "title": "Aktionsbutton",
       "rootStateId": "button",
+      "categoryId": "websuite-builder",
       "packageIds": ["core.process"],
       "data": { "label": "Weiter", "clicked": false, "clickedAt": 0 },
       "dataTypes": { "label": "text", "clicked": "boolean", "clickedAt": "number" },
@@ -677,6 +731,10 @@ REALTIME_EMIT_PATH=/emit
 REALTIME_CONSOLE_PATH=/console.html
 REALTIME_EVENTS_ADMIN_PATH=/events-admin.html
 REALTIME_EVENTS_ADMIN_CATALOG_PATH=/events-admin/catalog
+REALTIME_PRESETS_ADMIN_PATH=/presets-admin.html
+REALTIME_PRESETS_ADMIN_CATALOG_PATH=/presets-admin/catalog
+REALTIME_PRESETS_ADMIN_PARSE_PATH=/presets-admin/parse
+REALTIME_PRESET_LIBRARY_PATH=/path/to/preset-library.json
 REALTIME_ALLOWED_ORIGINS=https://digitalisierungsplanung.de
 REALTIME_ROOM_SECRET=<secret>
 REALTIME_EMIT_SECRET=<secret>

@@ -462,6 +462,19 @@ Editoraktion
 - **PRE-013 Offizielle Klassen:** Daisy-Presets MÜSSEN die für ihre Variante
   vorgesehenen daisyUI-Klassen und strukturierten Datenformen verwenden.
   Entfernte Varianten und alte Navbar-Layouts DÜRFEN NICHT wieder erscheinen.
+- **PRE-013A Versionierte CSS-Parität:** Referenz ist ausschließlich daisyUI
+  `v5.6.18`, Git-Commit `374d63758f997317e92e93e547569a5f9ad11250`, aus
+  dem offiziellen Repository `https://github.com/saadeghi/daisyui`. Alle
+  unterstützten direkten Varianten MÜSSEN dessen Reset, Klassenstruktur,
+  Layoutsemantik und responsive Breakpoints gemeinsam einhalten. Zusammengesetzte
+  Varianten wie Feature-Grid, Pricing und Chart DÜRFEN Fachmarkup ergänzen;
+  verwendete Daisy-Bausteine folgen weiterhin derselben Referenz. Theme-Farben
+  dürfen angepasst werden, strukturelle Komponentenregeln nicht.
+- **PRE-013B Identische Auslieferung:** Preview, Root-Demo und Standalone-Export
+  MÜSSEN dieselbe eingebettete Daisy-Kompatibilitätsbasis verwenden. Sie bleibt
+  selbstenthalten; CDN-, Laufzeit- oder Netzabhängigkeiten für DaisyUI sind
+  verboten. Responsive Präfixe gelten nur ab ihrem offiziellen Breakpoint;
+  insbesondere darf `sm:footer-horizontal` unter 640 px nicht horizontal sein.
 - **PRE-014 Server-Contract:** Presets kommen ausschließlich aus dem Product
   Contract des Servers. Der Editor DARF keine lokalen Preset-Definitionen,
   Katalogkopien oder exportierbaren Preset-Artefakte speichern.
@@ -482,6 +495,28 @@ Editoraktion
   Bearbeitungsform erzeugen. Drag-Reihenfolge im Bausteinbereich, generische
   Renderliste, Modell, Preview und Export MÜSSEN dasselbe `components`-Array
   verwenden und unmittelbar dieselbe Reihenfolge zeigen.
+- **PRE-018 Kategorien und Pakete:** Sichtbare Preset-Kategorien und
+  kommerzielle Pakete sind getrennte Vertragsdimensionen. Alle eingebauten
+  Presets gehören zur initialen Kategorie `websuite-builder`; weitere
+  Kategorien kommen ausschließlich aus `presetCategories` des Product
+  Contracts. Jedes Preset referenziert genau eine vorhandene Kategorie und
+  mindestens ein vorhandenes Paket. Kategorie- oder Paketdaten DÜRFEN nicht in
+  das Canvas-Modell kopiert werden.
+- **PRE-019 Verwaltete Preset-Library:** `server/preset-library.json` ist die
+  einzige persistierte Quelle für Preset-Kategorien, Paketmetadaten und
+  verwaltete Presets. Der Server validiert immer die vollständige Library.
+  `websuite-builder` und die acht Produktpakete sind erforderlich; neue IDs
+  folgen der kanonischen ID-Grammatik. Es gibt keine Aliasse, Migrationen oder
+  lokalen Editor-Fallbacks.
+- **PRE-020 Daisy-Snippet-Import:** Der secret-geschützte Preset Designer darf
+  Markup ausschließlich mit einem strukturellen HTML-Parser in eine
+  unterstützte Daisy-Variante und strukturierte Defaultdaten übersetzen.
+  `script`, `style`, eingebettete Dokumente, Metadaten, Templates und
+  Ereignisattribute MÜSSEN abgelehnt werden. Rohes HTML, der Quell-Snippet und
+  ausführbarer Code DÜRFEN weder in der Library noch im Product Contract oder
+  Modell gespeichert werden. Parsen erzeugt nur eine Definition; erst die
+  getrennte Speichern-Aktion validiert, schreibt, committet und pusht die
+  vollständige Library gemeinsam mit der Release-ID.
 
 ## 11. Editor-Vertrag
 
@@ -809,6 +844,7 @@ Editoraktion
   Modell-API.
 - **RT-015 Öffentliche Routen:** Nginx darf nur `/console.html`,
   `/events-admin.html`, `/events-admin/catalog`, `/healthz`, `/version`,
+  `/presets-admin.html`, `/presets-admin/catalog`, `/presets-admin/parse`,
   `/token`, `/contract`, `/events`, `/events/contract`, `/emit` und `/ws` an den lokalen Prozess auf
   `127.0.0.1:8788` weiterleiten. Nicht definierte Kernrouten wie `/`,
   `/catalog`, `/schema`, `/api` und `/process/*` liefern 404.
@@ -930,12 +966,12 @@ Editoraktion
 ## 17. Ausführbare Absicherung
 
 - **TST-001 Testbestand:** Am Stand dieses Dokuments umfasst die ausführbare
-  Spezifikation 359 expandierte Playwright-Fälle in sechs Spec-Dateien und 27
-  Node-Server-Tests, insgesamt 386 Fälle.
-- **TST-002 Smoke:** 262 Playwright-Fälle tragen `@smoke`. `npm test` prüft
-  zuerst die 27 Server-Tests und danach diese 262 Smoke-Fälle.
-- **TST-003 Vollständiger Lauf:** `npm run test:full` prüft zuerst alle 27
-  Server-Tests und danach alle 359 Playwright-Fälle. Der vollständige lokale
+  Spezifikation 360 expandierte Playwright-Fälle in sechs Spec-Dateien und 28
+  Node-Server-Tests, insgesamt 388 Fälle.
+- **TST-002 Smoke:** 263 Playwright-Fälle tragen `@smoke`. `npm test` prüft
+  zuerst die 28 Server-Tests und danach diese 263 Smoke-Fälle.
+- **TST-003 Vollständiger Lauf:** `npm run test:full` prüft zuerst alle 28
+  Server-Tests und danach alle 360 Playwright-Fälle. Der vollständige lokale
   Vertragslauf ist damit genau ein Befehl:
 
   ```bash
@@ -951,9 +987,9 @@ Editoraktion
   der vor dem Fix am beobachteten Verhalten scheitert und nach dem Fix ohne
   Retry, Force-Click oder Sonderpfad besteht.
 - **TST-007 CI-Freigabe:** GitHub Actions und Gitea MÜSSEN beide den
-  vollständigen Bestand von 27 Server- und 359 Playwright-Fällen ausführen.
+  vollständigen Bestand von 28 Server- und 360 Playwright-Fällen ausführen.
   Gitea verwendet `npm run test:full`. GitHub Actions DARF die Playwright-Fälle
-  in disjunkte Shards aufteilen, wenn deren Vereinigung exakt alle 359 Fälle
+  in disjunkte Shards aufteilen, wenn deren Vereinigung exakt alle 360 Fälle
   enthält, die Serverfälle genau einmal laufen und der Deploy von allen Shards
   abhängt. Kein Deploy darf nur durch den kleineren Smoke-Lauf freigegeben
   werden.
@@ -1496,7 +1532,6 @@ Abnahmevertrag:
 
 - stärkere Typ-, Wertebereichs- und Schema-Prüfung des globalen Datenbaums,
 - einfachere Auswahl von Datenkonstellationen für Change-Übergänge,
-- ein Preset-Designer für vollständig vertragskonforme DaisyUI-Bausteine,
 - vollständige, nachvollziehbare und testbare API-Steuerung jeder Editoraktion,
 - eine gemeinsam importierte Modellnormalisierung für Editor und MCP,
 - ausschließlich explizite Trigger, Datenbindungen und Transitionwirkungen,
@@ -1654,9 +1689,9 @@ auch extern erfüllt.
   Komponenten, keine Runtime-Daten werden in `state.data` kopiert, Touch-Auswahl
   lässt den Inspectorzustand unverändert und echte Touch-Taps bleiben unabhängig
   von asynchronen Runtime-Nachrichten deterministisch.
-- Vollständige lokale Abnahme vom 2026-07-14: 27/27 Node-Server-Tests sowie
-  359/359 Playwright-Fälle bestanden. Die Browserabnahme lief vollständig und
-  disjunkt als 262/262 Smoke- und 97/97 übrige Fälle mit vier Workern; kein Test
+- Vollständige lokale Abnahme vom 2026-07-14: 28/28 Node-Server-Tests sowie
+  360/360 Playwright-Fälle bestanden. Die Browserabnahme lief vollständig und
+  disjunkt als 263/263 Smoke- und 97/97 übrige Fälle mit vier Workern; kein Test
   wurde ausgelassen oder durch Retry beziehungsweise Force ersetzt.
 - Lean-Audit vom 2026-07-14: Die Runtime-Enhancer-Kette und 54 nachweislich
   aufruferlose Hostfunktionen wurden entfernt. Der Produktcode in `state.html`

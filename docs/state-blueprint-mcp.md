@@ -60,6 +60,9 @@ nicht über DOM-Klicks.
   Schaltflächen-Bindung.
 - Realtime-Übergänge speichern `triggerType: "realtime"` plus konkrete
   `realtime.*`-Ereignisse; Ereigniskataloge werden nicht ins Modell kopiert.
+- Preset-Kategorien, Paketmetadaten und Preset-Definitionen bleiben im
+  serverseitigen Product Contract; MCP persistiert sie ebenso wenig im Modell
+  wie der Editor.
 - Verschachtelter Ablauf läuft über Boundary-Eingang/-Ausgang und Proxy-Übergänge.
 - Exportierte Definitionen enthalten keine Undo-Historie und keinen
   Editor-Zwischenablage.

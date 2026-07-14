@@ -40,7 +40,10 @@ function defaultTestModel() {
 async function openTool(page, options = {}) {
   const model = options.model || defaultTestModel();
   const stateTemplates = Array.isArray(options.stateTemplates) ? options.stateTemplates : [];
-  if (stateTemplates.length) await routeProductContract(page, { presets: stateTemplates });
+  const presetCategories = Array.isArray(options.presetCategories) ? options.presetCategories : null;
+  if (stateTemplates.length || presetCategories) {
+    await routeProductContract(page, { presets: stateTemplates, presetCategories });
+  }
   await page.addInitScript(({ key, model }) => {
     for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
       localStorage.removeItem(name);
@@ -70,9 +73,16 @@ function productContractForTest(options = {}) {
   const presets = Array.isArray(options.presets) ? options.presets : [];
   return {
     ...contract,
+    presetCategories: Array.isArray(options.presetCategories)
+      ? options.presetCategories
+      : contract.presetCategories,
     presets: [
       ...contract.presets,
-      ...presets.map(preset => ({ ...preset, builtIn: preset.builtIn !== false }))
+      ...presets.map(preset => ({
+        ...preset,
+        categoryId: preset.categoryId || "websuite-builder",
+        builtIn: preset.builtIn !== false
+      }))
     ]
   };
 }
@@ -6782,7 +6792,36 @@ test.describe("State Blueprint tool", () => {
             rowCount: root.querySelectorAll(".daisy-chart-row").length,
             barWidths: [...root.querySelectorAll(".daisy-chart-bar")].map(bar => bar.style.width || ""),
             text: root.textContent || ""
-          }))
+          })),
+          footers: [...document.querySelectorAll("footer.footer")].map(root => {
+            const style = getComputedStyle(root);
+            const children = [...root.children]
+              .filter(child => !["SCRIPT", "STYLE", "TEMPLATE"].includes(child.tagName))
+              .map(child => {
+                const box = child.getBoundingClientRect();
+                return { left: box.left, right: box.right, top: box.top, bottom: box.bottom };
+              });
+            const horizontal = style.gridAutoFlow === "column";
+            const nonOverlapping = children.every((box, index) => index === 0 || (horizontal
+              ? box.left >= children[index - 1].right - 1
+              : box.top >= children[index - 1].bottom - 1));
+            const aligned = children.length < 2 || (horizontal
+              ? Math.max(...children.map(box => box.top)) - Math.min(...children.map(box => box.top)) <= 1
+              : Math.max(...children.map(box => box.left)) - Math.min(...children.map(box => box.left)) <= 1);
+            const brand = root.querySelector("aside p");
+            return {
+              className: root.className,
+              flow: style.gridAutoFlow,
+              expectedFlow: innerWidth >= 640 ? "column" : "row",
+              paddingTop: style.paddingTop,
+              borderTopWidth: style.borderTopWidth,
+              borderRadius: style.borderRadius,
+              nonOverlapping,
+              aligned,
+              brandFits: !brand || brand.scrollWidth <= brand.clientWidth + 1,
+              hasOverflow: root.scrollWidth > root.clientWidth + 1
+            };
+          })
         };
       });
 
@@ -6810,6 +6849,20 @@ test.describe("State Blueprint tool", () => {
         expect(new Set(metrics.accordion[0].sections.map(section => section.inputName)).size).toBe(1);
         expect(metrics.accordion[0].sections.map(section => section.checked)).toEqual([true, false]);
         expect(metrics.accordion[0].sections.map(section => section.buttonCount)).toEqual([0, 0]);
+      }
+      if (template.variant === "footer") {
+        expect(metrics.footers).toEqual([{
+          className: "daisy-widget footer sm:footer-horizontal bg-base-200 text-base-content p-10",
+          flow: metrics.footers[0].expectedFlow,
+          expectedFlow: metrics.footers[0].expectedFlow,
+          paddingTop: "40px",
+          borderTopWidth: "0px",
+          borderRadius: "0px",
+          nonOverlapping: true,
+          aligned: true,
+          brandFits: true,
+          hasOverflow: false
+        }]);
       }
       if (template.id === "builtin_daisy_avatar") {
         expect(metrics.text).toContain("MK");
@@ -10950,7 +11003,7 @@ test.describe("State Blueprint tool", () => {
         inspectorCollapsed: false,
         previewCollapsed: false,
         stateExplorerCollapsed: false,
-        stateExplorerGroup: "website",
+        stateExplorerGroup: "websuite-builder",
         mobileWorkspaceView: "canvas",
         inspectorWidth: 520,
         previewWidth: 520
@@ -13069,8 +13122,8 @@ test.describe("State Blueprint tool", () => {
 
     await expect(page.locator(".workspace")).toHaveClass(/inspector-collapsed/);
     await expect(page.locator("#btnToggleInspector")).toHaveAttribute("aria-expanded", "false");
-    await page.locator("#stateExplorerGroups").getByRole("button", { name: "Grundlagen" }).click();
-    await expect(page.locator("#stateExplorerGroups").getByRole("button", { name: "Grundlagen" })).toHaveClass(/active/);
+    await page.locator("#stateExplorerGroups").getByRole("button", { name: "Websuite Builder" }).click();
+    await expect(page.locator("#stateExplorerGroups").getByRole("button", { name: "Websuite Builder" })).toHaveClass(/active/);
     const beforeScroll = await page.locator("#stateExplorerList").evaluate(el => el.scrollLeft);
     const before = await savedModel(page);
     await componentPreset(page, "Externer Link").getByRole("button", { name: "Externer Link hinzufügen" }).click();
@@ -13195,62 +13248,31 @@ test.describe("State Blueprint tool", () => {
     await expect(componentPreset(page, "Preiskarten")).toBeVisible();
   });
 
-  test("groups explorer presets into usable website basecases without drawer overflow @smoke", async ({ page }) => {
+  test("keeps the Websuite Builder together and accepts contract-managed categories without drawer overflow @smoke", async ({ page }) => {
     await openTool(page);
 
     const titles = await page.locator(".state-explorer-section-title").evaluateAll(nodes => nodes.map(node => node.textContent?.trim()));
-    expect(titles.slice(0, 4)).toEqual(["Website", "Grundlagen", "Formulare", "Daten"]);
-    await expect(page.locator("#stateExplorerGroups").getByRole("button", { name: "Website" })).toHaveClass(/active/);
+    expect(titles).toEqual(["Websuite Builder"]);
+    await expect(page.locator("#stateExplorerGroups").getByRole("button")).toHaveCount(1);
+    await expect(page.locator("#stateExplorerGroups").getByRole("button", { name: "Websuite Builder" })).toHaveClass(/active/);
     await expect(componentPreset(page, "Seitenüberschrift")).toBeVisible();
     await expect(componentPreset(page, "Inhaltsliste")).toBeVisible();
     await expect(componentPreset(page, "Titelbereich")).toBeVisible();
     await expect(componentPreset(page, "Textfeld")).toBeVisible();
 
-    const groupedPresetOrder = await page.locator("#stateExplorerList").evaluate(root => {
-      const titlesFor = key => [...root.querySelectorAll(`.state-explorer-section.core.${key} .template-title`)]
+    const groupedPresetOrder = await page.locator("#stateExplorerList").evaluate(root =>
+      [...root.querySelectorAll(".state-explorer-section.core.websuite-builder .template-title")]
         .map(node => node.textContent?.trim() || "")
-        .filter(Boolean);
-      return {
-        website: titlesFor("website"),
-        basics: titlesFor("basics"),
-        forms: titlesFor("forms"),
-        data: titlesFor("data")
-      };
-    });
-    expect(groupedPresetOrder.website.slice(0, 8)).toEqual([
-      "Kopfleiste einfach",
-      "Kopfleiste mit Menü",
-      "Kopfleiste Suche/Profil",
-      "Kopfleiste Shop/Warenkorb",
-      "Titelbereich",
-      "Titelbereich mit Bild",
-      "Titelbereich mit Anmeldeformular",
-      "Titelbereich mit Bildüberlagerung"
-    ]);
-    expect(groupedPresetOrder.basics.slice(0, 5)).toEqual([
+        .filter(Boolean)
+    );
+    expect(groupedPresetOrder.length).toBeGreaterThan(50);
+    expect(groupedPresetOrder).toEqual(expect.arrayContaining([
       "Seitenüberschrift",
       "Textblock",
-      "Bildblock",
-      "Aufgaben-Checkliste",
-      "Externer Link"
-    ]);
-    expect(groupedPresetOrder.forms.slice(0, 5)).toEqual([
       "Textfeld",
-      "Aktionsbutton",
-      "Auswahlfeld",
-      "Checkbox-Feld",
-      "Schalter"
-    ]);
-    expect(groupedPresetOrder.data.slice(0, 5)).toEqual([
       "Datentabelle",
-      "Kennzahl",
-      "Fortschrittsbalken",
-      "Sternebewertung",
       "Prozessschritte"
-    ]);
-
-    await page.locator("#stateExplorerGroups").getByRole("button", { name: "Grundlagen" }).click();
-    await expect(page.locator("#stateExplorerGroups").getByRole("button", { name: "Grundlagen" })).toHaveClass(/active/);
+    ]));
 
     const report = await page.locator("#stateExplorer").evaluate(explorer => {
       const explorerRect = explorer.getBoundingClientRect();
@@ -13282,6 +13304,38 @@ test.describe("State Blueprint tool", () => {
     expect(report.verticalOverflow).toBe(false);
     expect(report.overlap).toBe(false);
     expect(report.textOverflow).toBe(false);
+
+    const contract = productContractForTest();
+    await routeProductContract(page, {
+      presetCategories: [
+        ...contract.presetCategories,
+        { id: "portal", label: "Portal" }
+      ],
+      presets: [{
+        id: "custom_portal_notice",
+        rootStateId: "custom_portal_notice",
+        title: "Portal-Hinweis",
+        description: "Vertraglich verwaltete Portal-Komponente.",
+        categoryId: "portal",
+        builtIn: false,
+        components: [{
+          id: "custom_portal_notice_component",
+          type: "daisy",
+          variant: "alert",
+          dataPath: "states.custom_portal_notice",
+          dataRole: "widget",
+          dataLabel: "Portal-Hinweis"
+        }],
+        data: { tone: "info", message: "Willkommen im Portal." },
+        dataTypes: {},
+        transitions: []
+      }]
+    });
+    await page.reload();
+    await expect(page.locator("#stateExplorerGroups").getByRole("button")).toHaveCount(2);
+    await page.locator("#stateExplorerGroups").getByRole("button", { name: "Portal" }).click();
+    await expect(page.locator("#stateExplorerGroups").getByRole("button", { name: "Portal" })).toHaveClass(/active/);
+    await expect(componentPreset(page, "Portal-Hinweis")).toBeVisible();
   });
 
   test("keeps long preset add text inside cards and created states @smoke", async ({ page }) => {
@@ -14437,8 +14491,8 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator(".help")).toHaveCount(0);
     await expect(page.locator(".zoom-controls")).toHaveCount(0);
     await expect(page.locator(".state-explorer-label")).toHaveCount(0);
-    await expect(page.locator('.state-explorer-section[data-template-category="website"]')).toBeVisible();
-    await expect(page.locator('.state-explorer-section[data-template-group="core"]')).toHaveCount(5);
+    await expect(page.locator('.state-explorer-section[data-template-category="websuite-builder"]')).toBeVisible();
+    await expect(page.locator('.state-explorer-section[data-template-group="core"]')).toHaveCount(1);
     await expect(page.locator('.state-explorer-section[data-template-group="user"]')).toHaveCount(0);
     await expect(componentPreset(page, "Textblock").getByRole("button", { name: "Löschen" })).toHaveCount(0);
     await assertVisibleInViewport(page, "#stateExplorer");

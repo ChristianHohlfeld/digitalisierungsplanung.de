@@ -154,6 +154,7 @@ function stateContributionsForCatalog(catalog) {
 
 function productContractResponse(configOrCatalog) {
   const catalog = configOrCatalog?.eventCatalog || configOrCatalog;
+  const library = configOrCatalog?.presetLibrary;
   const response = eventCatalog.eventCatalogResponse(catalog);
   return {
     schemaVersion: CONTRACT_SCHEMA_VERSION,
@@ -163,9 +164,10 @@ function productContractResponse(configOrCatalog) {
     triggerTypes: triggerTypesForCatalog(catalog),
     datasets: datasetsForCatalog(catalog),
     connectors: response.emitters,
-    presetPackages: presetCatalog.presetPackagesResponse(),
-    subscriptionPlans: presetCatalog.subscriptionPlansResponse(),
-    presets: presetCatalog.presetCatalogResponse(),
+    presetCategories: presetCatalog.presetCategoriesResponse(library),
+    presetPackages: presetCatalog.presetPackagesResponse(library),
+    subscriptionPlans: presetCatalog.subscriptionPlansResponse(library),
+    presets: presetCatalog.presetCatalogResponse(library),
     stateContributions: stateContributionsForCatalog(catalog)
   };
 }

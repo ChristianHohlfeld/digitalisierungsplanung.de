@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "daisyVersion": "5.6.18",
+  "categories": [
+    { "id": "websuite-builder", "label": "Websuite Builder", "description": "Alle bestehenden Bausteine für Seiten, Formulare, Datenansichten und Prozess-Apps.", "sort": 10 }
+  ],
+  "packages": [
+    {
+      "id": "core.process",
+      "label": "Process Core",
+      "category": "base",
+      "description": "Grundbausteine für Prozessaufnahme, Formulare, Entscheidungen und einfache Apps.",
+      "buyerValue": "Startet jeden Digitalisierungsprozess ohne Zusatzpaket.",
+      "upsell": false,
+      "sort": 10
+    },
+    {
+      "id": "website.builder",
+      "label": "Website Builder",
+      "category": "package",
+      "description": "Landingpages, Portale, Navigation, Angebotsseiten und exportierbare Web-Apps.",
+      "buyerValue": "Macht aus geklärten Abläufen sofort sichtbare Web-Oberflächen.",
+      "upsell": false,
+      "sort": 20
+    },
+    {
+      "id": "approval.compliance",
+      "label": "Freigabe & Compliance",
+      "category": "package",
+      "description": "Freigaben, Nachweise, Prüfschritte, Status und dokumentierte Entscheidungen.",
+      "buyerValue": "Reduziert Rückfragen, E-Mail-Pingpong und unklare Verantwortlichkeiten.",
+      "upsell": false,
+      "sort": 30
+    },
+    {
+      "id": "service.operations",
+      "label": "Service & Operations",
+      "category": "package",
+      "description": "Servicefälle, Echtzeit-Ereignisse, Eskalationen, Aufgaben und operative Übersichten.",
+      "buyerValue": "Verbindet reale Ereignisse wie Anruf, Mail oder Webhook mit dem Prozess.",
+      "upsell": false,
+      "sort": 40
+    },
+    {
+      "id": "bi.analytics",
+      "label": "BI & Analyse",
+      "category": "addon",
+      "description": "KPI-Karten, Tabellen, Charts, Pipeline- und Management-Auswertungen.",
+      "buyerValue": "Macht Prozessdaten für Geschäftsführung und Bereichsleitung entscheidbar.",
+      "upsell": true,
+      "sort": 50
+    },
+    {
+      "id": "sales.crm",
+      "label": "Sales & CRM",
+      "category": "addon",
+      "description": "Lead-Status, Angebotsstrecken, Kundenservice, Pipeline und Follow-up-Prozesse.",
+      "buyerValue": "Hilft Vertrieb und Service, Chancen und Kundenkontakte nachvollziehbar zu führen.",
+      "upsell": true,
+      "sort": 60
+    },
+    {
+      "id": "knowledge.portal",
+      "label": "Wissensportal",
+      "category": "addon",
+      "description": "FAQ, interne Portale, Onboarding, Prozesswissen und wiederverwendbare Inhalte.",
+      "buyerValue": "Sichert Erfahrungswissen, bevor es bei Urlaub, Wechsel oder Wachstum fehlt.",
+      "upsell": true,
+      "sort": 70
+    },
+    {
+      "id": "integration.automation",
+      "label": "Integration & Automation",
+      "category": "addon",
+      "description": "Webhook-, Mail-, Telefonie- und Datenquellen für echte Business-Ereignisse.",
+      "buyerValue": "Bringt reale Systeme in den Prozess, ohne den Canvas als Schattenbackend zu nutzen.",
+      "upsell": true,
+      "sort": 80
+    }
+  ],
+  "presets": []
+}

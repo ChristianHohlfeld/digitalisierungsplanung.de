@@ -8,6 +8,7 @@ const path = require("node:path");
 const { URL } = require("node:url");
 const { WebSocketServer, WebSocket } = require("ws");
 const eventCatalog = require("./event-catalog");
+const presetLibrary = require("./preset-library");
 const productContract = require("./product-contract");
 const { loadReleaseInfo, parseReleaseSource } = require("./release");
 
@@ -21,8 +22,12 @@ const DEFAULT_EMIT_PATH = "/emit";
 const DEFAULT_CONSOLE_PATH = "/console.html";
 const DEFAULT_EVENTS_ADMIN_PATH = "/events-admin.html";
 const DEFAULT_EVENTS_ADMIN_CATALOG_PATH = "/events-admin/catalog";
+const DEFAULT_PRESETS_ADMIN_PATH = "/presets-admin.html";
+const DEFAULT_PRESETS_ADMIN_CATALOG_PATH = "/presets-admin/catalog";
+const DEFAULT_PRESETS_ADMIN_PARSE_PATH = "/presets-admin/parse";
 const DEFAULT_VERSION_PATH = "/version";
 const DEFAULT_ADMIN_COMMIT_MESSAGE = "Update realtime event catalog";
+const DEFAULT_PRESET_ADMIN_COMMIT_MESSAGE = "Update preset library";
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 8788;
 const MAX_ID_LENGTH = 128;
@@ -293,6 +298,7 @@ function loadConfig(options = {}) {
   const nodeEnv = options.nodeEnv || env.NODE_ENV || "development";
   const repoDir = path.resolve(options.repoDir || env.REALTIME_REPO_DIR || process.cwd());
   const releaseFile = path.resolve(options.releaseFile || env.ZUSTAND_RELEASE_FILE || path.join(repoDir, "release-version.js"));
+  const presetLibraryPath = path.resolve(options.presetLibraryPath || env.REALTIME_PRESET_LIBRARY_PATH || presetLibrary.DEFAULT_PRESET_LIBRARY_PATH);
   const allowUnsignedRooms = options.allowUnsignedRooms ?? (
     String(env.REALTIME_ALLOW_UNSIGNED_ROOMS || "").toLowerCase() === "true"
   );
@@ -309,9 +315,14 @@ function loadConfig(options = {}) {
     consolePath: options.consolePath || env.REALTIME_CONSOLE_PATH || DEFAULT_CONSOLE_PATH,
     eventsAdminPath: options.eventsAdminPath || env.REALTIME_EVENTS_ADMIN_PATH || DEFAULT_EVENTS_ADMIN_PATH,
     eventsAdminCatalogPath: options.eventsAdminCatalogPath || env.REALTIME_EVENTS_ADMIN_CATALOG_PATH || DEFAULT_EVENTS_ADMIN_CATALOG_PATH,
+    presetsAdminPath: options.presetsAdminPath || env.REALTIME_PRESETS_ADMIN_PATH || DEFAULT_PRESETS_ADMIN_PATH,
+    presetsAdminCatalogPath: options.presetsAdminCatalogPath || env.REALTIME_PRESETS_ADMIN_CATALOG_PATH || DEFAULT_PRESETS_ADMIN_CATALOG_PATH,
+    presetsAdminParsePath: options.presetsAdminParsePath || env.REALTIME_PRESETS_ADMIN_PARSE_PATH || DEFAULT_PRESETS_ADMIN_PARSE_PATH,
     versionPath: options.versionPath || env.REALTIME_VERSION_PATH || DEFAULT_VERSION_PATH,
     eventCatalogPath: path.resolve(options.eventCatalogPath || env.REALTIME_EVENT_CATALOG_PATH || eventCatalog.DEFAULT_EVENT_CATALOG_PATH),
     eventAdminHtmlPath: path.resolve(options.eventAdminHtmlPath || env.REALTIME_EVENT_ADMIN_HTML_PATH || path.join(__dirname, "events-admin.html")),
+    presetLibraryPath,
+    presetAdminHtmlPath: path.resolve(options.presetAdminHtmlPath || env.REALTIME_PRESET_ADMIN_HTML_PATH || path.join(__dirname, "presets-admin.html")),
     repoDir,
     releaseFile,
     adminSecret: options.adminSecret ?? env.REALTIME_ADMIN_SECRET ?? "",
@@ -330,6 +341,7 @@ function loadConfig(options = {}) {
     emitSecret,
     release: options.release || loadReleaseInfo({ env, path: releaseFile }),
     eventCatalog: loadEventCatalog(options, env),
+    presetLibrary: options.presetLibrary || presetLibrary.loadPresetLibraryFile(presetLibraryPath),
     allowUnsignedRooms: Boolean(allowUnsignedRooms),
     requireRoomSecret: options.requireRoomSecret ?? (nodeEnv === "production" && !allowUnsignedRooms)
   };
@@ -494,9 +506,9 @@ function releaseResponse(config) {
   };
 }
 
-function cleanCommitMessage(value) {
+function cleanCommitMessage(value, fallback = DEFAULT_ADMIN_COMMIT_MESSAGE) {
   const text = String(value || "").replace(/[\r\n]+/g, " ").trim();
-  return (text || DEFAULT_ADMIN_COMMIT_MESSAGE).slice(0, 120);
+  return (text || fallback).slice(0, 120);
 }
 
 function serializeReleaseInfo(release) {
@@ -584,11 +596,10 @@ function localAheadCount(config) {
   return Number.isFinite(count) && count > 0 ? count : 0;
 }
 
-function writeCatalogCommitAndPush(config, catalog, message) {
-  const relativeCatalogPath = repoRelativePath(config.repoDir, config.eventCatalogPath);
+function writeManagedCatalogCommitAndPush(config, options) {
+  const relativeCatalogPath = repoRelativePath(config.repoDir, options.catalogPath);
   const relativeReleasePath = repoRelativePath(config.repoDir, config.releaseFile);
-  const serialized = eventCatalog.serializeEventCatalog(catalog);
-  fs.writeFileSync(config.eventCatalogPath, serialized, { encoding: "utf8", mode: 0o644 });
+  fs.writeFileSync(options.catalogPath, options.serialized, { encoding: "utf8", mode: 0o644 });
 
   const unstaged = config.gitRunner(["diff", "--quiet", "--", relativeCatalogPath], {
     cwd: config.repoDir,
@@ -613,13 +624,13 @@ function writeCatalogCommitAndPush(config, catalog, message) {
   fs.writeFileSync(config.releaseFile, serializeReleaseInfo(release), { encoding: "utf8", mode: 0o644 });
 
   runGit(config, ["add", "--", relativeCatalogPath, relativeReleasePath], "git_add_failed");
-  const baseMessage = cleanCommitMessage(message);
+  const baseMessage = cleanCommitMessage(options.message, options.defaultMessage);
   const commitMessage = baseMessage.includes(release.id) ? baseMessage : `${baseMessage} (${release.id})`;
   runGit(config, [
     "-c",
-    "user.name=Realtime Event Designer",
+    `user.name=${options.authorName}`,
     "-c",
-    "user.email=realtime-events@digitalisierungsplanung.de",
+    `user.email=${options.authorEmail}`,
     "commit",
     "-m",
     commitMessage,
@@ -638,6 +649,28 @@ function writeCatalogCommitAndPush(config, catalog, message) {
     releaseSequence: release.sequence,
     release: { ...release, deployedCommit: commit }
   };
+}
+
+function writeCatalogCommitAndPush(config, catalog, message) {
+  return writeManagedCatalogCommitAndPush(config, {
+    catalogPath: config.eventCatalogPath,
+    serialized: eventCatalog.serializeEventCatalog(catalog),
+    message,
+    defaultMessage: DEFAULT_ADMIN_COMMIT_MESSAGE,
+    authorName: "Realtime Event Designer",
+    authorEmail: "realtime-events@digitalisierungsplanung.de"
+  });
+}
+
+function writePresetLibraryCommitAndPush(config, library, message) {
+  return writeManagedCatalogCommitAndPush(config, {
+    catalogPath: config.presetLibraryPath,
+    serialized: presetLibrary.serializePresetLibrary(library),
+    message,
+    defaultMessage: DEFAULT_PRESET_ADMIN_COMMIT_MESSAGE,
+    authorName: "Preset Designer",
+    authorEmail: "presets@digitalisierungsplanung.de"
+  });
 }
 
 function createRoom(roomId) {
@@ -738,6 +771,10 @@ function createRealtimeServer(options = {}) {
     offeredEmittersById = new Map(config.eventCatalog.emitters.map(emitter => [emitter.id, emitter]));
   };
   setEventCatalog(config.eventCatalog);
+  const setPresetLibrary = library => {
+    config.presetLibrary = presetLibrary.validatePresetLibrary(library);
+  };
+  setPresetLibrary(config.presetLibrary);
   const isOriginAllowed = origin => allowedOrigins.has("*") || allowedOrigins.has(origin);
   const isSamePublicOrigin = (origin, request) => Boolean(origin) && origin === publicBaseUrl(request);
   const corsHeadersForOrigin = (origin, request) => {
@@ -759,6 +796,27 @@ function createRealtimeServer(options = {}) {
       "access-control-allow-headers": "authorization, content-type",
       "vary": "Origin"
     };
+  };
+  const prepareAdminResponse = (request, response) => {
+    const headers = adminHeadersForRequest(request);
+    if (!headers) {
+      writeJson(response, 403, { error: "origin_not_allowed" });
+      return { done: true };
+    }
+    if (request.method === "OPTIONS") {
+      response.writeHead(204, headers);
+      response.end();
+      return { done: true };
+    }
+    if (!config.adminSecret) {
+      writeJson(response, 503, { error: "admin_secret_required" }, headers);
+      return { done: true };
+    }
+    if (!timingSafeEqualString(bearerToken(request), config.adminSecret)) {
+      writeJson(response, 401, { error: "unauthorized" }, headers);
+      return { done: true };
+    }
+    return { done: false, headers };
   };
   const prepareCatalogResponse = (request, response) => {
     const origin = request.headers.origin || "";
@@ -798,6 +856,18 @@ function createRealtimeServer(options = {}) {
     }
     if ((request.method === "GET" || request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.eventsAdminCatalogPath) {
       void handleAdminCatalogRequest(request, response);
+      return;
+    }
+    if (request.method === "GET" && url.pathname === config.presetsAdminPath) {
+      writeHtml(response, 200, fs.readFileSync(config.presetAdminHtmlPath, "utf8"));
+      return;
+    }
+    if ((request.method === "GET" || request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.presetsAdminCatalogPath) {
+      void handlePresetCatalogRequest(request, response);
+      return;
+    }
+    if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.presetsAdminParsePath) {
+      void handlePresetParseRequest(request, response);
       return;
     }
     if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.eventsPath) {
@@ -916,24 +986,9 @@ function createRealtimeServer(options = {}) {
 
   async function handleAdminCatalogRequest(request, response) {
     const requestUrl = new URL(request.url || "/", "http://localhost");
-    const headers = adminHeadersForRequest(request);
-    if (!headers) {
-      writeJson(response, 403, { error: "origin_not_allowed" });
-      return;
-    }
-    if (request.method === "OPTIONS") {
-      response.writeHead(204, headers);
-      response.end();
-      return;
-    }
-    if (!config.adminSecret) {
-      writeJson(response, 503, { error: "admin_secret_required" }, headers);
-      return;
-    }
-    if (!timingSafeEqualString(bearerToken(request), config.adminSecret)) {
-      writeJson(response, 401, { error: "unauthorized" }, headers);
-      return;
-    }
+    const prepared = prepareAdminResponse(request, response);
+    if (prepared.done) return;
+    const headers = prepared.headers;
 
     if (request.method === "GET") {
       try {
@@ -968,6 +1023,67 @@ function createRealtimeServer(options = {}) {
       writeJson(response, 200, result, headers);
     } catch (error) {
       writeJson(response, error.status || 500, { error: error.code || "event_catalog_save_failed" }, headers);
+    }
+  }
+
+  async function handlePresetCatalogRequest(request, response) {
+    const requestUrl = new URL(request.url || "/", "http://localhost");
+    const prepared = prepareAdminResponse(request, response);
+    if (prepared.done) return;
+    const headers = prepared.headers;
+
+    if (request.method === "GET") {
+      writeJson(response, 200, {
+        library: config.presetLibrary,
+        release: releaseResponse(config)
+      }, headers);
+      return;
+    }
+
+    let payload;
+    try {
+      payload = await readJsonBody(request, config.maxPayload);
+    } catch (error) {
+      const status = error.code === "payload_too_large" ? 413 : 400;
+      writeJson(response, status, { error: error.code || "invalid_json" }, headers);
+      return;
+    }
+
+    try {
+      const library = presetLibrary.validatePresetLibrary(payload.library);
+      if (payload.validateOnly === true || requestUrl.searchParams.get("validate") === "1") {
+        writeJson(response, 200, { ok: true, library }, headers);
+        return;
+      }
+      const result = writePresetLibraryCommitAndPush(config, library, payload.message);
+      setPresetLibrary(library);
+      if (result.release) config.release = result.release;
+      writeJson(response, 200, result, headers);
+    } catch (error) {
+      writeJson(response, error.status || 500, { error: error.code || "preset_library_save_failed" }, headers);
+    }
+  }
+
+  async function handlePresetParseRequest(request, response) {
+    const prepared = prepareAdminResponse(request, response);
+    if (prepared.done) return;
+    const headers = prepared.headers;
+    let payload;
+    try {
+      payload = await readJsonBody(request, config.maxPayload);
+    } catch (error) {
+      const status = error.code === "payload_too_large" ? 413 : 400;
+      writeJson(response, status, { error: error.code || "invalid_json" }, headers);
+      return;
+    }
+    try {
+      writeJson(response, 200, {
+        ok: true,
+        preset: presetLibrary.parseDaisySnippet(payload),
+        daisyVersion: presetLibrary.DAISY_VERSION
+      }, headers);
+    } catch (error) {
+      writeJson(response, error.status || 400, { error: error.code || "snippet_parse_failed" }, headers);
     }
   }
 

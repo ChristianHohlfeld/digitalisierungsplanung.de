@@ -43,6 +43,8 @@ test.describe("Root demo export", () => {
     expect(html).toContain("window.visualViewport?.addEventListener");
     expect(html).toContain("Array.isArray(cursor) && /^\\d+$/.test(part)");
     expect(html).not.toContain("Array.isArray(cursor) && /^d+$/.test(part)");
+    expect(html).toContain("DaisyUI v5.6.18 / Tailwind preflight parity");
+    expect(html).not.toMatch(/(?:cdn\.jsdelivr\.net|unpkg\.com)\/.*daisyui/i);
 
     await page.addInitScript(() => {
       const key = "safari-refresh-probe";
@@ -68,6 +70,56 @@ test.describe("Root demo export", () => {
     await expect(page.getByRole("button", { name: "Erstgespräch anfragen" })).toBeVisible();
     await expect(page.locator(".hero .card-actions.justify-center")).toHaveCSS("justify-content", "center");
     await expect(page.locator(".navbar").getByRole("button", { name: "Pakete", exact: true })).toBeVisible();
+
+    const footerGeometry = () => page.locator(".footer").evaluate(footer => {
+      const style = getComputedStyle(footer);
+      const children = [...footer.children]
+        .filter(child => !["SCRIPT", "STYLE", "TEMPLATE"].includes(child.tagName))
+        .map(child => {
+          const box = child.getBoundingClientRect();
+          return { left: box.left, right: box.right, top: box.top, bottom: box.bottom };
+        });
+      const brand = footer.querySelector("aside p");
+      const horizontalOverlap = children.some((box, index) => index > 0 && box.left < children[index - 1].right - 1);
+      const verticalOverlap = children.some((box, index) => index > 0 && box.top < children[index - 1].bottom - 1);
+      return {
+        flow: style.gridAutoFlow,
+        paddingTop: style.paddingTop,
+        borderTopWidth: style.borderTopWidth,
+        borderRadius: style.borderRadius,
+        topSpread: Math.max(...children.map(box => box.top)) - Math.min(...children.map(box => box.top)),
+        leftSpread: Math.max(...children.map(box => box.left)) - Math.min(...children.map(box => box.left)),
+        horizontalOverlap,
+        verticalOverlap,
+        brandFits: !brand || brand.scrollWidth <= brand.clientWidth + 1,
+        hasOverflow: footer.scrollWidth > footer.clientWidth + 1
+      };
+    });
+
+    await expect(page.locator('footer.footer[class~="sm:footer-horizontal"].bg-base-200.text-base-content.p-10')).toBeVisible();
+    const wideFooter = await footerGeometry();
+    expect(wideFooter).toMatchObject({
+      flow: "column",
+      paddingTop: "40px",
+      borderTopWidth: "0px",
+      borderRadius: "0px",
+      horizontalOverlap: false,
+      brandFits: true,
+      hasOverflow: false
+    });
+    expect(wideFooter.topSpread).toBeLessThanOrEqual(1);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    const narrowFooter = await footerGeometry();
+    expect(narrowFooter).toMatchObject({
+      flow: "row",
+      horizontalOverlap: true,
+      verticalOverlap: false,
+      brandFits: true,
+      hasOverflow: false
+    });
+    expect(narrowFooter.leftSpread).toBeLessThanOrEqual(1);
+    await page.setViewportSize({ width: 1280, height: 820 });
 
     const manifest = await page.request.get("/manifest.webmanifest");
     expect(manifest.ok()).toBe(true);
@@ -103,5 +155,45 @@ test.describe("Root demo export", () => {
     const userScrollY = await page.evaluate(() => window.scrollY);
     await page.waitForTimeout(1500);
     expect(await page.evaluate(() => window.scrollY)).toBe(userScrollY);
+  });
+});
+
+test.describe("Preset designer", () => {
+  test("turns an official Daisy snippet into a managed category preset @smoke", async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("digitalisierungsplanung.realtime.adminSecret", "admin-secret");
+    });
+    await page.goto("/presets-admin.html");
+
+    await expect(page.getByRole("heading", { name: /Preset Designer/ })).toBeVisible();
+    await expect(page.locator("#status")).toContainText("0 eigene Presets");
+    await expect(page.locator("#category")).toHaveValue("websuite-builder");
+
+    await page.locator("#snippet").fill('<footer class="footer sm:footer-horizontal bg-base-200 text-base-content p-10"><aside><p class="footer-title">ACME</p><p>Aus Erfahrung wird Software.</p></aside><nav><h6 class="footer-title">Produkt</h6><a class="link link-hover">Start</a></nav></footer>');
+    await page.locator("#title").fill("ACME Footer");
+    await page.locator("#category").selectOption("__new__");
+    await page.locator("#categoryId").fill("portal");
+    await page.locator("#categoryLabel").fill("Portal");
+    await page.locator("#package").selectOption("__new__");
+    await page.locator("#packageId").fill("portal.pro");
+    await page.locator("#packageLabel").fill("Portal Pro");
+    await page.getByRole("button", { name: "Definition erzeugen" }).click();
+
+    await expect(page.locator("#status")).toContainText("Definition für footer erzeugt");
+    const definition = JSON.parse(await page.locator("#definition").inputValue());
+    expect(definition).toMatchObject({
+      id: "custom_acme_footer",
+      variant: "footer",
+      categoryId: "portal",
+      packageIds: ["portal.pro"],
+      data: { brand: "ACME" }
+    });
+    expect(JSON.stringify(definition)).not.toContain("<footer");
+
+    await page.getByRole("button", { name: "In Contract speichern" }).click();
+    await expect(page.locator("#status")).toContainText("Gespeichert und gepusht: browser-test");
+    await expect(page.locator("#existingPreset")).toContainText("ACME Footer");
+    await expect(page.locator("#managedCategory")).toContainText("Portal");
+    await expect(page.locator("#managedPackage")).toContainText("Portal Pro");
   });
 });
