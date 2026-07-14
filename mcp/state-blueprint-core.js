@@ -2,7 +2,7 @@
 
 const ROOT_LAYER_ID = "__root__";
 const GRID_SIZE = 24;
-const NODE_W = 168;
+const NODE_W = 192;
 const NODE_H = 96;
 const WORLD_MIN_X = -10000;
 const WORLD_MIN_Y = -8000;
@@ -11,6 +11,7 @@ const WORLD_MAX_Y = 16000;
 const STATE_VARIABLE_TYPES = ["text", "email", "password", "number", "boolean", "url", "image", "object", "list"];
 const COMPONENT_TYPES = ["heading", "text", "image", "list", "link", "note", "divider", "daisy", "transitionButton", "dataWire"];
 const TRANSITION_TRIGGER_TYPES = ["button", "change", "event", "realtime", "timer", "auto"];
+const TRANSITION_TRIGGER_CONTRACT_TYPES = new Set([...TRANSITION_TRIGGER_TYPES, "flow"]);
 const DATA_WIRE_ROLES = ["image", "title", "price", "description", "field", "link", "note"];
 const FORBIDDEN_COMPONENT_STATE_KEYS = ["localState", "stateStore", "store", "html"];
 
@@ -592,7 +593,11 @@ function normalizeStateRenderMode(value) {
 
 function normalizeTransitionTriggerType(transition) {
   const value = String(transition?.triggerType || "button").toLowerCase();
-  return TRANSITION_TRIGGER_TYPES.includes(value) ? value : "button";
+  return TRANSITION_TRIGGER_CONTRACT_TYPES.has(value) ? value : "button";
+}
+
+function transitionTriggerContractType(transition) {
+  return transition?.triggerType === undefined ? "button" : String(transition.triggerType);
 }
 
 function normalizeTransitionTimerMs(value) {
@@ -711,7 +716,7 @@ function normalizeModel(input) {
       .filter(component => component.type !== "dataWire" || wireIds.has(component.wireId));
     state.subscriptions = normalizeSubscriptions(state.subscriptions);
     state.boundary = normalizeBoundaryConfig(state.boundary);
-    state.x = snapClampToGrid(Number.isFinite(Number(state.x)) ? Number(state.x) : 100, WORLD_MIN_X, WORLD_MAX_X - 168);
+    state.x = snapClampToGrid(Number.isFinite(Number(state.x)) ? Number(state.x) : 100, WORLD_MIN_X, WORLD_MAX_X - NODE_W);
     state.y = snapClampToGrid(Number.isFinite(Number(state.y)) ? Number(state.y) : 100, WORLD_MIN_Y, WORLD_MAX_Y - NODE_H);
   }
 
@@ -865,6 +870,16 @@ function transitionTriggerContractIssues(transitions) {
   const issues = [];
   const byState = new Map();
   for (const transition of transitions) {
+    const contractType = transitionTriggerContractType(transition);
+    if (!TRANSITION_TRIGGER_CONTRACT_TYPES.has(contractType)) {
+      issues.push({
+        code: "invalid_transition_trigger_type",
+        transitionId: String(transition?.id || ""),
+        triggerType: contractType,
+        message: "Transition triggerType must be one of button, change, event, realtime, timer, auto, flow."
+      });
+      continue;
+    }
     if (transition?.boundaryFlow || isBoundaryProxyId(transition?.from) || isBoundaryProxyId(transition?.to)) continue;
     const triggerType = normalizeTransitionTriggerType(transition);
     if (triggerType === "flow") continue;
@@ -1064,7 +1079,7 @@ function createState(model, args) {
     subscriptions: normalizeSubscriptions(args.subscriptions),
     boundary: normalizeBoundaryConfig(args.boundary),
     parentId,
-    x: snapClampToGrid(Number.isFinite(Number(args.x)) ? Number(args.x) : 120 + model.states.length * GRID_SIZE * 7, WORLD_MIN_X, WORLD_MAX_X - 168),
+    x: snapClampToGrid(Number.isFinite(Number(args.x)) ? Number(args.x) : 120 + model.states.length * NODE_W, WORLD_MIN_X, WORLD_MAX_X - NODE_W),
     y: snapClampToGrid(Number.isFinite(Number(args.y)) ? Number(args.y) : 120 + model.states.length * GRID_SIZE * 4, WORLD_MIN_Y, WORLD_MAX_Y - NODE_H)
   };
   model.states.push(state);
@@ -1092,7 +1107,7 @@ function upsertState(model, args) {
     if (parentId && !byModelId(model, parentId)) throw new Error(`Parent state not found: ${parentId}`);
     existing.parentId = parentId && parentId !== existing.id ? parentId : null;
   }
-  if ("x" in args) existing.x = snapClampToGrid(Number(args.x), WORLD_MIN_X, WORLD_MAX_X - 168);
+  if ("x" in args) existing.x = snapClampToGrid(Number(args.x), WORLD_MIN_X, WORLD_MAX_X - NODE_W);
   if ("y" in args) existing.y = snapClampToGrid(Number(args.y), WORLD_MIN_Y, WORLD_MAX_Y - NODE_H);
   if ("components" in args) existing.components = normalizeComponents(args.components);
   if ("data" in args) existing.data = normalizeStateDataObject(args.data);
@@ -1354,7 +1369,11 @@ function upsertTransition(model, args) {
   target.label = String(args.label || target.label || defaultTransitionLabel());
   target.condition = validateTransitionCondition(args.condition || "");
   target.set = normalizeTransitionPatch(args.set);
-  target.triggerType = normalizeTransitionTriggerType(args);
+  const triggerType = transitionTriggerContractType(args);
+  if (!TRANSITION_TRIGGER_CONTRACT_TYPES.has(triggerType) || triggerType === "flow") {
+    throw new Error("upsert_transition triggerType must be one of button, change, event, realtime, timer, auto.");
+  }
+  target.triggerType = triggerType;
   target.triggerEvent = normalizeTransitionEventName(args.triggerEvent || (target.triggerType === "change" ? "" : defaultTransitionEvent(target)));
   target.timerMs = normalizeTransitionTimerMs(args.timerMs);
   target.groupEntryId = String(args.groupEntryId || "");
@@ -1393,7 +1412,7 @@ function applyAction(model, action) {
       return { type, ...deleteState(model, action) };
     case "move_state": {
       const state = findStateOrThrow(model, action.stateId);
-      state.x = snapClampToGrid(Number(action.x), WORLD_MIN_X, WORLD_MAX_X - 168);
+      state.x = snapClampToGrid(Number(action.x), WORLD_MIN_X, WORLD_MAX_X - NODE_W);
       state.y = snapClampToGrid(Number(action.y), WORLD_MIN_Y, WORLD_MAX_Y - NODE_H);
       return { type, state };
     }

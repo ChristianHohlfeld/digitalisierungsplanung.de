@@ -647,7 +647,7 @@ async function emptyCanvasPoint(page) {
       };
     }).filter(box => box.width && box.height);
     const referenceBox = nodeBoxes.find(box => box.width > 90 && box.height > 50);
-    const candidateWidth = referenceBox?.width || 168;
+    const candidateWidth = referenceBox?.width || 192;
     const candidateHeight = referenceBox?.height || 96;
     const margin = 24;
     const overlapsBoxes = (x, y, boxes, padding) => boxes.some(box =>
@@ -4735,6 +4735,7 @@ test.describe("State Blueprint tool", () => {
     await expect(componentEditor(page, "Divider")).toBeVisible();
 
     await page.keyboard.press("Alt+ArrowLeft");
+    await page.getByRole("button", { name: "App zurücksetzen", exact: true }).click();
     await page.locator('[data-id="login"]').click();
 
     const app = appFrame(page);
@@ -5274,8 +5275,19 @@ test.describe("State Blueprint tool", () => {
   });
 
   test("keeps every state at one contract width while long titles wrap cleanly", async ({ page }) => {
-    await openTool(page);
-    const longTitle = "Collect detailed learner preferences before recommending lessons";
+    const model = defaultTestModel();
+    model.states.push({
+      id: "login_details",
+      parentId: "login",
+      title: "Login details",
+      body: "",
+      components: [],
+      data: {},
+      x: 120,
+      y: 168
+    });
+    await openTool(page, { model });
+    const longTitle = "Registrierungsbestätigung sorgfältig abschließen";
 
     const login = page.locator('[data-id="login"]');
     const register = page.locator('[data-id="register"]');
@@ -5290,19 +5302,44 @@ test.describe("State Blueprint tool", () => {
     }).toBe(longTitle);
 
     await expect(login.locator(".title")).toHaveText(longTitle);
-    await expect(login.locator(".title")).toHaveCSS("text-overflow", "clip");
+    await expect(login.locator(".title")).toHaveCSS("text-overflow", "ellipsis");
+
+    const titleLayout = await login.evaluate(node => {
+      const title = node.querySelector(".title");
+      const layerBadge = node.querySelector(".layer-badge");
+      const titleStyle = getComputedStyle(title);
+      return {
+        usableWidth: title.clientWidth
+          - parseFloat(titleStyle.paddingLeft)
+          - parseFloat(titleStyle.paddingRight),
+        paddingRight: parseFloat(titleStyle.paddingRight),
+        wordBreak: titleStyle.wordBreak,
+        hyphens: titleStyle.hyphens,
+        lineClamp: titleStyle.webkitLineClamp,
+        nodeHeight: node.offsetHeight,
+        badgeClearOfText: layerBadge.offsetTop + layerBadge.offsetHeight
+          <= title.offsetTop + parseFloat(titleStyle.paddingTop)
+      };
+    });
+    expect(titleLayout.usableWidth).toBeGreaterThanOrEqual(164);
+    expect(titleLayout.paddingRight).toBe(12);
+    expect(titleLayout.wordBreak).toBe("normal");
+    expect(titleLayout.hyphens).toBe("auto");
+    expect(titleLayout.lineClamp).toBe("3");
+    expect(titleLayout.nodeHeight).toBe(96);
+    expect(titleLayout.badgeClearOfText).toBe(true);
 
     const loginBox = await visibleBox(login);
     expect(Math.abs(loginBox.width - registerBefore.width)).toBeLessThan(0.01);
-    await expect.poll(() => login.evaluate(el => Number.parseFloat(el.style.width))).toBe(168);
-    await expect.poll(() => register.evaluate(el => Number.parseFloat(el.style.width))).toBe(168);
+    await expect.poll(() => login.evaluate(el => Number.parseFloat(el.style.width))).toBe(192);
+    await expect.poll(() => register.evaluate(el => Number.parseFloat(el.style.width))).toBe(192);
 
     const loginState = (await savedModel(page)).states.find(state => state.id === "login");
     const outputX = await statePort(page, "login", "out").evaluate(port => {
       const match = String(port.getAttribute("transform") || "").match(/^translate\(([-\d.]+)/);
       return Number(match?.[1]);
     });
-    expect(outputX - loginState.x).toBe(168);
+    expect(outputX - loginState.x).toBe(192);
 
     await page.getByRole("button", { name: "Einpassen" }).click();
     await assertVisibleInViewport(page, '[data-id="login"]');
@@ -5692,7 +5729,7 @@ test.describe("State Blueprint tool", () => {
       initial: "left",
       states: [
         { id: "left", title: "Left", body: "", x: 96, y: 96 },
-        { id: "right", title: "Right", body: "", x: 744, y: 384 }
+        { id: "right", title: "Right", body: "", x: 768, y: 384 }
       ],
       transitions: [
         { id: "left_to_right", from: "left", to: "right", label: "Clean", condition: "" }
@@ -12308,7 +12345,7 @@ test.describe("State Blueprint tool", () => {
   test("keeps envelope live routes from running behind state boxes @smoke", async ({ page }) => {
     const states = [
       { id: "source", title: "Source", body: "", x: 96, y: 240 },
-      { id: "target", title: "Target", body: "", x: 1128, y: 240 }
+      { id: "target", title: "Target", body: "", x: 1272, y: 240 }
     ];
     let obstacleIndex = 0;
     for (let row = 0; row < 5; row++) {
@@ -12317,7 +12354,7 @@ test.describe("State Blueprint tool", () => {
           id: `obstacle_${obstacleIndex++}`,
           title: `Obstacle ${obstacleIndex}`,
           body: "",
-          x: 336 + col * 144,
+          x: 360 + col * 168,
           y: 72 + row * 96
         });
       }
@@ -13578,7 +13615,7 @@ test.describe("State Blueprint tool", () => {
     }, longTitle);
     expect(nodeReport.overflowX).toBe("hidden");
     expect(nodeReport.overflowWrap).toBe("anywhere");
-    expect(nodeReport.lineClamp).toBe("2");
+    expect(nodeReport.lineClamp).toBe("3");
     expect(nodeReport.titleAttr).toBe(longTitle);
     expect(nodeReport.insideRight).toBe(true);
     expect(nodeReport.insideLeft).toBe(true);

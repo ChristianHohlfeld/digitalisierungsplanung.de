@@ -221,7 +221,9 @@ Editoraktion
   Modellbearbeitung DARF bestehende Runtime-Eingaben nicht löschen oder mit
   geänderten Defaults überschreiben. Neue oder geänderte Defaults gelangen
   ausschließlich beim nächsten Eintritt des betroffenen Zustands in den Bus.
-  Nur ein ausdrücklicher Reset darf Laufzeitwerte zurücksetzen.
+  Der Startbefehl für den bereits aktiven Zustand ist idempotent und gilt nicht
+  als neuer Eintritt. Nur ein ausdrücklicher Reset darf Laufzeitwerte
+  zurücksetzen.
 - **STA-009 Abonnements:** `subscriptions` beschreiben gelesene Buspfade. Das
   Hinzufügen einer Darstellung oder eines Data Wires DARF Abonnements nicht
   als versteckten Schreibkanal missbrauchen.
@@ -317,6 +319,22 @@ Editoraktion
   eingeschleuste Fremdmodelle mit `invalid-trigger-contract` fail-closed und
   führt keine Transition aus. Undo und Redo enthalten ausschließlich gültige
   Modellstände.
+
+Die Triggeridentität ist vollständig und abschließend definiert:
+
+| `triggerType` | Identität an derselben effektiven Quelle | Zulässigkeit |
+| --- | --- | --- |
+| `button` | Transition-ID | Mehrere unterschiedliche Transition-IDs sind zulässig. |
+| `change` | Vollständiger Buspfad aus `triggerEvent`, ohne Pfad `*` | Jede Pfadidentität einschließlich `*` höchstens einmal. |
+| `event` | Vollständiger konkreter Ereignisname | Derselbe Name höchstens einmal; ein leerer Name ist ungültig. |
+| `realtime` | Vollständiger konkreter `realtime.*`-Ereignisname | Derselbe Name höchstens einmal; ein leerer oder fremder Namespace ist ungültig. |
+| `timer` | `timer` | Höchstens ein Timer, unabhängig von Dauer oder Ereignisname. |
+| `auto` | `auto` | Muss der einzige fachliche Ausgang der effektiven Quelle sein. |
+| `flow` | keine fachliche Identität | Nur interne Child-Führung; von der Triggerzählung ausgeschlossen. |
+
+Andere `triggerType`-Werte sind ungültig. Sie werden weder als Alias akzeptiert
+noch zu `button` normalisiert. Die Tabelle gilt identisch für direkte Ausgänge
+und Parent-Ausgänge an ihrem `groupExitId`.
 
 ## 7. Verschachtelung und Boundary
 
@@ -768,8 +786,8 @@ Editoraktion
   aus CAN-012 NICHT umgehen.
 - **CAN-014 Layout-Stabilität:** Titel, Statusbadges, Open-Aktion, Ports und
   Layer-Rahmen DÜRFEN nicht inkonsistent überlappen. Normale States sind in
-  Editor und MCP exakt 168 Pixel breit; lange Titel werden innerhalb dieser
-  Breite kontrolliert auf zwei Zeilen begrenzt.
+  Editor und MCP exakt 192 Pixel breit und 96 Pixel hoch; lange Titel werden
+  innerhalb dieser Fläche kontrolliert auf drei Zeilen begrenzt.
 
 ## 13. Speichern, Import und Export
 
@@ -1306,7 +1324,7 @@ Abdeckungsbereiche:
   CI-Regression. Der ursprüngliche Safari-Fehler kann deshalb browserbezogen
   zurückkehren, ohne die Freigabematrix zu brechen.
 - **GAP-024 Uneinheitliche Node-Geometrie, geschlossen am 2026-07-12:** Editor
-  und MCP verwenden für normale States dieselbe feste Breite von 168 Pixeln.
+  und MCP verwenden für normale States dieselbe feste Breite von 192 Pixeln.
   Titel ändern weder State-, Port- noch Routinggeometrie.
 - **GAP-025 Kompatibilitätsoberflächen, geschlossen am 2026-07-12:** Entfernte
   Discriminator-, Release- und Parser-Aliase sind gelöscht. Formale Grenzen

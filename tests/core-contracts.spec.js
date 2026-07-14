@@ -1285,13 +1285,35 @@ test.describe("Core source contracts", () => {
       };
 
       const valid = definition();
-      const duplicate = definition();
-      duplicate.model.transitions.push(transition("event_a", "a", "realtime", "realtime.route.b"));
+      const distinctButtons = definition();
+      distinctButtons.model.transitions = [
+        transition("click_a", "a", "button", "button.click_a.clicked"),
+        transition("click_b", "b", "button", "button.click_b.clicked")
+      ];
+      const duplicateChange = definition();
+      duplicateChange.model.transitions = [
+        transition("change_a", "a", "change", "change.states.start.value"),
+        transition("change_b", "b", "change", "change.states.start.value")
+      ];
+      const duplicateWildcardChange = definition();
+      duplicateWildcardChange.model.transitions = [
+        transition("change_a", "a", "change"),
+        transition("change_b", "b", "change")
+      ];
+      const duplicateEvent = definition();
+      duplicateEvent.model.transitions = [
+        transition("event_a", "a", "event", "event.route"),
+        transition("event_b", "b", "event", "event.route")
+      ];
+      const duplicateRealtime = definition();
+      duplicateRealtime.model.transitions.push(transition("event_a", "a", "realtime", "realtime.route.b"));
       const timers = definition();
       timers.model.transitions = [transition("timer_a", "a", "timer"), transition("timer_b", "b", "timer")];
       const automatic = definition();
       automatic.model.transitions[0].triggerType = "auto";
       automatic.model.transitions[0].triggerEvent = "auto.click_a";
+      const unknown = definition();
+      unknown.model.transitions[0].triggerType = "click";
       const missing = definition();
       missing.model.transitions[1].triggerEvent = "";
       const childBoundary = definition();
@@ -1307,14 +1329,32 @@ test.describe("Core source contracts", () => {
         transition("flow_b", "b", "flow", "flow.child.entry")
       ];
 
-      return [valid, duplicate, timers, automatic, missing, childBoundary, structuralFlow].map(validate);
+      return [
+        valid,
+        distinctButtons,
+        duplicateChange,
+        duplicateWildcardChange,
+        duplicateEvent,
+        duplicateRealtime,
+        timers,
+        automatic,
+        unknown,
+        missing,
+        childBoundary,
+        structuralFlow
+      ].map(validate);
     });
 
     expect(messages).toEqual([
       "",
+      "",
+      expect.stringContaining("duplicates trigger change:change.states.start.value"),
+      expect.stringContaining("duplicates trigger change:*"),
+      expect.stringContaining("duplicates trigger event:event.route"),
       expect.stringContaining("duplicates trigger realtime:realtime.route.b"),
       expect.stringContaining("duplicates trigger timer"),
       expect.stringContaining("must contain only one auto transition"),
+      expect.stringContaining("triggerType must be one of button, change, event, realtime, timer, auto, flow"),
       expect.stringContaining("must define one concrete trigger"),
       expect.stringContaining("duplicates trigger realtime:realtime.route.b"),
       ""
@@ -2630,49 +2670,73 @@ test.describe("Core browser contracts", () => {
 
     const result = await page.evaluate(() => {
       const before = modelSnapshot();
-      const conflicting = JSON.parse(before);
-      conflicting.transitions.push({
-        id: "duplicate_a",
+      const candidate = (id, triggerType, triggerEvent = "") => ({
+        id,
         from: "waiting",
         to: "route_b",
-        label: "Duplicate",
+        label: id,
         condition: "",
-        triggerType: "realtime",
-        triggerEvent: "realtime.route.a",
+        triggerType,
+        triggerEvent,
         timerMs: 3000,
         set: {}
       });
-      let loadError = "";
-      try {
-        loadEditorModel(conflicting, false);
-      } catch (error) {
-        loadError = String(error?.message || error);
-      }
-      const unchangedAfterLoad = modelSnapshot() === before;
-      model.transitions.push(conflicting.transitions.at(-1));
-      const saved = saveModel("test:conflicting-trigger");
-      const after = modelSnapshot();
-      const stored = JSON.parse(localStorage.getItem("stateBlueprintHotLinked.model.v2.editor") || "{}");
-      return {
-        loadError,
-        unchangedAfterLoad,
-        saved,
-        unchangedAfterMutation: after === before,
-        storedTransitionIds: (stored.model?.transitions || []).map(transition => transition.id)
-      };
+      const cases = [
+        { name: "change", transitions: [candidate("change_a", "change", "change.states.waiting.value"), candidate("change_b", "change", "change.states.waiting.value")] },
+        { name: "change-wildcard", transitions: [candidate("change_a", "change"), candidate("change_b", "change")] },
+        { name: "event", transitions: [candidate("event_a", "event", "event.route"), candidate("event_b", "event", "event.route")] },
+        { name: "realtime", transitions: [candidate("realtime_a", "realtime", "realtime.route.a")] },
+        { name: "timer", transitions: [candidate("timer_a", "timer", "timer.a.done"), candidate("timer_b", "timer", "timer.b.done")] },
+        { name: "auto", transitions: [candidate("auto_a", "auto", "auto.a")] },
+        { name: "missing-event", transitions: [candidate("event_missing", "event")] },
+        { name: "invalid-type", transitions: [candidate("invalid", "click", "click.invalid")] }
+      ];
+      return cases.map(testCase => {
+        const conflicting = JSON.parse(before);
+        conflicting.transitions.push(...testCase.transitions);
+        let loadError = "";
+        try {
+          loadEditorModel(conflicting, false);
+        } catch (error) {
+          loadError = String(error?.message || error);
+        }
+        const unchangedAfterLoad = modelSnapshot() === before;
+        model.transitions.push(...JSON.parse(JSON.stringify(testCase.transitions)));
+        const saved = saveModel(`test:conflicting-trigger:${testCase.name}`);
+        const unchangedAfterMutation = modelSnapshot() === before;
+        const stored = JSON.parse(localStorage.getItem("stateBlueprintHotLinked.model.v2.editor") || "{}");
+        return {
+          name: testCase.name,
+          loadRejected: Boolean(loadError),
+          unchangedAfterLoad,
+          saved,
+          unchangedAfterMutation,
+          storedTransitionIds: (stored.model?.transitions || []).map(transition => transition.id)
+        };
+      });
     });
 
-    expect(result).toEqual({
-      loadError: expect.stringContaining("may be claimed only once"),
-      unchangedAfterLoad: true,
-      saved: false,
-      unchangedAfterMutation: true,
-      storedTransitionIds: ["to_a", "to_b"]
-    });
+    expect(result.map(item => item.name)).toEqual([
+      "change",
+      "change-wildcard",
+      "event",
+      "realtime",
+      "timer",
+      "auto",
+      "missing-event",
+      "invalid-type"
+    ]);
+    expect(result.every(item =>
+      item.loadRejected === true &&
+      item.unchangedAfterLoad === true &&
+      item.saved === false &&
+      item.unchangedAfterMutation === true &&
+      JSON.stringify(item.storedTransitionIds) === JSON.stringify(["to_a", "to_b"])
+    )).toBe(true);
     expect(await appFrame(page).locator("html").evaluate(() => eval("model.transitions.map(transition => transition.id)"))).toEqual(["to_a", "to_b"]);
   });
 
-  test("runtime fails closed for an externally injected conflicting trigger graph @smoke", async ({ page }) => {
+  test("runtime fails closed for every externally injected trigger contract violation @smoke", async ({ page }) => {
     await openWithModel(page, {
       version: 2,
       name: "Runtime trigger invariant",
@@ -2689,32 +2753,58 @@ test.describe("Core browser contracts", () => {
 
     const runtimeResult = await appFrame(page).locator("html").evaluate(() => {
       const runtimeModel = eval("model");
-      runtimeModel.transitions.push({
-        id: "to_b",
+      const candidate = (id, triggerType, triggerEvent = "") => ({
+        id,
         from: "waiting",
-        to: "route_b",
-        label: "B",
-        condition: "states.waiting.never == true",
-        triggerType: "event",
-        triggerEvent: "event.route",
+        to: id.endsWith("a") ? "route_a" : "route_b",
+        label: id,
+        condition: "",
+        triggerType,
+        triggerEvent,
         timerMs: 3000,
         set: {}
       });
-      eval("normalizeModel(model); render()");
-      const handled = eval("emitRuntimeEvent")("event.route", { type: "event", source: "event" });
-      return { handled, current: eval("current"), validation: eval("runtimeValidation") };
+      const scenarios = [
+        { name: "change", eventName: "change.states.waiting.value", transitions: [candidate("change_a", "change", "change.states.waiting.value"), candidate("change_b", "change", "change.states.waiting.value")] },
+        { name: "change-wildcard", eventName: "change.any", transitions: [candidate("change_a", "change"), candidate("change_b", "change")] },
+        { name: "event", eventName: "event.route", transitions: [candidate("event_a", "event", "event.route"), candidate("event_b", "event", "event.route")] },
+        { name: "realtime", eventName: "realtime.route", transitions: [candidate("realtime_a", "realtime", "realtime.route"), candidate("realtime_b", "realtime", "realtime.route")] },
+        { name: "timer", eventName: "timer.timer_a.done", transitions: [candidate("timer_a", "timer", "timer.timer_a.done"), candidate("timer_b", "timer", "timer.timer_b.done")] },
+        { name: "auto", eventName: "auto.auto_a", transitions: [candidate("auto_a", "auto", "auto.auto_a"), candidate("event_b", "event", "event.route")] },
+        { name: "missing-event", eventName: "event.route", transitions: [candidate("event_a", "event")] },
+        { name: "invalid-type", eventName: "click.invalid", transitions: [candidate("invalid_a", "click", "click.invalid")] },
+        { name: "valid-buttons", transitions: [candidate("button_a", "button", "button.button_a.clicked"), candidate("button_b", "button", "button.button_b.clicked")] },
+        { name: "valid-events", transitions: [candidate("event_a", "event", "event.a"), candidate("event_b", "event", "event.b")] }
+      ];
+      return scenarios.map(scenario => {
+        runtimeModel.transitions = JSON.parse(JSON.stringify(scenario.transitions));
+        eval("normalizeModel(model); render()");
+        const validation = eval("runtimeValidation");
+        const handled = scenario.eventName
+          ? eval("emitRuntimeEvent")(scenario.eventName, { type: "event", source: "event" })
+          : null;
+        return {
+          name: scenario.name,
+          handled,
+          current: eval("current"),
+          reason: validation?.reason || "",
+          transitionIds: validation?.transitionIds || []
+        };
+      });
     });
 
-    expect(runtimeResult).toMatchObject({
-      handled: false,
-      current: "waiting",
-      validation: {
-        type: "invalid-trigger-contract",
-        stateId: "waiting",
-        reason: "duplicate-trigger",
-        transitionIds: ["to_a", "to_b"]
-      }
-    });
+    expect(runtimeResult).toEqual([
+      { name: "change", handled: false, current: "waiting", reason: "duplicate-trigger", transitionIds: ["change_a", "change_b"] },
+      { name: "change-wildcard", handled: false, current: "waiting", reason: "duplicate-trigger", transitionIds: ["change_a", "change_b"] },
+      { name: "event", handled: false, current: "waiting", reason: "duplicate-trigger", transitionIds: ["event_a", "event_b"] },
+      { name: "realtime", handled: false, current: "waiting", reason: "duplicate-trigger", transitionIds: ["realtime_a", "realtime_b"] },
+      { name: "timer", handled: false, current: "waiting", reason: "duplicate-trigger", transitionIds: ["timer_a", "timer_b"] },
+      { name: "auto", handled: false, current: "waiting", reason: "exclusive-auto", transitionIds: ["auto_a", "event_b"] },
+      { name: "missing-event", handled: false, current: "waiting", reason: "missing-trigger", transitionIds: ["event_a"] },
+      { name: "invalid-type", handled: false, current: "waiting", reason: "invalid-trigger-type", transitionIds: ["invalid_a"] },
+      { name: "valid-buttons", handled: null, current: "waiting", reason: "", transitionIds: [] },
+      { name: "valid-events", handled: null, current: "waiting", reason: "", transitionIds: [] }
+    ]);
     await expect(appFrame(page).locator("#statePill")).toHaveText("waiting");
   });
 

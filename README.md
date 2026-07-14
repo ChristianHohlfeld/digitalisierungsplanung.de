@@ -169,6 +169,9 @@ eine Triggeridentität nur einmal vorkommen; mehrere unterschiedliche Buttons
 und Ereignisse bleiben möglich. Ein Timer ist einmal zulässig, `auto` ist
 exklusiv. Der Editor speichert keinen Konflikt, Import/API/MCP lehnen ihn ab und
 die gemeinsame Preview-/Export-Runtime bleibt bei Fremdmodellen fail-closed.
+Zulässige fachliche Typen sind ausschließlich `button`, `change`, `event`,
+`realtime`, `timer` und `auto`; internes `flow` dient nur der Child-Führung.
+Unbekannte Werte werden nicht als Alias akzeptiert oder normalisiert.
 
 Der Designer arbeitet in der gleichen Reihenfolge wie der Canvas-Vertrag:
 Event-Type, Dataset-Key, Felder, Quelle. Das Admin-Secret bleibt lokal im

@@ -66,6 +66,10 @@ nicht über DOM-Klicks.
 - Trigger bleiben an Transitionen. Pro effektiver Quelle darf jede konkrete
   Triggeridentität nur einmal vorkommen; ein Timer ist einmal zulässig und
   `auto` ist exklusiv. MCP-Aktionen mit einem Konflikt werden nicht angewendet.
+- Zulässige fachliche `triggerType`-Werte sind ausschließlich `button`,
+  `change`, `event`, `realtime`, `timer` und `auto`; internes `flow` ist nur
+  strukturelle Child-Führung. Andere Werte werden weder als Alias akzeptiert
+  noch zu `button` normalisiert.
 - `transition.set` ist Wirkung nach einem Ereignis, nicht die Quelle einer
   Schaltflächen-Bindung.
 - Realtime-Übergänge speichern `triggerType: "realtime"` plus konkrete

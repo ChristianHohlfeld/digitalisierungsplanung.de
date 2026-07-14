@@ -94,7 +94,12 @@ effektive Quelle (`from`, bei Parent-Ausgängen `groupExitId`) darf dieselbe
 Triggeridentität nur einmal vorkommen. Mehrere unterschiedliche Button-,
 Change-, Event- und Realtime-Ausgänge sind erlaubt, ein Timer höchstens einmal;
 `auto` ist exklusiv. Interne `flow`-Kanten zählen nicht als fachliche Trigger.
-Ungültige Kombinationen werden nicht angewendet.
+Die Identität ist für `button` die Transition-ID, für `change` der vollständige
+Buspfad oder `*`, für `event` und `realtime` der vollständige konkrete
+Ereignisname sowie für `timer` und `auto` jeweils der Typ selbst. Zulässige
+fachliche Typen sind ausschließlich `button`, `change`, `event`, `realtime`,
+`timer` und `auto`; `flow` ist ausschließlich intern. Andere Werte und
+ungültige Kombinationen werden ohne Alias oder Normalisierung abgelehnt.
 
 Nutze `state_blueprint_apply_commands`, wenn ein externe Anwendung die App wie ein
 Nutzer steuern soll, aber ohne DOM-Klicks. Befehle laufen über dieselben

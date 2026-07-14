@@ -257,9 +257,37 @@ test.describe("State Blueprint MCP", () => {
 
     expect(validateModel(base()).ok).toBe(true);
 
-    const duplicate = base();
-    duplicate.transitions.push({ id: "event_c", from: "start", to: "c", label: "C event", triggerType: "realtime", triggerEvent: "realtime.route.b", set: {} });
-    expect(validateModel(duplicate).issues).toContainEqual(expect.objectContaining({ code: "duplicate_transition_trigger", stateId: "start" }));
+    const distinctButtons = base();
+    distinctButtons.transitions = [
+      { id: "click_a", from: "start", to: "a", label: "A", triggerType: "button", set: {} },
+      { id: "click_b", from: "start", to: "b", label: "B", triggerType: "button", set: {} }
+    ];
+    expect(validateModel(distinctButtons).ok).toBe(true);
+
+    const duplicateChange = base();
+    duplicateChange.transitions = [
+      { id: "change_a", from: "start", to: "a", label: "A", triggerType: "change", triggerEvent: "change.states.start.value", set: {} },
+      { id: "change_b", from: "start", to: "b", label: "B", triggerType: "change", triggerEvent: "change.states.start.value", set: {} }
+    ];
+    expect(validateModel(duplicateChange).issues).toContainEqual(expect.objectContaining({ code: "duplicate_transition_trigger", triggerKey: "change:change.states.start.value" }));
+
+    const duplicateWildcardChange = base();
+    duplicateWildcardChange.transitions = [
+      { id: "change_a", from: "start", to: "a", label: "A", triggerType: "change", triggerEvent: "", set: {} },
+      { id: "change_b", from: "start", to: "b", label: "B", triggerType: "change", triggerEvent: "", set: {} }
+    ];
+    expect(validateModel(duplicateWildcardChange).issues).toContainEqual(expect.objectContaining({ code: "duplicate_transition_trigger", triggerKey: "change:*" }));
+
+    const duplicateEvent = base();
+    duplicateEvent.transitions = [
+      { id: "event_a", from: "start", to: "a", label: "A", triggerType: "event", triggerEvent: "event.route", set: {} },
+      { id: "event_b", from: "start", to: "b", label: "B", triggerType: "event", triggerEvent: "event.route", set: {} }
+    ];
+    expect(validateModel(duplicateEvent).issues).toContainEqual(expect.objectContaining({ code: "duplicate_transition_trigger", triggerKey: "event:event.route" }));
+
+    const duplicateRealtime = base();
+    duplicateRealtime.transitions.push({ id: "event_c", from: "start", to: "c", label: "C event", triggerType: "realtime", triggerEvent: "realtime.route.b", set: {} });
+    expect(validateModel(duplicateRealtime).issues).toContainEqual(expect.objectContaining({ code: "duplicate_transition_trigger", stateId: "start" }));
 
     const duplicateSamePair = base();
     duplicateSamePair.transitions.push({ id: "event_a", from: "start", to: "a", label: "A event", triggerType: "realtime", triggerEvent: "realtime.route.b", set: {} });
@@ -276,6 +304,10 @@ test.describe("State Blueprint MCP", () => {
     automatic.transitions[0].triggerType = "auto";
     expect(validateModel(automatic).issues).toContainEqual(expect.objectContaining({ code: "exclusive_auto_trigger", stateId: "start" }));
 
+    const unknown = base();
+    unknown.transitions[0].triggerType = "click";
+    expect(validateModel(unknown).issues).toContainEqual(expect.objectContaining({ code: "invalid_transition_trigger_type", transitionId: "click_a" }));
+
     const missing = base();
     missing.transitions[1].triggerEvent = "";
     expect(validateModel(missing).issues).toContainEqual(expect.objectContaining({ code: "missing_transition_trigger", transitionId: "event_b" }));
@@ -289,6 +321,15 @@ test.describe("State Blueprint MCP", () => {
       triggerType: "realtime",
       triggerEvent: "realtime.route.b"
     }])).toThrow("Each trigger identity may be claimed only once");
+
+    expect(() => applyActions(base(), [{
+      type: "upsert_transition",
+      id: "invalid",
+      from: "start",
+      to: "c",
+      label: "Invalid",
+      triggerType: "click"
+    }])).toThrow("triggerType must be one of button, change, event, realtime, timer, auto");
   });
 
   test("documents the public MCP tools and model actions @smoke", () => {
