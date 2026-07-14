@@ -29,6 +29,7 @@ function adminRouteIndex(config = {}) {
     presetsAdminCatalog: route(config, "presetsAdminCatalogPath", "/presets-admin/catalog"),
     presetsAdminParse: route(config, "presetsAdminParsePath", "/presets-admin/parse"),
     presetsAdminImport: route(config, "presetsAdminImportPath", "/presets-admin/import"),
+    imageInline: route(config, "imageInlinePath", "/assets/inline-image"),
     emit: route(config, "emitPath", "/emit"),
     ws: route(config, "path", "/ws")
   };
@@ -48,7 +49,7 @@ function adminRouteIndex(config = {}) {
       href: paths.presetsAdmin,
       kind: "designer",
       intent: "UI-Bausteine, Kategorien und verkaufbare Pakete verwalten.",
-      endpointIds: ["presets-admin-html", "presets-admin-catalog", "presets-admin-parse", "presets-admin-import", "product-contract"]
+      endpointIds: ["presets-admin-html", "presets-admin-catalog", "presets-admin-parse", "presets-admin-import", "product-contract", "image-inline"]
     },
     {
       id: "console",
@@ -93,6 +94,7 @@ function adminRouteIndex(config = {}) {
     endpoint("presets-admin-catalog", "GET/POST", paths.presetsAdminCatalog, "Preset Catalog Admin API", "admin", "Preset-Library laden, validieren, committen und pushen."),
     endpoint("presets-admin-parse", "POST", paths.presetsAdminParse, "Preset Parser", "admin", "DaisyUI-Markup in strukturierte Preset-Daten wandeln."),
     endpoint("presets-admin-import", "POST", paths.presetsAdminImport, "Preset API Import", "admin", "Kanonische Preset-Definition von einer öffentlichen HTTPS-API als Entwurf laden."),
+    endpoint("image-inline", "POST", paths.imageInline, "Image Inline", "runtime", "Public image URL as Data URI for self-contained exports."),
     endpoint("emit", "POST", paths.emit, "Emit", "runtime", "Authentifizierter serverseitiger Event-Eingang."),
     endpoint("ws", "WSS", paths.ws, "WebSocket", "runtime", "Realtime-Transport für Runtime-Events.")
   ];

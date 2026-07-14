@@ -320,8 +320,8 @@ Antwort, gekürzt:
       "label": "Website Builder",
       "category": "package",
       "includedInPlanIds": ["business", "scale"],
-      "presetIds": ["builtin_daisy_hero", "builtin_daisy_pricing"],
-      "presetCount": 2
+      "presetIds": ["builtin_daisy_hero", "builtin_daisy_pricing", "builtin_daisy_export_image_asset"],
+      "presetCount": 3
     },
     {
       "id": "bi.analytics",
@@ -337,7 +337,7 @@ Antwort, gekürzt:
     {
       "id": "business",
       "label": "Business",
-      "price": "149 EUR",
+      "price": "749 EUR",
       "period": "/Monat",
       "includedPackageIds": ["core.process", "website.builder", "approval.compliance"],
       "recommendedAddOnPackageIds": ["bi.analytics", "service.operations"]

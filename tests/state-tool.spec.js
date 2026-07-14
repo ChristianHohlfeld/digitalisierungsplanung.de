@@ -2293,7 +2293,7 @@ test.describe("State Blueprint tool", () => {
       await expect(app.locator(".navbar")).toContainText("Start");
       await expect(app.locator(".navbar")).not.toContainText("Kopf-Navigation");
       await expect(app.getByText("Starter")).toBeVisible();
-      await expect(app.getByText("49 EUR")).toBeVisible();
+      await expect(app.getByText("249 EUR")).toBeVisible();
       await expect(app.getByRole("button", { name: "Anfrage senden", exact: true })).toHaveCount(1);
     };
 
@@ -2617,7 +2617,7 @@ test.describe("State Blueprint tool", () => {
     await expect(app.locator(".daisy-pricing")).toHaveCount(1);
     await expect(app.locator(".daisy-pricing > .card")).toHaveCount(3);
     await expect(app.locator(".daisy-pricing .card .card-title")).toContainText(["Starter", "Business", "Scale"]);
-    await expect(app.locator(".daisy-pricing .daisy-card-price")).toContainText(["49 EUR", "149 EUR", "399 EUR"]);
+    await expect(app.locator(".daisy-pricing .daisy-card-price")).toContainText(["249 EUR", "749 EUR", "1.990 EUR"]);
     await expect(app.locator(".daisy-pricing button[data-transition-id]")).toHaveCount(3);
     await expect(app.locator(".daisy-feature-grid").filter({ hasText: "Zubuchbare Pakete" })).toHaveCount(1);
     await expect(app.locator(".daisy-feature-grid").filter({ hasText: "Zubuchbare Pakete" }).locator(".daisy-feature-cards > .card")).toHaveCount(4);
@@ -2638,14 +2638,14 @@ test.describe("State Blueprint tool", () => {
       Math.round(window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0)
     )).toBe(0);
     await expect(app.getByText("Business")).toBeVisible();
-    await expect(app.getByText("149 EUR")).toBeVisible();
+    await expect(app.getByText("749 EUR")).toBeVisible();
     await app.locator('input').fill("billing@example.test");
     await expect(app.getByRole("button", { name: "Anfrage senden", exact: true })).toHaveCount(1);
     await app.getByRole("button", { name: "Anfrage senden", exact: true }).click();
     await expectDemoShell("site_thanks");
     await expect.poll(async () => (await runtimeContext(page)).states?.site_thanks?.order).toMatchObject({
       plan: "Business",
-      price: "149 EUR",
+      price: "749 EUR",
       completed: true
     });
 
@@ -2791,6 +2791,74 @@ test.describe("State Blueprint tool", () => {
     await expect(appFrame(page).locator("#statePill")).toHaveText("site_pricing");
   });
 
+  test("inlines image URLs into standalone HTML exports without changing the editor model", async ({ page }) => {
+    const model = {
+      version: 2,
+      name: "Image Export",
+      initial: "image_state",
+      states: [{
+        id: "image_state",
+        title: "Image State",
+        components: [
+          { id: "hero_img", type: "image", text: "Hero image", url: "https://cdn.example.test/component.webp" },
+          { id: "card_widget", type: "daisy", variant: "card", dataPath: "states.image_state.card", dataRole: "widget", dataLabel: "Image Card" }
+        ],
+        data: {
+          card: {
+            title: "Image Card",
+            body: "Exportable image data.",
+            image: "https://cdn.example.test/card.png",
+            imageAlt: "Card image",
+            actionLabel: ""
+          },
+          gallery: {
+            images: ["https://cdn.example.test/gallery.jpg", "data:image/png;base64,OLD"]
+          }
+        },
+        dataTypes: {
+          card: "object",
+          "card.image": "image",
+          gallery: "object",
+          "gallery.images": "list"
+        },
+        x: 120,
+        y: 140
+      }],
+      transitions: []
+    };
+    const inlined = {
+      "https://cdn.example.test/component.webp": "data:image/webp;base64,Q09NUE9ORU5U",
+      "https://cdn.example.test/card.png": "data:image/png;base64,Q0FSRA==",
+      "https://cdn.example.test/gallery.jpg": "data:image/jpeg;base64,R0FMTEVSWQ=="
+    };
+    const requested = [];
+    await page.route("**/assets/inline-image", async route => {
+      const body = JSON.parse(route.request().postData() || "{}");
+      requested.push(body.url);
+      const dataUri = inlined[body.url];
+      await route.fulfill({
+        status: dataUri ? 200 : 404,
+        contentType: "application/json",
+        body: JSON.stringify(dataUri ? { ok: true, url: body.url, mimeType: dataUri.match(/^data:([^;]+)/)?.[1], bytes: 1, dataUri } : { error: "not_found" })
+      });
+    });
+    await openTool(page, { model });
+    const before = await page.evaluate(() => definitionPayload().model.states[0]);
+
+    await page.locator("#topbarMore summary").click();
+    const exportDownload = page.waitForEvent("download");
+    await page.getByRole("button", { name: "HTML exportieren" }).click();
+    const html = fs.readFileSync(await (await exportDownload).path(), "utf8");
+
+    expect(requested.sort()).toEqual(Object.keys(inlined).sort());
+    for (const [url, dataUri] of Object.entries(inlined)) {
+      expect(html).not.toContain(url);
+      expect(html).toContain(dataUri);
+    }
+    expect(html).toContain("data:image/png;base64,OLD");
+    await expect.poll(() => page.evaluate(() => definitionPayload().model.states[0])).toEqual(before);
+  });
+
   test("exports the website demo as a self-contained runnable FSM website @smoke", async ({ page }) => {
     await openTool(page);
 
@@ -2904,10 +2972,10 @@ test.describe("State Blueprint tool", () => {
     await expectStandaloneShell("site_pricing", "Pakete");
     await openPricing();
     for (const plan of [
-      { label: "Starter", action: "Starter anfragen", stateId: "site_checkout", title: "Anfrage", price: "49 EUR" },
-      { label: "Business", action: "Business anfragen", stateId: "site_checkout", title: "Anfrage", price: "149 EUR" },
-      { label: "Scale", action: "Scale anfragen", stateId: "site_checkout", title: "Anfrage", price: "399 EUR" },
-      { label: "BI & Analyse", action: "BI zubuchen", stateId: "site_checkout", title: "Anfrage", price: "+79 EUR" }
+      { label: "Starter", action: "Starter anfragen", stateId: "site_checkout", title: "Anfrage", price: "249 EUR" },
+      { label: "Business", action: "Business anfragen", stateId: "site_checkout", title: "Anfrage", price: "749 EUR" },
+      { label: "Scale", action: "Scale anfragen", stateId: "site_checkout", title: "Anfrage", price: "1.990 EUR" },
+      { label: "BI & Analyse", action: "BI zubuchen", stateId: "site_checkout", title: "Anfrage", price: "+249 EUR" }
     ]) {
       await expect(standalone.getByRole("button", { name: plan.action, exact: true })).toBeVisible();
       await standalone.getByRole("button", { name: plan.action, exact: true }).click();

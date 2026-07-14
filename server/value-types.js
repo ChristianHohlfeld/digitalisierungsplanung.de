@@ -43,7 +43,7 @@ const VALUE_TYPE_DEFINITIONS = Object.freeze({
     label: "Image",
     jsonType: "string",
     default: "",
-    constraints: { format: "image-url-or-data-uri", protocols: ["http", "https", "data"], minLength: 0, maxLength: 1000000 }
+    constraints: { format: "image-url-or-data-uri", protocols: ["http", "https", "data"], minLength: 0, maxLength: 20000000 }
   },
   object: {
     label: "Object",

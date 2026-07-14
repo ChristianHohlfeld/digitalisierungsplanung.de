@@ -137,7 +137,7 @@ test.describe("Root demo export", () => {
     await page.getByRole("button", { name: "Business anfragen" }).click();
     await expect(page.locator("#statePill")).toHaveText("site_checkout");
     await expect(page.getByRole("heading", { name: "Anfrage" })).toBeVisible();
-    await expect(page.getByText("149 EUR")).toBeVisible();
+    await expect(page.getByText("749 EUR")).toBeVisible();
 
     await page.locator(".navbar").getByRole("button", { name: "Kontakt", exact: true }).click();
     await expect(page.locator("#statePill")).toHaveText("site_contact");

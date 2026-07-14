@@ -5639,6 +5639,10 @@
       (location.hostname === "digitalisierungsplanung.de" || location.hostname === "www.digitalisierungsplanung.de"
         ? "https://realtime.digitalisierungsplanung.de/contract"
         : "/contract");
+    const IMAGE_INLINE_URL = window.ZUSTAND_IMAGE_INLINE_URL ||
+      (location.hostname === "digitalisierungsplanung.de" || location.hostname === "www.digitalisierungsplanung.de"
+        ? "https://realtime.digitalisierungsplanung.de/assets/inline-image"
+        : "/assets/inline-image");
     const RUNTIME_MESSAGE_ORIGIN = window.location.origin;
     const RUNTIME_SESSION_FRAGMENT_KEY = "state-blueprint-session";
     const WORLD_MIN_X = -10000;
@@ -6085,7 +6089,7 @@
           id: "starter",
           title: "Starter",
           badge: "",
-          price: "49 EUR",
+          price: "249 EUR",
           period: "/Monat",
           body: "Für den ersten echten Ablauf: modellieren, prüfen und als einfache Web-App nutzen.",
           features: ["Process Core enthalten", "1 Prozess-App", "Export als Web-Anwendung"],
@@ -6095,7 +6099,7 @@
           id: "business",
           title: "Business",
           badge: "Beliebt",
-          price: "149 EUR",
+          price: "749 EUR",
           period: "/Monat",
           body: "Für Teams, die Abläufe sichtbar machen, Website-/Portal-Apps bauen und Freigaben sauber prüfen.",
           features: ["Process Core", "Website Builder", "Freigabe & Compliance"],
@@ -6106,7 +6110,7 @@
           id: "scale",
           title: "Scale",
           badge: "Teams",
-          price: "399 EUR",
+          price: "1.990 EUR",
           period: "/Monat",
           body: "Für mehrere Bereiche, operative Echtzeit-Prozesse und wiederholbare Digitalisierung im Unternehmen.",
           features: ["Business-Pakete enthalten", "Service & Operations", "Mehrere Teams und Räume"],
@@ -6118,7 +6122,7 @@
           id: "bi",
           title: "BI & Analyse",
           badge: "Add-on",
-          price: "+79 EUR",
+          price: "+249 EUR",
           period: "/Monat",
           body: "KPI-Boards, Charts, Tabellen und Management-Auswertungen direkt aus Prozessdaten.",
           features: ["KPI-Boards", "Charts & Tabellen", "Pipeline-Auswertung"],
@@ -6128,7 +6132,7 @@
           id: "sales",
           title: "Sales & CRM",
           badge: "Add-on",
-          price: "+99 EUR",
+          price: "+349 EUR",
           period: "/Monat",
           body: "Lead-Strecken, Angebotsstatus, Follow-ups und Kundenservice-Prozesse.",
           features: ["Lead-Status", "Angebotsstrecken", "Follow-up-Prozesse"],
@@ -6138,7 +6142,7 @@
           id: "knowledge",
           title: "Wissensportal",
           badge: "Add-on",
-          price: "+69 EUR",
+          price: "+199 EUR",
           period: "/Monat",
           body: "FAQ, Onboarding, interne Portale und dokumentiertes Erfahrungswissen.",
           features: ["Onboarding", "FAQ und Hilfe", "Wissenssicherung"],
@@ -6148,7 +6152,7 @@
           id: "automation",
           title: "Integration & Automation",
           badge: "Add-on",
-          price: "+129 EUR",
+          price: "+499 EUR",
           period: "/Monat",
           body: "Webhook-, Mail-, Telefonie- und Datenquellen als echte Ereignisse im Prozess.",
           features: ["Webhooks", "Mail und Telefonie", "Datenquellen"],
@@ -6350,7 +6354,7 @@
           summary: {
             title: "Starter",
             badge: "Anfrage",
-            price: "49 EUR",
+            price: "249 EUR",
             period: "/Monat",
             body: "Prüfen Sie das gewählte Abo oder Zusatzpaket und senden Sie die Anfrage. Danach klären wir Start, Paketumfang und nächsten Schritt.",
             features: pricingPlans[0].features,
@@ -6367,7 +6371,7 @@
           },
           order: {
             plan: "Starter",
-            price: "49 EUR",
+            price: "249 EUR",
             completed: false
           },
           footer: footerData(checkoutStateId)
@@ -8084,6 +8088,69 @@
       ].join("\n");
     }
 
+    function exportImageCanInline(value, path, force = false) {
+      const text = String(value || "").trim();
+      if (!text || /^data:image\//i.test(text)) return false;
+      if (!/^https?:\/\//i.test(text)) return false;
+      return Boolean(force || looksLikeImagePath(path) || looksLikeImageValue(text));
+    }
+
+    async function inlineExportImageUrl(value, path, force = false) {
+      const text = String(value || "").trim();
+      if (!exportImageCanInline(text, path, force)) return value;
+      try {
+        const response = await fetch(IMAGE_INLINE_URL, {
+          method: "POST",
+          cache: "no-store",
+          credentials: "omit",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ url: text })
+        });
+        if (!response.ok) return value;
+        const payload = await response.json();
+        const dataUri = String(payload?.dataUri || "");
+        return /^data:image\/[a-z0-9.+-]+;base64,/i.test(dataUri) ? dataUri : value;
+      } catch (_) {
+        return value;
+      }
+    }
+
+    async function inlineExportImageValue(value, path = "") {
+      if (typeof value === "string") return inlineExportImageUrl(value, path);
+      if (Array.isArray(value)) {
+        const out = [];
+        for (let index = 0; index < value.length; index += 1) {
+          out.push(await inlineExportImageValue(value[index], path));
+        }
+        return out;
+      }
+      if (!isPlainObject(value)) return value;
+      const out = {};
+      for (const [key, child] of Object.entries(value)) {
+        out[key] = await inlineExportImageValue(child, path ? `${path}.${key}` : key);
+      }
+      return out;
+    }
+
+    async function inlineExportImages(payload) {
+      const next = JSON.parse(JSON.stringify(payload));
+      for (const state of next.model.states || []) {
+        const statePath = `states.${state.id}`;
+        state.data = await inlineExportImageValue(state.data, statePath);
+        for (const component of state.components || []) {
+          component.url = await inlineExportImageUrl(
+            component.url,
+            `${statePath}.components.${component.id || "component"}.url`,
+            component.type === "image"
+          );
+        }
+      }
+      for (const transition of next.model.transitions || []) {
+        transition.set = await inlineExportImageValue(transition.set, "transition.set");
+      }
+      return next;
+    }
+
     function buildStandaloneAppHtml(appHtml, payload) {
       const modelLiteral = jsLiteral(payload.model);
       const exportedAtLiteral = jsLiteral(payload.savedAt);
@@ -8195,9 +8262,9 @@
       persistModel(false);
       saveCamera();
       saveUiState();
-      const payload = definitionPayload();
       let text;
       try {
+        const payload = await inlineExportImages(definitionPayload());
         const appHtml = typeof GENERATED_APP_HTML === "string" ? GENERATED_APP_HTML : await (await fetch(APP_URL, { cache: "no-store" })).text();
         text = buildStandaloneAppHtml(appHtml, payload);
       } catch (err) {

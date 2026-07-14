@@ -32,6 +32,7 @@ const DEFAULT_PRESETS_ADMIN_PATH = "/presets-admin.html";
 const DEFAULT_PRESETS_ADMIN_CATALOG_PATH = "/presets-admin/catalog";
 const DEFAULT_PRESETS_ADMIN_PARSE_PATH = "/presets-admin/parse";
 const DEFAULT_PRESETS_ADMIN_IMPORT_PATH = "/presets-admin/import";
+const DEFAULT_IMAGE_INLINE_PATH = "/assets/inline-image";
 const DEFAULT_VERSION_PATH = "/version";
 const DEFAULT_ADMIN_COMMIT_MESSAGE = "Update realtime event catalog";
 const DEFAULT_PRESET_ADMIN_COMMIT_MESSAGE = "Update preset library";
@@ -41,7 +42,10 @@ const MAX_ID_LENGTH = 128;
 const MAX_EVENT_NAME_LENGTH = 160;
 const MAX_EMIT_BODY_BYTES = 64 * 1024;
 const MAX_PRESET_API_RESPONSE_BYTES = 64 * 1024;
+const MAX_IMAGE_INLINE_BODY_BYTES = 4 * 1024;
+const MAX_IMAGE_INLINE_BYTES = 12 * 1024 * 1024;
 const PRESET_API_TIMEOUT_MS = 8000;
+const IMAGE_INLINE_TIMEOUT_MS = 12000;
 const MESSAGE_TYPES = new Set(["runtime.event"]);
 const CONSOLE_HTML = `<!doctype html>
 <html lang="en">
@@ -407,6 +411,103 @@ function fetchPresetApiDefinition(value) {
   });
 }
 
+function imageInlineError(code, status) {
+  const error = new Error(code);
+  error.code = code;
+  error.status = status;
+  return error;
+}
+
+function normalizedPublicImageUrl(value) {
+  let target;
+  try {
+    target = new URL(String(value || "").trim());
+  } catch (_) {
+    throw imageInlineError("invalid_image_url", 400);
+  }
+  if (!["http:", "https:"].includes(target.protocol) || !target.hostname || target.username || target.password || target.hash || target.href.length > 4096) {
+    throw imageInlineError("invalid_image_url", 400);
+  }
+  const literalHost = target.hostname.replace(/^\[|\]$/g, "");
+  if (net.isIP(literalHost) && !isPublicNetworkAddress(literalHost)) {
+    throw imageInlineError("image_target_not_public", 400);
+  }
+  return target;
+}
+
+function publicImageLookup(hostname, options, callback) {
+  const lookupOptions = typeof options === "number" ? { family: options } : { ...(options || {}) };
+  dns.lookup(hostname, { ...lookupOptions, all: true, verbatim: true }, (error, addresses) => {
+    if (error) {
+      callback(imageInlineError("image_host_unavailable", 502));
+      return;
+    }
+    const requestedFamily = Number(lookupOptions.family) || 0;
+    const candidates = addresses.filter(item => !requestedFamily || item.family === requestedFamily);
+    if (!candidates.length || candidates.some(item => !isPublicNetworkAddress(item.address))) {
+      callback(imageInlineError("image_target_not_public", 400));
+      return;
+    }
+    if (lookupOptions.all) callback(null, candidates);
+    else callback(null, candidates[0].address, candidates[0].family);
+  });
+}
+
+function fetchPublicImageAsset(value, options = {}) {
+  const target = normalizedPublicImageUrl(value);
+  const maxBytes = parseInteger(options.maxBytes, MAX_IMAGE_INLINE_BYTES, 1024, MAX_IMAGE_INLINE_BYTES);
+  const transport = target.protocol === "https:" ? https : http;
+  return new Promise((resolve, reject) => {
+    const request = transport.request(target, {
+      method: "GET",
+      headers: { accept: "image/avif,image/webp,image/png,image/jpeg,image/gif,image/svg+xml,image/*;q=0.8" },
+      lookup: publicImageLookup
+    }, response => {
+      const status = Number(response.statusCode) || 0;
+      if (status >= 300 && status < 400) {
+        response.resume();
+        reject(imageInlineError("image_redirect_not_allowed", 502));
+        return;
+      }
+      if (status < 200 || status >= 300) {
+        response.resume();
+        reject(imageInlineError("image_upstream_failed", 502));
+        return;
+      }
+      const mimeType = String(response.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
+      if (!/^image\/[a-z0-9.+-]+$/i.test(mimeType)) {
+        response.resume();
+        reject(imageInlineError("image_response_not_image", 415));
+        return;
+      }
+      const declaredLength = Number(response.headers["content-length"] || 0);
+      if (declaredLength > maxBytes) {
+        response.resume();
+        reject(imageInlineError("image_response_too_large", 413));
+        return;
+      }
+      const chunks = [];
+      let bytes = 0;
+      response.on("data", chunk => {
+        bytes += chunk.length;
+        if (bytes > maxBytes) {
+          response.destroy(imageInlineError("image_response_too_large", 413));
+          return;
+        }
+        chunks.push(chunk);
+      });
+      response.on("end", () => resolve({
+        mimeType,
+        buffer: Buffer.concat(chunks)
+      }));
+      response.on("error", error => reject(error?.status ? error : imageInlineError("image_fetch_failed", 502)));
+    });
+    request.setTimeout(IMAGE_INLINE_TIMEOUT_MS, () => request.destroy(imageInlineError("image_fetch_timeout", 504)));
+    request.on("error", error => reject(error?.status ? error : imageInlineError("image_fetch_failed", 502)));
+    request.end();
+  });
+}
+
 function defaultGitRunner(args, options = {}) {
   return spawnSync("git", args, {
     cwd: options.cwd,
@@ -449,6 +550,7 @@ function loadConfig(options = {}) {
     presetsAdminCatalogPath: options.presetsAdminCatalogPath || env.REALTIME_PRESETS_ADMIN_CATALOG_PATH || DEFAULT_PRESETS_ADMIN_CATALOG_PATH,
     presetsAdminParsePath: options.presetsAdminParsePath || env.REALTIME_PRESETS_ADMIN_PARSE_PATH || DEFAULT_PRESETS_ADMIN_PARSE_PATH,
     presetsAdminImportPath: options.presetsAdminImportPath || env.REALTIME_PRESETS_ADMIN_IMPORT_PATH || DEFAULT_PRESETS_ADMIN_IMPORT_PATH,
+    imageInlinePath: options.imageInlinePath || env.REALTIME_IMAGE_INLINE_PATH || DEFAULT_IMAGE_INLINE_PATH,
     versionPath: options.versionPath || env.REALTIME_VERSION_PATH || DEFAULT_VERSION_PATH,
     eventCatalogPath: path.resolve(options.eventCatalogPath || env.REALTIME_EVENT_CATALOG_PATH || eventCatalog.DEFAULT_EVENT_CATALOG_PATH),
     adminHtmlPath: path.resolve(options.adminHtmlPath || env.REALTIME_ADMIN_HTML_PATH || path.join(__dirname, "admin.html")),
@@ -461,11 +563,13 @@ function loadConfig(options = {}) {
     gitPushToken: options.gitPushToken ?? env.REALTIME_GIT_PUSH_TOKEN ?? "",
     gitRunner: options.gitRunner || defaultGitRunner,
     presetApiFetcher: options.presetApiFetcher || fetchPresetApiDefinition,
+    imageInlineFetcher: options.imageInlineFetcher || fetchPublicImageAsset,
     allowedOrigins: parseList(
       options.allowedOrigins ?? env.REALTIME_ALLOWED_ORIGINS,
       DEFAULT_ALLOWED_ORIGINS
     ),
     maxPayload: parseInteger(options.maxPayload ?? env.REALTIME_MAX_PAYLOAD_BYTES, 64 * 1024, 1024),
+    maxImageInlineBytes: parseInteger(options.maxImageInlineBytes ?? env.REALTIME_MAX_IMAGE_INLINE_BYTES, MAX_IMAGE_INLINE_BYTES, 1024, MAX_IMAGE_INLINE_BYTES),
     heartbeatMs: parseInteger(options.heartbeatMs ?? env.REALTIME_HEARTBEAT_MS, 30000, 1000),
     rateLimitWindowMs: parseInteger(options.rateLimitWindowMs ?? env.REALTIME_RATE_WINDOW_MS, 10000, 1000),
     rateLimitMax: parseInteger(options.rateLimitMax ?? env.REALTIME_RATE_LIMIT, 360, 1),
@@ -1020,6 +1124,10 @@ function createRealtimeServer(options = {}) {
       void handlePresetImportRequest(request, response);
       return;
     }
+    if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.imageInlinePath) {
+      void handleImageInlineRequest(request, response);
+      return;
+    }
     if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.eventsPath) {
       const prepared = prepareCatalogResponse(request, response);
       if (prepared.done) return;
@@ -1254,6 +1362,38 @@ function createRealtimeServer(options = {}) {
       writeJson(response, 200, { ok: true, preset }, headers);
     } catch (error) {
       writeJson(response, error.status || 400, { error: error.code || "preset_api_import_failed" }, headers);
+    }
+  }
+
+  async function handleImageInlineRequest(request, response) {
+    const prepared = prepareCatalogResponse(request, response);
+    if (prepared.done) return;
+    const headers = prepared.headers;
+    let payload;
+    try {
+      payload = await readJsonBody(request, MAX_IMAGE_INLINE_BODY_BYTES);
+      if (!isPlainObject(payload) || Object.keys(payload).some(key => key !== "url")) {
+        throw imageInlineError("invalid_image_inline_request", 400);
+      }
+      const target = normalizedPublicImageUrl(payload.url);
+      const asset = await config.imageInlineFetcher(target.href, { maxBytes: config.maxImageInlineBytes });
+      const buffer = Buffer.isBuffer(asset?.buffer) ? asset.buffer : Buffer.from(asset?.buffer || "");
+      const mimeType = String(asset?.mimeType || "").split(";")[0].trim().toLowerCase();
+      if (!/^image\/[a-z0-9.+-]+$/i.test(mimeType) || !buffer.length) {
+        throw imageInlineError("invalid_image_inline_response", 502);
+      }
+      if (buffer.length > config.maxImageInlineBytes) {
+        throw imageInlineError("image_response_too_large", 413);
+      }
+      writeJson(response, 200, {
+        ok: true,
+        url: target.href,
+        mimeType,
+        bytes: buffer.length,
+        dataUri: `data:${mimeType};base64,${buffer.toString("base64")}`
+      }, headers);
+    } catch (error) {
+      writeJson(response, error.status || 400, { error: error.code || "image_inline_failed" }, headers);
     }
   }
 

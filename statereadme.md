@@ -585,6 +585,14 @@ und Parent-Ausgänge an ihrem `groupExitId`.
   Modell gespeichert werden. Parsen erzeugt nur eine Definition; erst die
   getrennte Speichern-Aktion validiert, schreibt, committet und pusht die
   vollständige Library gemeinsam mit der Release-ID.
+- **PRE-021 Exportierbare Bilder:** Bildfelder bleiben normale, eindeutig
+  typisierte `image`-Werte im globalen State und dürfen als URL oder Data URI
+  vorliegen. Der Standalone-HTML-Export DARF daraus eine abgeleitete Exportkopie
+  bilden, in der erreichbare Bild-URLs über `/assets/inline-image` als Data URI
+  eingebettet werden. Diese Base64-Kopie DARF nicht als Editor-Modell,
+  Preset-Definition, Contract-Kopie oder versteckter Runtime-State gespeichert
+  werden. Wenn das Inlining fehlschlägt, bleibt der ursprüngliche Bildwert im
+  Export erhalten.
 - **PRE-021 API-Preset-Import:** Der Preset Designer darf eine öffentliche
   HTTPS-URL ausschließlich serverseitig und secret-geschützt als
   nichtpersistierende Importquelle abrufen. Die JSON-Antwort MUSS exakt eine

@@ -282,10 +282,61 @@ test("serves the event and connector catalog only to allowed origins", async () 
     assert.equal(chartPreset.components[0].variant, "chart");
     assert.equal(chartPreset.stateContribution.root, "states.bi_kpi_board");
     assert.equal(chartPreset.stateContribution.fieldSchemas["states.bi_kpi_board.items"].type, "list");
+    const exportImagePreset = productContractPayload.presets.find(preset => preset.id === "builtin_daisy_export_image_asset");
+    assert.ok(exportImagePreset);
+    assert.deepEqual(exportImagePreset.packageIds, ["website.builder"]);
+    assert.equal(exportImagePreset.stateContribution.root, "states.export_image_asset");
+    assert.equal(exportImagePreset.stateContribution.fieldSchemas["states.export_image_asset.image"].type, "image");
+    assert.equal(exportImagePreset.stateContribution.fieldSchemas["states.export_image_asset.image"].constraints.maxLength, 20000000);
     assert.equal(buttonPreset.dataTypes.clicked, "boolean");
     assert.equal(buttonPreset.stateContribution.root, "states.button");
     assert.equal(buttonPreset.stateContribution.fieldSchemas["states.button.clicked"].type, "boolean");
     assert.equal(buttonPreset.stateContribution.fieldSchemas["states.button.clicked"].jsonType, "boolean");
+  });
+});
+
+test("inlines public image URLs as Data URIs without storing assets", async () => {
+  const fetched = [];
+  await withRealtimeServer({
+    roomSecret: SECRET,
+    imageInlineFetcher: async (url, options) => {
+      fetched.push({ url, maxBytes: options.maxBytes });
+      return {
+        mimeType: "image/png",
+        buffer: Buffer.from("fake-image")
+      };
+    }
+  }, async realtime => {
+    const response = await fetch(httpUrl(realtime, "/assets/inline-image"), {
+      method: "POST",
+      headers: {
+        Origin: ORIGIN,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({ url: "https://cdn.example.com/assets/hero.png" })
+    });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("access-control-allow-origin"), ORIGIN);
+    const payload = await response.json();
+    assert.deepEqual(payload, {
+      ok: true,
+      url: "https://cdn.example.com/assets/hero.png",
+      mimeType: "image/png",
+      bytes: 10,
+      dataUri: "data:image/png;base64,ZmFrZS1pbWFnZQ=="
+    });
+    assert.deepEqual(fetched, [{ url: "https://cdn.example.com/assets/hero.png", maxBytes: 12 * 1024 * 1024 }]);
+
+    const rejected = await fetch(httpUrl(realtime, "/assets/inline-image"), {
+      method: "POST",
+      headers: {
+        Origin: ORIGIN,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({ url: "https://127.0.0.1/private.png" })
+    });
+    assert.equal(rejected.status, 400);
+    assert.deepEqual(await rejected.json(), { error: "image_target_not_public" });
   });
 });
 
@@ -436,6 +487,7 @@ test("serves one central admin hub from the server route index", async () => {
     assert.ok(index.endpoints.some(endpoint => endpoint.path === "/admin/routes"));
     assert.ok(index.endpoints.some(endpoint => endpoint.method === "WSS" && endpoint.path === "/ws"));
     assert.ok(index.endpoints.some(endpoint => endpoint.method === "POST" && endpoint.path === "/emit"));
+    assert.ok(index.endpoints.some(endpoint => endpoint.method === "POST" && endpoint.path === "/assets/inline-image"));
   });
 });
 
@@ -454,6 +506,7 @@ test("nginx proxies only lean public realtime routes", () => {
     "/presets-admin/catalog",
     "/presets-admin/parse",
     "/presets-admin/import",
+    "/assets/inline-image",
     "/contract",
     "/events/contract",
     "/healthz",
