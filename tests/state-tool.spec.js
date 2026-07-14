@@ -964,7 +964,7 @@ function userTransitions(model) {
 async function openWebsiteDemo(page) {
   await openTool(page);
   await page.locator("#topbarMore summary").click();
-  await page.getByRole("button", { name: "Digitalisierungsplanung" }).click();
+  await page.getByRole("button", { name: "Beispielablauf laden" }).click();
   await page.getByRole("button", { name: "Beispiel laden" }).click();
   return savedModel(page);
 }
@@ -2092,7 +2092,7 @@ test.describe("State Blueprint tool", () => {
   test("starts new canvases from the fresh starter flow without demo shortcuts @smoke", async ({ page }) => {
     await openTool(page);
     await expect(page.locator("#btnDemo")).toHaveCount(0);
-    await expect(page.locator("#btnWebsiteExample")).toHaveText("Digitalisierungsplanung");
+    await expect(page.locator("#btnWebsiteExample")).toHaveText("Beispielablauf laden");
 
     await page.locator("#btnNew").click();
     await page.getByRole("button", { name: "Neu starten" }).click();
@@ -2386,7 +2386,7 @@ test.describe("State Blueprint tool", () => {
     await openTool(page);
 
     await page.locator("#topbarMore summary").click();
-    await page.getByRole("button", { name: "Digitalisierungsplanung" }).click();
+    await page.getByRole("button", { name: "Beispielablauf laden" }).click();
     await page.getByRole("button", { name: "Beispiel laden" }).click();
 
     await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(8);
@@ -2697,7 +2697,7 @@ test.describe("State Blueprint tool", () => {
     await openTool(page);
 
     await page.locator("#topbarMore summary").click();
-    await page.getByRole("button", { name: "Digitalisierungsplanung" }).click();
+    await page.getByRole("button", { name: "Beispielablauf laden" }).click();
     await page.getByRole("button", { name: "Beispiel laden" }).click();
     await openStateInspector(page, "site_home");
 
@@ -2762,7 +2762,7 @@ test.describe("State Blueprint tool", () => {
     await openTool(page);
 
     await page.locator("#topbarMore summary").click();
-    await page.getByRole("button", { name: "Digitalisierungsplanung" }).click();
+    await page.getByRole("button", { name: "Beispielablauf laden" }).click();
     await page.getByRole("button", { name: "Beispiel laden" }).click();
     await expect(appFrame(page).locator("#statePill")).toHaveText("site_home");
 
@@ -9776,7 +9776,7 @@ test.describe("State Blueprint tool", () => {
   test("reroutes demo logout onto an existing home edge without losing its event @smoke", async ({ page }) => {
     await openTool(page);
     await page.locator("#topbarMore summary").click();
-    await page.getByRole("button", { name: "Digitalisierungsplanung" }).click();
+    await page.getByRole("button", { name: "Beispielablauf laden" }).click();
     await page.getByRole("button", { name: "Beispiel laden" }).click();
 
     const logoutEdgeId = "site_profile_logout";

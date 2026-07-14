@@ -543,7 +543,10 @@ Editoraktion
 - **ED-003 Demo-Laden:** Die Demo darf nur explizit oder über
   `?demo=zustand` geladen werden. Vorhandene Arbeit MUSS vor Ersetzen bestätigt
   werden. Entspricht die aktuelle Szene bereits exakt der Demo, MUSS die URL
-  ohne Ersetzen konsumiert werden und es DARF kein Lade-Dialog erscheinen.
+  ohne Ersetzen konsumiert werden und es DARF kein Lade-Dialog erscheinen. Der
+  sichtbare Menübefehl MUSS `Beispielablauf laden` heißen;
+  `Digitalisierungsplanung` bleibt der Name des Demo-Modells und DARF nicht als
+  unklare Aktionsbezeichnung verwendet werden.
 - **ED-004 Tastatur:** `Ctrl+N` öffnet den App-Dialog und DARF keinen Browser-Tab
   öffnen. `Ctrl+S` speichert eine formale Definition.
 - **ED-005 Delete-Fokus:** `Delete` darf Graphentitäten nur löschen, wenn der

@@ -12,7 +12,7 @@ Der wichtigste Gedanke: Nur verstandene Prozesse lassen sich sauber digitalisier
 | --- | --- |
 | Öffentliche Startseite | `https://digitalisierungsplanung.de/` |
 | Werkzeug öffnen | `https://digitalisierungsplanung.de/state.html` |
-| Beispiel im Werkzeug laden | `https://digitalisierungsplanung.de/state.html?demo=zustand` |
+| Beispielablauf im Werkzeug laden | `https://digitalisierungsplanung.de/state.html?demo=zustand` |
 | Werkzeug mit Echtzeit-Raum | `https://digitalisierungsplanung.de/state.html?room=<raum-id>` |
 | Realtime Admin Hub | `https://realtime.digitalisierungsplanung.de/` |
 | Echtzeit-Konsole | `https://realtime.digitalisierungsplanung.de/console.html?room=<raum-id>` |
