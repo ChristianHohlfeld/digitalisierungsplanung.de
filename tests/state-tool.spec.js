@@ -2,7 +2,6 @@ const fs = require("node:fs");
 const { test, expect } = require("@playwright/test");
 const { DEFAULT_EVENT_CATALOG } = require("../server/event-catalog");
 const { productContractResponse } = require("../server/product-contract");
-const { modelFromTrace } = require("../server/process-recorder");
 
 const STORAGE_KEY = "stateBlueprintHotLinked.model.v2";
 const GRID_SIZE = 24;
@@ -64,45 +63,6 @@ async function openTool(page, options = {}) {
 
 function appFrame(page) {
   return page.frameLocator("#appFrame");
-}
-
-async function mockBrowserDisplayCapture(page) {
-  await page.addInitScript(() => {
-    const canvas = document.createElement("canvas");
-    canvas.width = 640;
-    canvas.height = 360;
-    const context = canvas.getContext("2d");
-    context.fillStyle = "#991b1b";
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    context.fillStyle = "#ffffff";
-    context.font = "32px sans-serif";
-    context.fillText("Posteingang", 40, 80);
-    const stream = canvas.captureStream(10);
-    window.__processCaptureCanvas = canvas;
-    window.__processCaptureStream = stream;
-    const mediaDevices = navigator.mediaDevices || {};
-    Object.defineProperty(mediaDevices, "getDisplayMedia", { configurable: true, value: async () => stream });
-    if (!navigator.mediaDevices) Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: mediaDevices });
-  });
-}
-
-async function paintBrowserDisplay(page, color, label) {
-  await page.evaluate(({ color, label }) => {
-    const canvas = window.__processCaptureCanvas;
-    const context = canvas.getContext("2d");
-    context.fillStyle = color;
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    context.fillStyle = "#ffffff";
-    context.font = "32px sans-serif";
-    context.fillText(label, 40, 80);
-    window.__processCaptureStream.getVideoTracks()[0]?.requestFrame?.();
-    if (processRecording?.committedSample) {
-      const changed = new Uint8Array(processRecording.committedSample.length);
-      changed.fill(processRecording.committedSample[0] > 127 ? 0 : 255);
-      processRecording.committedSample = changed;
-      browserProcessFrameTick(processRecording);
-    }
-  }, { color, label });
 }
 
 function productContractForTest(options = {}) {
@@ -5930,8 +5890,7 @@ test.describe("State Blueprint tool", () => {
       await expect(page.locator("#canvasHistoryActions")).toBeVisible();
       await assertVisibleInViewport(page, "#canvasHistoryActions");
       await expect(page.locator("#selectionActions")).toBeHidden();
-      await expect(page.locator("#btnUndo, #btnRedo, #btnMobileUndo, #btnMobileRedo, #btnMobileActionUndo, #btnMobileActionRedo, #btnMobileProcessRecord")).toHaveCount(0);
-      await expect(page.locator("#btnProcessRecord")).toBeHidden();
+      await expect(page.locator("#btnUndo, #btnRedo, #btnMobileUndo, #btnMobileRedo, #btnMobileActionUndo, #btnMobileActionRedo")).toHaveCount(0);
       await expect(page.locator("#btnMobileRuntimeFollow")).toBeVisible();
       await expect(page.locator("#btnMobileRuntimeFollow")).toHaveAttribute("aria-pressed", "true");
       await expect(page.locator('#btnCanvasUndo svg[data-lucide="undo-2"]')).toHaveCount(1);
@@ -14522,148 +14481,12 @@ test.describe("State Blueprint tool", () => {
     expect(definition.model.transitions).toEqual([]);
   });
 
-  test("pauses an unchanged browser recording without calling the agent", async ({ page }) => {
-    let analyzeCalls = 0;
-    await mockBrowserDisplayCapture(page);
-    await page.route("**/process/contract", route => route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ ok: true, enabled: true, capture: { analysisMinIntervalMs: 1000, idlePauseMs: 2000, stabilityMs: 300 } })
-    }));
-    await page.route("**/process/analyze", route => {
-      analyzeCalls += 1;
-      return route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: "unexpected_analysis" }) });
-    });
-
+  test("keeps the editor a pure state tool without recorder surfaces @smoke", async ({ page }) => {
     await openTool(page);
-    const before = await page.evaluate(() => modelSnapshot());
-    await page.locator("#btnProcessRecord").click();
-    await page.getByRole("button", { name: "Fenster auswählen" }).click();
-    await expect(page.locator("#processRecordingStatusText")).toContainText("Pausiert", { timeout: 5000 });
-    expect(analyzeCalls).toBe(0);
-
-    await page.locator("#btnProcessRecord").click();
-    await expect(page.getByRole("heading", { name: "Keine Aktivität erkannt" })).toBeVisible();
-    await page.getByRole("button", { name: "OK" }).click();
-    expect(analyzeCalls).toBe(0);
-    expect(await page.evaluate(() => modelSnapshot())).toBe(before);
-  });
-
-  test("draws a tab-spanning browser process, pauses on idle, and resumes without idle agent cost", async ({ page }) => {
-    const recordedModel = modelFromTrace({
-      title: "Rechnung prüfen",
-      steps: [
-        { title: "Posteingang", description: "Eine Rechnung liegt vor.", actionToNext: "Rechnung öffnen" },
-        { title: "Rechnung prüfen", description: "Die Rechnung wird geprüft.", actionToNext: "Freigeben" },
-        { title: "Freigegeben", description: "Die Prüfung ist abgeschlossen.", actionToNext: "" }
-      ]
-    }).model;
-    let analyzeCalls = 0;
-    let analyzeBody = null;
-
-    await mockBrowserDisplayCapture(page);
-    await page.route("**/process/contract", route => route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      headers: { "cache-control": "no-store" },
-      body: JSON.stringify({
-        ok: true,
-        enabled: true,
-        contract: "zustand-process-recorder-v1",
-        capture: { maxEvents: 4000, maxFrames: 36, maxLiveAnalyses: 2, analysisMinIntervalMs: 1000, idlePauseMs: 2000, stabilityMs: 300 }
-      })
-    }));
-    await page.route("**/process/analyze", async route => {
-      analyzeCalls += 1;
-      analyzeBody = route.request().postDataJSON();
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        headers: { "cache-control": "no-store" },
-        body: JSON.stringify({ ok: true, contract: "zustand-process-model-v1", model: recordedModel, summary: { states: 3, transitions: 2 } })
-      });
-    });
-
-    await openTool(page);
-    await page.locator("#btnProcessRecord").click();
-    await expect(page.getByRole("heading", { name: "Ablauf aufnehmen" })).toBeVisible();
-    await page.getByRole("button", { name: "Fenster auswählen" }).click();
-    await expect(page.locator("#btnProcessRecord")).toHaveAttribute("aria-pressed", "true");
-    await expect(page.locator("#processRecordingStatus")).toBeVisible();
-    await expect.poll(() => page.evaluate(() => processRecording?.events?.length || 0), { timeout: 5000 }).toBe(1);
-
-    await paintBrowserDisplay(page, "#1d4ed8", "Rechnung prüfen");
-    await expect(page.locator('[data-id="posteingang"]')).toBeVisible({ timeout: 15000 });
-    await expect(page.locator('[data-id="freigegeben"]')).toBeVisible();
-    await expect(page.locator("#btnProcessRecord")).toHaveAttribute("aria-pressed", "true");
-    expect(analyzeCalls).toBe(1);
-    expect(analyzeBody.events.every(item => item.kind === "visual")).toBe(true);
-    expect(analyzeBody.frames.length).toBeGreaterThanOrEqual(2);
-    expect(JSON.stringify(analyzeBody)).not.toContain("value");
-
-    await expect(page.locator("#processRecordingStatusText")).toContainText("Pausiert", { timeout: 5000 });
-    await page.waitForTimeout(2200);
-    expect(analyzeCalls).toBe(1);
-
-    await paintBrowserDisplay(page, "#166534", "Freigegeben");
-    await expect.poll(() => analyzeCalls, { timeout: 8000 }).toBe(2);
-
-    await paintBrowserDisplay(page, "#854d0e", "Archiviert");
-    await expect.poll(() => page.evaluate(() => processRecording?.events?.length || 0), { timeout: 5000 }).toBeGreaterThanOrEqual(4);
-    await page.waitForTimeout(1500);
-    expect(analyzeCalls).toBe(2);
-
-    await page.locator("#btnProcessRecord").click();
-    await expect(page.locator("#btnProcessRecord")).toHaveAttribute("aria-pressed", "false");
-    await expect(page.locator("#processRecordingStatus")).toBeHidden();
-    await expect(page.locator("#btnCanvasUndo")).toBeEnabled();
-    expect(analyzeCalls).toBe(3);
-
-    await page.locator("#btnCanvasUndo").click();
-    await expect(page.locator('[data-id="auth_start"]')).toBeVisible();
-    await expect(page.locator('[data-id="posteingang"]')).toHaveCount(0);
-    await page.locator("#btnCanvasRedo").click();
-    await expect(page.locator('[data-id="posteingang"]')).toBeVisible();
-    await expect(appFrame(page).locator("#statePill")).toHaveText("posteingang");
-    const exportedHtml = await page.evaluate(() => buildStandaloneAppHtml(GENERATED_APP_HTML, definitionPayload()));
-    expect(exportedHtml).not.toContain("btnProcessRecord");
-    expect(exportedHtml).not.toContain("getDisplayMedia");
+    await expect(page.locator("#btnProcessRecord, #processRecordingStatus")).toHaveCount(0);
     const editorHtml = fs.readFileSync("state.html", "utf8");
-    expect(editorHtml).toContain("getDisplayMedia");
-    expect(editorHtml).toContain('surfaceSwitching: "include"');
-    expect(editorHtml).not.toContain("43127");
-    expect(editorHtml).not.toContain("btnMobileProcessRecord");
-    expect(editorHtml).not.toContain("btnMobileActionUndo");
-    expect(editorHtml).not.toContain("btnMobileActionRedo");
-    await page.setViewportSize({ width: 390, height: 844 });
-    await expect(page.locator("#btnProcessRecord")).toBeHidden();
-    await expect(page.locator("#btnMobileProcessRecord")).toHaveCount(0);
-    await expect(page.locator("#map")).toBeVisible();
+    expect(editorHtml).not.toContain("getDisplayMedia");
+    expect(editorHtml).not.toContain("/process/analyze");
   });
 
-  test("leaves model and history unchanged when browser process analysis fails", async ({ page }) => {
-    await mockBrowserDisplayCapture(page);
-    await page.route("**/process/contract", route => route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ ok: true, enabled: true, capture: { analysisMinIntervalMs: 1000, idlePauseMs: 2000, stabilityMs: 300 } })
-    }));
-    await page.route("**/process/analyze", route => route.fulfill({ status: 502, contentType: "application/json", body: JSON.stringify({ error: "process_analyzer_failed" }) }));
-
-    await openTool(page);
-    const before = await page.evaluate(() => modelSnapshot());
-    await expect(page.locator("#btnCanvasUndo")).toBeDisabled();
-    await page.locator("#btnProcessRecord").click();
-    await page.getByRole("button", { name: "Fenster auswählen" }).click();
-    await expect.poll(() => page.evaluate(() => processRecording?.events?.length || 0), { timeout: 5000 }).toBe(1);
-    await paintBrowserDisplay(page, "#1d4ed8", "Anfrage geprüft");
-    await expect.poll(() => page.evaluate(() => processRecording?.events?.length || 0), { timeout: 5000 }).toBeGreaterThanOrEqual(2);
-    await page.locator("#btnProcessRecord").click();
-    await expect(page.getByRole("heading", { name: "Analyse fehlgeschlagen" })).toBeVisible();
-    await page.getByRole("button", { name: "OK" }).click();
-    await expect(page.locator("#btnProcessRecord")).toHaveAttribute("aria-pressed", "false");
-    expect(await page.evaluate(() => modelSnapshot())).toBe(before);
-    await expect(page.locator("#btnCanvasUndo")).toBeDisabled();
-    await expect(page.locator('[data-id="auth_start"]')).toBeVisible();
-  });
 });

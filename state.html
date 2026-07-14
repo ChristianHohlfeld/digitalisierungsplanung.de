@@ -3117,47 +3117,6 @@
       padding: 0;
     }
 
-    .process-recording-status {
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      min-width: 0;
-      padding: 0 7px;
-      color: #fecdd3;
-      font-size: 12px;
-      font-weight: 900;
-      white-space: nowrap;
-    }
-
-    .process-recording-status[hidden] { display: none; }
-
-    .process-recording-dot {
-      width: 9px;
-      height: 9px;
-      flex: 0 0 auto;
-      border-radius: 999px;
-      background: #fb7185;
-      box-shadow: 0 0 0 4px rgba(251,113,133,.15);
-      animation: process-recording-pulse 1.35s ease-in-out infinite;
-    }
-
-    #btnProcessRecord { color: #fda4af; }
-
-    #btnProcessRecord[aria-pressed="true"] {
-      border-color: rgba(251,113,133,.65);
-      background: rgba(127,29,29,.56);
-      color: #fff1f2;
-    }
-
-    #btnProcessRecord .process-stop-icon,
-    #btnProcessRecord[aria-pressed="true"] .process-record-icon { display: none; }
-    #btnProcessRecord[aria-pressed="true"] .process-stop-icon { display: block; }
-
-    @keyframes process-recording-pulse {
-      0%, 100% { opacity: .58; transform: scale(.84); }
-      50% { opacity: 1; transform: scale(1); }
-    }
-
     .history-action-icon {
       display: block;
       width: 20px;
@@ -4643,8 +4602,6 @@
         display: none !important;
       }
 
-      .process-recording-control { display: none !important; }
-
       .mobile-selection-count {
         max-width: min(78px, 20vw);
       }
@@ -5716,14 +5673,6 @@
       </div>
       <div id="selectRect" class="select-rect"></div>
       <div id="canvasHistoryActions" class="canvas-history-actions" aria-label="Arbeitsflächen-Verlauf">
-        <span id="processRecordingStatus" class="process-recording-status process-recording-control" role="status" aria-live="polite" hidden>
-          <span class="process-recording-dot" aria-hidden="true"></span>
-          <span id="processRecordingStatusText">Aufnahme 00:00</span>
-        </span>
-        <button id="btnProcessRecord" class="process-recording-control" type="button" title="Ablauf aufnehmen" aria-label="Ablauf aufnehmen" aria-pressed="false">
-          <svg class="history-action-icon process-record-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"></circle></svg>
-          <svg class="history-action-icon process-stop-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1.5"></rect></svg>
-        </button>
         <button id="btnCanvasUndo" type="button" title="Rückgängig" aria-label="Rückgängig" disabled="">
           <svg class="history-action-icon" data-lucide="undo-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"></path><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5A5.5 5.5 0 0 1 14.5 20H11"></path></svg>
         </button>
@@ -9230,14 +9179,6 @@
       (location.hostname === "digitalisierungsplanung.de" || location.hostname === "www.digitalisierungsplanung.de"
         ? "https://realtime.digitalisierungsplanung.de/contract"
         : "/contract");
-    const PROCESS_CONTRACT_URL = window.ZUSTAND_PROCESS_CONTRACT_URL ||
-      (location.hostname === "digitalisierungsplanung.de" || location.hostname === "www.digitalisierungsplanung.de"
-        ? "https://realtime.digitalisierungsplanung.de/process/contract"
-        : "/process/contract");
-    const PROCESS_ANALYZE_URL = window.ZUSTAND_PROCESS_ANALYZE_URL ||
-      (location.hostname === "digitalisierungsplanung.de" || location.hostname === "www.digitalisierungsplanung.de"
-        ? "https://realtime.digitalisierungsplanung.de/process/analyze"
-        : "/process/analyze");
     const RUNTIME_MESSAGE_ORIGIN = window.location.origin;
     const RUNTIME_SESSION_FRAGMENT_KEY = "state-blueprint-session";
     const WORLD_MIN_X = -10000;
@@ -9297,9 +9238,6 @@
     const nodesEl = document.getElementById("nodes");
     const selectRectEl = document.getElementById("selectRect");
     const canvasHistoryActionsEl = document.getElementById("canvasHistoryActions");
-    const btnProcessRecord = document.getElementById("btnProcessRecord");
-    const processRecordingStatusEl = document.getElementById("processRecordingStatus");
-    const processRecordingStatusTextEl = document.getElementById("processRecordingStatusText");
     const btnCanvasUndo = document.getElementById("btnCanvasUndo");
     const btnCanvasRedo = document.getElementById("btnCanvasRedo");
     const selectionActionsEl = document.getElementById("selectionActions");
@@ -9487,8 +9425,6 @@
     let historyActionId = 0;
     let lastHistoryGroup = null;
     let historyPointerActive = false;
-    let processRecording = null;
-    let processRecordingStarting = false;
     let activePointerId = null;
     let lastTouchAt = 0;
     let suppressCanvasTextSelectionUntil = 0;
@@ -10146,512 +10082,6 @@
       }
     });
 
-    function processDurationLabel(startedAt) {
-      const seconds = Math.max(0, Math.floor((Date.now() - Number(startedAt || Date.now())) / 1000));
-      return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
-    }
-
-    function updateProcessRecordingUi() {
-      const recording = processRecording;
-      const active = Boolean(recording);
-      const title = active ? "Ablaufaufnahme stoppen" : processRecordingStarting ? "Bildschirmfreigabe wird geöffnet" : "Ablauf aufnehmen";
-      [btnProcessRecord].forEach(button => {
-        if (!button) return;
-        button.setAttribute("aria-pressed", active ? "true" : "false");
-        button.disabled = Boolean(recording?.stopping || processRecordingStarting);
-        button.title = title;
-        button.setAttribute("aria-label", title);
-      });
-      processRecordingStatusEl.hidden = !active;
-      if (active) {
-        const phase = recording.stopping
-          ? "Wird abgeschlossen"
-          : recording.agentBusy
-            ? "Agent zeichnet"
-            : recording.idle
-              ? "Pausiert"
-              : "Aufnahme";
-        const count = recording.eventCount ? ` · ${recording.eventCount} Ereignisse` : "";
-        processRecordingStatusTextEl.textContent = `${phase} ${processDurationLabel(recording.startedAt)}${count}`;
-      }
-      updateSelectionActions();
-      updateHistoryButtons();
-    }
-
-    async function processFetch(url, options = {}, timeoutMs = 10000) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
-      try {
-        const response = await fetch(url, {
-          cache: "no-store",
-          credentials: "omit",
-          ...options,
-          signal: controller.signal
-        });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          const error = new Error(payload.error || `HTTP ${response.status}`);
-          error.code = payload.error || "process_request_failed";
-          error.status = response.status;
-          error.providerStatus = Number(payload.providerStatus) || 0;
-          error.providerCode = String(payload.providerCode || "");
-          error.providerRequestId = String(payload.providerRequestId || "");
-          throw error;
-        }
-        return payload;
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-
-    function processAnalysisFailureMessage(error) {
-      const providerDetails = [
-        error?.providerStatus ? `HTTP ${error.providerStatus}` : "",
-        error?.providerCode || ""
-      ].filter(Boolean).join(", ");
-      const detail = providerDetails ? ` (${providerDetails})` : "";
-      if (error?.code === "process_provider_unauthorized") {
-        return `Der Prozess-Agent hat den API-Schlüssel des Servers abgelehnt${detail}. Die Aufnahme wurde erkannt, aber nicht analysiert.`;
-      }
-      if (error?.code === "process_provider_access_denied") {
-        return `Der Prozess-Agent hat den Zugriff auf das konfigurierte Modell abgelehnt${detail}. Die Aufnahme wurde erkannt, aber nicht analysiert.`;
-      }
-      if (error?.code === "process_provider_rate_limited") {
-        return `Der Prozess-Agent hat den Aufruf wegen Rate-Limit oder fehlender API-Quota abgelehnt${detail}. Die Aufnahme wurde erkannt, aber nicht analysiert.`;
-      }
-      if (error?.code === "process_provider_request_rejected") {
-        return `Der Prozess-Agent hat die Anfrage abgelehnt${detail}. Die Aufnahme wurde erkannt, aber nicht analysiert.`;
-      }
-      if (error?.code === "process_provider_unavailable") {
-        return `Der Prozess-Agent war nicht verfügbar${detail}. Die Aufnahme wurde erkannt, aber nicht analysiert.`;
-      }
-      return error?.message || "Die Aufnahme konnte nicht analysiert werden.";
-    }
-
-    function processSessionId() {
-      if (window.crypto?.randomUUID) return `browser-${window.crypto.randomUUID()}`;
-      return `browser-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    }
-
-    function processText(value, max = 180) {
-      return String(value || "").replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
-    }
-
-    function browserProcessSurfaceLabel(recording) {
-      if (recording.surfaceType === "monitor") return "Freigegebener Bildschirm";
-      if (recording.surfaceType === "window") return "Freigegebenes Fenster";
-      return "Freigegebener Browser-Tab";
-    }
-
-    function appendBrowserProcessEvent(recording, windowLabel) {
-      if (processRecording !== recording || recording.stopping || recording.events.length >= recording.maxEvents) return null;
-      const event = {
-        seq: ++recording.eventSeq,
-        at: Date.now() - recording.startedAt,
-        kind: "visual",
-        app: browserProcessSurfaceLabel(recording),
-        window: processText(windowLabel || "Stabiler Bildschirmzustand")
-      };
-      recording.events.push(event);
-      recording.eventCount = recording.events.length;
-      updateProcessRecordingUi();
-      return event;
-    }
-
-    function browserProcessCapture(recording, endedAt = Date.now()) {
-      return {
-        sessionId: recording.sessionId,
-        startedAt: recording.startedAt,
-        endedAt,
-        events: recording.events.map(event => ({ ...event })),
-        frames: recording.frames.slice().sort((a, b) => a.at - b.at).map(frame => ({ ...frame }))
-      };
-    }
-
-    function stopBrowserProcessCapture(recording) {
-      clearInterval(recording.frameTimer);
-      recording.frameTimer = null;
-      for (const track of recording.screenStream?.getTracks?.() || []) {
-        try { track.stop(); } catch (_) {}
-      }
-      if (recording.videoEl) recording.videoEl.srcObject = null;
-      recording.screenStream = null;
-      recording.videoEl = null;
-    }
-
-    function browserFrameSample(recording) {
-      const video = recording.videoEl;
-      if (!video?.videoWidth || !video.videoHeight) return null;
-      const canvas = recording.sampleCanvas || document.createElement("canvas");
-      recording.sampleCanvas = canvas;
-      canvas.width = 64;
-      canvas.height = 36;
-      const ctx = canvas.getContext("2d", { alpha: false, willReadFrequently: true });
-      if (!ctx) return null;
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-      const sample = new Uint8Array(canvas.width * canvas.height);
-      for (let pixel = 0, index = 0; pixel < pixels.length; pixel += 4, index += 1) {
-        sample[index] = Math.round((pixels[pixel] * 3 + pixels[pixel + 1] * 6 + pixels[pixel + 2]) / 10);
-      }
-      return sample;
-    }
-
-    function browserFrameDifference(left, right) {
-      if (!left || !right || left.length !== right.length) return 1;
-      let changed = 0;
-      for (let index = 0; index < left.length; index += 1) {
-        if (Math.abs(left[index] - right[index]) >= 18) changed += 1;
-      }
-      return changed / left.length;
-    }
-
-    function browserFrameDataUrl(recording) {
-      const video = recording.videoEl;
-      if (!video?.videoWidth || !video.videoHeight) return "";
-      const scale = Math.min(1, 720 / Math.max(video.videoWidth, video.videoHeight));
-      const width = Math.max(1, Math.round(video.videoWidth * scale));
-      const height = Math.max(1, Math.round(video.videoHeight * scale));
-      const canvas = recording.frameCanvas || document.createElement("canvas");
-      recording.frameCanvas = canvas;
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext("2d", { alpha: false });
-      if (!ctx) return "";
-      ctx.drawImage(video, 0, 0, width, height);
-      let quality = .62;
-      let image = canvas.toDataURL("image/jpeg", quality);
-      while (image.length > 180000 && quality > .3) {
-        quality -= .08;
-        image = canvas.toDataURL("image/jpeg", quality);
-      }
-      return image.length <= 185000 ? image : "";
-    }
-
-    function retainBrowserProcessFrame(recording, frame) {
-      const frames = [...recording.frames, frame].sort((a, b) => a.at - b.at);
-      if (frames.length <= recording.maxFrames) {
-        recording.frames = frames;
-        return;
-      }
-      let removeIndex = 1;
-      let smallestSpan = Number.POSITIVE_INFINITY;
-      for (let index = 1; index < frames.length - 1; index += 1) {
-        const span = frames[index + 1].at - frames[index - 1].at;
-        if (span < smallestSpan) {
-          smallestSpan = span;
-          removeIndex = index;
-        }
-      }
-      frames.splice(removeIndex, 1);
-      recording.frames = frames;
-    }
-
-    function commitBrowserProcessFrame(recording, sample, label) {
-      const image = browserFrameDataUrl(recording);
-      if (!image) return false;
-      const event = appendBrowserProcessEvent(recording, label);
-      if (!event) return false;
-      retainBrowserProcessFrame(recording, {
-        at: Date.now() - recording.startedAt,
-        eventSeq: event.seq,
-        image
-      });
-      recording.committedSample = sample;
-      recording.pendingSince = 0;
-      return true;
-    }
-
-    function browserProcessFrameTick(recording) {
-      if (processRecording !== recording || recording.stopping) return;
-      const now = Date.now();
-      const sample = browserFrameSample(recording);
-      if (!sample) return;
-      if (!recording.committedSample) {
-        recording.lastSample = sample;
-        recording.lastActivityAt = now;
-        commitBrowserProcessFrame(recording, sample, "Start der Freigabe");
-        return;
-      }
-
-      const moving = browserFrameDifference(recording.lastSample, sample) >= recording.motionThreshold;
-      const changed = browserFrameDifference(recording.committedSample, sample) >= recording.changeThreshold;
-      recording.lastSample = sample;
-      if (!recording.pendingSince && changed) {
-        recording.pendingSince = now;
-        recording.lastActivityAt = now;
-        if (recording.idle) {
-          recording.idle = false;
-          updateProcessRecordingUi();
-        }
-        return;
-      }
-      if (recording.pendingSince) {
-        if (moving) {
-          recording.pendingSince = now;
-          recording.lastActivityAt = now;
-        } else if (now - recording.pendingSince >= recording.stabilityMs) {
-          commitBrowserProcessFrame(recording, sample, "Stabile visuelle Änderung");
-        }
-      }
-      if (!recording.idle && now - recording.lastActivityAt >= recording.idlePauseMs) {
-        recording.idle = true;
-        updateProcessRecordingUi();
-      }
-    }
-
-    function applyProcessAgentModel(payload, recording) {
-      if (processRecording !== recording || recording.stopping && !recording.finalizing) return;
-      if (!isPlainObject(payload) || payload.contract !== "zustand-process-model-v1") throw new Error("Ungültige Agentenantwort.");
-      if (modelSnapshot() !== recording.lastAppliedModelSnapshot) {
-        const error = new Error("Das Diagramm wurde während der Aufnahme manuell verändert.");
-        error.code = "editor_changed_during_recording";
-        throw error;
-      }
-      const validated = validateModelDefinition(payload.model);
-      loadEditorModel(validated, true, { processRecording: true });
-      recording.lastAppliedModelSnapshot = modelSnapshot();
-      recording.applied = true;
-    }
-
-    async function analyzeProcessCapture(capture, recording, final = false) {
-      if (processRecording !== recording) return false;
-      if (recording.agentPromise) {
-        if (!final) return false;
-        await recording.agentPromise.catch(() => {});
-      }
-      if (!Array.isArray(capture?.events) || capture.events.length < 2) return false;
-      if (!final && capture.events.length === recording.lastAnalyzedEventCount) return false;
-      recording.agentBusy = true;
-      updateProcessRecordingUi();
-      const run = processFetch(PROCESS_ANALYZE_URL, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(capture)
-      }, 120000).then(payload => {
-        if (processRecording !== recording) return false;
-        applyProcessAgentModel(payload, recording);
-        recording.lastAnalyzedEventCount = capture.events.length;
-        recording.lastAgentError = "";
-        return true;
-      }).catch(error => {
-        recording.lastAgentError = error.code || error.message || "process_analysis_failed";
-        if (error.code === "editor_changed_during_recording") recording.modelConflict = true;
-        if (final) throw error;
-        return false;
-      }).finally(() => {
-        if (processRecording === recording) {
-          recording.agentBusy = false;
-          recording.agentPromise = null;
-          updateProcessRecordingUi();
-        }
-        capture = null;
-      });
-      recording.agentPromise = run;
-      return run;
-    }
-
-    async function processRecordingTick(recording) {
-      if (processRecording !== recording || recording.stopping || recording.agentBusy) return;
-      try {
-        recording.eventCount = recording.events.length;
-        updateProcessRecordingUi();
-        if (recording.eventCount < 2 || recording.eventCount === recording.lastAnalyzedEventCount) return;
-        if (recording.eventCount === recording.lastAttemptedEventCount) return;
-        if (recording.pendingSince || Date.now() - recording.lastActivityAt < recording.stabilityMs) return;
-        if (recording.liveAnalysisCount >= recording.maxLiveAnalyses) return;
-        if (Date.now() - recording.lastAgentStartAt < recording.analysisMinIntervalMs) return;
-        recording.lastAgentStartAt = Date.now();
-        recording.lastAttemptedEventCount = recording.eventCount;
-        recording.liveAnalysisCount += 1;
-        await analyzeProcessCapture(browserProcessCapture(recording), recording, false);
-      } catch (error) {
-        if (processRecording !== recording) return;
-        recording.lastAgentError = error.code || error.message || "browser_recorder_unavailable";
-      }
-    }
-
-    function commitProcessRecordingHistory(recording) {
-      const current = editorSnapshot();
-      if (current !== recording.originalHistorySnapshot) {
-        undoStack.push(recording.originalHistorySnapshot);
-        if (undoStack.length > 100) undoStack.shift();
-        redoStack = [];
-      }
-      historyCurrent = current;
-      beginHistoryAction();
-      persistModel();
-      updateHistoryButtons();
-    }
-
-    async function cancelProcessRecording(message = "") {
-      const recording = processRecording;
-      if (!recording) return;
-      clearInterval(recording.pollTimer);
-      clearInterval(recording.clockTimer);
-      stopBrowserProcessCapture(recording);
-      if (recording.applied) restoreHistorySnapshot(recording.originalHistorySnapshot);
-      processRecording = null;
-      updateProcessRecordingUi();
-      if (message) await modalAlert(message, "Aufnahme beendet");
-    }
-
-    async function startProcessRecording() {
-      if (processRecording || processRecordingStarting) return;
-      let contract;
-      try {
-        contract = await processFetch(PROCESS_CONTRACT_URL, { method: "GET" }, 10000);
-      } catch (_) {
-        await modalAlert("Der Prozess-Agent ist nicht erreichbar.", "Aufnahme nicht verfügbar");
-        return;
-      }
-      if (!contract.enabled) {
-        await modalAlert("Der Prozess-Agent ist am Server noch nicht konfiguriert.", "Aufnahme nicht verfügbar");
-        return;
-      }
-      const getDisplayMedia = navigator.mediaDevices?.getDisplayMedia?.bind(navigator.mediaDevices);
-      if (typeof getDisplayMedia !== "function") {
-        await modalAlert("Dieser Browser unterstützt keine Bildschirmaufnahme. Verwende einen aktuellen Desktop-Browser.", "Aufnahme nicht verfügbar");
-        return;
-      }
-      const replaces = model.states.length ? " Das aktuelle Diagramm wird dabei live ersetzt und bleibt mit Rückgängig vollständig wiederherstellbar." : "";
-      const confirmed = await modalConfirm(
-        `Wähle im nächsten Browserdialog für tabübergreifende Arbeit das ganze Browserfenster oder den Bildschirm. Zustand erkennt ausschließlich stabile visuelle Änderungen, pausiert bei Stillstand automatisch und setzt bei der nächsten Änderung fort.${replaces} Sichtbare Inhalte der Freigabe werden zur Prozessanalyse an den konfigurierten Agenten übertragen, aber nicht als Aufnahme gespeichert.`,
-        "Ablauf aufnehmen",
-        { confirmText: "Fenster auswählen", cancelText: "Abbrechen" }
-      );
-      if (!confirmed) return;
-      processRecordingStarting = true;
-      updateProcessRecordingUi();
-      let stream = null;
-      try {
-        stream = await getDisplayMedia({
-          video: { frameRate: { ideal: 4, max: 6 }, displaySurface: "window" },
-          audio: false,
-          preferCurrentTab: false,
-          selfBrowserSurface: "exclude",
-          surfaceSwitching: "include"
-        });
-        const video = document.createElement("video");
-        video.muted = true;
-        video.playsInline = true;
-        video.srcObject = stream;
-        await video.play();
-        if (!video.videoWidth || !video.videoHeight) {
-          await new Promise(resolve => {
-            const timer = setTimeout(resolve, 3000);
-            video.addEventListener("loadedmetadata", () => {
-              clearTimeout(timer);
-              resolve();
-            }, { once: true });
-          });
-        }
-        if (!video.videoWidth || !video.videoHeight) throw new Error("Die Bildschirmfreigabe liefert kein Bild.");
-        const track = stream.getVideoTracks()[0];
-        processRecording = {
-          provider: "browser-display",
-          sessionId: processSessionId(),
-          startedAt: Date.now(),
-          surfaceType: track?.getSettings?.().displaySurface || "browser",
-          originalHistorySnapshot: historyCurrent || editorSnapshot(),
-          lastAppliedModelSnapshot: modelSnapshot(),
-          lastAnalyzedEventCount: 0,
-          lastAttemptedEventCount: 0,
-          lastAgentStartAt: 0,
-          eventCount: 0,
-          eventSeq: 0,
-          events: [],
-          frames: [],
-          maxEvents: Math.max(2, Math.min(4000, Number(contract.capture?.maxEvents) || 4000)),
-          maxFrames: Math.max(2, Math.min(36, Number(contract.capture?.maxFrames) || 36)),
-          maxLiveAnalyses: Math.max(1, Math.min(20, Number(contract.capture?.maxLiveAnalyses) || 12)),
-          analysisMinIntervalMs: Math.max(1000, Number(contract.capture?.analysisMinIntervalMs) || 15000),
-          idlePauseMs: Math.max(2000, Number(contract.capture?.idlePauseMs) || 5000),
-          stabilityMs: Math.max(300, Number(contract.capture?.stabilityMs) || 1200),
-          changeThreshold: .018,
-          motionThreshold: .004,
-          liveAnalysisCount: 0,
-          lastActivityAt: Date.now(),
-          pendingSince: 0,
-          idle: false,
-          committedSample: null,
-          lastSample: null,
-          screenStream: stream,
-          videoEl: video,
-          frameCanvas: null,
-          sampleCanvas: null,
-          frameTimer: null,
-          applied: false,
-          agentBusy: false,
-          agentPromise: null,
-          stopping: false,
-          finalizing: false,
-          modelConflict: false,
-          lastAgentError: ""
-        };
-        const recording = processRecording;
-        recording.clockTimer = setInterval(updateProcessRecordingUi, 1000);
-        recording.frameTimer = setInterval(() => browserProcessFrameTick(recording), 500);
-        recording.pollTimer = setInterval(() => void processRecordingTick(recording), 1000);
-        track?.addEventListener?.("ended", () => {
-          if (processRecording === recording && !recording.stopping) void stopProcessRecording();
-        }, { once: true });
-        browserProcessFrameTick(recording);
-        updateProcessRecordingUi();
-      } catch (error) {
-        for (const track of stream?.getTracks?.() || []) track.stop();
-        if (error?.name !== "NotAllowedError") {
-          await modalAlert(error?.message || "Die Bildschirmfreigabe konnte nicht gestartet werden.", "Aufnahme nicht gestartet");
-        }
-      } finally {
-        processRecordingStarting = false;
-        updateProcessRecordingUi();
-      }
-    }
-
-    async function stopProcessRecording() {
-      const recording = processRecording;
-      if (!recording || recording.stopping) return;
-      recording.stopping = true;
-      recording.finalizing = true;
-      clearInterval(recording.pollTimer);
-      clearInterval(recording.clockTimer);
-      updateProcessRecordingUi();
-      try {
-        if (recording.agentPromise) await recording.agentPromise.catch(() => {});
-        const capture = browserProcessCapture(recording);
-        stopBrowserProcessCapture(recording);
-        recording.eventCount = Array.isArray(capture.events) ? capture.events.length : 0;
-        if (recording.modelConflict) throw Object.assign(new Error("Das Diagramm wurde während der Aufnahme manuell verändert."), { code: "editor_changed_during_recording" });
-        if (recording.eventCount < 2) {
-          processRecording = null;
-          updateProcessRecordingUi();
-          await modalAlert("Es wurden keine unterschiedlichen stabilen Arbeitsschritte erkannt. Das Diagramm blieb unverändert und es wurde keine Prozessanalyse ausgeführt.", "Keine Aktivität erkannt");
-          return;
-        }
-        if (recording.eventCount >= 2 && recording.lastAnalyzedEventCount !== recording.eventCount) {
-          await analyzeProcessCapture(capture, recording, true);
-        }
-        if (!recording.applied) throw new Error("Der Agent konnte aus der Aufnahme noch keinen Ablauf bilden.");
-        commitProcessRecordingHistory(recording);
-        processRecording = null;
-        updateProcessRecordingUi();
-      } catch (error) {
-        const hasStableResult = recording.applied && !recording.modelConflict;
-        if (hasStableResult) commitProcessRecordingHistory(recording);
-        else if (recording.applied) restoreHistorySnapshot(recording.originalHistorySnapshot);
-        stopBrowserProcessCapture(recording);
-        processRecording = null;
-        updateProcessRecordingUi();
-        await modalAlert(
-          hasStableResult
-            ? "Die letzte vollständig verstandene Fassung wurde übernommen; der abschließende Agentenlauf ist fehlgeschlagen."
-            : processAnalysisFailureMessage(error),
-          hasStableResult ? "Aufnahme abgeschlossen" : "Analyse fehlgeschlagen"
-        );
-      }
-    }
-
     layerBackEl.addEventListener("mousedown", evt => evt.stopPropagation());
     layerBackEl.addEventListener("pointerdown", evt => {
       evt.stopPropagation();
@@ -11302,8 +10732,8 @@
     }
 
     function updateHistoryButtons() {
-      const canUndo = !processRecording && Boolean(undoStack.length);
-      const canRedo = !processRecording && Boolean(redoStack.length);
+      const canUndo = Boolean(undoStack.length);
+      const canRedo = Boolean(redoStack.length);
       if (btnCanvasUndo) btnCanvasUndo.disabled = !canUndo;
       if (btnCanvasRedo) btnCanvasRedo.disabled = !canRedo;
     }
@@ -15372,7 +14802,7 @@
       const ids = selectedNodeIdList();
       const edges = selectedEdgeIdList();
       const visible = ids.length > 0 || edges.length > 0;
-      const selectionEnabled = visible && !processRecording;
+      const selectionEnabled = visible;
       const compositeState = selectedCompositeStateForDegroup();
       const collapseLabel = compositeState ? "Gruppe auflösen" : "Gruppieren";
       const parts = [];
@@ -27673,11 +27103,10 @@
     });
 
     window.addEventListener("beforeunload", () => {
-      if (processRecording) stopBrowserProcessCapture(processRecording);
       persistModel(false);
     });
 
-    function loadEditorModel(nextModel, shouldFit = true, options = {}) {
+    function loadEditorModel(nextModel, shouldFit = true) {
       cancelQueuedCanvasMove();
       model = normalizeModel(nextModel);
       selected = null;
@@ -27721,14 +27150,8 @@
         }
       }
       draw();
-      if (options.processRecording === true) {
-        historyCurrent = editorSnapshot();
-        persistModel();
-        updateHistoryButtons();
-      } else {
-        initHistory();
-        persistModel();
-      }
+      initHistory();
+      persistModel();
       syncToApp(true);
     }
 
@@ -27857,7 +27280,6 @@
     fileLoadEl.onchange = () => loadBlueprintFile(fileLoadEl.files?.[0]);
     btnCanvasUndo.onclick = undoModel;
     btnCanvasRedo.onclick = redoModel;
-    btnProcessRecord.onclick = () => processRecording ? void stopProcessRecording() : void startProcessRecording();
     btnMobileRuntimeFollow.onclick = () => {
       mobileRuntimeFollow = !mobileRuntimeFollow;
       updateMobileRuntimeFollowButton();

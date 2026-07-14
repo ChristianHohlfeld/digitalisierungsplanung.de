@@ -202,35 +202,6 @@ npm run server:smoke:wss:prod
 npm run server:smoke:emit:prod
 ```
 
-## Ablaufaufnahme
-
-Der Aufnahmebutton erzeugt aus beobachteten Arbeitsschritten direkt States und
-Transitionen in derselben Arbeitsfläche. Stop schließt die Aufnahme als genau
-einen Undo-Schritt ab; Abbruch oder ein Fehler ohne gültiges Agentenergebnis
-lassen den vorherigen Stand unverändert.
-
-Die Aufnahme läuft installationsfrei über die Bildschirmfreigabe des Browsers.
-Für tabübergreifende Abläufe wählt der Nutzer das ganze Browserfenster oder den
-Bildschirm. Zustand erkennt lokal nur stabile visuelle Änderungen. Nach fünf
-Sekunden Stillstand pausieren Erfassung und Agentenaufrufe automatisch; die
-nächste Bildänderung setzt die Aufnahme fort. Sichtbare Inhalte der Freigabe
-werden zur Analyse übertragen, aber weder im Browser noch auf dem Server als
-Aufnahme persistiert. Pro Sitzung sind höchstens zwölf Live-Analysen plus ein
-abschließender Lauf erlaubt.
-
-Für den produktiven Agenten wird auf dem Server eine der beiden Konfigurationen
-in `/etc/digitalisierungsplanung-realtime.env` gesetzt:
-
-```text
-PROCESS_RECORDER_OPENAI_API_KEY=<server-secret>
-# oder
-PROCESS_RECORDER_ANALYZER_URL=https://<eigener-agent>/analyze
-PROCESS_RECORDER_ANALYZER_TOKEN=<server-secret>
-```
-
-Der Schlüssel bleibt serverseitig. Der Recorder ist eine Autorenoberfläche des
-Editors und wird nicht in Preview oder HTML-Export eingebaut.
-
 ## API und MCP
 
 Die Schnittstellen bearbeiten dasselbe Modell wie das Werkzeug. Sie klicken nicht die Oberfläche und halten keinen zweiten Speicher.
