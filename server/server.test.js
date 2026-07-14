@@ -330,7 +330,7 @@ test("exposes one shared frontend and backend release without caching it", async
 
 test("returns not_found for non-core realtime routes", async () => {
   await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
-    for (const path of ["/", "/catalog", "/schema", "/api", "/process/contract", "/process/analyze"]) {
+    for (const path of ["/admin", "/catalog", "/schema", "/api", "/process/contract", "/process/analyze"]) {
       const response = await fetch(httpUrl(realtime, path), { headers: { Origin: ORIGIN } });
       assert.equal(response.status, 404, `${path} should stay out of the lean realtime API`);
       assert.deepEqual(await response.json(), { error: "not_found" });
@@ -345,11 +345,49 @@ test("returns not_found for non-core realtime routes", async () => {
   });
 });
 
+test("serves one central admin hub from the server route index", async () => {
+  const release = {
+    id: "release-60",
+    sequence: 60,
+    builtAt: "2026-07-14T10:00:00.000Z",
+    sourceCommit: "abcdef1",
+    deployedCommit: "abcdef1"
+  };
+  await withRealtimeServer({ roomSecret: SECRET, release }, async realtime => {
+    for (const path of ["/", "/admin.html"]) {
+      const response = await fetch(httpUrl(realtime, path));
+      assert.equal(response.status, 200);
+      const html = await response.text();
+      assert.match(html, /Realtime Admin/);
+      assert.match(html, /fetch\("\/admin\/routes"/);
+      assert.doesNotMatch(html, /REALTIME_ADMIN_SECRET|admin-secret|emit-secret/);
+      assert.doesNotMatch(html, /events-admin\.html.*presets-admin\.html.*console\.html/s);
+    }
+
+    const indexResponse = await fetch(httpUrl(realtime, "/admin/routes"), {
+      headers: { Origin: ORIGIN }
+    });
+    assert.equal(indexResponse.status, 200);
+    assert.equal(indexResponse.headers.get("access-control-allow-origin"), ORIGIN);
+    const index = await indexResponse.json();
+    assert.equal(index.schemaVersion, 1);
+    assert.equal(index.release.releaseId, "release-60");
+    assert.deepEqual(index.tools.map(tool => tool.id), ["events", "presets", "console", "contract", "system"]);
+    assert.ok(index.endpoints.some(endpoint => endpoint.path === "/admin.html"));
+    assert.ok(index.endpoints.some(endpoint => endpoint.path === "/admin/routes"));
+    assert.ok(index.endpoints.some(endpoint => endpoint.method === "WSS" && endpoint.path === "/ws"));
+    assert.ok(index.endpoints.some(endpoint => endpoint.method === "POST" && endpoint.path === "/emit"));
+  });
+});
+
 test("nginx proxies only lean public realtime routes", () => {
   const nginx = fs.readFileSync(NGINX_CONFIG_PATH, "utf8");
   const serverSource = fs.readFileSync(path.join(__dirname, "server.js"), "utf8");
   const normalized = nginx.replace(/\\\./g, ".");
   for (const route of [
+    "location = /",
+    "admin.html",
+    "/admin/routes",
     "console.html",
     "events-admin.html",
     "/events-admin/catalog",

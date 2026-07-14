@@ -9,6 +9,7 @@ GitHub Pages, not by this server deploy.
 
 - Public endpoint: `wss://realtime.digitalisierungsplanung.de/ws`
 - Token endpoint: `https://realtime.digitalisierungsplanung.de/token`
+- Admin hub: `https://realtime.digitalisierungsplanung.de/`
 - Test console: `https://realtime.digitalisierungsplanung.de/console.html`
 - Event designer: `https://realtime.digitalisierungsplanung.de/events-admin.html`
 - Preset designer: `https://realtime.digitalisierungsplanung.de/presets-admin.html`
@@ -67,6 +68,8 @@ The event catalog is the server-side source of truth for offered realtime events
 - `server/event-catalog.json`: single contract/catalog source in Git.
 - `server/preset-catalog.js`: standard preset definitions and contract materialization.
 - `server/preset-library.json`: single managed source for preset categories, package metadata, and custom presets.
+- `/` and `/admin.html`: central admin hub for human-facing server tools.
+- `/admin/routes`: one JSON route index consumed by the admin hub.
 - `/contract`: product contract for frontend trigger types, value types, datasets, connector sources, preset packages, subscription plans, and collision-free state contribution paths.
 - `/events`: current event and connector definitions.
 - `/events/contract`: lower-level realtime catalog contract for event keys, detail types, and contribution paths.

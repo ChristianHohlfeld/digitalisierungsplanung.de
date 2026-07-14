@@ -14,6 +14,7 @@ Der wichtigste Gedanke: Nur verstandene Prozesse lassen sich sauber digitalisier
 | Werkzeug öffnen | `https://digitalisierungsplanung.de/state.html` |
 | Beispiel im Werkzeug laden | `https://digitalisierungsplanung.de/state.html?demo=zustand` |
 | Werkzeug mit Echtzeit-Raum | `https://digitalisierungsplanung.de/state.html?room=<raum-id>` |
+| Realtime Admin Hub | `https://realtime.digitalisierungsplanung.de/` |
 | Echtzeit-Konsole | `https://realtime.digitalisierungsplanung.de/console.html?room=<raum-id>` |
 | Echtzeit-Event-Designer | `https://realtime.digitalisierungsplanung.de/events-admin.html` |
 | Ereigniskatalog | `https://realtime.digitalisierungsplanung.de/events` |
@@ -101,6 +102,9 @@ Der Server in [`server/`](server/) ist nur Transport. Er speichert keine fachlic
 
 | Route | Zweck |
 | --- | --- |
+| `GET /` | zentraler Realtime Admin Hub |
+| `GET /admin.html` | gleicher Admin Hub als explizite Route |
+| `GET /admin/routes` | JSON-Index aller sichtbaren Realtime-Tools und Endpunkte |
 | `GET /healthz` | Gesundheitsprüfung |
 | `GET /version` | gemeinsame Frontend-/Backend-Release-ID |
 | `GET /contract` | zentraler Product Contract: Trigger-Typen, Datentypen, Datasets, Quellen, Presets, Preset-Pakete, Abo-Pläne und State-Beiträge |

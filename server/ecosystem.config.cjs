@@ -20,6 +20,8 @@ module.exports = {
         REALTIME_HOST: "127.0.0.1",
         REALTIME_PORT: "8788",
         REALTIME_PATH: "/ws",
+        REALTIME_ADMIN_PATH: "/admin.html",
+        REALTIME_ADMIN_ROUTES_PATH: "/admin/routes",
         REALTIME_ENV_FILE: envFile,
         REALTIME_ALLOWED_ORIGINS: "https://digitalisierungsplanung.de",
         REALTIME_EVENT_CATALOG_PATH: process.env.REALTIME_EVENT_CATALOG_PATH || `${appDir}/server/event-catalog.json`,

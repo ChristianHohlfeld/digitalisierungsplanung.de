@@ -9,6 +9,7 @@ const { URL } = require("node:url");
 const { WebSocketServer, WebSocket } = require("ws");
 const eventCatalog = require("./event-catalog");
 const presetLibrary = require("./preset-library");
+const adminTools = require("./admin-tools");
 const productContract = require("./product-contract");
 const { loadReleaseInfo, parseReleaseSource } = require("./release");
 
@@ -19,6 +20,8 @@ const DEFAULT_EVENTS_PATH = "/events";
 const DEFAULT_EVENTS_CONTRACT_PATH = "/events/contract";
 const DEFAULT_PRODUCT_CONTRACT_PATH = "/contract";
 const DEFAULT_EMIT_PATH = "/emit";
+const DEFAULT_ADMIN_PATH = "/admin.html";
+const DEFAULT_ADMIN_ROUTES_PATH = "/admin/routes";
 const DEFAULT_CONSOLE_PATH = "/console.html";
 const DEFAULT_EVENTS_ADMIN_PATH = "/events-admin.html";
 const DEFAULT_EVENTS_ADMIN_CATALOG_PATH = "/events-admin/catalog";
@@ -312,6 +315,8 @@ function loadConfig(options = {}) {
     eventsContractPath: options.eventsContractPath || env.REALTIME_EVENTS_CONTRACT_PATH || DEFAULT_EVENTS_CONTRACT_PATH,
     productContractPath: options.productContractPath || env.REALTIME_PRODUCT_CONTRACT_PATH || DEFAULT_PRODUCT_CONTRACT_PATH,
     emitPath: options.emitPath || env.REALTIME_EMIT_PATH || DEFAULT_EMIT_PATH,
+    adminPath: options.adminPath || env.REALTIME_ADMIN_PATH || DEFAULT_ADMIN_PATH,
+    adminRoutesPath: options.adminRoutesPath || env.REALTIME_ADMIN_ROUTES_PATH || DEFAULT_ADMIN_ROUTES_PATH,
     consolePath: options.consolePath || env.REALTIME_CONSOLE_PATH || DEFAULT_CONSOLE_PATH,
     eventsAdminPath: options.eventsAdminPath || env.REALTIME_EVENTS_ADMIN_PATH || DEFAULT_EVENTS_ADMIN_PATH,
     eventsAdminCatalogPath: options.eventsAdminCatalogPath || env.REALTIME_EVENTS_ADMIN_CATALOG_PATH || DEFAULT_EVENTS_ADMIN_CATALOG_PATH,
@@ -320,6 +325,7 @@ function loadConfig(options = {}) {
     presetsAdminParsePath: options.presetsAdminParsePath || env.REALTIME_PRESETS_ADMIN_PARSE_PATH || DEFAULT_PRESETS_ADMIN_PARSE_PATH,
     versionPath: options.versionPath || env.REALTIME_VERSION_PATH || DEFAULT_VERSION_PATH,
     eventCatalogPath: path.resolve(options.eventCatalogPath || env.REALTIME_EVENT_CATALOG_PATH || eventCatalog.DEFAULT_EVENT_CATALOG_PATH),
+    adminHtmlPath: path.resolve(options.adminHtmlPath || env.REALTIME_ADMIN_HTML_PATH || path.join(__dirname, "admin.html")),
     eventAdminHtmlPath: path.resolve(options.eventAdminHtmlPath || env.REALTIME_EVENT_ADMIN_HTML_PATH || path.join(__dirname, "events-admin.html")),
     presetLibraryPath,
     presetAdminHtmlPath: path.resolve(options.presetAdminHtmlPath || env.REALTIME_PRESET_ADMIN_HTML_PATH || path.join(__dirname, "presets-admin.html")),
@@ -838,6 +844,19 @@ function createRealtimeServer(options = {}) {
     if (request.method === "GET" && url.pathname === "/healthz") {
       const clients = [...rooms.values()].reduce((sum, room) => sum + room.clients.size, 0);
       writeJson(response, 200, { ...releaseResponse(config), rooms: rooms.size, clients });
+      return;
+    }
+    if (request.method === "GET" && (url.pathname === "/" || url.pathname === config.adminPath)) {
+      writeHtml(response, 200, fs.readFileSync(config.adminHtmlPath, "utf8"));
+      return;
+    }
+    if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.adminRoutesPath) {
+      const prepared = prepareCatalogResponse(request, response);
+      if (prepared.done) return;
+      writeJson(response, 200, {
+        ...adminTools.adminRouteIndex(config),
+        release: releaseResponse(config)
+      }, prepared.headers);
       return;
     }
     if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.versionPath) {
