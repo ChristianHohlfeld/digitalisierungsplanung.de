@@ -51,34 +51,17 @@ function cleanNumber(value, min, max, fallback = 0) {
   return Number.isFinite(number) ? Math.min(max, Math.max(min, number)) : fallback;
 }
 
-function cleanControl(value) {
-  if (!plainObject(value)) return null;
-  return {
-    name: cleanText(value.name, 140),
-    type: cleanText(value.type, 80),
-    automationId: cleanText(value.automationId, 100),
-    password: Boolean(value.password)
-  };
-}
-
 function cleanEvent(value, index) {
   if (!plainObject(value)) throw Object.assign(new Error("invalid_capture_event"), { status: 400, code: "invalid_capture_event" });
-  const allowedKinds = new Set(["application", "click", "input", "key", "scroll"]);
   const kind = cleanText(value.kind, 24);
-  if (!allowedKinds.has(kind)) throw Object.assign(new Error("invalid_capture_event_kind"), { status: 400, code: "invalid_capture_event_kind" });
-  const event = {
+  if (kind !== "visual") throw Object.assign(new Error("invalid_capture_event_kind"), { status: 400, code: "invalid_capture_event_kind" });
+  return {
     seq: Math.round(cleanNumber(value.seq, 0, Number.MAX_SAFE_INTEGER, index + 1)),
     at: Math.round(cleanNumber(value.at, 0, Number.MAX_SAFE_INTEGER, 0)),
     kind,
     app: cleanText(value.app, 100),
-    window: cleanText(value.window, 180),
-    control: cleanControl(value.control)
+    window: cleanText(value.window, 180)
   };
-  if (kind === "click") event.button = ["left", "right", "middle"].includes(value.button) ? value.button : "left";
-  if (kind === "input") event.keyCount = Math.round(cleanNumber(value.keyCount, 0, 10000, 1));
-  if (kind === "key") event.key = ["Enter", "Tab", "Escape", "Space", "ArrowLeft", "ArrowUp", "ArrowRight", "ArrowDown", "PageUp", "PageDown", "Home", "End"].includes(value.key) ? value.key : "";
-  if (kind === "scroll") event.direction = value.direction === "up" ? "up" : "down";
-  return event;
 }
 
 function cleanFrame(value) {
@@ -263,7 +246,7 @@ function createProcessAnalyzer(options = {}) {
       if (typeof fetchImpl !== "function") throw Object.assign(new Error("fetch_unavailable"), { status: 503, code: "fetch_unavailable" });
       const content = [{
         type: "input_text",
-        text: "Der folgende redigierte Desktop-Ereignisstrom beschreibt genau einen beobachteten Arbeitsablauf. Erzeuge eine knappe lineare Prozessspur. Jeder State beschreibt den fachlich sichtbaren Arbeitsschritt oder Bildschirmzustand; actionToNext benennt die Benutzeraktion zum nächsten State. Erfinde keine Verzweigungen, Datenwerte, Systeme oder Schritte. Fasse reine Scroll- und Tippserien zusammen. Ignoriere die Bedienung oder Beobachtung des Zustand-Editors und seiner Aufnahme-Steuerung. Konkrete personenbezogene Werte dürfen nicht ausgegeben werden.\n\n" + eventPrompt(capture)
+        text: "Die folgende browserseitig aufgenommene Folge stabiler Bildschirmzustände beschreibt genau einen beobachteten Arbeitsablauf. Erzeuge eine knappe lineare Prozessspur. Jeder State beschreibt ausschließlich einen fachlich sichtbaren Arbeitsschritt oder Bildschirmzustand. Benenne actionToNext nur, wenn die nächste Aktion aus den aufeinanderfolgenden Bildern nachvollziehbar ist; verwende sonst Weiter. Erfinde keine Verzweigungen, Datenwerte, Systeme, Klicks oder Schritte. Ignoriere die Bedienung oder Beobachtung des Zustand-Editors und seiner Aufnahme-Steuerung. Konkrete personenbezogene Werte dürfen nicht ausgegeben werden.\n\n" + eventPrompt(capture)
       }];
       const visualFrames = capture.frames.length <= 16
         ? capture.frames

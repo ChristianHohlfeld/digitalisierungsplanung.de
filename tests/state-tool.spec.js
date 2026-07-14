@@ -66,6 +66,45 @@ function appFrame(page) {
   return page.frameLocator("#appFrame");
 }
 
+async function mockBrowserDisplayCapture(page) {
+  await page.addInitScript(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 640;
+    canvas.height = 360;
+    const context = canvas.getContext("2d");
+    context.fillStyle = "#991b1b";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = "#ffffff";
+    context.font = "32px sans-serif";
+    context.fillText("Posteingang", 40, 80);
+    const stream = canvas.captureStream(10);
+    window.__processCaptureCanvas = canvas;
+    window.__processCaptureStream = stream;
+    const mediaDevices = navigator.mediaDevices || {};
+    Object.defineProperty(mediaDevices, "getDisplayMedia", { configurable: true, value: async () => stream });
+    if (!navigator.mediaDevices) Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: mediaDevices });
+  });
+}
+
+async function paintBrowserDisplay(page, color, label) {
+  await page.evaluate(({ color, label }) => {
+    const canvas = window.__processCaptureCanvas;
+    const context = canvas.getContext("2d");
+    context.fillStyle = color;
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = "#ffffff";
+    context.font = "32px sans-serif";
+    context.fillText(label, 40, 80);
+    window.__processCaptureStream.getVideoTracks()[0]?.requestFrame?.();
+    if (processRecording?.committedSample) {
+      const changed = new Uint8Array(processRecording.committedSample.length);
+      changed.fill(processRecording.committedSample[0] > 127 ? 0 : 255);
+      processRecording.committedSample = changed;
+      browserProcessFrameTick(processRecording);
+    }
+  }, { color, label });
+}
+
 function productContractForTest(options = {}) {
   const contract = productContractResponse(DEFAULT_EVENT_CATALOG);
   const presets = Array.isArray(options.presets) ? options.presets : [];
@@ -14479,19 +14518,34 @@ test.describe("State Blueprint tool", () => {
     expect(definition.model.transitions).toEqual([]);
   });
 
-  test("draws an observed PC process live and commits the full recording as one undo step", async ({ page }) => {
-    const capture = {
-      sessionId: "desktop-session",
-      startedAt: Date.now(),
-      endedAt: 0,
-      events: [
-        { seq: 1, at: 1, kind: "application", app: "outlook", window: "Posteingang" },
-        { seq: 2, at: 2, kind: "click", app: "outlook", window: "Posteingang", button: "left", control: { name: "Rechnung öffnen", type: "Button", automationId: "open", password: false } },
-        { seq: 3, at: 3, kind: "application", app: "erp", window: "Rechnung prüfen" },
-        { seq: 4, at: 4, kind: "input", app: "erp", window: "Rechnung prüfen", keyCount: 8, control: { name: "Textfeld", type: "Edit", automationId: "comment", password: false } }
-      ],
-      frames: []
-    };
+  test("pauses an unchanged browser recording without calling the agent", async ({ page }) => {
+    let analyzeCalls = 0;
+    await mockBrowserDisplayCapture(page);
+    await page.route("**/process/contract", route => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, enabled: true, capture: { analysisMinIntervalMs: 1000, idlePauseMs: 2000, stabilityMs: 300 } })
+    }));
+    await page.route("**/process/analyze", route => {
+      analyzeCalls += 1;
+      return route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: "unexpected_analysis" }) });
+    });
+
+    await openTool(page);
+    const before = await page.evaluate(() => modelSnapshot());
+    await page.locator("#btnProcessRecord").click();
+    await page.getByRole("button", { name: "Fenster auswählen" }).click();
+    await expect(page.locator("#processRecordingStatusText")).toContainText("Pausiert", { timeout: 5000 });
+    expect(analyzeCalls).toBe(0);
+
+    await page.locator("#btnProcessRecord").click();
+    await expect(page.getByRole("heading", { name: "Keine Aktivität erkannt" })).toBeVisible();
+    await page.getByRole("button", { name: "OK" }).click();
+    expect(analyzeCalls).toBe(0);
+    expect(await page.evaluate(() => modelSnapshot())).toBe(before);
+  });
+
+  test("draws a tab-spanning browser process, pauses on idle, and resumes without idle agent cost", async ({ page }) => {
     const recordedModel = modelFromTrace({
       title: "Rechnung prüfen",
       steps: [
@@ -14500,44 +14554,21 @@ test.describe("State Blueprint tool", () => {
         { title: "Freigegeben", description: "Die Prüfung ist abgeschlossen.", actionToNext: "" }
       ]
     }).model;
-    let companionRecording = false;
     let analyzeCalls = 0;
     let analyzeBody = null;
 
+    await mockBrowserDisplayCapture(page);
     await page.route("**/process/contract", route => route.fulfill({
       status: 200,
       contentType: "application/json",
       headers: { "cache-control": "no-store" },
-      body: JSON.stringify({ ok: true, enabled: true, contract: "zustand-process-recorder-v1" })
+      body: JSON.stringify({
+        ok: true,
+        enabled: true,
+        contract: "zustand-process-recorder-v1",
+        capture: { maxEvents: 4000, maxFrames: 36, maxLiveAnalyses: 2, analysisMinIntervalMs: 1000, idlePauseMs: 2000, stabilityMs: 300 }
+      })
     }));
-    await page.route("http://127.0.0.1:43127/v1/**", async route => {
-      const url = new URL(route.request().url());
-      if (url.pathname.endsWith("/health")) {
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          headers: { "cache-control": "no-store" },
-          body: JSON.stringify({ ok: true, recording: companionRecording, ready: false, eventCount: companionRecording ? capture.events.length : 0, frameCount: 0 })
-        });
-        return;
-      }
-      if (url.pathname.endsWith("/start")) {
-        companionRecording = true;
-        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, recording: true, sessionId: capture.sessionId, startedAt: capture.startedAt }) });
-        return;
-      }
-      if (url.pathname.endsWith("/capture")) {
-        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(capture) });
-        return;
-      }
-      if (url.pathname.endsWith("/stop")) {
-        companionRecording = false;
-        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ...capture, endedAt: Date.now() }) });
-        return;
-      }
-      companionRecording = false;
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
-    });
     await page.route("**/process/analyze", async route => {
       analyzeCalls += 1;
       analyzeBody = route.request().postDataJSON();
@@ -14552,21 +14583,37 @@ test.describe("State Blueprint tool", () => {
     await openTool(page);
     await page.locator("#btnProcessRecord").click();
     await expect(page.getByRole("heading", { name: "Ablauf aufnehmen" })).toBeVisible();
-    await page.getByRole("button", { name: "Aufnahme starten" }).click();
+    await page.getByRole("button", { name: "Fenster auswählen" }).click();
     await expect(page.locator("#btnProcessRecord")).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator("#processRecordingStatus")).toBeVisible();
+    await expect.poll(() => page.evaluate(() => processRecording?.events?.length || 0), { timeout: 5000 }).toBe(1);
 
+    await paintBrowserDisplay(page, "#1d4ed8", "Rechnung prüfen");
     await expect(page.locator('[data-id="posteingang"]')).toBeVisible({ timeout: 15000 });
     await expect(page.locator('[data-id="freigegeben"]')).toBeVisible();
     await expect(page.locator("#btnProcessRecord")).toHaveAttribute("aria-pressed", "true");
     expect(analyzeCalls).toBe(1);
-    expect(analyzeBody.events.map(item => item.kind)).toEqual(["application", "click", "application", "input"]);
+    expect(analyzeBody.events.every(item => item.kind === "visual")).toBe(true);
+    expect(analyzeBody.frames.length).toBeGreaterThanOrEqual(2);
     expect(JSON.stringify(analyzeBody)).not.toContain("value");
+
+    await expect(page.locator("#processRecordingStatusText")).toContainText("Pausiert", { timeout: 5000 });
+    await page.waitForTimeout(2200);
+    expect(analyzeCalls).toBe(1);
+
+    await paintBrowserDisplay(page, "#166534", "Freigegeben");
+    await expect.poll(() => analyzeCalls, { timeout: 8000 }).toBe(2);
+
+    await paintBrowserDisplay(page, "#854d0e", "Archiviert");
+    await expect.poll(() => page.evaluate(() => processRecording?.events?.length || 0), { timeout: 5000 }).toBeGreaterThanOrEqual(4);
+    await page.waitForTimeout(1500);
+    expect(analyzeCalls).toBe(2);
 
     await page.locator("#btnProcessRecord").click();
     await expect(page.locator("#btnProcessRecord")).toHaveAttribute("aria-pressed", "false");
     await expect(page.locator("#processRecordingStatus")).toBeHidden();
     await expect(page.locator("#btnCanvasUndo")).toBeEnabled();
+    expect(analyzeCalls).toBe(3);
 
     await page.locator("#btnCanvasUndo").click();
     await expect(page.locator('[data-id="auth_start"]')).toBeVisible();
@@ -14575,12 +14622,12 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator('[data-id="posteingang"]')).toBeVisible();
     await expect(appFrame(page).locator("#statePill")).toHaveText("posteingang");
     const exportedHtml = await page.evaluate(() => buildStandaloneAppHtml(GENERATED_APP_HTML, definitionPayload()));
-    expect(exportedHtml).not.toContain("43127");
     expect(exportedHtml).not.toContain("btnProcessRecord");
-    expect(exportedHtml).not.toContain("PROCESS_COMPANION_URL");
+    expect(exportedHtml).not.toContain("getDisplayMedia");
     const editorHtml = fs.readFileSync("state.html", "utf8");
-    expect(editorHtml).not.toContain("getDisplayMedia");
-    expect(editorHtml).not.toContain("startBrowserProcessRecording");
+    expect(editorHtml).toContain("getDisplayMedia");
+    expect(editorHtml).toContain('surfaceSwitching: "include"');
+    expect(editorHtml).not.toContain("43127");
     expect(editorHtml).not.toContain("btnMobileProcessRecord");
     expect(editorHtml).not.toContain("btnMobileActionUndo");
     expect(editorHtml).not.toContain("btnMobileActionRedo");
@@ -14590,41 +14637,23 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#map")).toBeVisible();
   });
 
-  test("leaves model and history unchanged when PC process analysis fails", async ({ page }) => {
-    const capture = {
-      sessionId: "failed-session",
-      startedAt: Date.now(),
-      endedAt: Date.now() + 1,
-      events: [
-        { seq: 1, at: 1, kind: "application", app: "erp", window: "Anfrage" },
-        { seq: 2, at: 2, kind: "click", app: "erp", window: "Anfrage", button: "left", control: { name: "Prüfen", type: "Button", password: false } }
-      ],
-      frames: []
-    };
-    let recording = false;
-    await page.route("**/process/contract", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, enabled: true }) }));
-    await page.route("http://127.0.0.1:43127/v1/**", async route => {
-      const path = new URL(route.request().url()).pathname;
-      if (path.endsWith("/health")) {
-        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, recording, ready: false, eventCount: 0 }) });
-      } else if (path.endsWith("/start")) {
-        recording = true;
-        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, recording: true, sessionId: capture.sessionId, startedAt: capture.startedAt }) });
-      } else if (path.endsWith("/stop")) {
-        recording = false;
-        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(capture) });
-      } else {
-        recording = false;
-        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
-      }
-    });
+  test("leaves model and history unchanged when browser process analysis fails", async ({ page }) => {
+    await mockBrowserDisplayCapture(page);
+    await page.route("**/process/contract", route => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, enabled: true, capture: { analysisMinIntervalMs: 1000, idlePauseMs: 2000, stabilityMs: 300 } })
+    }));
     await page.route("**/process/analyze", route => route.fulfill({ status: 502, contentType: "application/json", body: JSON.stringify({ error: "process_analyzer_failed" }) }));
 
     await openTool(page);
     const before = await page.evaluate(() => modelSnapshot());
     await expect(page.locator("#btnCanvasUndo")).toBeDisabled();
     await page.locator("#btnProcessRecord").click();
-    await page.getByRole("button", { name: "Aufnahme starten" }).click();
+    await page.getByRole("button", { name: "Fenster auswählen" }).click();
+    await expect.poll(() => page.evaluate(() => processRecording?.events?.length || 0), { timeout: 5000 }).toBe(1);
+    await paintBrowserDisplay(page, "#1d4ed8", "Anfrage geprüft");
+    await expect.poll(() => page.evaluate(() => processRecording?.events?.length || 0), { timeout: 5000 }).toBeGreaterThanOrEqual(2);
     await page.locator("#btnProcessRecord").click();
     await expect(page.getByRole("heading", { name: "Aufnahme abgeschlossen" })).toBeVisible();
     await page.getByRole("button", { name: "OK" }).click();

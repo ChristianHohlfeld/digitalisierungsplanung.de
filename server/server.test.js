@@ -764,8 +764,10 @@ test("serves stateless process-recorder capability and a validated no-store mode
     assert.match(contract.headers.get("cache-control"), /no-store/);
     const capability = await contract.json();
     assert.equal(capability.enabled, true);
-    assert.deepEqual(capability.capture.sources, ["windows-companion"]);
+    assert.deepEqual(capability.capture.sources, ["browser-display"]);
     assert.equal(capability.capture.persisted, false);
+    assert.equal(capability.capture.maxLiveAnalyses, 12);
+    assert.equal(capability.capture.idlePauseMs, 5000);
 
     const response = await fetch(httpUrl(realtime, "/process/analyze"), {
       method: "POST",
@@ -775,8 +777,8 @@ test("serves stateless process-recorder capability and a validated no-store mode
         startedAt: 1,
         endedAt: 2,
         events: [
-          { seq: 1, at: 1, kind: "application", app: "browser", window: "Anfrage" },
-          { seq: 2, at: 2, kind: "click", app: "browser", window: "Anfrage", button: "left", control: { name: "Prüfen", type: "Button", password: false } }
+          { seq: 1, at: 1, kind: "visual", app: "Freigegebenes Fenster", window: "Anfrage" },
+          { seq: 2, at: 2, kind: "visual", app: "Freigegebenes Fenster", window: "Anfrage geprüft" }
         ],
         frames: []
       })
@@ -812,7 +814,7 @@ test("bounds concurrent process agents and releases the slot after completion", 
     sessionId: "session",
     startedAt: 1,
     endedAt: 2,
-    events: [{ seq: 1, at: 1, kind: "application", app: "browser", window: "Start" }],
+    events: [{ seq: 1, at: 1, kind: "visual", app: "Freigegebenes Fenster", window: "Start" }],
     frames: []
   };
   await withRealtimeServer({

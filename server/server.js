@@ -861,11 +861,15 @@ function createRealtimeServer(options = {}) {
         provider: processAnalyzer.provider,
         model: processAnalyzer.model,
         capture: {
-          sources: ["windows-companion"],
-          values: "redacted",
+          sources: ["browser-display"],
+          values: "visible-screen-content",
           persisted: false,
           maxEvents: MAX_PROCESS_EVENTS,
-          maxFrames: MAX_PROCESS_FRAMES
+          maxFrames: MAX_PROCESS_FRAMES,
+          maxLiveAnalyses: 12,
+          analysisMinIntervalMs: 15000,
+          idlePauseMs: 5000,
+          stabilityMs: 1200
         }
       }, prepared.headers);
       return;

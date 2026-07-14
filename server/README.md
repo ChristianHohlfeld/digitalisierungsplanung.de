@@ -24,11 +24,11 @@ Full API reference: [`../docs/realtime-api.md`](../docs/realtime-api.md)
 
 ## Process Recorder Agent
 
-`/process/analyze` accepts one redacted in-memory capture from the Windows
-companion and returns one model that has already passed the shared MCP model
-validator. The route is stateless: it stores neither captures, traces, models,
-nor sessions. Every response is `no-store`; Nginx streams the request without
-proxy buffering.
+`/process/analyze` accepts one in-memory sequence of stable visual changes from
+the browser's explicit screen share and returns one model that has already
+passed the shared MCP model validator. The route is stateless: it stores
+neither captures, traces, models, nor sessions. Every response is `no-store`;
+Nginx streams the request without proxy buffering.
 
 Choose exactly one server-side agent configuration in
 `/etc/digitalisierungsplanung-realtime.env`:

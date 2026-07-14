@@ -16,29 +16,33 @@ function capture(overrides = {}) {
     startedAt: 1000,
     endedAt: 2000,
     events: [
-      { seq: 1, at: 1000, kind: "application", app: "outlook", window: "Posteingang", value: "must-not-survive" },
-      { seq: 2, at: 1200, kind: "click", app: "outlook", window: "Posteingang", button: "left", control: { name: "Rechnung öffnen", type: "Button", automationId: "open", password: false, value: "secret" } },
-      { seq: 3, at: 1500, kind: "input", app: "erp", window: "Rechnung", keyCount: 12, control: { name: "Textfeld", type: "Edit", automationId: "invoice", password: false } }
+      { seq: 1, at: 1000, kind: "visual", app: "Freigegebenes Fenster", window: "Posteingang", value: "must-not-survive" },
+      { seq: 2, at: 1200, kind: "visual", app: "Freigegebenes Fenster", window: "Rechnung geöffnet" },
+      { seq: 3, at: 1500, kind: "visual", app: "Freigegebenes Fenster", window: "Rechnung geprüft" }
     ],
     frames: [],
     ...overrides
   };
 }
 
-test("validates redacted desktop capture without accepting field values", () => {
+test("validates browser display changes without accepting extra event data", () => {
   const validated = validateCapture(capture());
   assert.equal(validated.events.length, 3);
   assert.equal(validated.events[0].value, undefined);
-  assert.equal(validated.events[1].control.value, undefined);
   assert.deepEqual(validated.events[2], {
     seq: 3,
     at: 1500,
-    kind: "input",
-    app: "erp",
-    window: "Rechnung",
-    control: { name: "Textfeld", type: "Edit", automationId: "invoice", password: false },
-    keyCount: 12
+    kind: "visual",
+    app: "Freigegebenes Fenster",
+    window: "Rechnung geprüft"
   });
+});
+
+test("rejects native event aliases outside the browser-display contract", () => {
+  assert.throws(
+    () => validateCapture(capture({ events: [{ seq: 1, at: 1, kind: "click", app: "legacy", window: "legacy" }] })),
+    error => error?.code === "invalid_capture_event_kind"
+  );
 });
 
 test("builds one deterministic contract-valid linear model from an observed trace", () => {
@@ -109,13 +113,11 @@ test("OpenAI agent disables response storage and uses strict structured output",
   assert.equal(request.init.cache, "no-store");
 });
 
-test("Windows companion is loopback-only, visible, redacted, and non-persistent", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "tools", "process-recorder", "ZustandRecorder.cs"), "utf8");
-  assert.match(source, /new TcpListener\(IPAddress\.Loopback, Port\)/);
-  assert.match(source, /new NotifyIcon/);
-  assert.match(source, /Access-Control-Allow-Private-Network: true/);
-  assert.match(source, /HTTP\/1\.1 100 Continue/);
-  assert.match(source, /password\) name = "Passwortfeld"/);
-  assert.doesNotMatch(source, /ToUnicode|GetKeyboardState|ValuePattern|Registry\.|File\.Write|FileStream/);
-  assert.equal(fs.existsSync(path.join(__dirname, "..", "assets", "Zustand-Prozessrecorder.zip")), true);
+test("browser display recording is install-free, tab-aware, idle-paused, and non-persistent", () => {
+  const editor = fs.readFileSync(path.join(__dirname, "..", "state.html"), "utf8");
+  assert.match(editor, /getDisplayMedia/);
+  assert.match(editor, /surfaceSwitching: "include"/);
+  assert.match(editor, /recording\.idle = true/);
+  assert.match(editor, /recording\.liveAnalysisCount >= recording\.maxLiveAnalyses/);
+  assert.doesNotMatch(editor, /127\.0\.0\.1:43127|Zustand-Recorder|Zustand-Prozessrecorder/);
 });
