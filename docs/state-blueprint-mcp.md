@@ -56,6 +56,16 @@ nicht über DOM-Klicks.
   Datenverbindungen, Boundary und Editor-Session.
 - Runtime-Daten werden nicht in Komponenten, HTML oder lokalen Stores versteckt.
 - UI-Aktionen feuern nur explizit gebundene Übergänge oder Bus-Ereignisse.
+- Jede explizite UI-Aktionsbindung besitzt eine vorhandene ausgehende
+  Transition-ID. Mehrere Controls dürfen dieselbe Transition auslösen, ohne
+  einen weiteren Trigger zu erzeugen. Nur ein `button`-Trigger rendert dafür ein
+  Control; andere Trigger erzeugen keinen Ersatzbutton und keine lokale
+  Fallback-Aktion.
+- Ein Aktionsslot besitzt entweder eine Transition-ID oder eine URL. Beides im
+  selben Slot ist ein Contract-Fehler.
+- Trigger bleiben an Transitionen. Pro effektiver Quelle darf jede konkrete
+  Triggeridentität nur einmal vorkommen; ein Timer ist einmal zulässig und
+  `auto` ist exklusiv. MCP-Aktionen mit einem Konflikt werden nicht angewendet.
 - `transition.set` ist Wirkung nach einem Ereignis, nicht die Quelle einer
   Schaltflächen-Bindung.
 - Realtime-Übergänge speichern `triggerType: "realtime"` plus konkrete

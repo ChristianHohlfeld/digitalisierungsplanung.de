@@ -1113,6 +1113,214 @@ test.describe("Core source contracts", () => {
     ]);
   });
 
+  test("formal definitions require owned and unambiguous transition action targets @smoke", async ({ page }) => {
+    await page.goto("/state.html");
+
+    const messages = await page.evaluate(() => {
+      const boundary = { entryId: "", exitId: "", entryDisabled: false, exitDisabled: false, title: "", note: "" };
+      const state = (id, components = [], data = {}) => ({
+        id,
+        title: id,
+        components,
+        data,
+        dataTypes: {},
+        dataSource: { url: "", target: `states.${id}.fetch`, select: "", timeoutMs: 8000, retries: 2 },
+        repeat: { path: "", as: "item", index: "i" },
+        dataWires: [],
+        subscriptions: [],
+        boundary,
+        parentId: null,
+        x: id === "start" ? 96 : 420,
+        y: 120
+      });
+      const baseDefinition = () => ({
+        kind: "state-blueprint-definition",
+        schemaVersion: 2,
+        app: "Zustand",
+        savedAt: new Date().toISOString(),
+        model: {
+          version: 2,
+          name: "Action bindings",
+          initial: "start",
+          boundary,
+          states: [
+            state("start", [{
+              id: "action",
+              type: "daisy",
+              text: "",
+              url: "",
+              variant: "button",
+              dataPath: "states.start.widget",
+              dataRole: "widget",
+              dataLabel: "Action"
+            }], { widget: { label: "Weiter", transitionId: "to_done" } }),
+            state("done")
+          ],
+          transitions: [{
+            id: "to_done",
+            from: "start",
+            to: "done",
+            label: "Weiter",
+            condition: "",
+            triggerType: "button",
+            triggerEvent: "button.to_done.clicked",
+            timerMs: 3000,
+            set: {},
+            groupEntryId: "",
+            groupExitId: ""
+          }]
+        },
+        stateTemplates: [],
+        camera: { x: 32, y: 32, scale: 1 },
+        previewCollapsed: false
+      });
+      const validate = definition => {
+        try {
+          validateBlueprintDefinition(definition);
+          return "";
+        } catch (error) {
+          return String(error?.message || error);
+        }
+      };
+
+      const valid = baseDefinition();
+      const nonButton = baseDefinition();
+      nonButton.model.transitions[0].triggerType = "realtime";
+      nonButton.model.transitions[0].triggerEvent = "realtime.sip.call.incoming";
+      const missing = baseDefinition();
+      missing.model.states[0].data.widget.transitionId = "missing";
+      const foreign = baseDefinition();
+      foreign.model.states.push(state("other"));
+      foreign.model.transitions[0].from = "other";
+      const repeatedControl = baseDefinition();
+      repeatedControl.model.states[0].components.push({
+        id: "repeated",
+        type: "transitionButton",
+        text: "",
+        url: "",
+        variant: "",
+        transitionId: "to_done"
+      });
+
+      const conflict = baseDefinition();
+      conflict.model.states[0].data.widget.url = "https://example.com";
+      const linkOnly = baseDefinition();
+      linkOnly.model.states[0].data.widget.transitionId = "";
+      linkOnly.model.states[0].data.widget.url = "https://example.com";
+
+      return [validate(valid), validate(nonButton), validate(missing), validate(foreign), validate(repeatedControl), validate(conflict), validate(linkOnly)];
+    });
+
+    expect(messages).toEqual([
+      "",
+      "",
+      expect.stringContaining("must reference an existing transition"),
+      expect.stringContaining("must reference an outgoing transition of start"),
+      "",
+      expect.stringContaining("must not define both a transition and a URL"),
+      ""
+    ]);
+  });
+
+  test("formal definitions enforce deterministic effective trigger ownership @smoke", async ({ page }) => {
+    await page.goto("/state.html");
+
+    const messages = await page.evaluate(() => {
+      const boundary = { entryId: "", exitId: "", entryDisabled: false, exitDisabled: false, title: "", note: "" };
+      const state = (id, parentId = null) => ({
+        id,
+        title: id,
+        components: [],
+        data: {},
+        dataTypes: {},
+        dataSource: { url: "", target: `states.${id}.fetch`, select: "", timeoutMs: 8000, retries: 2 },
+        repeat: { path: "", as: "item", index: "i" },
+        dataWires: [],
+        subscriptions: [],
+        boundary,
+        parentId,
+        x: 100,
+        y: 100
+      });
+      const transition = (id, to, triggerType, triggerEvent = "") => ({
+        id,
+        from: "start",
+        to,
+        label: id,
+        condition: "",
+        triggerType,
+        triggerEvent,
+        timerMs: 100,
+        set: {},
+        groupEntryId: "",
+        groupExitId: ""
+      });
+      const definition = () => ({
+        kind: "state-blueprint-definition",
+        schemaVersion: 2,
+        app: "Zustand",
+        savedAt: new Date().toISOString(),
+        model: {
+          version: 2,
+          name: "Trigger ownership",
+          initial: "start",
+          boundary,
+          states: [state("start"), state("a"), state("b")],
+          transitions: [
+            transition("click_a", "a", "button", "button.click_a.clicked"),
+            transition("event_b", "b", "realtime", "realtime.route.b")
+          ]
+        },
+        stateTemplates: [],
+        camera: { x: 32, y: 32, scale: 1 },
+        previewCollapsed: false
+      });
+      const validate = value => {
+        try {
+          validateBlueprintDefinition(value);
+          return "";
+        } catch (error) {
+          return String(error?.message || error);
+        }
+      };
+
+      const valid = definition();
+      const duplicate = definition();
+      duplicate.model.transitions.push(transition("event_a", "a", "realtime", "realtime.route.b"));
+      const timers = definition();
+      timers.model.transitions = [transition("timer_a", "a", "timer"), transition("timer_b", "b", "timer")];
+      const automatic = definition();
+      automatic.model.transitions[0].triggerType = "auto";
+      automatic.model.transitions[0].triggerEvent = "auto.click_a";
+      const missing = definition();
+      missing.model.transitions[1].triggerEvent = "";
+      const childBoundary = definition();
+      childBoundary.model.states = [state("parent"), state("child", "parent"), state("sibling", "parent"), state("outside")];
+      childBoundary.model.initial = "parent";
+      childBoundary.model.transitions = [
+        { ...transition("parent_exit", "outside", "realtime", "realtime.route.b"), from: "parent", groupExitId: "child" },
+        { ...transition("child_route", "sibling", "realtime", "realtime.route.b"), from: "child" }
+      ];
+      const structuralFlow = definition();
+      structuralFlow.model.transitions = [
+        transition("auto_a", "a", "auto", "auto.auto_a"),
+        transition("flow_b", "b", "flow", "flow.child.entry")
+      ];
+
+      return [valid, duplicate, timers, automatic, missing, childBoundary, structuralFlow].map(validate);
+    });
+
+    expect(messages).toEqual([
+      "",
+      expect.stringContaining("duplicates trigger realtime:realtime.route.b"),
+      expect.stringContaining("duplicates trigger timer"),
+      expect.stringContaining("must contain only one auto transition"),
+      expect.stringContaining("must define one concrete trigger"),
+      expect.stringContaining("duplicates trigger realtime:realtime.route.b"),
+      ""
+    ]);
+  });
+
   test("preview runtime reads pause state from the global bus without local shadow state @smoke", async ({ page }) => {
     await page.goto("/state.html");
     const appHtml = await generatedPreviewHtml(page);
@@ -1165,7 +1373,8 @@ test.describe("Core source contracts", () => {
     expect(appHtml).not.toContain('triggerType === "event" && normalizeTransitionEvent(transition?.triggerEvent || "").startsWith("realtime.")');
     expect(html).not.toContain('triggerType === "event" && normalizeTransitionEvent(transition?.triggerEvent || "").startsWith("realtime.")');
     expect(appHtml).toContain("function runtimeOrderActionTransitionsForState");
-    expect(appHtml).toContain("const actionTransitions = runtimeOrderActionTransitionsForState(s, transitions.filter(transitionIsButtonAction));");
+    expect(appHtml).toContain("const actionTransitions = runtimeOrderActionTransitionsForState(s, executableTransitions.filter(transitionIsButtonAction));");
+    expect(appHtml).toContain("const executableTransitions = triggerContract.ok ? transitions : [];");
     expect(appHtml).toContain('return type === "button";');
     expect(html).toContain('return type === "button";');
     expect(appHtml).not.toContain('return type === "event" && /^button');
@@ -1657,6 +1866,214 @@ test.describe("Core source contracts", () => {
     await expect(app.locator("#statePill")).toHaveText("child");
     await expect.poll(async () => (await runtimeContext(page)).state?.lastTransition || "").toBe("");
   });
+
+  for (const triggerType of ["button", "timer", "change", "event", "realtime", "auto"]) {
+    test(`explicit daisy actions render only for button triggers: ${triggerType} @smoke`, async ({ page }) => {
+      const triggerEvent = {
+        button: "button.bound_action.clicked",
+        timer: "timer.bound_action.done",
+        change: "change.states.start.signal",
+        event: "event.bound.action",
+        realtime: "realtime.sip.call.incoming",
+        auto: "auto.bound_action"
+      }[triggerType];
+      await openWithModel(page, {
+        version: 2,
+        name: `Bound ${triggerType} action`,
+        initial: "start",
+        states: [
+          {
+            id: "start",
+            title: "Start",
+            components: [{
+              id: "bound_widget",
+              type: "daisy",
+              variant: "button",
+              dataPath: "states.start.widget",
+              dataRole: "widget",
+              dataLabel: "Bound action"
+            }],
+            data: { allow: false, signal: false, widget: { label: "Bound action", transitionId: "bound_action" } },
+            dataTypes: { allow: "boolean", signal: "boolean", widget: "object" },
+            x: 120,
+            y: 140
+          },
+          { id: "done", title: "Done", components: [], data: {}, dataTypes: {}, x: 420, y: 140 }
+        ],
+        transitions: [{
+          id: "bound_action",
+          from: "start",
+          to: "done",
+          label: "Bound action",
+          condition: triggerType === "button" ? "" : "states.start.allow == true",
+          triggerType,
+          triggerEvent,
+          timerMs: 100,
+          set: {}
+        }]
+      });
+
+      const app = appFrame(page);
+      const boundAction = app.getByRole("button", { name: "Bound action", exact: true });
+      if (triggerType === "button") {
+        await expect(boundAction).toBeVisible();
+        await boundAction.click();
+        await expect(app.locator("#statePill")).toHaveText("done");
+        return;
+      }
+
+      await expect(boundAction).toHaveCount(0);
+      await expect(app.locator('[data-transition-id="bound_action"]')).toHaveCount(0);
+      expect(await page.evaluate(() => model.states.find(state => state.id === "start")?.data?.widget?.transitionId)).toBe("bound_action");
+      await expect(app.locator("#statePill")).toHaveText("start");
+    });
+  }
+
+  test("daisy action slots render exactly one target or fail closed @smoke", async ({ page }) => {
+    const actionState = widget => ({
+      id: "start",
+      title: "Start",
+      components: [{
+        id: "action",
+        type: "daisy",
+        variant: "button",
+        dataPath: "states.start.widget",
+        dataRole: "widget",
+        dataLabel: "Action"
+      }],
+      data: { widget },
+      dataTypes: { widget: "object" },
+      x: 120,
+      y: 140
+    });
+    await openWithModel(page, {
+      version: 2,
+      name: "Conflicting action target",
+      initial: "start",
+      states: [
+        actionState({ label: "Weiter", transitionId: "to_done", url: "javascript:alert(1)" }),
+        { id: "done", title: "Done", components: [], data: {}, dataTypes: {}, x: 420, y: 140 }
+      ],
+      transitions: [{ id: "to_done", from: "start", to: "done", label: "Weiter", triggerType: "button", set: {} }]
+    });
+
+    const app = appFrame(page);
+    await expect(app.getByRole("button", { name: "Weiter", exact: true })).toHaveCount(0);
+    await expect(app.getByRole("link", { name: "Weiter", exact: true })).toHaveCount(0);
+    await expect(app.locator("#statePill")).toHaveText("start");
+
+    await page.evaluate(nextState => {
+      loadEditorModel({
+        version: 2,
+        name: "Link action target",
+        initial: "start",
+        states: [nextState],
+        transitions: []
+      }, false);
+    }, actionState({ label: "Öffnen", transitionId: "", url: "https://example.com" }));
+    await expect(app.getByRole("link", { name: "Öffnen", exact: true })).toHaveAttribute("href", "https://example.com");
+    await expect(app.getByRole("button", { name: "Öffnen", exact: true })).toHaveCount(0);
+  });
+
+  for (const triggerType of ["button", "timer", "change", "event", "realtime", "auto"]) {
+    test(`parent ${triggerType} exits become eligible only at the configured child exit @smoke`, async ({ page }) => {
+      const triggerEvent = {
+        button: "button.parent_out.clicked",
+        timer: "timer.parent_out.done",
+        change: "change.states.parent.signal",
+        event: "event.parent.exit",
+        realtime: "realtime.sip.call.incoming",
+        auto: "auto.parent_out"
+      }[triggerType];
+      const realtimeEvent = triggerType === "realtime" ? await installFakeRealtimeTransport(page) : null;
+      const room = `boundary-${triggerType}`;
+      await openWithModel(page, {
+        version: 2,
+        name: `Boundary ${triggerType}`,
+        initial: "parent",
+        states: [
+          {
+            id: "parent",
+            title: "Parent",
+            components: [],
+            data: { signal: false },
+            dataTypes: { signal: "boolean" },
+            boundary: { entryId: "entry_child", exitId: "exit_child", entryDisabled: false, exitDisabled: false },
+            x: 120,
+            y: 140
+          },
+          { id: "entry_child", title: "Entry child", parentId: "parent", components: [], data: {}, dataTypes: {}, x: 120, y: 140 },
+          { id: "middle_child", title: "Middle child", parentId: "parent", components: [], data: {}, dataTypes: {}, x: 360, y: 140 },
+          { id: "exit_child", title: "Exit child", parentId: "parent", components: [], data: {}, dataTypes: {}, x: 420, y: 140 },
+          { id: "outside", title: "Outside", components: [], data: {}, dataTypes: {}, x: 720, y: 140 }
+        ],
+        transitions: [
+          { id: "child_step", from: "entry_child", to: "middle_child", label: "Next child", condition: "", triggerType: "button", set: {} },
+          { id: "child_finish", from: "middle_child", to: "exit_child", label: "Finish child", condition: "", triggerType: "button", set: {} },
+          {
+            id: "parent_out",
+            from: "parent",
+            to: "outside",
+            label: "Leave parent",
+            condition: "",
+            triggerType,
+            triggerEvent,
+            timerMs: 100,
+            groupExitId: "exit_child",
+            set: {}
+          }
+        ]
+      }, triggerType === "realtime" ? `/state.html?room=${room}` : "/state.html", "entry_child");
+
+      const app = appFrame(page);
+      const emit = async () => {
+        if (triggerType === "realtime") {
+          await receiveRuntimeRealtimeEvent(page, realtimeEvent, { callId: "boundary-test" }, room);
+          return null;
+        }
+        if (triggerType === "change") {
+          return app.locator("html").evaluate((_root, name) => {
+            const path = name.replace(/^change\./, "");
+            const value = !Boolean(readValueAtPath(context, path));
+            return runtimeSet(path, value, { source: "event", eventName: name });
+          }, triggerEvent);
+        }
+        return app.locator("html").evaluate((_root, { name, type }) => (
+          emitRuntimeEvent(name, { type, source: type })
+        ), { name: triggerEvent, type: triggerType });
+      };
+
+      if (triggerType === "realtime") await waitForRuntimeRealtimeJoin(page);
+      if (["change", "event", "realtime"].includes(triggerType)) await emit();
+      if (triggerType === "timer") await page.waitForTimeout(160);
+      await expect(app.locator("#statePill")).toHaveText("entry_child");
+      await expect(app.getByRole("button", { name: "Leave parent" })).toHaveCount(0);
+
+      await app.getByRole("button", { name: "Next child" }).click();
+      await expect(app.locator("#statePill")).toHaveText("middle_child");
+      if (["change", "event", "realtime"].includes(triggerType)) await emit();
+      if (triggerType === "timer") await page.waitForTimeout(160);
+      await expect(app.locator("#statePill")).toHaveText("middle_child");
+      await expect(app.getByRole("button", { name: "Leave parent" })).toHaveCount(0);
+
+      await app.getByRole("button", { name: "Finish child" }).click();
+      if (triggerType === "button") {
+        await expect(app.locator("#statePill")).toHaveText("exit_child");
+        await app.getByRole("button", { name: "Leave parent" }).click();
+      } else if (["change", "event", "realtime"].includes(triggerType)) {
+        await expect(app.locator("#statePill")).toHaveText("exit_child");
+        const handled = await emit();
+        if (triggerType !== "realtime") expect(handled).toBe(true);
+      }
+
+      await expect(app.locator("#statePill")).toHaveText("outside");
+      await expect.poll(async () => (await runtimeContext(page)).state).toMatchObject({
+        current: "outside",
+        previous: "exit_child",
+        lastTransition: "parent_out"
+      });
+    });
+  }
 
   test("browser runtime has no local realtime emitter or outbound event path @smoke", async ({ page }) => {
     await installFakeRealtimeTransport(page);
@@ -2195,41 +2612,110 @@ test.describe("Core browser contracts", () => {
     }
   });
 
-  test("same-event transitions require exactly one true condition @smoke", async ({ page }) => {
-    const realtimeEvent = await installFakeRealtimeTransport(page);
+  test("editor rejects conflicting trigger graphs before persistence or runtime sync @smoke", async ({ page }) => {
     await openWithModel(page, {
       version: 2,
-      name: "Deterministic same event",
+      name: "Editor trigger invariant",
       initial: "waiting",
       states: [
-        { id: "waiting", title: "Waiting", components: [], data: { routeA: true, routeB: false }, dataTypes: { routeA: "boolean", routeB: "boolean" }, x: 120, y: 180 },
+        { id: "waiting", title: "Waiting", components: [], data: {}, dataTypes: {}, x: 120, y: 180 },
         { id: "route_a", title: "Route A", components: [], data: {}, dataTypes: {}, x: 420, y: 100 },
         { id: "route_b", title: "Route B", components: [], data: {}, dataTypes: {}, x: 420, y: 280 }
       ],
       transitions: [
-        { id: "to_a", from: "waiting", to: "route_a", label: "A", condition: "states.waiting.routeA == true", triggerType: "realtime", triggerEvent: realtimeEvent.name, set: {} },
-        { id: "to_b", from: "waiting", to: "route_b", label: "B", condition: "states.waiting.routeB == true", triggerType: "realtime", triggerEvent: realtimeEvent.name, set: {} },
-        { id: "enable_b", from: "waiting", to: "waiting", label: "B aktivieren", condition: "", triggerType: "button", set: { "states.waiting.routeB": true } },
-        { id: "back", from: "route_a", to: "waiting", label: "Zurück", condition: "", triggerType: "button", set: {} }
+        { id: "to_a", from: "waiting", to: "route_a", label: "A", condition: "", triggerType: "realtime", triggerEvent: "realtime.route.a", set: {} },
+        { id: "to_b", from: "waiting", to: "route_b", label: "B", condition: "", triggerType: "button", set: {} }
       ]
-    }, "/state.html?room=deterministic-room");
-
-    await waitForRuntimeRealtimeJoin(page);
-    await receiveRuntimeRealtimeEvent(page, realtimeEvent, {});
-    await expect(appFrame(page).locator("#statePill")).toHaveText("route_a");
-
-    await appFrame(page).getByRole("button", { name: "Zurück" }).click();
-    await appFrame(page).getByRole("button", { name: "B aktivieren" }).click();
-    await expect(appFrame(page).locator("#statePill")).toHaveText("waiting");
-    await receiveRuntimeRealtimeEvent(page, realtimeEvent, {});
-
-    await expect(appFrame(page).locator("#statePill")).toHaveText("waiting");
-    await expect.poll(() => appFrame(page).locator("html").evaluate(() => eval("runtimeValidation"))).toMatchObject({
-      type: "ambiguous-transition",
-      stateId: "waiting",
-      eventName: realtimeEvent.name,
-      transitionIds: ["to_a", "to_b"]
     });
+
+    const result = await page.evaluate(() => {
+      const before = modelSnapshot();
+      const conflicting = JSON.parse(before);
+      conflicting.transitions.push({
+        id: "duplicate_a",
+        from: "waiting",
+        to: "route_b",
+        label: "Duplicate",
+        condition: "",
+        triggerType: "realtime",
+        triggerEvent: "realtime.route.a",
+        timerMs: 3000,
+        set: {}
+      });
+      let loadError = "";
+      try {
+        loadEditorModel(conflicting, false);
+      } catch (error) {
+        loadError = String(error?.message || error);
+      }
+      const unchangedAfterLoad = modelSnapshot() === before;
+      model.transitions.push(conflicting.transitions.at(-1));
+      const saved = saveModel("test:conflicting-trigger");
+      const after = modelSnapshot();
+      const stored = JSON.parse(localStorage.getItem("stateBlueprintHotLinked.model.v2.editor") || "{}");
+      return {
+        loadError,
+        unchangedAfterLoad,
+        saved,
+        unchangedAfterMutation: after === before,
+        storedTransitionIds: (stored.model?.transitions || []).map(transition => transition.id)
+      };
+    });
+
+    expect(result).toEqual({
+      loadError: expect.stringContaining("may be claimed only once"),
+      unchangedAfterLoad: true,
+      saved: false,
+      unchangedAfterMutation: true,
+      storedTransitionIds: ["to_a", "to_b"]
+    });
+    expect(await appFrame(page).locator("html").evaluate(() => eval("model.transitions.map(transition => transition.id)"))).toEqual(["to_a", "to_b"]);
+  });
+
+  test("runtime fails closed for an externally injected conflicting trigger graph @smoke", async ({ page }) => {
+    await openWithModel(page, {
+      version: 2,
+      name: "Runtime trigger invariant",
+      initial: "waiting",
+      states: [
+        { id: "waiting", title: "Waiting", components: [], data: {}, dataTypes: {}, x: 120, y: 180 },
+        { id: "route_a", title: "Route A", components: [], data: {}, dataTypes: {}, x: 420, y: 100 },
+        { id: "route_b", title: "Route B", components: [], data: {}, dataTypes: {}, x: 420, y: 280 }
+      ],
+      transitions: [
+        { id: "to_a", from: "waiting", to: "route_a", label: "A", condition: "", triggerType: "event", triggerEvent: "event.route", set: {} }
+      ]
+    });
+
+    const runtimeResult = await appFrame(page).locator("html").evaluate(() => {
+      const runtimeModel = eval("model");
+      runtimeModel.transitions.push({
+        id: "to_b",
+        from: "waiting",
+        to: "route_b",
+        label: "B",
+        condition: "states.waiting.never == true",
+        triggerType: "event",
+        triggerEvent: "event.route",
+        timerMs: 3000,
+        set: {}
+      });
+      eval("normalizeModel(model); render()");
+      const handled = eval("emitRuntimeEvent")("event.route", { type: "event", source: "event" });
+      return { handled, current: eval("current"), validation: eval("runtimeValidation") };
+    });
+
+    expect(runtimeResult).toMatchObject({
+      handled: false,
+      current: "waiting",
+      validation: {
+        type: "invalid-trigger-contract",
+        stateId: "waiting",
+        reason: "duplicate-trigger",
+        transitionIds: ["to_a", "to_b"]
+      }
+    });
+    await expect(appFrame(page).locator("#statePill")).toHaveText("waiting");
   });
 
   test("canvas deletion removes the complete enriched state branch from the same runtime bus @smoke", async ({ page }) => {

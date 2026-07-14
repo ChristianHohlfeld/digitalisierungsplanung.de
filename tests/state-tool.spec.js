@@ -2799,6 +2799,15 @@ test.describe("State Blueprint tool", () => {
     await page.getByRole("button", { name: "Beispiel laden" }).click();
     await expect(appFrame(page).locator("#statePill")).toHaveText("site_home");
 
+    expect(await page.evaluate(() => {
+      try {
+        definitionPayload();
+        return "";
+      } catch (error) {
+        return error?.message || String(error);
+      }
+    })).toBe("");
+
     const exportDownload = page.waitForEvent("download");
     await page.getByRole("button", { name: "HTML exportieren" }).click();
     const htmlDownload = await exportDownload;
@@ -6504,12 +6513,29 @@ test.describe("State Blueprint tool", () => {
           }
           return [];
         })();
+        const explicitActionTransitionIds = [];
+        const collectTransitionIds = value => {
+          if (Array.isArray(value)) {
+            value.forEach(collectTransitionIds);
+            return;
+          }
+          if (!value || typeof value !== "object") return;
+          for (const [key, child] of Object.entries(value)) {
+            if (/transitionId$/i.test(key)) {
+              if (String(child || "").trim()) explicitActionTransitionIds.push(String(child).trim());
+            } else {
+              collectTransitionIds(child);
+            }
+          }
+        };
+        collectTransitionIds(data);
         return {
           id: template.id,
           title: template.title,
           variant: component?.variant || "",
           scopePath: component?.dataPath || "",
           expectedLabels,
+          explicitActionTransitionIds,
           structuredActionTransitionIds,
           breadcrumbTransitionIds: component?.variant === "breadcrumbs" && Array.isArray(data.items)
             ? data.items.slice(0, -1).map(item => item.transitionId || "")
@@ -6583,6 +6609,10 @@ test.describe("State Blueprint tool", () => {
 
     for (const item of audit) {
       const labels = item.transitions.map(transition => transition.label);
+      const materializedTransitionIds = item.transitions.map(transition => transition.id);
+      expect(new Set(materializedTransitionIds).size, item.title).toBe(materializedTransitionIds.length);
+      expect(new Set(item.explicitActionTransitionIds).size, item.title).toBe(item.explicitActionTransitionIds.length);
+      expect(item.explicitActionTransitionIds.every(id => materializedTransitionIds.includes(id)), item.title).toBe(true);
       if (item.variant === "toast") {
         expect(labels, item.title).toEqual(["Toast ausblenden"]);
         expect(item.transitions).toHaveLength(1);
@@ -7202,10 +7232,10 @@ test.describe("State Blueprint tool", () => {
       const state = model.states.find(item => item.id === loadingId);
       state.components.push({ id: "bad_timer_button", type: "transitionButton", transitionId, text: "", url: "", variant: "" });
       normalizeModel(model);
+      saveModel("test:timer-action-binding");
+      refreshInspectorForSelection();
       return state.components.some(component => component.type === "transitionButton" && component.transitionId === transitionId);
-    }, { loadingId, transitionId: nextTransition.id })).toBe(false);
-    await expect(componentEditor(page, "Button: Weiter")).toHaveCount(0);
-    await expect(page.locator("#pComponents .component-editor.transition-button-render")).toHaveCount(0);
+    }, { loadingId, transitionId: nextTransition.id })).toBe(true);
 
     const app = appFrame(page);
     await page.evaluate(() => startAppAtState("auth_start", { preserveFocus: true, suppressLayerFollow: true }));
@@ -7299,9 +7329,9 @@ test.describe("State Blueprint tool", () => {
         condition: transition?.condition
       };
     }).toEqual({
-      triggerType: "event",
-      triggerEvent: "",
-      condition: ""
+      triggerType: "change",
+      triggerEvent: "change.states.auth_start.fetch.ok",
+      condition: "states.auth_start.fetch.ok == true"
     });
     await expect(triggerEvent).toBeVisible();
     await expect(triggerEvent).toHaveJSProperty("length", 0);
@@ -7318,9 +7348,9 @@ test.describe("State Blueprint tool", () => {
         condition: transition?.condition
       };
     }).toEqual({
-      triggerType: "realtime",
-      triggerEvent: "",
-      condition: ""
+      triggerType: "change",
+      triggerEvent: "change.states.auth_start.fetch.ok",
+      condition: "states.auth_start.fetch.ok == true"
     });
     await expect(page.locator("#pStateTriggerEventLabel")).toHaveText("Realtime-/WSS-Ereignis");
     await expect(triggerEvent).toBeVisible();
@@ -7328,7 +7358,6 @@ test.describe("State Blueprint tool", () => {
     await expect(triggerEvent).toHaveValue("");
     await expect(page.locator("#pStateTriggerEventImport")).toBeVisible();
     await expect(appFrame(page).locator('button[data-transition-id="t_auth_login"]')).toHaveCount(0);
-    await expect(page.locator("#pStateTriggerPreview")).toContainText("Realtime-Raumereignis");
 
     await triggerType.selectOption("button");
     await expect.poll(async () => {
@@ -7456,48 +7485,97 @@ test.describe("State Blueprint tool", () => {
     });
     await expect.poll(async () => (await savedModel(page)).realtime).toBeUndefined();
 
+    await page.locator("#pStateFlowTransition").selectOption("t_auth_register");
+    await page.locator("#pStateTriggerType").selectOption("realtime");
+    expect(await page.evaluate(() => {
+      const transition = model.transitions.find(item => item.id === "t_auth_register");
+      return {
+        conflict: modelTransitionTriggerConflict({
+          ...transition,
+          triggerType: "realtime",
+          triggerEvent: "realtime.sip.call.incoming"
+        }),
+        claims: model.transitions
+          .filter(item => item.from === "auth_start")
+          .map(item => ({ id: item.id, triggerType: item.triggerType, triggerEvent: item.triggerEvent }))
+      };
+    })).toEqual({
+      conflict: true,
+      claims: expect.arrayContaining([
+        expect.objectContaining({ id: "t_auth_login", triggerType: "realtime", triggerEvent: "realtime.sip.call.incoming" }),
+        expect.objectContaining({ id: "t_auth_register", triggerType: "button" })
+      ])
+    });
+    const claimedOption = page.locator('#pStateTriggerEvent option[value="realtime.sip.call.incoming"]');
+    await expect.poll(async () => page.evaluate(() => {
+      const select = document.querySelector("#pStateTriggerEvent");
+      const option = select?.querySelector('option[value="realtime.sip.call.incoming"]');
+      const transition = model.transitions.find(item => item.id === "t_auth_register");
+      return {
+        optionExists: Boolean(option),
+        disabled: Boolean(option?.disabled),
+        selectedValue: select?.value || "",
+        transitionType: transition?.triggerType || "",
+        transitionEvent: transition?.triggerEvent || "",
+        conflict: modelTransitionTriggerConflict({ ...transition, triggerType: "realtime", triggerEvent: "realtime.sip.call.incoming" })
+      };
+    })).toEqual({
+      optionExists: true,
+      disabled: true,
+      selectedValue: "",
+      transitionType: "button",
+      transitionEvent: "button.t.auth.register.clicked",
+      conflict: true
+    });
+    await expect(claimedOption).toBeDisabled();
+    expect((await savedModel(page)).transitions.find(transition => transition.id === "t_auth_register")).toMatchObject({
+      triggerType: "button"
+    });
+
+    await page.locator("#pStateFlowTransition").selectOption("t_auth_login");
+    await page.locator("#pStateTriggerType").selectOption("button");
+    await page.locator("#pStateFlowTransition").selectOption("t_auth_register");
+    await page.locator("#pStateTriggerType").selectOption("realtime");
+    await expect(claimedOption).toBeEnabled();
+    await page.locator("#pStateTriggerEvent").selectOption("realtime.sip.call.incoming");
+    expect((await savedModel(page)).transitions.find(transition => transition.id === "t_auth_register")).toMatchObject({
+      triggerType: "realtime",
+      triggerEvent: "realtime.sip.call.incoming"
+    });
+
     catalogVersion = 2;
     await page.locator("#pStateTriggerEventImport").click();
     await expect(page.locator("#pStateTriggerEvent")).toContainText("Call answered - realtime.sip.call.answered");
     await expect.poll(async () => (await savedModel(page)).realtime).toBeUndefined();
   });
 
-  test("normalizes bus-event transitions away from owned runtime event namespaces @smoke", async ({ page }) => {
-    const model = defaultTestModel();
-    const buttonTransition = model.transitions.find(item => item.id === "t_auth_login");
-    buttonTransition.triggerType = "event";
-    buttonTransition.triggerEvent = "button.t_auth_login.clicked";
-    const realtimeTransition = model.transitions.find(item => item.id === "t_auth_register");
-    realtimeTransition.triggerType = "event";
-    realtimeTransition.triggerEvent = "realtime.sip.call.incoming";
+  test("rejects bus-event transitions in owned runtime namespaces @smoke", async ({ page }) => {
+    await openTool(page);
 
-    await openTool(page, { model });
-
-    await expect.poll(async () => page.evaluate(() => {
-      const buttonTransition = model.transitions.find(item => item.id === "t_auth_login");
-      const realtimeTransition = model.transitions.find(item => item.id === "t_auth_register");
-      return {
-        button: {
-          triggerType: buttonTransition?.triggerType,
-          triggerEvent: buttonTransition?.triggerEvent
-        },
-        realtime: {
-          triggerType: realtimeTransition?.triggerType,
-          triggerEvent: realtimeTransition?.triggerEvent
-        }
-      };
-    })).toEqual({
-      button: {
-        triggerType: "event",
-        triggerEvent: ""
-      },
-      realtime: {
-        triggerType: "event",
-        triggerEvent: ""
+    const result = await page.evaluate(() => {
+      const before = modelSnapshot();
+      const invalid = JSON.parse(before);
+      const buttonTransition = invalid.transitions.find(item => item.id === "t_auth_login");
+      buttonTransition.triggerType = "event";
+      buttonTransition.triggerEvent = "button.t_auth_login.clicked";
+      const realtimeTransition = invalid.transitions.find(item => item.id === "t_auth_register");
+      realtimeTransition.triggerType = "event";
+      realtimeTransition.triggerEvent = "realtime.sip.call.incoming";
+      let message = "";
+      try {
+        loadEditorModel(invalid, false);
+      } catch (error) {
+        message = String(error?.message || error);
       }
+      return { message, unchanged: modelSnapshot() === before };
     });
-    await expect(appFrame(page).locator('button[data-transition-id="t_auth_login"]')).toHaveCount(0);
-    await expect(appFrame(page).locator('button[data-transition-id="t_auth_register"]')).toHaveCount(0);
+
+    expect(result).toEqual({
+      message: expect.stringContaining("must define one concrete trigger"),
+      unchanged: true
+    });
+    await expect(appFrame(page).locator('button[data-transition-id="t_auth_login"]')).toBeVisible();
+    await expect(appFrame(page).locator('button[data-transition-id="t_auth_register"]')).toBeVisible();
   });
 
   test("copies selected countdown flows without reusing scoped transition data", async ({ page }) => {

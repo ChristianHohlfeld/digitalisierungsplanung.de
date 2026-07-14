@@ -187,6 +187,110 @@ test.describe("State Blueprint MCP", () => {
     ]));
   });
 
+  test("validates explicit transition action ownership across MCP models @smoke", () => {
+    const model = () => ({
+      version: 2,
+      name: "Action ownership",
+      initial: "start",
+      states: [
+        {
+          id: "start",
+          title: "Start",
+          data: { widget: { label: "Weiter", transitionId: "to_done" } },
+          dataTypes: { widget: "object" },
+          components: [{ id: "action", type: "daisy", variant: "button", dataPath: "states.start.widget" }]
+        },
+        { id: "done", title: "Done", data: {}, components: [] },
+        { id: "other", title: "Other", data: {}, components: [] }
+      ],
+      transitions: [{
+        id: "to_done",
+        from: "start",
+        to: "done",
+        label: "Weiter",
+        triggerType: "realtime",
+        triggerEvent: "realtime.sip.call.incoming",
+        set: {}
+      }]
+    });
+
+    expect(validateModel(model()).ok).toBe(true);
+
+    const missing = model();
+    missing.states[0].data.widget.transitionId = "missing";
+    expect(validateModel(missing).issues).toContainEqual(expect.objectContaining({ code: "missing_transition_action_target" }));
+
+    const foreign = model();
+    foreign.transitions[0].from = "other";
+    expect(validateModel(foreign).issues).toContainEqual(expect.objectContaining({ code: "foreign_transition_action_target" }));
+
+    const repeatedControl = model();
+    repeatedControl.states[0].components.push({ id: "repeated", type: "transitionButton", transitionId: "to_done" });
+    expect(validateModel(repeatedControl).ok).toBe(true);
+
+    const conflict = model();
+    conflict.states[0].data.widget.url = "https://example.com";
+    expect(validateModel(conflict).issues).toContainEqual(expect.objectContaining({ code: "transition_action_target_conflict" }));
+
+    const linkOnly = model();
+    linkOnly.states[0].data.widget.transitionId = "";
+    linkOnly.states[0].data.widget.url = "https://example.com";
+    expect(validateModel(linkOnly).ok).toBe(true);
+  });
+
+  test("enforces one deterministic owner per effective trigger @smoke", () => {
+    const base = () => ({
+      version: 2,
+      name: "Trigger ownership",
+      initial: "start",
+      states: [
+        { id: "start", title: "Start", data: {}, components: [] },
+        { id: "a", title: "A", data: {}, components: [] },
+        { id: "b", title: "B", data: {}, components: [] },
+        { id: "c", title: "C", data: {}, components: [] }
+      ],
+      transitions: [
+        { id: "click_a", from: "start", to: "a", label: "A", triggerType: "button", set: {} },
+        { id: "event_b", from: "start", to: "b", label: "B", triggerType: "realtime", triggerEvent: "realtime.route.b", set: {} }
+      ]
+    });
+
+    expect(validateModel(base()).ok).toBe(true);
+
+    const duplicate = base();
+    duplicate.transitions.push({ id: "event_c", from: "start", to: "c", label: "C event", triggerType: "realtime", triggerEvent: "realtime.route.b", set: {} });
+    expect(validateModel(duplicate).issues).toContainEqual(expect.objectContaining({ code: "duplicate_transition_trigger", stateId: "start" }));
+
+    const duplicateSamePair = base();
+    duplicateSamePair.transitions.push({ id: "event_a", from: "start", to: "a", label: "A event", triggerType: "realtime", triggerEvent: "realtime.route.b", set: {} });
+    expect(validateModel(duplicateSamePair).issues).toContainEqual(expect.objectContaining({ code: "duplicate_transition_trigger", stateId: "start" }));
+
+    const timers = base();
+    timers.transitions = [
+      { id: "timer_a", from: "start", to: "a", label: "A", triggerType: "timer", timerMs: 100, set: {} },
+      { id: "timer_b", from: "start", to: "b", label: "B", triggerType: "timer", timerMs: 200, set: {} }
+    ];
+    expect(validateModel(timers).issues).toContainEqual(expect.objectContaining({ code: "duplicate_transition_trigger", triggerKey: "timer" }));
+
+    const automatic = base();
+    automatic.transitions[0].triggerType = "auto";
+    expect(validateModel(automatic).issues).toContainEqual(expect.objectContaining({ code: "exclusive_auto_trigger", stateId: "start" }));
+
+    const missing = base();
+    missing.transitions[1].triggerEvent = "";
+    expect(validateModel(missing).issues).toContainEqual(expect.objectContaining({ code: "missing_transition_trigger", transitionId: "event_b" }));
+
+    expect(() => applyActions(base(), [{
+      type: "upsert_transition",
+      id: "event_c",
+      from: "start",
+      to: "c",
+      label: "C event",
+      triggerType: "realtime",
+      triggerEvent: "realtime.route.b"
+    }])).toThrow("Each trigger identity may be claimed only once");
+  });
+
   test("documents the public MCP tools and model actions @smoke", () => {
     const apiDoc = fs.readFileSync(path.join(process.cwd(), "docs", "state-blueprint-api.md"), "utf8");
     const mcpDoc = fs.readFileSync(path.join(process.cwd(), "docs", "state-blueprint-mcp.md"), "utf8");

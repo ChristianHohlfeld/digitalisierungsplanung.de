@@ -269,8 +269,17 @@ Editoraktion
 - **TRN-010 Sichtbarkeit:** Sichtbare normale Button-Übergänge MÜSSEN als
   echte, aktivierbare Controls rendern. Timer-, Change-, Realtime- und andere
   automatische Übergänge DÜRFEN NICHT als irreführende Buttons erscheinen.
+  Das gilt für den allgemeinen Aktionsbereich und für jeden explizit über eine
+  Transition-ID gebundenen DaisyUI-Aktionsslot. Wechselt dessen Transition von
+  `button` auf `timer`, `change`, `event`, `realtime`, `auto` oder einen internen
+  Trigger, bleibt die eindeutige Besitzreferenz erhalten, aber der Slot rendert
+  kein Control. Insbesondere sind lokale Ersatzaktionen, deaktivierte
+  Scheinbuttons und labelbasierte Fallbacks verboten. Preview und
+  Standalone-Export MÜSSEN dieselbe Regel aus derselben Runtime anwenden.
 - **TRN-011 Mehrfachausgänge:** Mehrere ausgehende Button-Übergänge MÜSSEN
-  ihre eigenen IDs, Ziele, Ereignisse und Farben behalten.
+  ihre eigenen IDs, Ziele, Ereignisse und Farben behalten. Eine Transition-ID
+  DARF höchstens einen expliziten UI-Aktionsslot besitzen; dieselbe ID in zwei
+  Komponenten oder zwei strukturierten Preset-Aktionen ist ungültig.
 - **TRN-012 Vertrauensgrenze:** Synthetisch erzeugte DOM-UI-Events DÜRFEN keine
   fachliche Buswirkung oder Transition committen. Echte Nutzer-Clicks und
   Nutzereingaben MÜSSEN über den Bus verarbeitet werden.
@@ -289,6 +298,25 @@ Editoraktion
   Präfix oder vermeintlicher Herkunft interpretieren. Ein leeres Label wird
   `Weiter`; jedes vorhandene nicht leere Label bleibt nach dem Trimmen
   unverändert. Es gibt keine Kompatibilitätsliste und keine Labelmigration.
+- **TRN-016 Eindeutiger Triggerbesitz:** Der Trigger gehört zur Transition;
+  der State besitzt kein zweites Triggerfeld. Bezogen auf die effektive aktive
+  Quelle darf jede Triggeridentität genau einmal beansprucht werden. Für direkte
+  Ausgänge ist die effektive Quelle `from`, für einen projizierten
+  Parent-Ausgang dessen `groupExitId`. `button` ist durch die Transition-ID
+  eindeutig, `change` durch den Buspfad oder `*`, `event` und `realtime` durch
+  ihren konkreten Ereignisnamen. Pro effektiver Quelle ist höchstens ein
+  `timer` zulässig. Sobald ein `auto` existiert, ist es der einzige fachliche
+  Ausgang dieser effektiven Quelle. Interne `flow`-Kanten sind strukturelle
+  Child-Führung und zählen nicht als fachlicher Trigger. Conditions dürfen
+  doppelte Triggerbelegung nicht nachträglich auflösen.
+- **TRN-017 Modellinvariante:** Ein fehlender oder doppelt beanspruchter Trigger,
+  zwei Timer oder `auto` neben einem weiteren fachlichen Ausgang sind kein
+  speicherbarer Modellzustand. Editoroperationen werden vor History,
+  Persistenz und Preview-Synchronisation atomar verworfen; formaler Import,
+  API und MCP lehnen das Modell ab. Die Runtime behandelt trotzdem
+  eingeschleuste Fremdmodelle mit `invalid-trigger-contract` fail-closed und
+  führt keine Transition aus. Undo und Redo enthalten ausschließlich gültige
+  Modellstände.
 
 ## 7. Verschachtelung und Boundary
 
@@ -320,7 +348,8 @@ Editoraktion
   Transitionen innerhalb derselben Ebene. Wires DÜRFEN nicht unbemerkt über
   Ebenengrenzen springen.
 - **NEST-007 Ausgang:** `boundary.exitId` bezeichnet das Child, an dem echte
-  Parent-Ausgänge projiziert werden dürfen.
+  Parent-Ausgänge projiziert werden dürfen. Diese Kandidatengrenze gilt
+  identisch für Button-, Timer-, Change-, Event-, Realtime- und Auto-Ausgänge.
 - **NEST-008 Ausgangsprojektion:** In der Runtime MÜSSEN am Exit-Child zuerst
   dessen eigene ausgehende Aktionen und danach die echt verdrahteten
   Parent-Ausgänge erscheinen. Der Editor-Canvas zeigt davon unabhängig pro
@@ -328,7 +357,10 @@ Editoraktion
   Parent-Kanten DÜRFEN dort nicht als vervielfachte Kabel erscheinen.
 - **NEST-009 Kein impliziter Ausgang:** Ein Child ohne konfigurierten Ausgang
   DARF keine Parent-Ausgänge, Geschwisteraktionen oder Rückkehr zum Parent
-  erben.
+  erben. Eingehende Ereignisse, Timer und automatische Fortsetzungen DÜRFEN
+  einen Parent-Ausgang weder am Entry-Child noch an einem Zwischen-Child
+  auslösen oder für den späteren Exit puffern. Erst das echte Erreichen des
+  konfigurierten Exit-Childs macht den Parent-Ausgang zum Runtime-Kandidaten.
 - **NEST-010 Stopregel:** Besitzt ein Boundary-Ausgang keinen echten
   Parent-Übergang, stoppt der Ablauf dort. Die Runtime DARF keinen Ersatzknopf
   oder Kreis zum Eingang erfinden.
@@ -443,13 +475,24 @@ Editoraktion
 - **PRE-004 Explizite Aktionen:** Interaktive Buttons, Karten, Heroes, Modals,
   Feature-Grids, Pricing-Karten, Breadcrumbs, Footer, Menüs, Dropdowns,
   Bottom-Navigation, Drawer, Steps, Tabs, Navbar-Varianten, Checkboxen und
-  Toggles dürfen Flow nur über explizite Transition-IDs auslösen.
+  Toggles dürfen Flow nur über explizite Transition-IDs auslösen. Die ID
+  bezeichnet genau einen UI-Aktionsslot und muss auf einen existierenden
+  Ausgang des gerenderten States oder auf dessen ausdrücklich am Exit-Child
+  projizierten Parent-Ausgang zeigen. Derselbe Slot darf alternativ genau eine
+  URL besitzen. Transition-ID und URL im selben Slot sind ungültig und rendern
+  in der Runtime weder Button noch Link.
 - **PRE-005 Text ist Anzeige:** Gleicher Text oder gleiches Label DARF keine
   Preset-Aktion an einen Übergang binden. Ohne explizite ID bleibt das Element
   ohne FSM-Wirkung.
 - **PRE-006 Autowiring:** Ein aktionsfähiges Preset MUSS für jede fachliche
   Aktion echte Zielzustände und echte Transitionen erzeugen. Alle Referenzen
-  MÜSSEN eindeutig und erreichbar sein.
+  MÜSSEN eindeutig und erreichbar sein. Verwaltete Preset-Definitionen auf dem
+  Server DÜRFEN keine materialisierten Transition-IDs enthalten; vorhandene
+  Felder wie `transitionId`, `primaryTransitionId` oder
+  `secondaryTransitionId` MÜSSEN leer sein. Erst die Materialisierung im
+  Canvas erzeugt pro Aktion eine neue, global eindeutige Transition-ID und
+  schreibt sie genau einmal. Server-Library, formaler Import und MCP-Validierung
+  MÜSSEN fehlende, fremde oder doppelt beanspruchte Referenzen ablehnen.
 - **PRE-007 Widget-Writes:** Eingaben und Widgets dürfen nur ihre gebundenen,
   deklarierten Felder wie `value`, `checked`, `selected`, `open`, `index` oder
   `finished` schreiben.
@@ -1226,9 +1269,12 @@ Abdeckungsbereiche:
   besitzen keine Bindings. Optionale Katalogbindings dürfen ausschließlich auf
   deklarierte `states.<id>.<feld>`-Pfade schreiben; der Payload bleibt unter
   `events.<name>.detail` lesbar.
-- **GAP-017 Mehrdeutige Ereignisauflösung, geschlossen am 2026-07-12:** Genau
-  ein wahrer Kandidat darf feuern. Null wahre Kandidaten stoppen; mehrere wahre
-  Kandidaten erzeugen `ambiguous-transition` ohne State-Wechsel.
+- **GAP-017 Mehrdeutige Ereignisauflösung, geschlossen am 2026-07-14:** Ein
+  gültiges Modell kann für dieselbe effektive Quelle dieselbe Triggeridentität
+  nicht mehrfach enthalten. Der Editor kann den Konflikt nicht speichern;
+  Import, API und MCP lehnen ihn ab. Ein dennoch eingeschleustes Fremdmodell
+  erzeugt `invalid-trigger-contract` ohne State-Wechsel. Conditions sind Guards
+  eines bereits eindeutig zugeordneten Triggers und keine Prioritätslogik.
 - **GAP-018 Realtime-Zustellgarantie, geschlossen am 2026-07-12:** Der aktuelle
   Browser ist trigger-only und besitzt keine ausgehende Queue oder Outbox. Der
   zustandslose Server garantiert geordnete Live-Übertragung innerhalb der
@@ -1528,8 +1574,9 @@ Varianten stillschweigend zum Vertrag erklären:
   Standardname `Weiter`, Route separat, Zustandsumbenennung ohne Labeländerung.
   GAP-014 und GAP-039 sind geschlossen.
 - **Mehrere Ausgänge auf dasselbe Ereignis:** GAP-017 und DEC-002 sind
-  entschieden: exakt ein wahrer Kandidat feuert, mehrere führen zu
-  `ambiguous-transition`, niemals entscheidet Modellreihenfolge.
+  entschieden: dieselbe Triggeridentität darf pro effektiver Quelle nur einmal
+  vorkommen. Konflikte gelangen nicht in einen gültigen Modellstand; die Runtime
+  bleibt bei einem eingeschleusten Fremdmodell fail-closed.
 - **Realtime-Trigger oder Emitter:** DEC-003 und RT-024 sind trigger-only
   entschieden. Zustellklasse und eine mögliche spätere Erweiterung stehen
   getrennt in DEC-004; GAP-018 und GAP-026 sind geschlossen.
@@ -1663,15 +1710,24 @@ festgelegt.
 
 ### 22.3 Deterministische Transitionen
 
-- Für ein eintreffendes Ereignis sammelt die Runtime alle strukturell passenden
-  Ausgänge der aktiven State-/Parent-Kandidatenmenge und wertet alle Conditions
-  ohne dazwischenliegenden Buswrite aus.
-- Kein wahrer Kandidat bedeutet keinen State-Wechsel.
-- Genau ein wahrer Kandidat wird ausgeführt.
-- Mehrere wahre Kandidaten erzeugen `ambiguous-transition`; es wird keine
-  Transition ausgeführt. Modellreihenfolge ist niemals Priorität.
-- Ein Button-Ereignis trägt seine Transition-ID und bleibt dadurch auch bei
-  mehreren sichtbaren Ausgängen eindeutig.
+- Ein State darf mehrere fachliche Ausgänge besitzen, solange deren Trigger
+  verschieden sind. Triggerbesitz bleibt an der Transition; es gibt kein
+  zusätzliches Triggerfeld und keine Priorität am State.
+- Ein Button-Ereignis trägt seine Transition-ID. Change verwendet Buspfad oder
+  `*`; Event und Realtime verwenden den konkreten Ereignisnamen. Jede dieser
+  Identitäten darf pro effektiver aktiver Quelle genau einmal vorkommen.
+- Pro effektiver Quelle ist höchstens ein Timer erlaubt. `auto` ist exklusiv
+  und darf dort neben keiner weiteren fachlichen Transition existieren.
+- Interne `flow`-Kanten führen den Child-Ablauf und sind von dieser
+  Triggerzählung ausgenommen. Ein projizierter Parent-Ausgang gehört erst am
+  konfigurierten `groupExitId` zur effektiven Kandidatenmenge und kollidiert
+  dort gegebenenfalls mit einem direkten Child-Ausgang.
+- Ein passender Trigger mit falscher Condition bewirkt keinen State-Wechsel.
+  Conditions disambiguieren niemals doppelte Trigger, und Modellreihenfolge ist
+  niemals Priorität.
+- Editor, formaler Import, API und MCP verhindern konfliktäre Modelle. Die
+  Runtime prüft dieselbe Invariante zusätzlich und führt bei einem extern
+  eingeschleusten Konflikt keine Transition aus.
 - Fetch, Change, Event und Realtime dürfen eine Transition nur über deren
   expliziten `triggerType` und `triggerEvent` erreichen. Weder Condition noch
   Label, Set-Pfad oder Datenwert erzeugen einen Trigger.

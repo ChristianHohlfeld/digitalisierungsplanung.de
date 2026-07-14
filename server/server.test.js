@@ -289,6 +289,51 @@ test("serves the event and connector catalog only to allowed origins", async () 
   });
 });
 
+test("rejects materialized transition bindings in managed presets", () => {
+  const library = presetLibrary.loadPresetLibraryFile();
+  library.presets.push({
+    id: "custom_bound_button",
+    variant: "button",
+    title: "Bound button",
+    description: "Must be wired only after canvas materialization.",
+    categoryId: "websuite-builder",
+    packageIds: ["core.process"],
+    data: { label: "Weiter", transitionId: "shared_transition" }
+  });
+
+  assert.throws(
+    () => presetLibrary.validatePresetLibrary(library),
+    error => error?.code === "preset_transition_binding_must_be_empty"
+  );
+
+  const linkLibrary = presetLibrary.loadPresetLibraryFile();
+  linkLibrary.presets.push({
+    id: "custom_link_button",
+    variant: "button",
+    title: "Link button",
+    description: "A URL is a complete action target on its own.",
+    categoryId: "websuite-builder",
+    packageIds: ["core.process"],
+    data: { label: "Öffnen", transitionId: "", url: "https://example.com" }
+  });
+  assert.doesNotThrow(() => presetLibrary.validatePresetLibrary(linkLibrary));
+
+  const conflictingLibrary = presetLibrary.loadPresetLibraryFile();
+  conflictingLibrary.presets.push({
+    id: "custom_conflicting_button",
+    variant: "button",
+    title: "Conflicting button",
+    description: "One action slot cannot own two targets.",
+    categoryId: "websuite-builder",
+    packageIds: ["core.process"],
+    data: { label: "Weiter", transitionId: "shared_transition", url: "https://example.com" }
+  });
+  assert.throws(
+    () => presetLibrary.validatePresetLibrary(conflictingLibrary),
+    error => error?.code === "preset_action_target_conflict"
+  );
+});
+
 test("exposes one shared frontend and backend release without caching it", async () => {
   const release = {
     id: "release-59",

@@ -72,6 +72,28 @@ function normalizeDataValue(value, depth = 0) {
   return out;
 }
 
+function assertUnmaterializedTransitionBindings(value) {
+  if (Array.isArray(value)) {
+    value.forEach(assertUnmaterializedTransitionBindings);
+    return;
+  }
+  if (!isPlainObject(value)) return;
+  for (const [key, child] of Object.entries(value)) {
+    if (/transitionId$/i.test(key)) {
+      const prefix = key.slice(0, key.length - "TransitionId".length);
+      const urlKeys = prefix
+        ? [`${prefix}Url`, `${prefix}Href`, ...(prefix.toLowerCase() === "primary" ? ["url", "href"] : [])]
+        : ["url", "href"];
+      if (String(child || "").trim() && urlKeys.some(urlKey => String(value[urlKey] || "").trim())) {
+        throw contractError("preset_action_target_conflict");
+      }
+      if (child !== "") throw contractError("preset_transition_binding_must_be_empty");
+      continue;
+    }
+    assertUnmaterializedTransitionBindings(child);
+  }
+}
+
 function validateCategory(value) {
   if (!isPlainObject(value)) throw contractError("invalid_category");
   assertOnlyFields(value, new Set(["id", "label", "description", "sort"]));
@@ -113,6 +135,7 @@ function validatePreset(value, categoryIds, packageIds) {
   if (assignedPackages.some(packageId => !packageIds.has(packageId))) throw contractError("unknown_package");
   const data = normalizeDataValue(value.data);
   if (!isPlainObject(data)) throw contractError("invalid_preset_data");
+  assertUnmaterializedTransitionBindings(data);
   return {
     id,
     variant,

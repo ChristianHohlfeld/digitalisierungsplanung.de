@@ -80,6 +80,22 @@ Modellaktionen werden vor der Ausführung in Abhängigkeitsreihenfolge gebracht,
 Zustände vor Übergängen existieren. Das Ergebnis wird normalisiert und validiert,
 bevor es geschrieben wird.
 
+Explizite Komponenten- und DaisyUI-Aktionsbindungen referenzieren eine vorhandene
+ausgehende Transition-ID. Mehrere Controls dürfen dieselbe Transition auslösen;
+sie erzeugen dadurch keinen weiteren Trigger. Die ID darf auch nach einem
+Triggerwechsel als Slot-Zuordnung bestehen bleiben; nur `triggerType: "button"`
+rendert daraus ein interaktives Control. Fehlende und fremde Referenzen machen
+das Modell ungültig.
+Ein Aktionsslot darf alternativ eine URL enthalten. Eine nicht leere
+Transition-ID und eine URL im selben Slot sind ungültig.
+
+Der Trigger wird ausschließlich an der Transition modelliert. Bezogen auf die
+effektive Quelle (`from`, bei Parent-Ausgängen `groupExitId`) darf dieselbe
+Triggeridentität nur einmal vorkommen. Mehrere unterschiedliche Button-,
+Change-, Event- und Realtime-Ausgänge sind erlaubt, ein Timer höchstens einmal;
+`auto` ist exklusiv. Interne `flow`-Kanten zählen nicht als fachliche Trigger.
+Ungültige Kombinationen werden nicht angewendet.
+
 Nutze `state_blueprint_apply_commands`, wenn ein externe Anwendung die App wie ein
 Nutzer steuern soll, aber ohne DOM-Klicks. Befehle laufen über dieselben
 Kernfunktionen wie die Modellaktionen und führen zusätzlich Editor-Sitzungs-

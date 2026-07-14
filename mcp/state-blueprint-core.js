@@ -800,8 +800,114 @@ function modelSummary(model) {
   };
 }
 
+function collectTransitionBindingEntries(value, path, entries = []) {
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => collectTransitionBindingEntries(item, `${path}[${index}]`, entries));
+    return entries;
+  }
+  if (!isPlainObject(value)) return entries;
+  for (const [key, child] of Object.entries(value)) {
+    const childPath = `${path}.${key}`;
+    if (/transitionId$/i.test(key)) {
+      const transitionId = String(child || "").trim();
+      if (transitionId) {
+        const prefix = key.slice(0, key.length - "TransitionId".length);
+        const urlKeys = prefix
+          ? [`${prefix}Url`, `${prefix}Href`, ...(prefix.toLowerCase() === "primary" ? ["url", "href"] : [])]
+          : ["url", "href"];
+        entries.push({
+          transitionId,
+          path: childPath,
+          targetConflict: urlKeys.some(urlKey => String(value[urlKey] || "").trim())
+        });
+      }
+      continue;
+    }
+    collectTransitionBindingEntries(child, childPath, entries);
+  }
+  return entries;
+}
+
+function componentTransitionBindingEntries(model, state, component) {
+  if (component.type === "transitionButton") {
+    const transitionId = String(component.transitionId || "").trim();
+    return transitionId ? [{ transitionId, path: `components.${component.id}.transitionId` }] : [];
+  }
+  if (component.type !== "daisy") return [];
+  const dataPath = String(component.dataPath || "").trim();
+  if (!dataPath) return [];
+  const owner = model.states.find(candidate => {
+    const scope = stateDataScopeForId(candidate.id);
+    return dataPath === scope || dataPath.startsWith(scope + ".");
+  });
+  if (!owner) return [];
+  const scope = stateDataScopeForId(owner.id);
+  const localPath = dataPath === scope ? "" : dataPath.slice(scope.length + 1);
+  const value = localPath ? dataObjectValueAtPath(owner.data, localPath) : owner.data;
+  return collectTransitionBindingEntries(value, `states.${owner.id}.data${localPath ? "." + localPath : ""}`);
+}
+
+function effectiveTransitionTriggerStateId(transition) {
+  return String(transition?.groupExitId || transition?.from || "");
+}
+
+function transitionTriggerContractKey(transition) {
+  const triggerType = normalizeTransitionTriggerType(transition);
+  if (triggerType === "flow") return "";
+  if (triggerType === "button") return `button:${transition.id}`;
+  if (triggerType === "auto" || triggerType === "timer") return triggerType;
+  const eventName = normalizeTransitionEvent(transition?.triggerEvent || "");
+  if (triggerType === "change") return `change:${eventName || "*"}`;
+  return eventName ? `${triggerType}:${eventName}` : "";
+}
+
+function transitionTriggerContractIssues(transitions) {
+  const issues = [];
+  const byState = new Map();
+  for (const transition of transitions) {
+    if (transition?.boundaryFlow || isBoundaryProxyId(transition?.from) || isBoundaryProxyId(transition?.to)) continue;
+    const triggerType = normalizeTransitionTriggerType(transition);
+    if (triggerType === "flow") continue;
+    const stateId = effectiveTransitionTriggerStateId(transition);
+    if (!byState.has(stateId)) byState.set(stateId, []);
+    byState.get(stateId).push(transition);
+  }
+  for (const [stateId, outgoing] of byState) {
+    if (outgoing.some(transition => normalizeTransitionTriggerType(transition) === "auto") && outgoing.length !== 1) {
+      issues.push({
+        code: "exclusive_auto_trigger",
+        stateId,
+        transitionIds: outgoing.map(transition => transition.id),
+        message: "An auto transition must be the only outgoing trigger of its effective state."
+      });
+      continue;
+    }
+    const claims = new Map();
+    for (const transition of outgoing) {
+      const triggerKey = transitionTriggerContractKey(transition);
+      if (!triggerKey) {
+        issues.push({ code: "missing_transition_trigger", stateId, transitionId: transition.id, message: "Each transition must define one concrete trigger." });
+        continue;
+      }
+      if (claims.has(triggerKey)) {
+        issues.push({
+          code: "duplicate_transition_trigger",
+          stateId,
+          triggerKey,
+          transitionIds: [claims.get(triggerKey), transition.id],
+          message: "Each trigger identity may be claimed only once per effective state."
+        });
+        continue;
+      }
+      claims.set(triggerKey, transition.id);
+    }
+  }
+  return issues;
+}
+
 function validateModel(model) {
   const rawContractIssues = [];
+  rawContractIssues.push(...transitionTriggerContractIssues(Array.isArray(model?.transitions) ? model.transitions : []));
   const rawStateIds = new Set();
   for (const state of Array.isArray(model?.states) ? model.states : []) {
     const id = String(state?.id || "").trim();
@@ -839,16 +945,33 @@ function validateModel(model) {
   const issues = [...rawContractIssues];
   const warnings = [];
   const ids = new Set(normalized.states.map(state => state.id));
+  const transitionById = new Map(normalized.transitions.map(transition => [transition.id, transition]));
   if (normalized.states.length && !ids.has(normalized.initial)) issues.push({ code: "missing_initial", message: "Initial state must reference an existing state." });
-
   for (const state of normalized.states) {
     const data = normalizeStateDataObject(state.data);
     for (const [path] of Object.entries(normalizeDataTypes(state.dataTypes, data))) {
       if (!dataObjectHasPath(data, path)) warnings.push({ code: "orphan_data_type", stateId: state.id, path, message: "Data type path has no matching state.data value." });
     }
     for (const component of normalizeComponents(state.components)) {
-      if (component.type === "transitionButton" && !normalized.transitions.some(transition => transition.id === component.transitionId)) {
-        warnings.push({ code: "missing_transition_button_target", stateId: state.id, componentId: component.id, message: "Transition button references a missing transition." });
+      if (component.type === "transitionButton" && !String(component.transitionId || "").trim()) {
+        issues.push({ code: "empty_transition_action_binding", stateId: state.id, componentId: component.id, message: "Transition action bindings must reference one transition ID." });
+      }
+      for (const binding of componentTransitionBindingEntries(normalized, state, component)) {
+        if (binding.targetConflict) {
+          issues.push({ code: "transition_action_target_conflict", stateId: state.id, componentId: component.id, transitionId: binding.transitionId, path: binding.path, message: "A UI action slot must target either one transition or one URL, never both." });
+          continue;
+        }
+        const transition = transitionById.get(binding.transitionId);
+        if (!transition) {
+          issues.push({ code: "missing_transition_action_target", stateId: state.id, componentId: component.id, transitionId: binding.transitionId, path: binding.path, message: "Transition action binding references a missing transition." });
+          continue;
+        }
+        const direct = transition.from === state.id;
+        const parentExit = Boolean(state.parentId && transition.from === state.parentId && transition.groupExitId === state.id);
+        if (!direct && !parentExit) {
+          issues.push({ code: "foreign_transition_action_target", stateId: state.id, componentId: component.id, transitionId: binding.transitionId, path: binding.path, message: "Transition action binding must reference an outgoing transition of its rendered state." });
+          continue;
+        }
       }
       if (component.type === "dataWire" && !normalizeDataWires(state.dataWires).some(wire => wire.id === component.wireId)) {
         warnings.push({ code: "missing_data_wire_target", stateId: state.id, componentId: component.id, message: "Data-wire component references a missing data wire." });

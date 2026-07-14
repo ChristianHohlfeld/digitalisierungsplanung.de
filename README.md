@@ -156,6 +156,20 @@ Erst `In Contract speichern` validiert die gesamte Library, schreibt
 `server/preset-library.json`, erhöht die gemeinsame Release-ID und pusht den
 Commit nach `main`.
 
+Verwaltete Presets enthalten keine fertigen Transition-IDs. Der Canvas erzeugt
+beim Einfügen für jede fachliche Aktion eine eigene ID und bindet sie genau
+einmal. Eine explizite UI-Bindung bleibt beim Wechsel des Trigger-Typs eindeutig,
+rendert aber ausschließlich für `button` ein Control; Timer, Change, Event,
+Realtime und Auto erhalten weder Ersatzbutton noch lokale Fallback-Aktion.
+Ein UI-Aktionsslot besitzt entweder genau eine Transition-ID oder genau eine
+URL, niemals beides.
+
+Trigger bleiben Eigentum der Transition. Pro effektiver aktiver Quelle darf
+eine Triggeridentität nur einmal vorkommen; mehrere unterschiedliche Buttons
+und Ereignisse bleiben möglich. Ein Timer ist einmal zulässig, `auto` ist
+exklusiv. Der Editor speichert keinen Konflikt, Import/API/MCP lehnen ihn ab und
+die gemeinsame Preview-/Export-Runtime bleibt bei Fremdmodellen fail-closed.
+
 Der Designer arbeitet in der gleichen Reihenfolge wie der Canvas-Vertrag:
 Event-Type, Dataset-Key, Felder, Quelle. Das Admin-Secret bleibt lokal im
 Browser gespeichert; beim Speichern validiert der Server den Contract, committet
