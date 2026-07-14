@@ -10177,12 +10177,39 @@
           const error = new Error(payload.error || `HTTP ${response.status}`);
           error.code = payload.error || "process_request_failed";
           error.status = response.status;
+          error.providerStatus = Number(payload.providerStatus) || 0;
+          error.providerCode = String(payload.providerCode || "");
+          error.providerRequestId = String(payload.providerRequestId || "");
           throw error;
         }
         return payload;
       } finally {
         clearTimeout(timer);
       }
+    }
+
+    function processAnalysisFailureMessage(error) {
+      const providerDetails = [
+        error?.providerStatus ? `HTTP ${error.providerStatus}` : "",
+        error?.providerCode || ""
+      ].filter(Boolean).join(", ");
+      const detail = providerDetails ? ` (${providerDetails})` : "";
+      if (error?.code === "process_provider_unauthorized") {
+        return `Der Prozess-Agent hat den API-Schlüssel des Servers abgelehnt${detail}. Die Aufnahme wurde erkannt, aber nicht analysiert.`;
+      }
+      if (error?.code === "process_provider_access_denied") {
+        return `Der Prozess-Agent hat den Zugriff auf das konfigurierte Modell abgelehnt${detail}. Die Aufnahme wurde erkannt, aber nicht analysiert.`;
+      }
+      if (error?.code === "process_provider_rate_limited") {
+        return `Der Prozess-Agent hat den Aufruf wegen Rate-Limit oder fehlender API-Quota abgelehnt${detail}. Die Aufnahme wurde erkannt, aber nicht analysiert.`;
+      }
+      if (error?.code === "process_provider_request_rejected") {
+        return `Der Prozess-Agent hat die Anfrage abgelehnt${detail}. Die Aufnahme wurde erkannt, aber nicht analysiert.`;
+      }
+      if (error?.code === "process_provider_unavailable") {
+        return `Der Prozess-Agent war nicht verfügbar${detail}. Die Aufnahme wurde erkannt, aber nicht analysiert.`;
+      }
+      return error?.message || "Die Aufnahme konnte nicht analysiert werden.";
     }
 
     function processSessionId() {
@@ -10603,8 +10630,8 @@
         await modalAlert(
           hasStableResult
             ? "Die letzte vollständig verstandene Fassung wurde übernommen; der abschließende Agentenlauf ist fehlgeschlagen."
-            : error.message || "Die Aufnahme konnte nicht übernommen werden.",
-          "Aufnahme abgeschlossen"
+            : processAnalysisFailureMessage(error),
+          hasStableResult ? "Aufnahme abgeschlossen" : "Analyse fehlgeschlagen"
         );
       }
     }

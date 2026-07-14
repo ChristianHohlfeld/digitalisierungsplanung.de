@@ -14655,7 +14655,7 @@ test.describe("State Blueprint tool", () => {
     await paintBrowserDisplay(page, "#1d4ed8", "Anfrage geprüft");
     await expect.poll(() => page.evaluate(() => processRecording?.events?.length || 0), { timeout: 5000 }).toBeGreaterThanOrEqual(2);
     await page.locator("#btnProcessRecord").click();
-    await expect(page.getByRole("heading", { name: "Aufnahme abgeschlossen" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Analyse fehlgeschlagen" })).toBeVisible();
     await page.getByRole("button", { name: "OK" }).click();
     await expect(page.locator("#btnProcessRecord")).toHaveAttribute("aria-pressed", "false");
     expect(await page.evaluate(() => modelSnapshot())).toBe(before);

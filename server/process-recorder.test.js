@@ -113,6 +113,36 @@ test("OpenAI agent disables response storage and uses strict structured output",
   assert.equal(request.init.cache, "no-store");
 });
 
+test("classifies OpenAI rejection without exposing its message or credentials", async () => {
+  const analyzer = createProcessAnalyzer({
+    openAiApiKey: "secret-test-key",
+    model: "gpt-5.6-luna",
+    fetchImpl: async () => ({
+      ok: false,
+      status: 429,
+      headers: { get: name => name === "x-request-id" ? "req-safe-123" : null },
+      json: async () => ({
+        error: {
+          code: "insufficient_quota",
+          message: "sensitive provider message"
+        }
+      })
+    })
+  });
+
+  await assert.rejects(
+    analyzer.analyze(capture()),
+    error => {
+      assert.equal(error.code, "process_provider_rate_limited");
+      assert.equal(error.providerStatus, 429);
+      assert.equal(error.providerCode, "insufficient_quota");
+      assert.equal(error.providerRequestId, "req-safe-123");
+      assert.doesNotMatch(JSON.stringify(error), /secret-test-key|sensitive provider message/);
+      return true;
+    }
+  );
+});
+
 test("browser display recording is install-free, tab-aware, idle-paused, and non-persistent", () => {
   const editor = fs.readFileSync(path.join(__dirname, "..", "state.html"), "utf8");
   assert.match(editor, /getDisplayMedia/);

@@ -208,10 +208,22 @@ async function fetchJson(url, init, timeoutMs, fetchImpl) {
     const response = await fetchImpl(url, { ...init, signal: controller.signal, cache: "no-store" });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) {
-      const error = new Error("process_analyzer_failed");
+      const providerStatus = Number(response.status) || 0;
+      const code = providerStatus === 401
+        ? "process_provider_unauthorized"
+        : providerStatus === 403
+          ? "process_provider_access_denied"
+          : providerStatus === 429
+            ? "process_provider_rate_limited"
+            : [400, 404, 422].includes(providerStatus)
+              ? "process_provider_request_rejected"
+              : "process_provider_unavailable";
+      const error = new Error(code);
       error.status = 502;
-      error.code = "process_analyzer_failed";
-      error.providerStatus = response.status;
+      error.code = code;
+      error.providerStatus = providerStatus;
+      error.providerCode = cleanText(body?.error?.code || body?.error?.type, 100);
+      error.providerRequestId = cleanText(response.headers?.get?.("x-request-id"), 120);
       throw error;
     }
     return body;

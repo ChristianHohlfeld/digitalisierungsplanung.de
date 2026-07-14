@@ -1118,7 +1118,11 @@ function createRealtimeServer(options = {}) {
       const result = await processAnalyzer.analyze(payload);
       writeJson(response, 200, result, headers);
     } catch (error) {
-      writeJson(response, error.status || 502, { error: error.code || "process_analysis_failed" }, headers);
+      const failure = { error: error.code || "process_analysis_failed" };
+      if (Number.isInteger(error.providerStatus) && error.providerStatus > 0) failure.providerStatus = error.providerStatus;
+      if (error.providerCode) failure.providerCode = error.providerCode;
+      if (error.providerRequestId) failure.providerRequestId = error.providerRequestId;
+      writeJson(response, error.status || 502, failure, headers);
     } finally {
       processAnalysisActive -= 1;
       payload = null;

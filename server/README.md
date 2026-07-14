@@ -48,6 +48,10 @@ server, not the adapter, creates IDs, layout, button events, and the canonical
 model. `PROCESS_RECORDER_MAX_CONCURRENT` defaults to `4`; request size is
 limited by `PROCESS_RECORDER_MAX_PAYLOAD_BYTES`.
 
+Provider failures return a stable `process_provider_*` category plus the
+provider HTTP status, provider error code, and request ID when available.
+Provider messages, API keys, captures, and prompts are never returned.
+
 ## Message Types
 
 - `join`: first client message, requires `roomId`, `clientId`, and signed `token` in production.

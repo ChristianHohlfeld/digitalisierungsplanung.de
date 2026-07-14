@@ -800,6 +800,36 @@ test("serves stateless process-recorder capability and a validated no-store mode
   });
 });
 
+test("returns safe provider diagnostics without provider messages", async () => {
+  await withRealtimeServer({
+    processAnalyzer: async () => {
+      const error = new Error("sensitive provider message");
+      error.status = 502;
+      error.code = "process_provider_unauthorized";
+      error.providerStatus = 401;
+      error.providerCode = "invalid_api_key";
+      error.providerRequestId = "req-safe-123";
+      throw error;
+    }
+  }, async realtime => {
+    const response = await fetch(httpUrl(realtime, "/process/analyze"), {
+      method: "POST",
+      headers: { Origin: ORIGIN, "content-type": "application/json" },
+      body: JSON.stringify({
+        events: [{ seq: 1, at: 1, kind: "visual", app: "Browser", window: "Start" }],
+        frames: []
+      })
+    });
+    assert.equal(response.status, 502);
+    assert.deepEqual(await response.json(), {
+      error: "process_provider_unauthorized",
+      providerStatus: 401,
+      providerCode: "invalid_api_key",
+      providerRequestId: "req-safe-123"
+    });
+  });
+});
+
 test("bounds concurrent process agents and releases the slot after completion", async () => {
   let releaseFirst;
   let firstEntered;
