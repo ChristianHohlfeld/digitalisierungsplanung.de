@@ -4883,14 +4883,15 @@ test.describe("State Blueprint tool", () => {
     await expect.poll(async () => eventCount(await runtimeContext(page))).toBe(eventCountBeforePause);
   });
 
-  test("loads the default model and starts preview from a selected state", async ({ page }) => {
+  test("starts preview from a selected state without a double-click delay", async ({ page }) => {
     await openTool(page);
 
     await expect(appFrame(page).getByRole("heading", { name: "Auth start" })).toBeVisible();
+    await expect.poll(() => page.evaluate(() => typeof pendingNodeRuntimeStartTimer)).toBe("undefined");
 
     await page.locator('[data-id="login"]').click();
 
-    await expect(appFrame(page).locator("#statePill")).toHaveText("login");
+    await expect(appFrame(page).locator("#statePill")).toHaveText("login", { timeout: 300 });
     await expect(appFrame(page).getByRole("heading", { name: "Login" })).toBeVisible();
     await expect(page.locator('[data-id="login"]')).toHaveClass(/active/);
   });

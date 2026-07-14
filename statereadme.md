@@ -305,9 +305,12 @@ Editoraktion
   Ein manueller Eintritt wird als explizite Aktion angeboten. Nur eine
   ausdrückliche Konfiguration wie `entryTriggerType: "auto"` darf den Parent
   automatisch in sein Entry-Child weiterführen. Jeder bestätigte, bewegungsfreie
-  State-Klick im Canvas startet den gewählten State erneut, auch nach Reload oder
-  bei bereits bestehender Auswahl. Löst ein Auto-Parent dabei den Child-Eintritt
-  aus, folgen Canvas-Ebene, Auswahl und Inspector atomar dem aktiven Child.
+  State-Klick im Canvas startet den gewählten State synchron beim Pointer-Up,
+  ohne Doppelklick-Wartezeit, erneut, auch nach Reload oder bei bereits
+  bestehender Auswahl. Ein nachfolgender zweiter Klick darf zusätzlich den
+  Child-Layer öffnen, den ersten Runtime-Start aber nicht verzögern. Löst ein
+  Auto-Parent dabei den Child-Eintritt aus, folgen Canvas-Ebene, Auswahl und
+  Inspector atomar dem aktiven Child.
 - **NEST-005 Wiedereintritt:** Wird ein Parent erneut betreten, MUSS sein
   Boundary-Eintritt wieder am konfigurierten Entry-Child beginnen; ein zuvor
   aktives tieferes Child darf nicht stillschweigend fortgesetzt werden.

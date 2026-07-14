@@ -5919,8 +5919,6 @@
     let lastTouchAt = 0;
     let suppressCanvasTextSelectionUntil = 0;
     let lastNodeClick = null;
-    let pendingNodeRuntimeStartTimer = 0;
-    let pendingNodeRuntimeStartToken = 0;
     let lastTouchNodeTap = null;
     let lastCreatedStateId = null;
     let lastCreatedStateTime = 0;
@@ -10235,7 +10233,6 @@
     function navigateToLayer(layerId, historyKey = "layer:navigate", opts = {}) {
       const nextLayerId = layerId && byId(layerId) ? layerId : null;
       if (currentLayerId === nextLayerId) return;
-      cancelPendingNodeRuntimeStart();
       if (historyKey !== "layer:runtime") {
         stopRuntimeLayerFollow(1200);
       }
@@ -10273,7 +10270,6 @@
       if (!state || state.virtualProxy) return;
       if (!opts.force && stateParentId(state) !== (currentLayerId || null)) return;
       if (!opts.force && (dragging || connecting || panning || boxSelecting)) return;
-      cancelPendingNodeRuntimeStart();
       suppressLayerExitUntil = Date.now() + 800;
       suppressEmptyCanvasDblClickUntil = Date.now() + 800;
       lastNodeClick = null;
@@ -10290,7 +10286,6 @@
       if (!children.length) return false;
       const entry = editorGroupEntryState(state.id, null) || children[0];
       if (!entry) return false;
-      cancelPendingNodeRuntimeStart();
       suppressLayerExitUntil = Date.now() + 800;
       suppressEmptyCanvasDblClickUntil = Date.now() + 800;
       lastNodeClick = null;
@@ -10598,7 +10593,6 @@
     }
 
     function startPendingCanvasTouch(evt) {
-      cancelPendingNodeRuntimeStart();
       stopRuntimeLayerFollow();
       clearLongPress();
       pendingCanvasTouch = {
@@ -10704,7 +10698,6 @@
     }
 
     function startPendingCanvasMouse(evt, options = {}) {
-      cancelPendingNodeRuntimeStart();
       stopRuntimeLayerFollow();
       clearLongPress();
       evt.preventDefault();
@@ -12141,35 +12134,7 @@
       mapEl.classList.add("panning");
     }
 
-    function cancelPendingNodeRuntimeStart() {
-      pendingNodeRuntimeStartToken += 1;
-      if (pendingNodeRuntimeStartTimer) clearTimeout(pendingNodeRuntimeStartTimer);
-      pendingNodeRuntimeStartTimer = 0;
-      refreshRuntimeInteractionState();
-    }
-
-    function scheduleNodeRuntimeStart(stateId) {
-      cancelPendingNodeRuntimeStart();
-      const id = String(stateId || "");
-      const layerId = currentLayerId || null;
-      if (!id || !byModelId(model, id)) return;
-      const token = pendingNodeRuntimeStartToken;
-      pendingNodeRuntimeStartTimer = setTimeout(() => {
-        pendingNodeRuntimeStartTimer = 0;
-        refreshRuntimeInteractionState();
-        if (token !== pendingNodeRuntimeStartToken) return;
-        if ((currentLayerId || null) !== layerId || singleSelectedNodeId() !== id || !byModelId(model, id)) return;
-        startAppAtState(id, { preserveFocus: true, allowLayerFollow: true });
-      }, DESKTOP_NODE_DOUBLE_CLICK_MS + 30);
-      refreshRuntimeInteractionState();
-    }
-
-    stateInspectorEl.addEventListener("pointerdown", cancelPendingNodeRuntimeStart, { capture: true });
-    stateInspectorEl.addEventListener("focusin", cancelPendingNodeRuntimeStart);
-    mapEl.addEventListener("pointerdown", cancelPendingNodeRuntimeStart, { capture: true });
-
     function startNodeDrag(evt, s) {
-      cancelPendingNodeRuntimeStart();
       stopRuntimeLayerFollow();
       evt.stopPropagation();
       if (!evt.shiftKey) selected = selectionFromParts([s.id], []);
@@ -19910,7 +19875,6 @@
     }
 
     function startQuickRenameInput(target, seedValue = null) {
-      cancelPendingNodeRuntimeStart();
       if (quickRenameSessionMatches(target) && quickRenameSession?.input) {
         if (seedValue !== null) {
           quickRenameSession.input.value = String(seedValue);
@@ -20071,7 +20035,7 @@
     }
 
     function refreshRuntimeInteractionState() {
-      const pending = Boolean(pendingNodeRuntimeStartTimer || pendingRuntimeModelSyncId);
+      const pending = Boolean(pendingRuntimeModelSyncId);
       frameEl.classList.toggle("runtime-sync-pending", pending);
       frameEl.setAttribute("aria-busy", String(pending));
     }
@@ -21961,12 +21925,11 @@
             !(s.id === lastCreatedStateId && now - lastCreatedStateTime < 500)
           ) {
             lastNodeClick = null;
-            cancelPendingNodeRuntimeStart();
             enterStateLayer(s.id, { source: "node-dblclick", explicit: true });
             return;
           }
           lastNodeClick = { id: s.id, layerId: currentLayerId || null, time: now, x: evt.clientX, y: evt.clientY };
-          scheduleNodeRuntimeStart(s.id);
+          startAppAtState(s.id, { preserveFocus: true, allowLayerFollow: true });
           showNodeProperties(s);
           return;
         }
@@ -22762,7 +22725,6 @@
         refreshRuntimeInteractionState();
       }
       const previousAppState = hostRuntimeStateView();
-      if (data.transitionId) cancelPendingNodeRuntimeStart();
       const runtimeStateId = String(data.current || "");
       const runtimeEventContext = isPlainObject(data.context) ? data.context : {};
       applyRuntimeStateView(runtimeStateId);
@@ -23035,7 +22997,6 @@
     btnMobileActionDelete.onclick = deleteSelectedItems;
     const rememberSelectionActionTarget = () => {
       selectionActionDegroupTargetId = manualDegroupTargetId || selectedCompositeStateForDegroup()?.id || "";
-      cancelPendingNodeRuntimeStart();
       stopRuntimeLayerFollow(4000);
     };
     selectionActionsEl.addEventListener("pointerdown", rememberSelectionActionTarget, { capture: true });
