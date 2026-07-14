@@ -4608,6 +4608,10 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator('[data-id="login"]').click();
     await openInitialValuesEditor(page);
+    await page.evaluate(() => refreshInspectorForSelection());
+    await expect(page.locator("#pDataCard")).toHaveJSProperty("open", true);
+    await expect(page.locator("#pDefaultsCard")).toHaveJSProperty("open", true);
+    await expect(page.locator("#pAdvancedDataCard")).toHaveJSProperty("open", true);
     await page.locator("#pData").fill('{"userName":"Ada"}');
     await expect.poll(async () => {
       const model = await savedModel(page);

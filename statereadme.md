@@ -606,7 +606,9 @@ Editoraktion
   legitime Eingaben unbenutzbar zu machen.
 - **ED-016 Inspector:** State-, Render- und Datenbereiche MÜSSEN unabhängig
   einklappbar sein. Aktionen MÜSSEN im Drawer bleiben; kompakte Controls dürfen
-  nicht überlappen.
+  nicht überlappen. Wird der Inspector für denselben State durch Modell- oder
+  Runtime-Aktualisierung neu aufgebaut, MUSS jeder Unterbereich seinen vom
+  Nutzer bestimmten Offen-/Geschlossen-Zustand behalten.
 - **ED-017 Keine Rohdatenpflicht:** Der Hauptworkflow MUSS typisierte Variablen,
   Bedingungen, `set`, Repeat und Data Wires ohne verpflichtende Bearbeitung
   roher Buspfade oder Template-Tokens anbieten.

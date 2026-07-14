@@ -17314,6 +17314,9 @@
 
     function showNodeInspector(s, opts = {}) {
       const root = stateInspectorBodyEl;
+      const detailOpenState = inspectorStateId === s.id
+        ? new Map([...root.querySelectorAll("details[id]")].map(details => [details.id, details.open]))
+        : null;
       closePresetInfoOverlay();
       transitionInspectorKeyboardEditing = false;
       inspectorEdgeId = null;
@@ -17522,6 +17525,11 @@
           </div>
         </details>
       `;
+      if (detailOpenState) {
+        root.querySelectorAll("details[id]").forEach(details => {
+          if (detailOpenState.has(details.id)) details.open = detailOpenState.get(details.id);
+        });
+      }
       const title = root.querySelector("#pTitle");
       const initialButton = root.querySelector("#pInitial");
       const data = root.querySelector("#pData");
