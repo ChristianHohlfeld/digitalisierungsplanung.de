@@ -63,7 +63,7 @@ function adminRouteIndex(config = {}) {
       label: "Product Contract",
       href: paths.productContract,
       kind: "contract",
-      intent: "Aktuelle Wahrheit fuer Editor, Trigger, Value-Types, Datasets, Connectoren und Presets ansehen.",
+      intent: "Aktuelle Wahrheit für Editor, Trigger, Value-Types, Datasets, Connectoren und Presets ansehen.",
       endpointIds: ["product-contract"]
     },
     {
@@ -71,30 +71,30 @@ function adminRouteIndex(config = {}) {
       label: "Systemstatus",
       href: paths.health,
       kind: "system",
-      intent: "Release, Health, Raum- und Client-Zaehler pruefen.",
+      intent: "Release, Health, Raum- und Client-Zähler prüfen.",
       endpointIds: ["healthz", "version"]
     }
   ];
 
   const endpoints = [
-    endpoint("admin-root", "GET", paths.root, "Admin Hub Root", "admin", "Zentraler Einstieg fuer Server-Tools."),
-    endpoint("admin-html", "GET", paths.admin, "Admin Hub", "admin", "Zentraler Einstieg fuer Server-Tools."),
-    endpoint("admin-routes", "GET", paths.adminRoutes, "Admin Route Index", "admin", "Einzige Navigationsquelle fuer den Hub."),
+    endpoint("admin-root", "GET", paths.root, "Admin Hub Root", "admin", "Zentraler Einstieg für Server-Tools."),
+    endpoint("admin-html", "GET", paths.admin, "Admin Hub", "admin", "Zentraler Einstieg für Server-Tools."),
+    endpoint("admin-routes", "GET", paths.adminRoutes, "Admin Route Index", "admin", "Einzige Navigationsquelle für den Hub."),
     endpoint("healthz", "GET", paths.health, "Health", "public", "Serverstatus und aktive Realtime-Zahlen."),
     endpoint("version", "GET", paths.version, "Release", "public", "Gemeinsame Frontend-/Backend-Release-ID."),
-    endpoint("product-contract", "GET", paths.productContract, "Product Contract", "public", "Editor-Contract fuer Trigger, Werte, Datasets, Connectoren und Presets."),
+    endpoint("product-contract", "GET", paths.productContract, "Product Contract", "public", "Editor-Contract für Trigger, Werte, Datasets, Connectoren und Presets."),
     endpoint("events", "GET", paths.events, "Event Catalog", "public", "Aktuelle Realtime-Events und Connectoren."),
-    endpoint("events-contract", "GET", paths.eventsContract, "Realtime Contract", "public", "Niedriger Event-Contract mit Detail- und State-Beitraegen."),
-    endpoint("token", "GET", paths.token, "Room Token", "runtime", "Signiertes Browser-Token fuer WSS-Raeume."),
+    endpoint("events-contract", "GET", paths.eventsContract, "Realtime Contract", "public", "Niedriger Event-Contract mit Detail- und State-Beiträgen."),
+    endpoint("token", "GET", paths.token, "Room Token", "runtime", "Signiertes Browser-Token für WSS-Räume."),
     endpoint("console-html", "GET", paths.console, "Event Console", "admin", "Stateless Test-Emitter."),
-    endpoint("events-admin-html", "GET", paths.eventsAdmin, "Event Designer", "admin", "Admin-Oberflaeche fuer Event-Catalog."),
+    endpoint("events-admin-html", "GET", paths.eventsAdmin, "Event Designer", "admin", "Admin-Oberfläche für Event-Catalog."),
     endpoint("events-admin-catalog", "GET/POST", paths.eventsAdminCatalog, "Event Catalog Admin API", "admin", "Event-Catalog laden, validieren, committen und pushen."),
-    endpoint("presets-admin-html", "GET", paths.presetsAdmin, "Preset Designer", "admin", "Admin-Oberflaeche fuer Preset-Library."),
+    endpoint("presets-admin-html", "GET", paths.presetsAdmin, "Preset Designer", "admin", "Admin-Oberfläche für Preset-Library."),
     endpoint("presets-admin-catalog", "GET/POST", paths.presetsAdminCatalog, "Preset Catalog Admin API", "admin", "Preset-Library laden, validieren, committen und pushen."),
     endpoint("presets-admin-parse", "POST", paths.presetsAdminParse, "Preset Parser", "admin", "DaisyUI-Markup in strukturierte Preset-Daten wandeln."),
-    endpoint("presets-admin-import", "POST", paths.presetsAdminImport, "Preset API Import", "admin", "Kanonische Preset-Definition von einer oeffentlichen HTTPS-API als Entwurf laden."),
+    endpoint("presets-admin-import", "POST", paths.presetsAdminImport, "Preset API Import", "admin", "Kanonische Preset-Definition von einer öffentlichen HTTPS-API als Entwurf laden."),
     endpoint("emit", "POST", paths.emit, "Emit", "runtime", "Authentifizierter serverseitiger Event-Eingang."),
-    endpoint("ws", "WSS", paths.ws, "WebSocket", "runtime", "Realtime-Transport fuer Runtime-Events.")
+    endpoint("ws", "WSS", paths.ws, "WebSocket", "runtime", "Realtime-Transport für Runtime-Events.")
   ];
 
   return {

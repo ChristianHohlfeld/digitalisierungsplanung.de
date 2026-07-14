@@ -359,6 +359,7 @@ test("serves one central admin hub from the server route index", async () => {
       assert.equal(response.status, 200);
       const html = await response.text();
       assert.match(html, /Realtime Admin/);
+      assert.match(html, /Ein Einstieg für Events/);
       assert.match(html, /fetch\("\/admin\/routes"/);
       assert.doesNotMatch(html, /REALTIME_ADMIN_SECRET|admin-secret|emit-secret/);
       assert.doesNotMatch(html, /events-admin\.html.*presets-admin\.html.*console\.html/s);
@@ -373,6 +374,19 @@ test("serves one central admin hub from the server route index", async () => {
     assert.equal(index.schemaVersion, 1);
     assert.equal(index.release.releaseId, "release-60");
     assert.deepEqual(index.tools.map(tool => tool.id), ["events", "presets", "console", "contract", "system"]);
+    const germanText = JSON.stringify({ tools: index.tools, endpoints: index.endpoints });
+    const asciiUmlautSpellings = [
+      ["f", "uer"].join(""),
+      ["pr", "uefen"].join(""),
+      ["Z", "aehler"].join(""),
+      ["R", "aeume"].join(""),
+      ["Oberfl", "aeche"].join(""),
+      ["o", "effentlichen"].join("")
+    ];
+    for (const spelling of asciiUmlautSpellings) assert.ok(!germanText.includes(spelling), `${spelling} must use a native umlaut`);
+    assert.match(germanText, /für/);
+    assert.match(germanText, /Zähler prüfen/);
+    assert.match(germanText, /Oberfläche/);
     assert.ok(index.endpoints.some(endpoint => endpoint.path === "/admin.html"));
     assert.ok(index.endpoints.some(endpoint => endpoint.path === "/admin/routes"));
     assert.ok(index.endpoints.some(endpoint => endpoint.method === "WSS" && endpoint.path === "/ws"));

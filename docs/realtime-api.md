@@ -126,14 +126,14 @@ Release-Commit.
 
 ### `GET /` und `GET /admin.html`
 
-Zentraler Admin-Hub fuer die menschlichen Server-Werkzeuge: Event Designer,
+Zentraler Admin-Hub für die menschlichen Server-Werkzeuge: Event Designer,
 Preset Designer, Event Console, Product Contract und Systemstatus. Die Seite
-haelt keine eigene Routenliste, sondern rendert den JSON-Index aus
+hält keine eigene Routenliste, sondern rendert den JSON-Index aus
 `/admin/routes`.
 
 ### `GET /admin/routes`
 
-Oeffentlicher, nicht persistierender JSON-Index der sichtbaren Realtime-Tools
+Öffentlicher, nicht persistierender JSON-Index der sichtbaren Realtime-Tools
 und technischen Endpunkte. Dieser Index ist nur Navigation und Server-Doku; er
 ist nicht Teil des Canvas-/Produkt-Contracts. `state.html` konsumiert weiterhin
 `/contract`.

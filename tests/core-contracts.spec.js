@@ -352,12 +352,12 @@ test.describe("Core source contracts", () => {
     const legacyGermanSpellings = [
       ["Arbeitsfl", "aeche"].join(""),
       ["Schaltfl", "aeche"].join(""),
-      ["Ueber", "gang"].join(""),
+      ["Ue", "ber", "gang"].join(""),
       ["Zust", "aende"].join(""),
       ["Rueck", "gaengig"].join(""),
       ["Fuss", "zeile"].join(""),
       ["Schlies", "sen"].join(""),
-      ["Ueber", "schrift"].join(""),
+      ["Ue", "ber", "schrift"].join(""),
       ["aen", "dern"].join(""),
       ["schlies", "sen"].join("")
     ];
@@ -1224,7 +1224,7 @@ test.describe("Core source contracts", () => {
       type.internal === true &&
       type.events?.some(event => event.id === "flow.child.entry" && event.internal === true)
     )).toBe(true);
-    expect(html).not.toContain('label: "Daten aendern sich"');
+    expect(html).not.toContain(['label: "Daten aen', 'dern sich"'].join(""));
     expect(html).toContain(".data-wire-row");
     expect(html).toContain("Sichtbare Felder");
     expect(html).toContain("Alle Pfade");
