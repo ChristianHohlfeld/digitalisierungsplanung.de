@@ -18,6 +18,13 @@ STATE_BLUEPRINT_MODEL_PATH=./state-blueprint.workspace.json npm run mcp:state
 Ohne `STATE_BLUEPRINT_MODEL_PATH` nutzt der Server
 `./state-blueprint.workspace.json`.
 
+Persistiert wird ausschließlich `state-blueprint.workspace` in
+`schemaVersion: 1`. Nackte Modelle und formale Definitionen sind keine
+Workspace-Dateien; Definitionen werden nur mit
+`state_blueprint_import_definition` importiert. Namen und Felder der
+öffentlichen Werkzeuge, Aktionen und Befehle sind exakt und besitzen keine
+Kompatibilitätsaliasse.
+
 ## Werkzeuge
 
 - `state_blueprint_get_model`
@@ -56,6 +63,10 @@ nicht über DOM-Klicks.
 - Verschachtelter Ablauf läuft über Boundary-Eingang/-Ausgang und Proxy-Übergänge.
 - Exportierte Definitionen enthalten keine Undo-Historie und keinen
   Editor-Zwischenablage.
+- Lokale `state.data`-Pfade deklarieren Defaults; Runtime-Referenzen sind immer
+  vollqualifizierte `states.<id>.*`-Buspfade.
+- Preview, Editor-HTML-Export und MCP-HTML-Export verwenden dieselbe kanonische
+  Runtime-Quelle.
 
 ## MCP-Ressourcen
 
@@ -74,7 +85,7 @@ nicht über DOM-Klicks.
     { "type": "upsert_state", "id": "formular", "title": "Formular", "x": 96, "y": 120 },
     { "type": "upsert_state_variable", "stateId": "formular", "path": "email", "valueType": "email", "value": "" },
     { "type": "upsert_state", "id": "fertig", "title": "Fertig", "x": 360, "y": 120 },
-    { "type": "upsert_transition", "id": "formular_fertig", "from": "formular", "to": "fertig", "label": "Absenden", "condition": "email" },
+    { "type": "upsert_transition", "id": "formular_fertig", "from": "formular", "to": "fertig", "label": "Absenden", "condition": "states.formular.email" },
     { "type": "set_initial", "stateId": "formular" }
   ]
 }

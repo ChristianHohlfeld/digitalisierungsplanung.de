@@ -94,23 +94,16 @@ function loadWorkspace() {
     error.validation = validation;
     throw error;
   };
-  if (stored.kind === "state-blueprint-definition") {
-    return normalizeWorkspace({
-      model: canonicalModel(stored.model),
-      stateTemplates: Array.isArray(stored.stateTemplates) ? stored.stateTemplates : [],
-      editor: { camera: stored.camera, previewCollapsed: stored.previewCollapsed }
-    });
+  if (stored.kind !== "state-blueprint.workspace" || stored.schemaVersion !== 1 || !stored.model) {
+    throw new Error("Stored MCP data must use state-blueprint.workspace schemaVersion 1. Import definitions through state_blueprint_import_definition.");
   }
-  if (stored.model) {
-    return normalizeWorkspace({
-      model: canonicalModel(stored.model),
-      stateTemplates: Array.isArray(stored.stateTemplates) ? stored.stateTemplates : [],
-      editor: stored.editor,
-      clipboard: stored.clipboard,
-      history: stored.history
-    });
-  }
-  return normalizeWorkspace({ model: canonicalModel(stored), stateTemplates: [] });
+  return normalizeWorkspace({
+    model: canonicalModel(stored.model),
+    stateTemplates: Array.isArray(stored.stateTemplates) ? stored.stateTemplates : [],
+    editor: stored.editor,
+    clipboard: stored.clipboard,
+    history: stored.history
+  });
 }
 
 function saveWorkspace(workspace) {
@@ -208,8 +201,7 @@ const tools = [
     description: "Translate a natural-language edit request such as 'füge timer hinzu' into ordered State Blueprint actions without writing them.",
     inputSchema: jsonSchema({
       prompt: { type: "string", description: "Natural language edit request in German or English." },
-      selectedStateId: { type: "string", description: "Optional state that should be treated like the UI selection." },
-      stateId: { type: "string", description: "Alias for selectedStateId." }
+      selectedStateId: { type: "string", description: "Optional state that should be treated like the UI selection." }
     }, ["prompt"])
   },
   {
@@ -218,7 +210,6 @@ const tools = [
     inputSchema: jsonSchema({
       prompt: { type: "string", description: "Natural language edit request in German or English." },
       selectedStateId: { type: "string", description: "Optional state that should be treated like the UI selection." },
-      stateId: { type: "string", description: "Alias for selectedStateId." },
       dryRun: { type: "boolean", description: "Plan and validate without writing." },
       allowUnknown: { type: "boolean", description: "Return unknown intents instead of failing." }
     }, ["prompt"])
@@ -497,14 +488,18 @@ function readResource(uri) {
         text: [
           "# State Blueprint MCP Contract",
           "",
-          "- The model JSON is the only edited artifact.",
+          "- The canonical model JSON is the only persisted product definition; editor session data stays in the workspace envelope.",
           "- Runtime truth remains the single global state/event bus.",
+          "- MCP persistence uses only `state-blueprint.workspace` schemaVersion 1; definitions enter through the import tool.",
+          "- Tool, action, command, and field names are exact. There are no compatibility aliases.",
           "- State variables are declared as `state.data` plus `state.dataTypes`; they are defaults, not local runtime storage.",
+          "- State-variable declaration paths are local; runtime references use fully qualified `states.<id>.*` bus paths.",
           "- Render data is expressed as `dataWires` and structured components, never as hidden HTML blobs or component-local stores.",
           "- Transition triggers, conditions, timers, and `set` patches live on transitions.",
           "- Realtime event-catalog data is not copied into the model; transitions keep only concrete `realtime.*` refs.",
           "- Nested flows use boundary input/output references and proxy transitions instead of cross-layer direct wires.",
-          "- Tools apply actions in the order given and validate before writing."
+          "- Actions are dependency-ordered; commands retain their declared order. Both validate before writing.",
+          "- Preview, editor HTML export, and MCP HTML export use the same canonical runtime source."
         ].join("\n")
       }]
     };

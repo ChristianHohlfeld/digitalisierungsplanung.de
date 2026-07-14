@@ -214,6 +214,12 @@ npm run server:smoke:emit:prod
 
 Die Schnittstellen bearbeiten dasselbe Modell wie das Werkzeug. Sie klicken nicht die Oberfläche und halten keinen zweiten Speicher.
 
+Der MCP-Workspace hat genau eine Form:
+`state-blueprint.workspace` mit `schemaVersion: 1`. Formale `.state.json`-Dateien
+werden über das Importwerkzeug eingelesen. Nackte Modelle, alte Feldnamen und
+Aliasbefehle werden nicht migriert. Preview, Editor-Export und MCP-Export nutzen
+dieselbe eingebettete Runtime.
+
 Start:
 
 ```bash
@@ -225,6 +231,7 @@ Wichtige Werkzeuge:
 - `state_blueprint_get_model`
 - `state_blueprint_replace_model`
 - `state_blueprint_apply_actions`
+- `state_blueprint_apply_commands`
 - `state_blueprint_plan_prompt`
 - `state_blueprint_apply_prompt`
 - `state_blueprint_validate`
@@ -232,6 +239,7 @@ Wichtige Werkzeuge:
 - `state_blueprint_export_html`
 - `state_blueprint_import_definition`
 - `state_blueprint_action_catalog`
+- `state_blueprint_command_catalog`
 
 Dokumentation:
 

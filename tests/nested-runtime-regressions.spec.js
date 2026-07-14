@@ -38,7 +38,7 @@ async function openWithModel(page, model) {
     for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
       localStorage.removeItem(name);
     }
-    localStorage.setItem(key, JSON.stringify(model));
+    localStorage.setItem(`${key}.editor`, JSON.stringify({ model }));
   }, { key: STORAGE_KEY, model });
   await page.goto("/state.html");
   await expect(appFrame(page).locator("#statePill")).toHaveText(model.initial);

@@ -23,7 +23,7 @@ const BUILTIN_TRIGGER_TYPES = Object.freeze([
   },
   {
     id: "change",
-    label: "Daten aendern sich",
+    label: "Daten ändern sich",
     description: "A global-state bus value changes.",
     settings: {
       path: { type: "text", required: false, eventPrefix: "change." }
@@ -48,7 +48,7 @@ const BUILTIN_TRIGGER_TYPES = Object.freeze([
   },
   {
     id: "timer",
-    label: "Timer-Verzoegerung",
+    label: "Timer-Verzögerung",
     description: "The active state waits for a configured delay.",
     settings: {
       timerMs: { type: "number", min: 100, max: 300000, step: 100, default: 2000 }

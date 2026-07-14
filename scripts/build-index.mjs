@@ -5,7 +5,6 @@ import { createRequire } from "node:module";
 import { chromium } from "playwright";
 
 const root = resolve(process.cwd());
-const storageKey = "stateBlueprintHotLinked.model.v2";
 const require = createRequire(import.meta.url);
 const { DEFAULT_EVENT_CATALOG } = require("../server/event-catalog");
 const { productContractResponse } = require("../server/product-contract");
@@ -47,20 +46,14 @@ const buildOrigin = `http://127.0.0.1:${buildAddress.port}`;
 const browser = await chromium.launch();
 
 try {
-  const context = await browser.newContext({ acceptDownloads: true });
-  await context.addInitScript(key => {
-    for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
-      localStorage.removeItem(name);
-    }
-  }, storageKey);
-
+  const context = await browser.newContext({ acceptDownloads: true, viewport: { width: 1280, height: 820 } });
   const page = await context.newPage();
   await page.goto(`${buildOrigin}/state.html?demo=zustand`, { waitUntil: "domcontentloaded" });
   await page.waitForSelector("#btnExport", { state: "visible" });
   await page.waitForSelector('[data-id="site_home"]', { state: "visible" });
 
   const [download] = await Promise.all([
-    page.waitForEvent("download"),
+    page.waitForEvent("download", { timeout: 10000 }),
     page.locator("#btnExport").click()
   ]);
   await download.saveAs(resolve(root, "index.html"));

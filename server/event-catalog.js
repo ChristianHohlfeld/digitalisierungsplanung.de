@@ -429,14 +429,6 @@ function eventCatalogResponse(catalog) {
   };
 }
 
-function detailTypeMatches(value, type) {
-  if (type === "number") return typeof value === "number" && Number.isFinite(value);
-  if (type === "boolean") return typeof value === "boolean";
-  if (type === "object") return isPlainObject(value);
-  if (type === "list") return Array.isArray(value);
-  return typeof value === "string";
-}
-
 function validateEventDetail(detail, schema) {
   if (!isPlainObject(detail)) return { ok: false, code: "invalid_detail" };
   for (const key of Object.keys(detail)) {

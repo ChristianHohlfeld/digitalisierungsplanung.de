@@ -85,23 +85,18 @@ function stateDataScopeForId(id) {
 }
 
 function stateVariableActualPath(state, value) {
-  const localPath = stateVariableLocalPath(state, value);
+  const localPath = stateVariableLocalPath(value);
   if (!localPath) return "";
   const scope = stateDataScopeForId(state?.id);
   return scope ? `${scope}.${localPath}` : localPath;
 }
 
-function stateVariableLocalPath(state, value) {
+function stateVariableLocalPath(value) {
   const raw = normalizeBindingPath(value, "");
-  if (!raw) return "";
-  const scope = stateDataScopeForId(state?.id);
-  if (!scope) return raw;
-  if (raw.startsWith(`${scope}.`)) return raw.slice(scope.length + 1);
-  if (raw === scope || raw.startsWith("states.")) return "";
-  return raw;
+  return raw && !raw.startsWith("states.") ? raw : "";
 }
 
-function stateScopedActionPath(state, value) {
+function runtimeActionPath(value) {
   const raw = normalizeBindingPath(value, "");
   if (!raw) return "";
   return runtimeBusPathIsReadable(raw) ? raw : "";
@@ -187,10 +182,6 @@ function assertRuntimeReferenceContract(entity, kind) {
   const error = new Error(issues.map(issue => issue.message).join("; "));
   error.validation = { ok: false, issues };
   throw error;
-}
-
-function escapeRegExp(text) {
-  return String(text).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function normalizeDataObject(value) {
@@ -370,30 +361,14 @@ function normalizeDataTypes(value, data = {}) {
   return out;
 }
 
-function stateScopedVariablePaths(state) {
-  const scope = stateDataScopeForId(state?.id);
-  const scopedRoot = normalizeStateDataObject(state?.data);
-  const rows = [];
-  const walk = (path, value) => {
-    if (!path) return;
-    if (isPlainObject(value)) {
-      Object.entries(value).forEach(([key, child]) => walk(`${path}.${key}`, child));
-      return;
-    }
-    rows.push(path);
-  };
-  if (scope && isPlainObject(scopedRoot)) Object.entries(scopedRoot).forEach(([key, value]) => walk(`${scope}.${key}`, value));
-  return rows.sort((a, b) => b.length - a.length);
-}
-
-function rewriteStateScopedCondition(state, condition) {
+function validateTransitionCondition(condition) {
   const text = String(condition || "");
   const issues = runtimeReferenceContractIssuesForTransition({ condition: text, set: {} });
   if (issues.length) throw new Error(issues[0].message);
   return text;
 }
 
-function normalizeStateScopedPatch(state, patch) {
+function normalizeTransitionPatch(patch) {
   const out = {};
   for (const [key, value] of Object.entries(normalizeDataObject(patch))) {
     if (!runtimeBusPathIsWritable(key)) throw new Error("Transition set paths must use states.<id>.<field>.");
@@ -402,7 +377,7 @@ function normalizeStateScopedPatch(state, patch) {
   return out;
 }
 
-function normalizeStateScopedTransitionEvent(state, eventName, fallback = "") {
+function normalizeTransitionEventName(eventName, fallback = "") {
   const event = normalizeTransitionEvent(eventName, fallback);
   if (!event.startsWith("change.")) return event;
   const path = event.slice("change.".length);
@@ -1023,7 +998,7 @@ function descendantStateIds(model, rootIds) {
 }
 
 function deleteState(model, args) {
-  const id = String(args.id || args.stateId || "");
+  const id = String(args.id || "");
   if (!id) throw new Error("delete_state requires id.");
   const ids = args.deleteDescendants === false ? new Set([id]) : descendantStateIds(model, [id]);
   model.states = model.states.filter(state => !ids.has(state.id));
@@ -1059,13 +1034,13 @@ function ensureDefaultBoundaryTransitions(model, parentId = null) {
 }
 
 function selectedStateIdsFromCommand(workspace, command) {
-  const explicit = Array.isArray(command.stateIds) ? command.stateIds : Array.isArray(command.ids) ? command.ids : [];
+  const explicit = Array.isArray(command.stateIds) ? command.stateIds : [];
   if (explicit.length) return explicit.map(String).filter(Boolean);
   return normalizeEditorSelection(workspace.editor?.selected, workspace.model).nodes;
 }
 
 function selectedEdgeIdsFromCommand(workspace, command) {
-  const explicit = Array.isArray(command.transitionIds) ? command.transitionIds : Array.isArray(command.edgeIds) ? command.edgeIds : [];
+  const explicit = Array.isArray(command.transitionIds) ? command.transitionIds : [];
   if (explicit.length) return explicit.map(String).filter(Boolean);
   return normalizeEditorSelection(workspace.editor?.selected, workspace.model).edges;
 }
@@ -1203,7 +1178,7 @@ function removeBoundaryFlowsForParent(model, parentId) {
 }
 
 function degroupParentState(model, args = {}) {
-  const parent = findStateOrThrow(model, args.parentId || args.id || args.stateId);
+  const parent = findStateOrThrow(model, args.parentId);
   const children = statesInLayer(model, parent.id);
   if (!children.length) throw new Error("graph.degroup_parent requires a parent with children.");
   const childIds = new Set(children.map(child => child.id));
@@ -1251,14 +1226,13 @@ function upsertTransition(model, args) {
     ...model.transitions.map(transition => transition.id)
   ]);
   const target = { ...(existing || { id: uniqueRawId(usedIds, args.id || uniqueId([], args.label, "t"), "t") }) };
-  const sourceState = byModelId(model, from);
   target.from = from;
   target.to = to;
   target.label = String(args.label || target.label || defaultTransitionLabel());
-  target.condition = rewriteStateScopedCondition(sourceState, args.condition || "");
-  target.set = normalizeStateScopedPatch(sourceState, args.set);
+  target.condition = validateTransitionCondition(args.condition || "");
+  target.set = normalizeTransitionPatch(args.set);
   target.triggerType = normalizeTransitionTriggerType(args);
-  target.triggerEvent = normalizeStateScopedTransitionEvent(sourceState, args.triggerEvent || (target.triggerType === "change" ? "" : defaultTransitionEvent(target)));
+  target.triggerEvent = normalizeTransitionEventName(args.triggerEvent || (target.triggerType === "change" ? "" : defaultTransitionEvent(target)));
   target.timerMs = normalizeTransitionTimerMs(args.timerMs);
   target.groupEntryId = String(args.groupEntryId || "");
   target.groupExitId = String(args.groupExitId || "");
@@ -1270,7 +1244,7 @@ function upsertTransition(model, args) {
 
 function applyAction(model, action) {
   if (!isPlainObject(action)) throw new Error("Each action must be an object.");
-  const type = String(action.type || action.action || "");
+  const type = String(action.type || "");
   switch (type) {
     case "create_flow":
       return { type, model: Object.assign(model, blankModel(action.name || "State App")) };
@@ -1291,25 +1265,24 @@ function applyAction(model, action) {
       return { type, summary: modelSummary(model) };
     }
     case "upsert_state":
-    case "add_state":
       return { type, state: upsertState(model, action) };
     case "delete_state":
       return { type, ...deleteState(model, action) };
     case "move_state": {
-      const state = findStateOrThrow(model, action.id || action.stateId);
+      const state = findStateOrThrow(model, action.stateId);
       state.x = snapClampToGrid(Number(action.x), WORLD_MIN_X, WORLD_MAX_X - 168);
       state.y = snapClampToGrid(Number(action.y), WORLD_MIN_Y, WORLD_MAX_Y - NODE_H);
       return { type, state };
     }
     case "set_initial":
-      findStateOrThrow(model, action.stateId || action.id);
-      model.initial = String(action.stateId || action.id);
+      findStateOrThrow(model, action.stateId);
+      model.initial = String(action.stateId);
       return { type, initial: model.initial };
     case "upsert_transition":
-    case "add_transition":
       return { type, transition: upsertTransition(model, action) };
     case "delete_transition": {
-      const id = String(action.id || action.transitionId || "");
+      const id = String(action.transitionId || "");
+      if (!id) throw new Error("delete_transition requires transitionId.");
       model.transitions = model.transitions.filter(transition => transition.id !== id);
       for (const state of model.states) {
         state.components = normalizeComponents(state.components).filter(component => component.type !== "transitionButton" || component.transitionId !== id);
@@ -1318,10 +1291,10 @@ function applyAction(model, action) {
     }
     case "upsert_state_variable": {
       const state = findStateOrThrow(model, action.stateId);
-      const localPath = stateVariableLocalPath(state, action.path);
+      const localPath = stateVariableLocalPath(action.path);
       const path = stateVariableActualPath(state, localPath);
-      if (!localPath || !path) throw new Error("upsert_state_variable requires a local path or this state's fully qualified bus path.");
-      const typeName = normalizeStateVariableType(action.valueType || action.type || inferStateVariableType(localPath, action.value));
+      if (!localPath || !path) throw new Error("upsert_state_variable requires a local path.");
+      const typeName = normalizeStateVariableType(action.valueType || inferStateVariableType(localPath, action.value));
       const value = Object.prototype.hasOwnProperty.call(action, "value") ? action.value : defaultStateVariableValue(typeName);
       state.data = setDataObjectPath(normalizeStateDataObject(state.data), localPath, value);
       state.dataTypes = { ...normalizeDataTypes(state.dataTypes, state.data), [localPath]: typeName };
@@ -1329,9 +1302,9 @@ function applyAction(model, action) {
     }
     case "delete_state_variable": {
       const state = findStateOrThrow(model, action.stateId);
-      const localPath = stateVariableLocalPath(state, action.path);
+      const localPath = stateVariableLocalPath(action.path);
       const path = stateVariableActualPath(state, localPath);
-      if (!localPath || !path) throw new Error("delete_state_variable requires a local path or this state's fully qualified bus path.");
+      if (!localPath || !path) throw new Error("delete_state_variable requires a local path.");
       state.data = deleteDataObjectPath(state.data, localPath);
       state.dataTypes = Object.fromEntries(Object.entries(normalizeDataTypes(state.dataTypes, state.data)).filter(([key]) => key !== localPath && !key.startsWith(localPath + ".")));
       state.dataWires = normalizeDataWires(state.dataWires).filter(wire => wire.sourcePath !== path && !wire.sourcePath.startsWith(path + "."));
@@ -1363,8 +1336,8 @@ function applyAction(model, action) {
       const state = findStateOrThrow(model, action.stateId);
       const scopedAction = {
         ...action,
-        sourcePath: stateScopedActionPath(state, action.sourcePath || action.path),
-        scopePath: action.scopePath ? stateScopedActionPath(state, action.scopePath) : ""
+        sourcePath: runtimeActionPath(action.sourcePath),
+        scopePath: action.scopePath ? runtimeActionPath(action.scopePath) : ""
       };
       const wire = normalizeDataWire(scopedAction);
       if (!wire) throw new Error("upsert_data_wire requires sourcePath.");
@@ -1378,8 +1351,9 @@ function applyAction(model, action) {
     }
     case "remove_data_wire": {
       const state = findStateOrThrow(model, action.stateId);
-      const id = String(action.id || action.wireId || "");
+      const id = String(action.wireId || "");
       const sourcePath = normalizeBindingPath(action.sourcePath || "", "");
+      if (!id && !sourcePath) throw new Error("remove_data_wire requires wireId or sourcePath.");
       if (sourcePath && !runtimeBusPathIsReadable(sourcePath)) {
         throw new Error("Data-wire sourcePath must use a fully qualified runtime bus path.");
       }
@@ -1389,7 +1363,8 @@ function applyAction(model, action) {
     }
     case "add_component": {
       const state = findStateOrThrow(model, action.stateId);
-      const rawComponent = action.component || action;
+      const rawComponent = action.component;
+      if (!isPlainObject(rawComponent)) throw new Error("add_component requires component.");
       assertNoHiddenComponentState(rawComponent);
       assertRuntimeReferenceContract({ id: state.id, components: [rawComponent] }, "state");
       const [component] = normalizeComponents([rawComponent]);
@@ -1402,22 +1377,26 @@ function applyAction(model, action) {
     }
     case "update_component": {
       const state = findStateOrThrow(model, action.stateId);
-      const componentId = String(action.componentId || action.id || "");
-      assertNoHiddenComponentState(action.patch || action.component || {});
+      const componentId = String(action.componentId || "");
+      if (!componentId) throw new Error("update_component requires componentId.");
+      if (!isPlainObject(action.patch)) throw new Error("update_component requires patch.");
+      const patch = action.patch;
+      assertNoHiddenComponentState(patch);
       const currentComponent = normalizeComponents(state.components).find(component => component.id === componentId);
       if (!currentComponent) throw new Error(`Component not found: ${componentId}`);
-      assertRuntimeReferenceContract({ id: state.id, components: [{ ...currentComponent, ...(action.patch || action.component || {}) }] }, "state");
+      assertRuntimeReferenceContract({ id: state.id, components: [{ ...currentComponent, ...patch }] }, "state");
       let updated = null;
       state.components = normalizeComponents(state.components).map(component => {
         if (component.id !== componentId) return component;
-        [updated] = normalizeComponents([{ ...component, ...(action.patch || action.component || {}) }]);
+        [updated] = normalizeComponents([{ ...component, ...patch }]);
         return updated || component;
       });
       return { type, stateId: state.id, component: updated };
     }
     case "remove_component": {
       const state = findStateOrThrow(model, action.stateId);
-      const componentId = String(action.componentId || action.id || "");
+      const componentId = String(action.componentId || "");
+      if (!componentId) throw new Error("remove_component requires componentId.");
       state.components = normalizeComponents(state.components).filter(component => component.id !== componentId);
       return { type, stateId: state.id, componentId };
     }
@@ -1444,13 +1423,13 @@ function applyAction(model, action) {
 }
 
 function actionApplyPriority(action) {
-  const type = String(action?.type || action?.action || "");
+  const type = String(action?.type || "");
   if (type === "create_flow" || type === "replace_model" || type === "set_model_name") return 0;
-  if (type === "add_state" || type === "upsert_state") return 10;
+  if (type === "upsert_state") return 10;
   if (type === "set_initial") return 20;
   if (type === "upsert_state_variable" || type === "configure_fetch" || type === "configure_repeat" || type === "upsert_data_wire" || type === "add_component") return 30;
   if (type === "set_boundary") return 40;
-  if (type === "add_transition" || type === "upsert_transition") return 50;
+  if (type === "upsert_transition") return 50;
   return 60;
 }
 
@@ -1674,14 +1653,14 @@ function duplicateSelectionPayload(model, payload, args = {}) {
 }
 
 function insertStateOnTransition(model, command) {
-  const transition = transitionById(model, command.transitionId || command.edgeId || command.id);
+  const transition = transitionById(model, command.transitionId);
   if (!transition || transition.boundaryFlow || isBoundaryProxyId(transition.from) || isBoundaryProxyId(transition.to)) {
     throw new Error("graph.insert_state_on_transition requires a normal transition.");
   }
   const from = findStateOrThrow(model, transition.from);
   const to = findStateOrThrow(model, transition.to);
   const state = createState(model, {
-    id: command.stateId || command.newStateId || command.title,
+    id: command.stateId || command.title,
     title: command.title || "State",
     parentId: stateParentId(from),
     x: Number.isFinite(Number(command.x)) ? Number(command.x) : snapToGrid((from.x + to.x) / 2),
@@ -1696,7 +1675,7 @@ function insertStateOnTransition(model, command) {
   transition.to = state.id;
   transition.groupEntryId = "";
   const next = upsertTransition(model, {
-    id: command.nextTransitionId || command.transitionIdAfter,
+    id: command.nextTransitionId,
     from: state.id,
     to: oldTo,
     label: command.nextLabel || defaultTransitionLabel(),
@@ -1710,8 +1689,8 @@ function insertStateOnTransition(model, command) {
 
 function applyCommand(workspace, command = {}) {
   if (!isPlainObject(command)) throw new Error("Each command must be an object.");
-  const name = String(command.command || command.type || command.name || "");
-  if (!name) throw new Error("Command requires command/type/name.");
+  const name = String(command.command || "");
+  if (!name) throw new Error("Command requires command.");
   switch (name) {
     case "actions.apply": {
       const result = applyActions(workspace.model, command.actions || [], { allowInvalid: Boolean(command.allowInvalid) });
@@ -1719,9 +1698,9 @@ function applyCommand(workspace, command = {}) {
       return { command: name, ...result };
     }
     case "scene.new":
-      return { command: name, ...applyAction(workspace.model, { type: "create_flow", name: command.title || command.name || "State App" }) };
+      return { command: name, ...applyAction(workspace.model, { type: "create_flow", name: command.title || "State App" }) };
     case "scene.rename":
-      return { command: name, ...applyAction(workspace.model, { type: "set_model_name", name: command.title || command.name || "State App" }) };
+      return { command: name, ...applyAction(workspace.model, { type: "set_model_name", name: command.title || "State App" }) };
     case "model.replace":
       return { command: name, ...applyAction(workspace.model, { type: "replace_model", model: command.model }) };
     case "state.upsert":
@@ -1733,7 +1712,6 @@ function applyCommand(workspace, command = {}) {
       return { command: name, ...applyAction(workspace.model, { ...command, type: "delete_state" }) };
     case "state.set_initial":
       return { command: name, ...applyAction(workspace.model, { ...command, type: "set_initial" }) };
-    case "transition.upsert":
     case "transition.create":
     case "transition.update":
     case "transition.rewire":
@@ -1753,21 +1731,20 @@ function applyCommand(workspace, command = {}) {
     case "wire.remove":
       return { command: name, ...applyAction(workspace.model, { ...command, type: "remove_data_wire" }) };
     case "component.add":
-    case "widget.add":
       return { command: name, ...applyAction(workspace.model, { ...command, type: "add_component" }) };
     case "component.update":
-    case "widget.update":
       return { command: name, ...applyAction(workspace.model, { ...command, type: "update_component" }) };
     case "component.remove":
-    case "widget.remove":
       return { command: name, ...applyAction(workspace.model, { ...command, type: "remove_component" }) };
     case "component.reorder":
-    case "widget.reorder":
       return { command: name, ...applyAction(workspace.model, { ...command, type: "reorder_components" }) };
     case "boundary.set":
       return { command: name, ...applyAction(workspace.model, { ...command, type: "set_boundary" }) };
     case "selection.set":
-      workspace.editor.selected = normalizeEditorSelection({ nodes: command.nodes || command.stateIds || [], edges: command.edges || command.transitionIds || [] }, workspace.model);
+      if (!Array.isArray(command.stateIds) && !Array.isArray(command.transitionIds)) {
+        throw new Error("selection.set requires stateIds or transitionIds.");
+      }
+      workspace.editor.selected = normalizeEditorSelection({ nodes: command.stateIds || [], edges: command.transitionIds || [] }, workspace.model);
       return { command: name, selected: workspace.editor.selected };
     case "selection.clear":
       workspace.editor.selected = normalizeEditorSelection(null, workspace.model);
@@ -1776,8 +1753,9 @@ function applyCommand(workspace, command = {}) {
       workspace.editor.selected = selectionForCurrentLayer(workspace.model, workspace.editor.currentLayerId);
       return { command: name, selected: workspace.editor.selected };
     case "layer.open": {
-      const layerId = command.layerId || command.stateId || command.id || "";
-      workspace.editor.currentLayerId = layerId && byModelId(workspace.model, layerId) ? String(layerId) : null;
+      const layerId = command.stateId || "";
+      if (!layerId || !byModelId(workspace.model, layerId)) throw new Error("layer.open requires an existing stateId.");
+      workspace.editor.currentLayerId = String(layerId);
       workspace.editor.selected = normalizeEditorSelection(null, workspace.model);
       return { command: name, currentLayerId: workspace.editor.currentLayerId };
     }
@@ -1792,7 +1770,8 @@ function applyCommand(workspace, command = {}) {
       workspace.editor.selected = normalizeEditorSelection(null, workspace.model);
       return { command: name, currentLayerId: null };
     case "viewport.set_camera":
-      workspace.editor.camera = normalizeCamera(command.camera || command);
+      if (!isPlainObject(command.camera)) throw new Error("viewport.set_camera requires camera.");
+      workspace.editor.camera = normalizeCamera(command.camera);
       return { command: name, camera: workspace.editor.camera };
     case "viewport.reset":
       workspace.editor.camera = normalizeCamera({ x: 32, y: 32, scale: 1 });
@@ -1801,16 +1780,20 @@ function applyCommand(workspace, command = {}) {
       workspace.editor.camera = fitCameraForModel(workspace.model, { ...command, layerId: command.layerId ?? workspace.editor.currentLayerId });
       return { command: name, camera: workspace.editor.camera };
     case "preview.set_collapsed":
-      workspace.editor.previewCollapsed = Boolean(command.collapsed ?? command.value);
+      if (typeof command.collapsed !== "boolean") throw new Error("preview.set_collapsed requires collapsed.");
+      workspace.editor.previewCollapsed = Boolean(command.collapsed);
       return { command: name, previewCollapsed: workspace.editor.previewCollapsed };
-    case "ui.set_panel":
-      workspace.editor.panels[String(command.panel || command.id || "panel")] = {
+    case "ui.set_panel": {
+      const panel = String(command.panel || "");
+      if (!panel) throw new Error("ui.set_panel requires panel.");
+      workspace.editor.panels[panel] = {
         collapsed: Boolean(command.collapsed)
       };
       if (Number.isFinite(Number(command.width))) {
-        workspace.editor.panels[String(command.panel || command.id || "panel")].width = Number(command.width);
+        workspace.editor.panels[panel].width = Number(command.width);
       }
       return { command: name, panels: workspace.editor.panels };
+    }
     case "graph.copy_selection":
       workspace.clipboard = selectionPayload(workspace.model, {
         nodes: command.stateIds || selectedStateIdsFromCommand(workspace, command),
@@ -1832,7 +1815,7 @@ function applyCommand(workspace, command = {}) {
     case "graph.delete_selection": {
       const stateIds = selectedStateIdsFromCommand(workspace, command);
       const edgeIds = selectedEdgeIdsFromCommand(workspace, command);
-      edgeIds.forEach(id => applyAction(workspace.model, { type: "delete_transition", id }));
+      edgeIds.forEach(transitionId => applyAction(workspace.model, { type: "delete_transition", transitionId }));
       stateIds.forEach(id => applyAction(workspace.model, { type: "delete_state", id }));
       workspace.editor.selected = normalizeEditorSelection(null, workspace.model);
       return { command: name, deleted: { states: stateIds, transitions: edgeIds } };
@@ -1880,7 +1863,7 @@ function applyCommands(inputWorkspace, commands, options = {}) {
   const workspace = normalizeWorkspace(inputWorkspace);
   const results = [];
   for (const command of commands) {
-    const name = String(command?.command || command?.type || command?.name || "");
+    const name = String(command?.command || "");
     const historyCommand = name === "history.undo" || name === "history.redo";
     const historyNeutral = commandIsHistoryNeutral(name) || command.history === false;
     if (!historyCommand && !historyNeutral) pushCommandHistory(workspace);

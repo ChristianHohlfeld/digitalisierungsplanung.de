@@ -239,6 +239,9 @@ test.describe("State Blueprint MCP", () => {
     expect(apiDoc).toContain("model.realtime");
     expect(apiDoc).not.toContain("upsert_editor_group");
     expect(apiDoc).not.toContain("delete_editor_group");
+    expect(apiDoc).not.toContain("`add_state`");
+    expect(apiDoc).not.toContain("`add_transition`");
+    expect(apiDoc).not.toContain("`sourcePath` / `path`");
     expect(mcpDoc).toContain("state-blueprint-api.md");
     expect(mcpDoc).toContain('triggerType: "realtime"');
     expect(readme).toContain("docs/state-blueprint-api.md");
@@ -252,6 +255,45 @@ test.describe("State Blueprint MCP", () => {
     expect(editorKind).toBe("state-blueprint-definition");
     expect(definition.kind).toBe(editorKind);
     expect(definition.schemaVersion).toBe(2);
+  });
+
+  test("rejects removed action, command, field, path, and workspace forms @smoke", async () => {
+    const base = applyActions({}, [
+      { type: "upsert_state", id: "start", title: "Start" },
+      { type: "upsert_state", id: "done", title: "Done" },
+      { type: "upsert_transition", id: "start_done", from: "start", to: "done" }
+    ]).model;
+
+    expect(() => applyActions(base, [{ type: "add_state", id: "old" }])).toThrow("Unknown state-blueprint action");
+    expect(() => applyActions(base, [{ action: "upsert_state", id: "old" }])).toThrow("Unknown state-blueprint action");
+    expect(() => applyActions(base, [{ type: "add_transition", id: "old", from: "start", to: "done" }])).toThrow("Unknown state-blueprint action");
+    expect(() => applyActions(base, [{ type: "delete_transition", id: "start_done" }])).toThrow("requires transitionId");
+    expect(() => applyActions(base, [{ type: "upsert_state_variable", stateId: "start", path: "states.start.email", value: "" }])).toThrow("requires a local path");
+    expect(() => applyCommands({ model: base }, [{ type: "state.create", id: "old" }])).toThrow("Command requires command");
+    expect(() => applyCommands({ model: base }, [{ command: "transition.upsert", id: "old", from: "start", to: "done" }])).toThrow("Unknown state-blueprint command");
+    expect(() => applyCommands({ model: base }, [{ command: "widget.add", stateId: "start", component: { id: "old", type: "text" } }])).toThrow("Unknown state-blueprint command");
+
+    const tempDir = path.join(process.cwd(), "tmp", "mcp-tests");
+    fs.mkdirSync(tempDir, { recursive: true });
+    const modelPath = path.join(tempDir, `noncanonical-workspace-${Date.now()}.json`);
+    fs.writeFileSync(modelPath, JSON.stringify(base));
+    const client = createMcpClient(modelPath);
+    try {
+      await client.request("initialize", {
+        protocolVersion: "2025-11-25",
+        capabilities: {},
+        clientInfo: { name: "strict-workspace-test", version: "1.0.0" }
+      });
+      const rejected = await client.request("tools/call", {
+        name: "state_blueprint_get_model",
+        arguments: {}
+      });
+      expect(rejected.isError).toBe(true);
+      expect(rejected.structuredContent.error).toContain("state-blueprint.workspace schemaVersion 1");
+    } finally {
+      await client.close();
+      try { fs.unlinkSync(modelPath); } catch (_) {}
+    }
   });
 
   test("drives editor commands through the canonical model without DOM automation @smoke", () => {
@@ -327,7 +369,7 @@ test.describe("State Blueprint MCP", () => {
     }));
 
     const degrouped = applyCommands(grouped.workspace, [
-      { command: "graph.degroup_parent", stateId: "checkout" }
+      { command: "graph.degroup_parent", parentId: "checkout" }
     ]);
     expect(degrouped.validation.ok).toBe(true);
     expect(degrouped.workspace.model).not.toHaveProperty("editorGroups");

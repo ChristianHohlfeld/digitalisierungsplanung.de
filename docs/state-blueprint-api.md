@@ -26,6 +26,13 @@ STATE_BLUEPRINT_MODEL_PATH=./state-blueprint.workspace.json npm run mcp:state
 Ohne `STATE_BLUEPRINT_MODEL_PATH` liest und schreibt der Server
 `./state-blueprint.workspace.json`.
 
+Die Datei verwendet ausschließlich `kind: "state-blueprint.workspace"` mit
+`schemaVersion: 1`. Ein nacktes Modell oder eine
+`state-blueprint-definition` ist keine Workspace-Datei und wird abgelehnt.
+Formale `.state.json`-Definitionen gelangen ausschließlich über
+`state_blueprint_import_definition` in den Workspace. Werkzeug-, Aktions-,
+Befehls- und Feldnamen sind exakt; es gibt keine Aliasnamen oder Migration.
+
 Der Server spricht MCP JSON-RPC über stdio. Jede Antwort liefert JSON-Text in
 `content[0].text` und denselben Wert in `structuredContent`.
 
@@ -155,7 +162,7 @@ generierte Modellneubauten gedacht. Das Modell wird normalisiert und validiert.
 }
 ```
 
-### `upsert_state` / `add_state`
+### `upsert_state`
 
 Erzeugt oder aktualisiert einen Zustand.
 
@@ -235,7 +242,7 @@ Setzt den initialen Runtime-Zustand.
 { "type": "set_initial", "stateId": "cart" }
 ```
 
-### `upsert_transition` / `add_transition`
+### `upsert_transition`
 
 Create or update one explicit FSM transition. Endpoints must be existing states
 in the same layer. Cross-layer flow must use boundary input/output references.
@@ -270,7 +277,7 @@ Schaltflächen-Übergang:
   "to": "shipping",
   "label": "Zur Kasse",
   "triggerType": "button",
-  "set": { "checkoutStarted": true }
+  "set": { "states.cart.checkoutStarted": true }
 }
 ```
 
@@ -285,7 +292,7 @@ Timer-Übergang:
   "label": "Geladen",
   "triggerType": "timer",
   "timerMs": 2000,
-  "set": { "loaded": true }
+  "set": { "states.loading.loaded": true }
 }
 ```
 
@@ -300,12 +307,13 @@ Bus-Änderungs-Übergang:
   "label": "Weiter",
   "triggerType": "change",
   "triggerEvent": "change.states.form.accepted",
-  "condition": "accepted == true"
+  "condition": "states.form.accepted == true"
 }
 ```
 
-Short state-scoped paths such as `accepted` are normalized to
-`states.<source-state-id>.accepted`.
+Relative Runtime-Pfade wie `accepted` sind ungültig. Bedingungen, Wirkungen,
+Datenverbindungen und Render-Bindungen verwenden immer den vollständigen
+Buspfad.
 
 Realtime-Übergang:
 
@@ -427,7 +435,7 @@ Fields:
 | --- | --- | --- |
 | `id` | string | Stabile Verbindungs-ID. |
 | `stateId` | string | Besitzender Zustand. |
-| `sourcePath` / `path` | Bus-Pfad | Zu lesender Wert. |
+| `sourcePath` | Bus-Pfad | Zu lesender Wert. |
 | `scopePath` | Bus-Pfad | Optionaler Listenpfad für Wiederholung. |
 | `itemPath` | Pfad | Optionaler Pfad innerhalb jedes Listeneintrags. |
 | `role` | string | `image`, `title`, `price`, `description`, `field`, `link`, `note`. |
@@ -630,7 +638,7 @@ Regeln:
 ```json
 {
   "actions": [
-    { "type": "delete_transition", "id": "a_to_c" },
+    { "type": "delete_transition", "transitionId": "a_to_c" },
     { "type": "upsert_state", "id": "b", "title": "Prüfen", "x": 360, "y": 120 },
     { "type": "upsert_transition", "id": "a_to_b", "from": "a", "to": "b", "label": "Prüfen" },
     { "type": "upsert_transition", "id": "b_to_c", "from": "b", "to": "c", "label": "Weiter" }
@@ -889,7 +897,7 @@ wenn sie eine eigene Historie braucht.
 
 ## Vertragsprüfungen
 
-Vor dem Schreiben lehnt die API diese Fälle ab oder normalisiert sie:
+Vor dem Schreiben lehnt die API diese Fälle ab:
 
 - Übergänge, deren Endpunkte nicht existieren.
 - Übergänge über Ebenen hinweg ohne Boundary-Proxies.
@@ -897,7 +905,13 @@ Vor dem Schreiben lehnt die API diese Fälle ab oder normalisiert sie:
 - Datentyp-Einträge ohne passendes `state.data`.
 - Datenverbindungs-Komponenten, die auf fehlende Verbindungen zeigen.
 - Übergangsschaltflächen, die auf fehlende Übergänge zeigen.
-- Kollisionen von Zustandsvariablen, indem neue Variablen unter `states.<stateId>` gescopet werden.
+- nicht lokale `path`-Werte in `state.data`-Deklarationen.
+- nackte Modelle, Definitionen oder falsche Schema-Versionen als MCP-Workspace.
+- entfernte Aktions-, Befehls- und Aliasfeldformen; es gibt keine Kompatibilitätsaliasse.
+
+Ein lokaler Deklarationspfad wie `email` wird in `state.data` gespeichert. Die
+Runtime stellt ihn genau einmal unter `states.<stateId>.email` bereit; es
+entsteht kein zweiter veränderlicher Zustand.
 
 Empfohlener Schreibablauf für Agenten:
 

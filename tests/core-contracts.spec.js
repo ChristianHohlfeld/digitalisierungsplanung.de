@@ -124,7 +124,7 @@ async function openTool(page) {
     for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
       localStorage.removeItem(name);
     }
-    localStorage.setItem(key, JSON.stringify(model));
+    localStorage.setItem(`${key}.editor`, JSON.stringify({ model }));
   }, { key: STORAGE_KEY, model: defaultTestModel() });
   await page.goto("/state.html");
   await expect(page.locator('[data-id="auth_start"]')).toBeVisible();
@@ -135,7 +135,7 @@ async function openWithModel(page, model, url = "/state.html", expectedState = m
     for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
       localStorage.removeItem(name);
     }
-    localStorage.setItem(key, JSON.stringify(model));
+    localStorage.setItem(`${key}.editor`, JSON.stringify({ model }));
   }, { key: STORAGE_KEY, model });
   await page.goto(url);
   await expect(appFrame(page).locator("#statePill")).toHaveText(expectedState);
@@ -289,6 +289,31 @@ test.describe("Core source contracts", () => {
     expect(html).not.toContain("enhanceGeneratedAppHtml");
     expect(html).not.toContain("removeGeneratedRange");
     expect(html).not.toContain("replaceGeneratedRange");
+    expect(html).not.toContain("function loadModel(");
+    expect(html).not.toContain("STATE_EXPLORER_KEY");
+    expect(html).not.toContain("persistStateTemplates");
+    expect(html).not.toContain("editingTemplateId");
+  });
+
+  test("generated runtime has one used top-level implementation per named function @smoke", () => {
+    const source = generatedAppHtml();
+    const declarations = [...source.matchAll(/^ {4}(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/gm)]
+      .map(match => match[1]);
+    const declarationCounts = declarations.reduce((counts, name) => {
+      counts.set(name, (counts.get(name) || 0) + 1);
+      return counts;
+    }, new Map());
+    const duplicates = declarations
+      .filter((name, index) => declarations.indexOf(name) !== index)
+      .filter((name, index, names) => names.indexOf(name) === index)
+      .sort();
+    const declarationOnly = [...declarationCounts]
+      .filter(([name, count]) => (source.match(new RegExp(`\\b${name}\\b`, "g")) || []).length === count)
+      .map(([name]) => name)
+      .sort();
+
+    expect(duplicates, "top-level runtime function names must be unique").toEqual([]);
+    expect(declarationOnly, "top-level runtime functions need a source reference beyond their declaration").toEqual([]);
   });
 
   test("editor host has no declaration-only named functions @smoke", () => {
@@ -836,7 +861,7 @@ test.describe("Core source contracts", () => {
       for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
         localStorage.removeItem(name);
       }
-      localStorage.setItem(key, raw);
+      localStorage.setItem(`${key}.editor`, JSON.stringify({ model: JSON.parse(raw) }));
     }, { key: STORAGE_KEY, slot: daisyBindingModelSlot });
     await page.goto("/state.html");
   };
@@ -1193,7 +1218,7 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("toggleSubscriptionPath");
     expect(html).toContain("toggleRenderPath");
     expect(html).toContain("pTransitionKeyGrid");
-    expect(productContract.triggerTypes.some(type => type.id === "change" && type.label === "Daten aendern sich")).toBe(true);
+    expect(productContract.triggerTypes.some(type => type.id === "change" && type.label === "Daten ändern sich")).toBe(true);
     expect(productContract.triggerTypes.some(type =>
       type.id === "flow" &&
       type.internal === true &&
@@ -1222,8 +1247,9 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("function pickDerivedRepeatFields");
     expect(html).toContain("function imagePathSpecificityScore");
     expect(html).toContain("category|categories|brand|manufacturer");
-    expect(appHtml).toContain("function runtimeImagePathSpecificityScore");
-    expect(appHtml).toContain("runtimeImagePathSpecificityScore(path)");
+    expect(appHtml).not.toContain("function runtimeDerivedRepeatComponents");
+    expect(appHtml).not.toContain("function runtimeBestField");
+    expect(appHtml).not.toContain("function runtimeImagePathSpecificityScore");
     expect(html).toContain("function repeatSampleForPath");
     expect(html).toContain("function repeatComponentMeta");
     expect(html).toContain("function columnarRepeatEntries");
@@ -1284,7 +1310,7 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("push(fields.image, \"image\", \"image\", \"Image\")");
     expect(html).toContain('filter(part => !/^\\d+$/.test(part))');
     expect(html).toContain('const childPrefix = prefix ? prefix + ".0" : "";');
-    expect(appHtml).toContain("function runtimeDerivedRepeatComponents");
+    expect(appHtml).not.toContain("function runtimeDerivedRepeatComponents");
     expect(appHtml).toContain("function runtimeColumnarRepeatEntries");
     expect(appHtml).toContain("function runtimeRepeatValueItems");
     expect(appHtml).toContain("const repeated = runtimeRepeatValueItems(repeatedValue)");
@@ -1310,7 +1336,6 @@ test.describe("Core source contracts", () => {
     expect(appHtml).not.toContain("runtimeComponentIsRawDataDump");
     expect(appHtml).not.toContain("runtimeTemplateTouchesPath");
     expect(appHtml).not.toContain("{{");
-    expect(appHtml).toContain('prefix + ".0"');
     expect(appHtml).not.toContain("readableRepeatComponentsForRuntime(state.components, item, repeat.as, repeat.path)");
   });
 
@@ -1452,7 +1477,10 @@ test.describe("Core source contracts", () => {
     expect(appHtml).toContain('runtimeSet("state.current", runtimeTarget || ""');
     expect(appHtml).toContain('runtimeSet(path, JSON.parse(JSON.stringify(value)), { source: "state-default"');
     expect(appHtml).toContain('runtimeSet(targetPath, dataSourceResult({ status: "source-changed"');
-    expect(appHtml).toContain('runtimeSet(v.name, sanitizeValue(readContextPathRaw(v.name), v)');
+    expect(appHtml).not.toContain("function sanitizeContext");
+    expect(appHtml).not.toContain("function ensureContext");
+    expect(appHtml).not.toContain("function sanitizeValue");
+    expect(appHtml).not.toContain("function sanitizeNumericInput");
     expect(appHtml).toContain('state: { current: m?.initial || "", previous: "", lastTransition: "" }');
     expect(appHtml).toContain("runtime: { paused: false }");
     expect(appHtml).not.toContain("Object.assign(context");

@@ -36,7 +36,7 @@ function findState(model, idOrTitle) {
 }
 
 function targetState(model, args = {}) {
-  return findState(model, args.selectedStateId || args.stateId || "") ||
+  return findState(model, args.selectedStateId || "") ||
     findState(model, model.initial || "") ||
     model.states[0] ||
     null;
@@ -91,11 +91,6 @@ function childTitleFromPrompt(prompt, fallback = "Schritt") {
     .trim() || fallback;
 }
 
-function shouldCreateTimedExit(prompt) {
-  const text = lower(prompt);
-  return /timer|countdown|zeit|warte|delay|sekunde|second/.test(text);
-}
-
 function planTimer(model, prompt, args) {
   const state = targetState(model, args);
   const assumptions = [];
@@ -112,7 +107,7 @@ function planTimer(model, prompt, args) {
   actions.push({
     type: "upsert_state_variable",
     stateId,
-    path: scope,
+    path: "timer",
     valueType: "object",
     value: {
       duration,
@@ -293,7 +288,7 @@ function planComponent(model, prompt, args) {
   const variant = componentIntent(prompt);
   const scope = `${stateScope(stateId)}.${variant}`;
   const value = daisyDefaults[variant] || daisyDefaults.card;
-  actions.push({ type: "upsert_state_variable", stateId, path: scope, valueType: "object", value });
+  actions.push({ type: "upsert_state_variable", stateId, path: variant, valueType: "object", value });
   actions.push({
     type: "add_component",
     stateId,
@@ -521,7 +516,7 @@ function planFetch(model, prompt, args) {
 }
 
 function planPrompt(model, args = {}) {
-  const prompt = compactText(args.prompt || args.message || "");
+  const prompt = compactText(args.prompt || "");
   const text = lower(prompt);
   if (!prompt) return fallbackPlan("Empty prompt.");
   if (looksLikeWorkflowPrompt(prompt)) return planWorkflow(model, prompt, args);

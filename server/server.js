@@ -27,7 +27,6 @@ const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 8788;
 const MAX_ID_LENGTH = 128;
 const MAX_EVENT_NAME_LENGTH = 160;
-const MAX_STATE_PATH_LENGTH = 240;
 const MAX_EMIT_BODY_BYTES = 64 * 1024;
 const MESSAGE_TYPES = new Set(["runtime.event"]);
 const CONSOLE_HTML = `<!doctype html>
@@ -350,12 +349,6 @@ function sanitizeEventName(value) {
   const text = String(value || "").trim();
   if (!text || text.length > MAX_EVENT_NAME_LENGTH) return "";
   return /^[a-zA-Z0-9_.:-]+$/.test(text) ? text : "";
-}
-
-function sanitizeStatePath(value) {
-  const text = String(value || "").trim();
-  if (!text || text.length > MAX_STATE_PATH_LENGTH) return "";
-  return /^[a-zA-Z_][a-zA-Z0-9_:-]*(?:\.[a-zA-Z_][a-zA-Z0-9_:-]*)*$/.test(text) ? text : "";
 }
 
 function toBase64UrlJson(value) {

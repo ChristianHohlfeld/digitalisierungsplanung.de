@@ -54,7 +54,7 @@ test("desktop boot cannot refit or zoom during the first left or right pan @smok
     for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.ui`]) {
       localStorage.removeItem(name);
     }
-    localStorage.setItem(key, JSON.stringify(model));
+    localStorage.setItem(`${key}.editor`, JSON.stringify({ model }));
   }, { key: STORAGE_KEY, model: wideDesktopModel() });
 
   await page.goto("/state.html");
