@@ -5874,6 +5874,7 @@
     let pendingFramePayloads = [];
     let runtimeModelSyncSequence = 0;
     let pendingRuntimeModelSyncId = "";
+    let pendingHistoryRestoreSyncId = "";
     let refreshInspectorGlobalStateTree = null;
     let pendingAppStartStateId = null;
     let pendingAppStartSuppressLayerFollow = false;
@@ -7378,16 +7379,24 @@
       currentLayerId = byId(restored.currentLayerId) ? restored.currentLayerId : null;
       selected = normalizeSelection(restored.selected);
       historyCurrent = editorSnapshot();
+      runtimeLayerFollowEnabled = false;
+      suppressRuntimeLayerFollowUntil = 0;
+      pendingAppStartStateId = null;
+      pendingAppStartSuppressLayerFollow = false;
+      pendingAutoEntryLayerBackPulseId = "";
       connecting = null;
       connectingTargetId = null;
       dragging = null;
       stateDragOverStateId = "";
       boxSelecting = null;
       updateSelectRect();
-      persistModel();
+      clearTimeout(syncTimer);
+      syncTimer = null;
+      persistModel(false);
       draw();
       renderStateExplorer();
       refreshInspectorForSelection();
+      pendingHistoryRestoreSyncId = String(syncToApp(false)?.syncId || "");
       updateHistoryButtons();
     }
 
@@ -20094,6 +20103,15 @@
       return payload.syncId === syncId ? payload : { ...payload, syncId };
     }
 
+    function runtimeSyncAtOrAfter(value, expected) {
+      const actualNumber = Number(value);
+      const expectedNumber = Number(expected);
+      if (Number.isSafeInteger(actualNumber) && Number.isSafeInteger(expectedNumber)) {
+        return actualNumber >= expectedNumber;
+      }
+      return String(value || "") === String(expected || "");
+    }
+
     function queuePendingRuntimePayload(payload) {
       if (!payload || typeof payload !== "object") return;
       payload = prepareRuntimePayload(payload);
@@ -20176,6 +20194,7 @@
       } else {
         queuePendingRuntimePayload(payload);
       }
+      return payload;
     }
 
     function requestRuntimeStateEvent() {
@@ -20344,6 +20363,7 @@
       clearPresetPreviewUi();
       syncStateEl.textContent = reset ? "neu" : "aktiv";
       if (reset) {
+        pendingHistoryRestoreSyncId = "";
         pendingAppStartStateId = null;
         pendingAppStartSuppressLayerFollow = false;
       }
@@ -20354,14 +20374,16 @@
         paused: hostRuntimePausedView(),
         preserveFocus: !reset
       };
-      postRuntimePayload(payload);
+      const sentPayload = postRuntimePayload(payload);
       setTimeout(() => { syncStateEl.textContent = "aktiv"; }, 400);
+      return sentPayload;
     }
 
     function startAppAtState(id, opts = {}) {
       if (!productContract) return;
       if (!byId(id)) return;
       clearPresetPreviewUi();
+      pendingHistoryRestoreSyncId = "";
       runtimeLayerFollowEnabled = Boolean(opts.allowLayerFollow);
       if (opts.allowLayerFollow) suppressRuntimeLayerFollowUntil = 0;
       if (opts.suppressLayerFollow) suppressRuntimeLayerFollowUntil = Date.now() + 4000;
@@ -22766,6 +22788,10 @@
         return;
       }
       if (data.type !== "STATE_BLUEPRINT_RUNTIME_STATE") return;
+      const historyRestoreOwnsLayer = Boolean(pendingHistoryRestoreSyncId);
+      if (historyRestoreOwnsLayer && runtimeSyncAtOrAfter(data.syncId, pendingHistoryRestoreSyncId)) {
+        pendingHistoryRestoreSyncId = "";
+      }
       if (pendingRuntimeModelSyncId && String(data.syncId || "") === pendingRuntimeModelSyncId) {
         pendingRuntimeModelSyncId = "";
         refreshRuntimeInteractionState();
@@ -22801,10 +22827,10 @@
         (previousAppState && stateChanged) ||
         firstRuntimeUpdateEntersAnotherLayer
       ));
-      if (shouldFollowRuntimeState && Date.now() >= suppressRuntimeLayerFollowUntil) {
+      if (!historyRestoreOwnsLayer && shouldFollowRuntimeState && Date.now() >= suppressRuntimeLayerFollowUntil) {
         runtimeLayerFollowEnabled = true;
       }
-      const allowRuntimeLayerFollow = runtimeLayerFollowEnabled && Date.now() >= suppressRuntimeLayerFollowUntil;
+      const allowRuntimeLayerFollow = !historyRestoreOwnsLayer && runtimeLayerFollowEnabled && Date.now() >= suppressRuntimeLayerFollowUntil;
       if (lastAppTransitionId || stateChanged) {
         requestFastRouteDrawWindow();
       }

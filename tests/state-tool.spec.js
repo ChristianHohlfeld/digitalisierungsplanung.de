@@ -5928,6 +5928,67 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator('[data-id="login"] .title')).toHaveText("Sign in");
   });
 
+  test("restores layer and selection before runtime follow can resume @smoke", async ({ page }) => {
+    await page.addInitScript(key => {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+    }, STORAGE_KEY);
+    await page.goto("/state.html?demo=zustand");
+    const requestRuntimeReport = () => page.evaluate(() => new Promise(resolve => {
+      const runtimeWindow = document.getElementById("appFrame").contentWindow;
+      const onMessage = event => {
+        if (event.source !== runtimeWindow || event.data?.type !== "STATE_BLUEPRINT_RUNTIME_STATE") return;
+        window.removeEventListener("message", onMessage);
+        resolve();
+      };
+      window.addEventListener("message", onMessage);
+      requestRuntimeStateEvent();
+    }));
+    const editorContext = () => page.evaluate(() => ({
+      layerId: currentLayerId || "",
+      selectedNodes: selected?.nodes || [],
+      runtimeStateId: hostRuntimeStateView(),
+      runtimeLayerFollowEnabled
+    }));
+
+    await page.locator('[data-id="site_checkout_flow"]').click();
+    await expect.poll(editorContext).toEqual({
+      layerId: "site_checkout_flow",
+      selectedNodes: ["site_checkout"],
+      runtimeStateId: "site_checkout",
+      runtimeLayerFollowEnabled: true
+    });
+
+    await page.locator("#btnCanvasUndo").click();
+    await expect.poll(() => page.evaluate(() => pendingHistoryRestoreSyncId)).toBe("");
+    await requestRuntimeReport();
+    await expect.poll(editorContext).toEqual({
+      layerId: "",
+      selectedNodes: [],
+      runtimeStateId: "site_checkout",
+      runtimeLayerFollowEnabled: false
+    });
+
+    await page.locator("#btnCanvasRedo").click();
+    await expect.poll(() => page.evaluate(() => pendingHistoryRestoreSyncId)).toBe("");
+    await requestRuntimeReport();
+    await expect.poll(editorContext).toEqual({
+      layerId: "site_checkout_flow",
+      selectedNodes: ["site_checkout"],
+      runtimeStateId: "site_checkout",
+      runtimeLayerFollowEnabled: false
+    });
+
+    await page.evaluate(() => startAppAtState("site_home", { preserveFocus: true, allowLayerFollow: true }));
+    await expect.poll(editorContext).toEqual({
+      layerId: "",
+      selectedNodes: ["site_home"],
+      runtimeStateId: "site_home",
+      runtimeLayerFollowEnabled: true
+    });
+  });
+
   test("keeps undo redo only in the top-right canvas history actions @smoke", async ({ page }) => {
     await openTool(page);
     const historyActions = page.locator("#canvasHistoryActions");
