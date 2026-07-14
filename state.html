@@ -5680,7 +5680,7 @@
         <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnRun">App zurücksetzen</button>
         <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnPause">Pausieren</button>
         <div class="topbar-mobile-divider" aria-hidden="true"></div>
-        <button id="btnWebsiteExample" type="button">Zustand-Beispiel</button>
+        <button id="btnWebsiteExample" type="button">Digitalisierungsplanung</button>
         <button id="btnResetView" type="button">Ansicht zurücksetzen</button>
         <button id="btnReset" class="danger" type="button">Arbeitsfläche leeren</button>
       </div>
@@ -9605,8 +9605,8 @@
       };
       const navLink = (stateId, label) => ({ label, transitionId: navTransitionIdFor(stateId, label) });
       const footerData = stateId => ({
-          brand: "Zustand GmbH",
-          note: "Klare Prozesse, bevor Budget in Software fließt.",
+          brand: "Digitalisierungsplanung.de",
+          note: "Aus Erfahrungswissen wird Software.",
           columns: [
             { title: "Produkt", items: ["Nutzen", "Angebot", "Kontakt"].map(label => navLink(stateId, label)) },
             { title: "Unternehmen", items: ["Start", "Konto"].map(label => navLink(stateId, label)) },
@@ -9619,7 +9619,7 @@
       ]));
       const nav = (stateId, selected) => ({
         layout: "menu-submenu",
-        brand: "Zustand",
+        brand: "Digitalisierungsplanung",
         selected,
         items: navItems.map(item => navLink(stateId, item.label)),
         parent: "",
@@ -9633,18 +9633,18 @@
           badge: "",
           price: "1.900 EUR",
           period: "einmalig",
-          body: "Ein kritischer Ablauf wird sichtbar: Schritte, Entscheidungen, Daten und Verantwortliche.",
-          features: ["1 Prozess als Zustandsdiagramm", "Blocker und Lücken sichtbar", "Entscheidungsvorlage für Budget"],
+          body: "Ein echter Ablauf wird gemeinsam sichtbar: Start, Ziel, Entscheidungen, Daten und Verantwortliche.",
+          features: ["Ablauf aus Köpfen holen", "Risiken und Lücken sichtbar", "Nächsten Schritt priorisieren"],
           cta: "Workshop anfragen"
         },
         {
           id: "blueprint",
-          title: "Prozess-Blueprint",
+          title: "Klickbarer Prozess-Blueprint",
           badge: "Beliebt",
           price: "4.900 EUR",
           period: "Projekt",
-          body: "Aus einem unklaren Ablauf wird ein testbarer Plan für Umsetzung, Automatisierung und Übergabe.",
-          features: ["Mehrere Varianten und Fehlerpfade", "Daten- und Auslöser-Vertrag", "Klickbare Ablaufdemo"],
+          body: "Aus einem unklaren Ablauf wird eine prüfbare Web-Anwendung, die Fachbereich und Leitung testen können.",
+          features: ["Klickbare Prozess-App", "Ausnahmen und Freigaben prüfen", "Übergabe an Umsetzung vorbereiten"],
           cta: "Blueprint anfragen",
           highlight: true
         },
@@ -9654,8 +9654,8 @@
           badge: "Individuell",
           price: "auf Anfrage",
           period: "laufend",
-          body: "Begleitung bis zur digitalen Umsetzung: klare Schnittstellen, saubere Abnahmen und weniger Reibung.",
-          features: ["Technische Übergabe vorbereiten", "Automatisierung prüfen", "Umsetzung priorisieren"],
+          body: "Begleitung bis zur Umsetzung: weniger Schleifen, klare Abnahmen und ein Ablauf, den alle verstehen.",
+          features: ["Umsetzung priorisieren", "Akzeptanz im Fachbereich sichern", "Schrittweise digitalisieren"],
           cta: "Begleitung anfragen"
         }
       ];
@@ -9699,42 +9699,42 @@
           nav: nav("site_home", "Start"),
           hero: {
             layout: "overlay",
-            title: "Erst Klarheit. Dann digitalisieren.",
-            body: "Zustand zeigt, wo Prozesse haken, wer entscheiden muss und welche Daten fehlen, bevor Budget in Software, Agenturen oder Integrationen fließt.",
+            title: "Aus Erfahrungswissen wird Software.",
+            body: "Ihre wichtigsten Abläufe stecken in Köpfen, E-Mails und Excel. Digitalisierungsplanung.de macht sie sichtbar, prüfbar und als klickbare Web-Anwendung nutzbar, bevor Sie Geld in große IT-Projekte stecken.",
             actionLabel: "Erstgespräch anfragen",
             transitionId: "site_home_nav_contact",
             image: heroImage
           },
           features: {
-            eyebrow: "Für Geschäftsführer und Entscheider",
-            heading: "Viele Digitalprojekte scheitern nicht an Technik",
-            body: "Sie scheitern an unklaren Abläufen. Zustand macht den Prozess vor der Umsetzung sichtbar: Schritt für Schritt, Entscheidung für Entscheidung.",
+            eyebrow: "Für Mittelstand, Geschäftsführung und Prozessverantwortliche",
+            heading: "Die wahren Kosten entstehen vor der Software",
+            body: "Unklare Abläufe verursachen Nachfragen, Fehler, Wartezeiten und falsche Entscheidungen. Wir machen den realen Prozess sichtbar und testbar.",
             selected: "",
             items: [
               {
-                title: "Unklare Verantwortung kostet Geld",
-                body: "Wenn niemand genau weiß, welcher Schritt wann passiert, entstehen Nacharbeit, Wartezeiten und falsche Software-Anforderungen.",
+                title: "Wissen steckt in Köpfen",
+                body: "Wenn erfahrene Mitarbeiter ausfallen oder wechseln, fehlt plötzlich der Ablauf. Wir sichern dieses Wissen sichtbar und nachvollziehbar.",
                 image: featureImages.risk,
                 imageAlt: "Geschäftliche Planung mit Zahlen und Risiken",
-                features: ["Verantwortung sichtbar", "Budgetrisiken früh erkennen"],
+                features: ["Know-how sichern", "Einarbeitung vereinfachen"],
                 actionLabel: "Nutzen",
                 transitionId: "site_home_nav_features"
               },
               {
-                title: "Ein Ablauf, den alle prüfen können",
-                body: "Statt langer Dokumente entsteht ein klickbarer Ablauf. Fachbereich, Leitung und Umsetzung sehen dasselbe Bild.",
+                title: "Reibung kostet jeden Tag",
+                body: "Manuelle Abstimmungen, Rückfragen und Fehler fressen Zeit. Ein klarer Ablauf reduziert Reibung und macht Entscheidungen prüfbar.",
                 image: featureImages.clarity,
                 imageAlt: "Team klärt einen Geschäftsprozess am Tisch",
-                features: ["Gemeinsame Sprache", "Prüfbare Entscheidungen"],
+                features: ["Rückfragen reduzieren", "Fehler vermeiden"],
                 actionLabel: "Angebot",
                 transitionId: "site_home_nav_pricing"
               },
               {
-                title: "Besser beauftragen und umsetzen",
-                body: "Aus dem geklärten Ablauf wird ein Vertrag für Umsetzung: welche Daten gebraucht werden, welche Auslöser gelten, wann der Prozess weiter darf.",
+                title: "Digitalisierung ohne Großprojekt",
+                body: "Aus dem geklärten Ablauf entsteht sofort eine klickbare Anwendung. So wird Digitalisierung testbar, bevor sie teuer wird.",
                 image: featureImages.handover,
                 imageAlt: "Geschäftliche Übergabe zwischen Teams",
-                features: ["Klare Übergabe", "Weniger Missverständnisse"],
+                features: ["Schnell testbar", "Günstig starten"],
                 actionLabel: "Kontakt",
                 transitionId: "site_home_nav_contact"
               }
@@ -9751,45 +9751,45 @@
           nav: nav("site_features", "Nutzen"),
           overview: {
             eyebrow: "Nutzen",
-            heading: "Was Sie danach konkret besser können",
-            body: "Sie sehen nicht nur ein Diagramm. Sie sehen, welche Entscheidungen, Daten, Wartezeiten und Ausnahmen den Prozess wirklich steuern.",
+            heading: "Was Ihr Unternehmen gewinnt",
+            body: "Sie bekommen keine weitere Zeichnung für die Schublade, sondern eine gemeinsame Wahrheit: Ablauf, Entscheidungen, Daten und Ausnahmen werden sichtbar und als Anwendung testbar.",
             selected: "",
             items: [
               {
-                title: "Investitionen besser entscheiden",
-                body: "Vor der Umsetzung wird klar, ob Automatisierung lohnt, wo zuerst angesetzt wird und welche Anforderungen wirklich relevant sind.",
+                title: "Wissen sichern, bevor es fehlt",
+                body: "Kritisches Prozesswissen wird aus Köpfen, E-Mails und Excel herausgeholt und für alle Beteiligten verständlich gemacht.",
                 image: featureImages.decision,
                 imageAlt: "Führungsteam trifft eine Projektentscheidung",
-                features: ["Prioritäten klären", "Falsche Projekte vermeiden"],
+                features: ["Abhängigkeit reduzieren", "Einarbeitung beschleunigen"],
                 actionLabel: "Angebot",
                 transitionId: "site_features_nav_pricing"
               },
               {
-                title: "Workshops werden verwertbar",
-                body: "Was im Gespräch entsteht, landet direkt im Modell: Zustände, Übergänge, Bedingungen und Verantwortlichkeiten.",
+                title: "Schneller entscheiden",
+                body: "Geschäftsführung, Fachbereich und Berater sehen denselben Ablauf. Das macht Prioritäten, Risiken und nächste Schritte klarer.",
                 image: featureImages.workshop,
                 imageAlt: "Workshop-Situation mit Prozessklärung",
-                features: ["Nicht nur Protokoll", "Sofort testbar"],
+                features: ["Bessere Entscheidungen", "Weniger Abstimmung"],
                 actionLabel: "Kontakt",
                 transitionId: "site_features_nav_contact"
               },
               {
-                title: "Umsetzung bekommt Leitplanken",
-                body: "Entwickler, Integratoren oder interne Teams erhalten einen eindeutigen Ablauf statt Interpretationsspielraum.",
+                title: "Direkt nutzbar statt nur dokumentiert",
+                body: "Der Prozess bleibt nicht bei PowerPoint stehen. Aus dem Modell wird eine klickbare Web-Anwendung für Tests, Schulung oder erste Nutzung.",
                 image: featureImages.delivery,
                 imageAlt: "Team setzt einen geklärten Prozess um",
-                features: ["Saubere Übergabe", "Weniger Schleifen"],
+                features: ["Klickbar prüfen", "Schrittweise verbessern"],
                 actionLabel: "Konto",
                 transitionId: "site_features_nav_login"
               }
             ]
           },
           steps: {
-            current: "Modellieren",
+            current: "Nutzen",
             items: [
-              { label: "Klären", description: "Den echten Ablauf mit Verantwortlichen aufnehmen.", transitionId: "site_features_nav_home" },
-              { label: "Modellieren", description: "Zustände, Daten und Auslöser sichtbar verbinden.", transitionId: "site_features_nav_features" },
-              { label: "Entscheiden", description: "Budget, Umsetzung und nächste Schritte belastbar festlegen.", transitionId: "site_features_nav_pricing" }
+              { label: "Aufnehmen", description: "Den echten Ablauf mit Menschen erfassen, die ihn täglich leben.", transitionId: "site_features_nav_home" },
+              { label: "Prüfen", description: "Entscheidungen, Ausnahmen und Daten gemeinsam sichtbar testen.", transitionId: "site_features_nav_features" },
+              { label: "Nutzen", description: "Als klickbare Anwendung exportieren und Schritt für Schritt verbessern.", transitionId: "site_features_nav_pricing" }
             ]
           },
           footer: footerData("site_features")
@@ -9803,7 +9803,7 @@
           nav: nav("site_pricing", "Angebot"),
           intro: {
             tone: "info",
-            message: "Starten Sie dort, wo das Risiko am größten ist: bei einem Ablauf, den heute alle anders verstehen."
+            message: "Starten Sie mit einem echten Prozess, der heute Zeit, Geld oder Nerven kostet: Rechnungseingang, Freigabe, Reklamation oder Auftragsklärung."
           },
           plans: {
             selectedPlan: "",
@@ -9841,7 +9841,7 @@
             badge: "Anfrage",
             price: "1.900 EUR",
             period: "einmalig",
-            body: "Prüfen Sie das gewählte Angebot und senden Sie die Anfrage. Danach klären wir Ziel, Prozess und nächsten Termin.",
+            body: "Prüfen Sie das gewählte Angebot und senden Sie die Anfrage. Danach klären wir Ziel, Prozess und den nächsten passenden Termin.",
             features: pricingPlans[0].features,
             actionLabel: ""
           },
@@ -9875,7 +9875,7 @@
           nav: nav("site_contact", "Kontakt"),
           alert: {
             tone: "success",
-            message: "Beschreiben Sie kurz den Ablauf, der unklar ist, Geld kostet oder die Digitalisierung blockiert."
+            message: "Nennen Sie uns den Ablauf, der heute Zeit kostet, Fehler erzeugt oder von einzelnen Personen abhängt."
           },
           nameField: {
             label: "Name",
@@ -9886,7 +9886,7 @@
             value: ""
           },
           messageField: {
-            label: "Welcher Prozess soll klar werden?",
+            label: "Welcher Ablauf soll sichtbar werden?",
             value: ""
           },
           submit: {
@@ -9907,8 +9907,8 @@
           nav: nav("site_login", "Konto"),
           hero: {
             layout: "form",
-            title: "Anmelden und fortfahren",
-            body: "Beispiel für einen geschützten Kundenbereich. In echten Projekten können Rollen, Freigaben und Prozessschritte sichtbar werden.",
+            title: "Kundenbereich",
+            body: "Beispiel für einen geschützten Bereich. In echten Projekten können Rollen, Freigaben und Prozessstände sichtbar werden.",
             emailLabel: "E-Mail",
             passwordLabel: "Passwort",
             email: "",
@@ -9964,7 +9964,7 @@
           nav: nav("site_thanks", "Kontakt"),
           alert: {
             tone: "success",
-            message: "Anfrage erhalten. Der nächste Schritt ist ein kurzes Klärungsgespräch."
+            message: "Anfrage erhalten. Wir melden uns mit einem konkreten Vorschlag für den ersten Ablauf."
           },
           stat: {
             title: "Nächster Schritt",
@@ -9998,7 +9998,7 @@
             "states.site_checkout.summary.badge": plan.badge || "Anfrage",
             "states.site_checkout.summary.price": plan.price,
             "states.site_checkout.summary.period": plan.period,
-            "states.site_checkout.summary.body": "Prüfen Sie das gewählte Angebot und senden Sie die Anfrage. Danach klären wir Ziel, Prozess und nächsten Termin.",
+            "states.site_checkout.summary.body": "Prüfen Sie das gewählte Angebot und senden Sie die Anfrage. Danach klären wir Ziel, Prozess und den nächsten passenden Termin.",
             "states.site_checkout.summary.features": plan.features,
             "states.site_checkout.order.plan": plan.title,
             "states.site_checkout.order.price": plan.price,
@@ -10029,7 +10029,7 @@
 
       return {
         version: 2,
-        name: "Zustand-Beispiel",
+        name: "Digitalisierungsplanung",
         initial: "site_home",
         boundary: normalizeBoundaryConfig({ entryId: "site_home", exitId: "site_thanks" }),
         states,
@@ -27773,7 +27773,7 @@
     }
 
     function demoLabelForId(demoId) {
-      return "Zustand-Beispiel";
+      return "Digitalisierungsplanung";
     }
 
     async function exampleEntryModelForId(entryId) {
@@ -27862,7 +27862,7 @@
     document.getElementById("btnNew").onclick = () => runTopbarAction(requestNewCanvas);
 
     document.getElementById("btnWebsiteExample").onclick = () => runTopbarAction(async () => {
-      const ok = await modalConfirm("Aktuelle Szene durch das Zustand-Beispiel ersetzen?", "Zustand-Beispiel", {
+      const ok = await modalConfirm("Aktuelle Szene durch die Digitalisierungsplanung-Demo ersetzen?", "Digitalisierungsplanung", {
         confirmText: "Beispiel laden",
         danger: false
       });

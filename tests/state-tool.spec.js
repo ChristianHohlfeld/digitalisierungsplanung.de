@@ -952,7 +952,7 @@ function userTransitions(model) {
 async function openWebsiteDemo(page) {
   await openTool(page);
   await page.locator("#topbarMore summary").click();
-  await page.getByRole("button", { name: "Zustand-Beispiel" }).click();
+  await page.getByRole("button", { name: "Digitalisierungsplanung" }).click();
   await page.getByRole("button", { name: "Beispiel laden" }).click();
   return savedModel(page);
 }
@@ -2078,7 +2078,7 @@ test.describe("State Blueprint tool", () => {
   test("starts new canvases from the fresh starter flow without demo shortcuts @smoke", async ({ page }) => {
     await openTool(page);
     await expect(page.locator("#btnDemo")).toHaveCount(0);
-    await expect(page.locator("#btnWebsiteExample")).toHaveText("Zustand-Beispiel");
+    await expect(page.locator("#btnWebsiteExample")).toHaveText("Digitalisierungsplanung");
 
     await page.locator("#btnNew").click();
     await page.getByRole("button", { name: "Neu starten" }).click();
@@ -2147,7 +2147,7 @@ test.describe("State Blueprint tool", () => {
     await page.goto("/state.html?demo=zustand");
 
     await expect(page).toHaveURL(/\/state\.html$/);
-    await expect(page.getByRole("dialog", { name: "Zustand-Beispiel" })).toBeHidden();
+    await expect(page.getByRole("dialog", { name: "Digitalisierungsplanung" })).toBeHidden();
     await expect(page.locator('[data-id="site_home"]')).toBeVisible();
     await expect(appFrame(page).locator("#statePill")).toHaveText("site_home");
     await expect.poll(async () => {
@@ -2158,7 +2158,7 @@ test.describe("State Blueprint tool", () => {
         loginHeroTransitionId: model?.states?.find(state => state.id === "site_login")?.data?.hero?.transitionId || ""
       };
     }).toEqual({
-      name: "Zustand-Beispiel",
+      name: "Digitalisierungsplanung",
       initial: "site_home",
       loginHeroTransitionId: "site_login_submit"
     });
@@ -2202,7 +2202,7 @@ test.describe("State Blueprint tool", () => {
       await expect(page.locator("#pTitle")).toHaveValue("Anfrage");
       await expect(app.getByRole("heading", { name: "Anfrage", exact: true })).toHaveCount(1);
       await expect(app.locator(".navbar")).toHaveCount(1);
-      await expect(app.locator(".navbar")).toContainText("Zustand");
+      await expect(app.locator(".navbar")).toContainText("Digitalisierungsplanung");
       await expect(app.locator(".navbar")).toContainText("Start");
       await expect(app.locator(".navbar")).not.toContainText("Kopf-Navigation");
       await expect(app.getByText("Klarheits-Workshop")).toBeVisible();
@@ -2288,7 +2288,7 @@ test.describe("State Blueprint tool", () => {
 
     await expect(page).toHaveURL(/\/state\.html$/);
     await expect(page.locator('[data-id="auth_start"]')).toBeVisible();
-    await expect(page.getByRole("dialog", { name: "Zustand-Beispiel" })).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Digitalisierungsplanung" })).toBeVisible();
     await expect.poll(async () => {
       const model = await savedModel(page);
       return {
@@ -2315,7 +2315,7 @@ test.describe("State Blueprint tool", () => {
         loginHeroTransitionId: model?.states?.find(state => state.id === "site_login")?.data?.hero?.transitionId || ""
       };
     }).toEqual({
-      name: "Zustand-Beispiel",
+      name: "Digitalisierungsplanung",
       initial: "site_home",
       hasOldLocalModel: false,
       loginHeroTransitionId: "site_login_submit"
@@ -2326,7 +2326,7 @@ test.describe("State Blueprint tool", () => {
     await openTool(page);
 
     await page.locator("#topbarMore summary").click();
-    await page.getByRole("button", { name: "Zustand-Beispiel" }).click();
+    await page.getByRole("button", { name: "Digitalisierungsplanung" }).click();
     await page.getByRole("button", { name: "Beispiel laden" }).click();
 
     await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(8);
@@ -2354,7 +2354,7 @@ test.describe("State Blueprint tool", () => {
         hasOldAuthDemoData: JSON.stringify(model).includes("user@example.com") || JSON.stringify(model).includes("secret123")
       };
     }).toEqual({
-      name: "Zustand-Beispiel",
+      name: "Digitalisierungsplanung",
       initial: "site_home",
       stateIds: [
         "site_checkout",
@@ -2410,7 +2410,7 @@ test.describe("State Blueprint tool", () => {
     expect(layerRouteViolations).toEqual([]);
 
     const app = appFrame(page);
-    const expectedNavLabels = ["Zustand", "Start", "Nutzen", "Angebot", "Kontakt", "Konto"];
+    const expectedNavLabels = ["Digitalisierungsplanung", "Start", "Nutzen", "Angebot", "Kontakt", "Konto"];
     const expectedTitles = {
       site_home: "Start",
       site_features: "Nutzen",
@@ -2429,7 +2429,7 @@ test.describe("State Blueprint tool", () => {
           title: text(document.querySelector("#screen > h1")),
           navbarCount: document.querySelectorAll(".navbar").length,
           breadcrumbsCount: document.querySelectorAll(".breadcrumbs").length,
-          footerHasBrand: text(document.querySelector(".footer")).includes("Zustand GmbH"),
+          footerHasBrand: text(document.querySelector(".footer")).includes("Digitalisierungsplanung.de"),
           footerButtons: document.querySelectorAll(".footer button[data-transition-id]").length,
           navLabels: [...document.querySelectorAll(".navbar button,.navbar a")]
             .map(item => text(item))
@@ -2453,7 +2453,7 @@ test.describe("State Blueprint tool", () => {
     };
 
     await expectDemoShell("site_home");
-    await expect(app.getByRole("heading", { name: "Erst Klarheit. Dann digitalisieren.", exact: true })).toBeVisible();
+    await expect(app.getByRole("heading", { name: "Aus Erfahrungswissen wird Software.", exact: true })).toBeVisible();
     await expect(app.locator('.hero[style*="photo-1556761175-b413da4baf72"]')).toBeVisible();
     await expect(app.locator(".daisy-feature-grid")).toHaveCount(1);
     await expect(app.locator(".daisy-feature-cards > .card")).toHaveCount(3);
@@ -2482,33 +2482,33 @@ test.describe("State Blueprint tool", () => {
     await expect(navButton("Nutzen")).toHaveCount(1);
     await navButton("Nutzen").click();
     await expectDemoShell("site_features");
-    await expect(app.getByText("Was Sie danach konkret besser können")).toBeVisible();
-    await expect(app.getByText("Umsetzung bekommt Leitplanken")).toBeVisible();
+    await expect(app.getByText("Was Ihr Unternehmen gewinnt")).toBeVisible();
+    await expect(app.getByText("Direkt nutzbar statt nur dokumentiert")).toBeVisible();
     await expect(app.locator(".daisy-feature-grid")).toHaveCount(1);
     await expect(app.locator(".daisy-feature-cards > .card")).toHaveCount(3);
     await expect(app.locator(".daisy-feature-image")).toHaveCount(3);
     await expect(app.locator(".daisy-feature-grid button[data-transition-id]")).toHaveCount(3);
     await expect(app.locator(".steps button[data-transition-id] .daisy-step-label")).toHaveText([
-      "Klären",
-      "Modellieren",
-      "Entscheiden"
+      "Aufnehmen",
+      "Prüfen",
+      "Nutzen"
     ]);
     await expect(app.locator(".steps .daisy-step-copy")).toContainText([
-      "Den echten Ablauf mit Verantwortlichen aufnehmen.",
-      "Zustände, Daten und Auslöser sichtbar verbinden.",
-      "Budget, Umsetzung und nächste Schritte belastbar festlegen."
+      "Den echten Ablauf mit Menschen erfassen, die ihn täglich leben.",
+      "Entscheidungen, Ausnahmen und Daten gemeinsam sichtbar testen.",
+      "Als klickbare Anwendung exportieren und Schritt für Schritt verbessern."
     ]);
-    await expect(app.locator("li.step-primary")).toContainText("Modellieren");
+    await expect(app.locator("li.step-primary")).toContainText("Nutzen");
     await expect(navButton("Nutzen")).toHaveCount(1);
     await expectNoHorizontalOverflow();
 
     await expect(navButton("Angebot")).toHaveCount(1);
     await navButton("Angebot").click();
     await expectDemoShell("site_pricing");
-    await expect(app.getByText("Starten Sie dort, wo das Risiko am größten ist")).toBeVisible();
+    await expect(app.getByText("Starten Sie mit einem echten Prozess")).toBeVisible();
     await expect(app.locator(".daisy-pricing")).toHaveCount(1);
     await expect(app.locator(".daisy-pricing > .card")).toHaveCount(3);
-    await expect(app.locator(".daisy-pricing .card .card-title")).toContainText(["Klarheits-Workshop", "Prozess-Blueprint", "Umsetzungsbegleitung"]);
+    await expect(app.locator(".daisy-pricing .card .card-title")).toContainText(["Klarheits-Workshop", "Klickbarer Prozess-Blueprint", "Umsetzungsbegleitung"]);
     await expect(app.locator(".daisy-pricing .daisy-card-price")).toContainText(["1.900 EUR", "4.900 EUR", "auf Anfrage"]);
     await expect(app.locator(".daisy-pricing button[data-transition-id]")).toHaveCount(3);
     await expect(app.locator(".actions [data-transition-id]")).toHaveCount(0);
@@ -2525,21 +2525,21 @@ test.describe("State Blueprint tool", () => {
     await expect.poll(async () => app.locator("body").evaluate(() =>
       Math.round(window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0)
     )).toBe(0);
-    await expect(app.getByText("Prozess-Blueprint")).toBeVisible();
+    await expect(app.getByText("Klickbarer Prozess-Blueprint")).toBeVisible();
     await expect(app.getByText("4.900 EUR")).toBeVisible();
     await app.locator('input').fill("billing@example.test");
     await expect(app.getByRole("button", { name: "Anfrage senden", exact: true })).toHaveCount(1);
     await app.getByRole("button", { name: "Anfrage senden", exact: true }).click();
     await expectDemoShell("site_thanks");
     await expect.poll(async () => (await runtimeContext(page)).states?.site_thanks?.order).toMatchObject({
-      plan: "Prozess-Blueprint",
+      plan: "Klickbarer Prozess-Blueprint",
       price: "4.900 EUR",
       completed: true
     });
 
     await navButton("Kontakt").click();
     await expectDemoShell("site_contact");
-    await expect(app.getByText("Beschreiben Sie kurz den Ablauf")).toBeVisible();
+    await expect(app.getByText("Nennen Sie uns den Ablauf")).toBeVisible();
 
     await expect(app.getByRole("button", { name: "Anfrage senden", exact: true })).toHaveCount(1);
     await app.getByRole("button", { name: "Anfrage senden", exact: true }).click();
@@ -2549,7 +2549,7 @@ test.describe("State Blueprint tool", () => {
     await expect(navButton("Konto")).toHaveCount(1);
     await navButton("Konto").click();
     await expectDemoShell("site_login");
-    await expect(app.getByText("Anmelden und fortfahren")).toBeVisible();
+    await expect(app.getByText("Kundenbereich")).toBeVisible();
     await app.locator('input[type="email"]').fill("mira@example.test");
     await app.locator('input[type="password"]').fill("demo-password");
 
@@ -2564,7 +2564,7 @@ test.describe("State Blueprint tool", () => {
     await expect(app.getByRole("button", { name: "Abmelden", exact: true })).toHaveCount(1);
     await app.getByRole("button", { name: "Abmelden", exact: true }).click();
     await expectDemoShell("site_login");
-    await expect(app.getByText("Anmelden und fortfahren")).toBeVisible();
+    await expect(app.getByText("Kundenbereich")).toBeVisible();
   });
 
   test("website demo graph reaches every state and binds every transition by contract id @smoke", async ({ page }) => {
@@ -2617,7 +2617,7 @@ test.describe("State Blueprint tool", () => {
     await openTool(page);
 
     await page.locator("#topbarMore summary").click();
-    await page.getByRole("button", { name: "Zustand-Beispiel" }).click();
+    await page.getByRole("button", { name: "Digitalisierungsplanung" }).click();
     await page.getByRole("button", { name: "Beispiel laden" }).click();
     await openStateInspector(page, "site_home");
 
@@ -2682,7 +2682,7 @@ test.describe("State Blueprint tool", () => {
     await openTool(page);
 
     await page.locator("#topbarMore summary").click();
-    await page.getByRole("button", { name: "Zustand-Beispiel" }).click();
+    await page.getByRole("button", { name: "Digitalisierungsplanung" }).click();
     await page.getByRole("button", { name: "Beispiel laden" }).click();
     await expect(appFrame(page).locator("#statePill")).toHaveText("site_home");
 
@@ -2692,10 +2692,10 @@ test.describe("State Blueprint tool", () => {
     const html = fs.readFileSync(await htmlDownload.path(), "utf8");
 
     expect(html).toContain("<!doctype html>");
-    expect(html).toContain("<title>Zustand-Beispiel</title>");
+    expect(html).toContain("<title>Digitalisierungsplanung</title>");
     expect(html).toContain("const IS_STANDALONE_EXPORT = true");
     expect(html).toContain("const EXPORTED_STATE_BLUEPRINT = ");
-    expect(html).toContain('"name":"Zustand-Beispiel"');
+    expect(html).toContain('"name":"Digitalisierungsplanung"');
     expect(html).toContain('"site_pricing"');
     expect(html).toContain('"site_checkout"');
     expect(html).not.toContain("flow-debug");
@@ -2721,7 +2721,7 @@ test.describe("State Blueprint tool", () => {
           state: text(document.querySelector("#statePill")),
           title: text(document.querySelector("#screen > h1")),
           navbarCount: document.querySelectorAll(".navbar").length,
-          footerHasBrand: text(document.querySelector(".footer")).includes("Zustand GmbH"),
+          footerHasBrand: text(document.querySelector(".footer")).includes("Digitalisierungsplanung.de"),
           footerButtons: document.querySelectorAll(".footer button[data-transition-id]").length,
           editorExportButtons: document.querySelectorAll("#btnExport").length
         };
@@ -2745,14 +2745,14 @@ test.describe("State Blueprint tool", () => {
       await navButton("Angebot").click();
       await expectStandaloneShell("site_pricing", "Angebot");
       await expect(standalone.locator(".daisy-pricing > .card")).toHaveCount(3);
-      await expect(standalone.locator(".daisy-pricing .card .card-title")).toContainText(["Klarheits-Workshop", "Prozess-Blueprint", "Umsetzungsbegleitung"]);
+      await expect(standalone.locator(".daisy-pricing .card .card-title")).toContainText(["Klarheits-Workshop", "Klickbarer Prozess-Blueprint", "Umsetzungsbegleitung"]);
       await expect(standalone.locator(".daisy-pricing button[data-transition-id]")).toHaveCount(3);
       await expect(standalone.locator(".actions [data-transition-id]")).toHaveCount(0);
       await expectStandaloneNoHorizontalOverflow();
     };
 
     await expectStandaloneShell("site_home", "Start");
-    await expect(standalone.getByRole("heading", { name: "Erst Klarheit. Dann digitalisieren.", exact: true })).toBeVisible();
+    await expect(standalone.getByRole("heading", { name: "Aus Erfahrungswissen wird Software.", exact: true })).toBeVisible();
     await expect(standalone.locator(".daisy-feature-grid")).toHaveCount(1);
     await expect(standalone.locator(".daisy-feature-cards > .card")).toHaveCount(3);
     await expect(standalone.locator(".daisy-feature-grid button[data-transition-id]")).toHaveCount(3);
@@ -2763,14 +2763,14 @@ test.describe("State Blueprint tool", () => {
 
     await navButton("Nutzen").click();
     await expectStandaloneShell("site_features", "Nutzen");
-    await expect(standalone.getByText("Umsetzung bekommt Leitplanken")).toBeVisible();
+    await expect(standalone.getByText("Direkt nutzbar statt nur dokumentiert")).toBeVisible();
     await expect(standalone.locator(".daisy-feature-grid")).toHaveCount(1);
     await expect(standalone.locator(".daisy-feature-cards > .card")).toHaveCount(3);
     await expect(standalone.locator(".daisy-feature-grid button[data-transition-id]")).toHaveCount(3);
     await expect(standalone.locator(".steps button[data-transition-id] .daisy-step-label")).toHaveText([
-      "Klären",
-      "Modellieren",
-      "Entscheiden"
+      "Aufnehmen",
+      "Prüfen",
+      "Nutzen"
     ]);
     await expectStandaloneNoHorizontalOverflow();
     await navButton("Start").click();
@@ -2781,7 +2781,7 @@ test.describe("State Blueprint tool", () => {
     await openPricing();
     for (const plan of [
       { label: "Klarheits-Workshop", action: "Workshop anfragen", stateId: "site_checkout", title: "Anfrage", price: "1.900 EUR" },
-      { label: "Prozess-Blueprint", action: "Blueprint anfragen", stateId: "site_checkout", title: "Anfrage", price: "4.900 EUR" },
+      { label: "Klickbarer Prozess-Blueprint", action: "Blueprint anfragen", stateId: "site_checkout", title: "Anfrage", price: "4.900 EUR" },
       { label: "Umsetzungsbegleitung", action: "Begleitung anfragen", stateId: "site_checkout", title: "Anfrage", price: "auf Anfrage" }
     ]) {
       await expect(standalone.getByRole("button", { name: plan.action, exact: true })).toBeVisible();
@@ -2798,14 +2798,14 @@ test.describe("State Blueprint tool", () => {
 
     await navButton("Kontakt").click();
     await expectStandaloneShell("site_contact", "Kontakt");
-    await expect(standalone.getByText("Beschreiben Sie kurz den Ablauf")).toBeVisible();
+    await expect(standalone.getByText("Nennen Sie uns den Ablauf")).toBeVisible();
     await standalone.getByRole("button", { name: "Anfrage senden", exact: true }).click();
     await expectStandaloneShell("site_thanks", "Danke");
     await expect(standalone.getByText("Anfrage erhalten")).toBeVisible();
 
     await footerButton("Konto").click();
     await expectStandaloneShell("site_login", "Konto");
-    await expect(standalone.getByText("Anmelden und fortfahren")).toBeVisible();
+    await expect(standalone.getByText("Kundenbereich")).toBeVisible();
     await standalone.locator('input[type="email"]').fill("mira@example.test");
     await standalone.locator('input[type="password"]').fill("demo-password");
     const standaloneSignInButton = standalone.locator('.hero button[data-transition-id="site_login_submit"]').filter({ hasText: "Anmelden" });
@@ -2816,7 +2816,7 @@ test.describe("State Blueprint tool", () => {
     await expect(standalone.locator('.avatar img[alt="Mira Keller"]')).toBeVisible();
     await standalone.getByRole("button", { name: "Abmelden", exact: true }).click();
     await expectStandaloneShell("site_login", "Konto");
-    await expect(standalone.getByText("Anmelden und fortfahren")).toBeVisible();
+    await expect(standalone.getByText("Kundenbereich")).toBeVisible();
 
     await footerButton("Start").click();
     await expectStandaloneShell("site_home", "Start");
@@ -9619,7 +9619,7 @@ test.describe("State Blueprint tool", () => {
   test("reroutes demo logout onto an existing home edge without losing its event @smoke", async ({ page }) => {
     await openTool(page);
     await page.locator("#topbarMore summary").click();
-    await page.getByRole("button", { name: "Zustand-Beispiel" }).click();
+    await page.getByRole("button", { name: "Digitalisierungsplanung" }).click();
     await page.getByRole("button", { name: "Beispiel laden" }).click();
 
     const logoutEdgeId = "site_profile_logout";
