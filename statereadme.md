@@ -977,11 +977,11 @@ Editoraktion
 ## 17. Ausführbare Absicherung
 
 - **TST-001 Testbestand:** Am Stand dieses Dokuments umfasst die ausführbare
-  Spezifikation 360 expandierte Playwright-Fälle in sechs Spec-Dateien und 28
-  Node-Server-Tests, insgesamt 388 Fälle.
+  Spezifikation 360 expandierte Playwright-Fälle in sechs Spec-Dateien und 29
+  Node-Server-Tests, insgesamt 389 Fälle.
 - **TST-002 Smoke:** 263 Playwright-Fälle tragen `@smoke`. `npm test` prüft
-  zuerst die 28 Server-Tests und danach diese 263 Smoke-Fälle.
-- **TST-003 Vollständiger Lauf:** `npm run test:full` prüft zuerst alle 28
+  zuerst die 29 Server-Tests und danach diese 263 Smoke-Fälle.
+- **TST-003 Vollständiger Lauf:** `npm run test:full` prüft zuerst alle 29
   Server-Tests und danach alle 360 Playwright-Fälle. Der vollständige lokale
   Vertragslauf ist damit genau ein Befehl:
 
@@ -998,7 +998,7 @@ Editoraktion
   der vor dem Fix am beobachteten Verhalten scheitert und nach dem Fix ohne
   Retry, Force-Click oder Sonderpfad besteht.
 - **TST-007 CI-Freigabe:** GitHub Actions und Gitea MÜSSEN beide den
-  vollständigen Bestand von 28 Server- und 360 Playwright-Fällen ausführen.
+  vollständigen Bestand von 29 Server- und 360 Playwright-Fällen ausführen.
   Gitea verwendet `npm run test:full`. GitHub Actions DARF die Playwright-Fälle
   in disjunkte Shards aufteilen, wenn deren Vereinigung exakt alle 360 Fälle
   enthält, die Serverfälle genau einmal laufen und der Deploy von allen Shards

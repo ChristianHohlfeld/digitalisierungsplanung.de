@@ -28,6 +28,7 @@ function adminRouteIndex(config = {}) {
     presetsAdmin: route(config, "presetsAdminPath", "/presets-admin.html"),
     presetsAdminCatalog: route(config, "presetsAdminCatalogPath", "/presets-admin/catalog"),
     presetsAdminParse: route(config, "presetsAdminParsePath", "/presets-admin/parse"),
+    presetsAdminImport: route(config, "presetsAdminImportPath", "/presets-admin/import"),
     emit: route(config, "emitPath", "/emit"),
     ws: route(config, "path", "/ws")
   };
@@ -47,7 +48,7 @@ function adminRouteIndex(config = {}) {
       href: paths.presetsAdmin,
       kind: "designer",
       intent: "UI-Bausteine, Kategorien und verkaufbare Pakete verwalten.",
-      endpointIds: ["presets-admin-html", "presets-admin-catalog", "presets-admin-parse", "product-contract"]
+      endpointIds: ["presets-admin-html", "presets-admin-catalog", "presets-admin-parse", "presets-admin-import", "product-contract"]
     },
     {
       id: "console",
@@ -91,6 +92,7 @@ function adminRouteIndex(config = {}) {
     endpoint("presets-admin-html", "GET", paths.presetsAdmin, "Preset Designer", "admin", "Admin-Oberflaeche fuer Preset-Library."),
     endpoint("presets-admin-catalog", "GET/POST", paths.presetsAdminCatalog, "Preset Catalog Admin API", "admin", "Preset-Library laden, validieren, committen und pushen."),
     endpoint("presets-admin-parse", "POST", paths.presetsAdminParse, "Preset Parser", "admin", "DaisyUI-Markup in strukturierte Preset-Daten wandeln."),
+    endpoint("presets-admin-import", "POST", paths.presetsAdminImport, "Preset API Import", "admin", "Kanonische Preset-Definition von einer oeffentlichen HTTPS-API als Entwurf laden."),
     endpoint("emit", "POST", paths.emit, "Emit", "runtime", "Authentifizierter serverseitiger Event-Eingang."),
     endpoint("ws", "WSS", paths.ws, "WebSocket", "runtime", "Realtime-Transport fuer Runtime-Events.")
   ];
