@@ -631,6 +631,35 @@
       box-shadow: 0 10px 24px rgba(0,0,0,.3);
     }
 
+    .layer-back.auto-entry-pulse {
+      animation: layerBackAutoEntryPulse .82s ease-out;
+    }
+
+    @keyframes layerBackAutoEntryPulse {
+      0%, 100% {
+        transform: translateX(0);
+        border-color: rgba(125,211,252,.42);
+        background: #071321;
+        box-shadow: 0 10px 24px rgba(0,0,0,.3), 0 0 0 0 rgba(56,189,248,0);
+      }
+      28% {
+        transform: translateX(5px);
+        border-color: #7dd3fc;
+        background: #0c2940;
+        box-shadow: 0 10px 24px rgba(0,0,0,.3), 0 0 0 5px rgba(56,189,248,.24);
+      }
+      58% {
+        transform: translateX(0);
+        border-color: #38bdf8;
+        background: #0a2034;
+        box-shadow: 0 10px 24px rgba(0,0,0,.3), 0 0 0 2px rgba(56,189,248,.14);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .layer-back.auto-entry-pulse { animation-duration: .01ms; }
+    }
+
     .layer-frame-label,
     .layer-frame-hint {
       padding: 5px 10px;
@@ -5848,6 +5877,7 @@
     let refreshInspectorGlobalStateTree = null;
     let pendingAppStartStateId = null;
     let pendingAppStartSuppressLayerFollow = false;
+    let pendingAutoEntryLayerBackPulseId = "";
     let lastAppTransitionId = null;
     let hoveredEdgeId = null;
     let allowInspectorProgrammaticFocusUntil = 0;
@@ -6657,6 +6687,9 @@
       evt.preventDefault();
       evt.stopPropagation();
       exitCurrentLayer({ force: true });
+    });
+    layerBackEl.addEventListener("animationend", evt => {
+      if (evt.animationName === "layerBackAutoEntryPulse") layerBackEl.classList.remove("auto-entry-pulse");
     });
     layerFrameLabelEl.addEventListener("click", evt => {
       evt.preventDefault();
@@ -10236,6 +10269,9 @@
       if (historyKey !== "layer:runtime") {
         stopRuntimeLayerFollow(1200);
       }
+      if (historyKey !== "layer:runtime" && historyKey !== "layer:auto-entry") {
+        pendingAutoEntryLayerBackPulseId = "";
+      }
       currentLayerId = nextLayerId;
       selected = null;
       connecting = null;
@@ -10302,9 +10338,17 @@
         manualOpen: opts.manualOpen ?? (!inspectorCollapsedByUser && !isMobileWorkspaceLayout()),
         pulse: opts.pulse ?? inspectorCollapsedByUser
       });
+      pendingAutoEntryLayerBackPulseId = state.id;
       startAppAtState(state.id, { preserveFocus: true, allowLayerFollow: true });
       draw();
       return true;
+    }
+
+    function pulseAutoEntryLayerBack() {
+      if (layerBackEl.hidden) return;
+      layerBackEl.classList.remove("auto-entry-pulse");
+      void layerBackEl.offsetWidth;
+      layerBackEl.classList.add("auto-entry-pulse");
     }
 
     function blockLayerEntryAfterPointerAction(duration = 900) {
@@ -14204,6 +14248,7 @@
         if (layerFrameCommentEl) layerFrameCommentEl.hidden = true;
         layerHudEl.hidden = true;
         layerBackEl.hidden = true;
+        layerBackEl.classList.remove("auto-entry-pulse");
         layerFrameLabelEl.textContent = "";
         return;
       }
@@ -14226,6 +14271,7 @@
       updateLayerFrameComment(parent, frameLeft, frameTop, frameWidth);
       layerHudEl.hidden = false;
       layerBackEl.hidden = Boolean(parent.rootLayer);
+      if (parent.rootLayer) layerBackEl.classList.remove("auto-entry-pulse");
       layerFrameLabelEl.textContent = parent.rootLayer ? "Wurzel" : `In ${parent.title || parent.id}`;
       layerFrameLabelEl.disabled = Boolean(parent.rootLayer);
       layerFrameLabelEl.title = parent.rootLayer ? "Wurzel" : `${parent.title || parent.id} bearbeiten`;
@@ -22777,6 +22823,14 @@
         if (!selectionAlreadyRuntime) canvasNeedsDraw = true;
       }
       if (canvasNeedsDraw) draw();
+      if (
+        pendingStartResolvedToDescendant &&
+        pendingAutoEntryLayerBackPulseId === runtimeLayerId &&
+        currentLayerId === runtimeLayerId
+      ) {
+        pendingAutoEntryLayerBackPulseId = "";
+        pulseAutoEntryLayerBack();
+      }
       if (lastAppTransitionId || stateChanged) {
         focusMobileRuntimeFollow(previousAppState, runtimeStateId, lastAppTransitionId || "");
       }

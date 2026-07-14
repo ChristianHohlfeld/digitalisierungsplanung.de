@@ -310,7 +310,9 @@ Editoraktion
   bestehender Auswahl. Ein nachfolgender zweiter Klick darf zusätzlich den
   Child-Layer öffnen, den ersten Runtime-Start aber nicht verzögern. Löst ein
   Auto-Parent dabei den Child-Eintritt aus, folgen Canvas-Ebene, Auswahl und
-  Inspector atomar dem aktiven Child.
+  Inspector atomar dem aktiven Child. Ausschließlich nach diesem automatischen
+  Canvas-Layereintritt MUSS der sichtbare Zurückbutton kurz animieren, damit der
+  Rückweg erkennbar ist; Navigation und Modell bleiben davon unberührt.
 - **NEST-005 Wiedereintritt:** Wird ein Parent erneut betreten, MUSS sein
   Boundary-Eintritt wieder am konfigurierten Entry-Child beginnen; ein zuvor
   aktives tieferes Child darf nicht stillschweigend fortgesetzt werden.

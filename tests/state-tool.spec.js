@@ -1918,6 +1918,7 @@ test.describe("State Blueprint tool", () => {
     await openStateLayer(page, "login");
     await expect(page.locator("#layerFrameLabel")).toHaveText("In Login");
     await expect(page.locator("#layerBack")).toBeVisible();
+    await expect(page.locator("#layerBack")).not.toHaveClass(/auto-entry-pulse/);
   });
 
   test("keeps root boundary proxy dots enabled without forcing a boundary flow @smoke", async ({ page }) => {
@@ -2234,6 +2235,24 @@ test.describe("State Blueprint tool", () => {
     await page.goto("/state.html?demo=zustand");
     const app = appFrame(page);
     const parent = page.locator('[data-id="site_checkout_flow"]');
+    const installLayerBackPulseTrace = count => page.evaluate(initialCount => {
+      window.__layerBackPulseTrace = {
+        count: initialCount,
+        name: "",
+        duration: "",
+        reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches
+      };
+      document.getElementById("layerBack").addEventListener("animationstart", evt => {
+        if (evt.animationName !== "layerBackAutoEntryPulse") return;
+        window.__layerBackPulseTrace = {
+          count: window.__layerBackPulseTrace.count + 1,
+          name: evt.animationName,
+          duration: getComputedStyle(evt.currentTarget).animationDuration,
+          reducedMotion: window.__layerBackPulseTrace.reducedMotion
+        };
+      });
+    }, count);
+    await installLayerBackPulseTrace(0);
     await expect(parent).toHaveClass(/has-children/);
     await expect(parent.locator(".layer-badge")).toHaveText("Ablauf");
     const expectImmediateChildSelection = async () => {
@@ -2245,6 +2264,15 @@ test.describe("State Blueprint tool", () => {
         selectedNodes: ["site_checkout"]
       });
       await expect(page.locator("#pTitle")).toHaveValue("Anfrage");
+    };
+    const expectAutoEntryBackPulse = async count => {
+      const back = page.locator("#layerBack");
+      await expect(back).toBeVisible();
+      await expect.poll(() => page.evaluate(() => window.__layerBackPulseTrace.count)).toBe(count);
+      const trace = await page.evaluate(() => window.__layerBackPulseTrace);
+      expect(trace.name).toBe("layerBackAutoEntryPulse");
+      expect(parseFloat(trace.duration)).toBeGreaterThan(0);
+      expect(trace.reducedMotion).toBe(false);
     };
     const expectExclusiveChild = async () => {
       await expect(app.locator("#statePill")).toHaveText("site_checkout");
@@ -2270,19 +2298,24 @@ test.describe("State Blueprint tool", () => {
     };
 
     await parent.click();
+    await expectAutoEntryBackPulse(1);
     await expectImmediateChildSelection();
     await expectExclusiveChild();
+    await expect(page.locator("#layerBack")).not.toHaveClass(/auto-entry-pulse/, { timeout: 1500 });
 
     await page.locator("#layerBack").click();
     await parent.click();
+    await expectAutoEntryBackPulse(2);
     await expectImmediateChildSelection();
     await expectExclusiveChild();
 
     await page.locator("#layerBack").click();
     await page.reload();
+    await installLayerBackPulseTrace(0);
     await expect.poll(() => page.evaluate(() => currentLayerId || "")).toBe("");
     await expect(parent).toBeVisible();
     await parent.click();
+    await expectAutoEntryBackPulse(1);
     await expectImmediateChildSelection();
     await expectExclusiveChild();
   });
