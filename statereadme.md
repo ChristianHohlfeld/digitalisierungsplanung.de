@@ -302,15 +302,17 @@ Editoraktion
   unverändert. Es gibt keine Kompatibilitätsliste und keine Labelmigration.
 - **TRN-016 Eindeutiger Triggerbesitz:** Der Trigger gehört zur Transition;
   der State besitzt kein zweites Triggerfeld. Bezogen auf die effektive aktive
-  Quelle darf jede Triggeridentität genau einmal beansprucht werden. Für direkte
-  Ausgänge ist die effektive Quelle `from`, für einen projizierten
+  Quelle darf jede Trigger-Condition-Identität genau einmal beansprucht werden.
+  Für direkte Ausgänge ist die effektive Quelle `from`, für einen projizierten
   Parent-Ausgang dessen `groupExitId`. `button` ist durch die Transition-ID
-  eindeutig, `change` durch den Buspfad oder `*`, `event` und `realtime` durch
-  ihren konkreten Ereignisnamen. Pro effektiver Quelle ist höchstens ein
+  eindeutig. `change`, `event` und `realtime` bestehen aus Ereignisname plus
+  normalisierter Condition; ein leerer Guard ist dabei eine eigene Identität.
+  Derselbe Event darf mehrere Ausgänge besitzen, wenn ihre Conditions
+  unterschiedlich sind. Zur Laufzeit muss nach dem passenden Event trotzdem
+  genau eine Condition wahr sein. Pro effektiver Quelle ist höchstens ein
   `timer` zulässig. Sobald ein `auto` existiert, ist es der einzige fachliche
   Ausgang dieser effektiven Quelle. Interne `flow`-Kanten sind strukturelle
-  Child-Führung und zählen nicht als fachlicher Trigger. Conditions dürfen
-  doppelte Triggerbelegung nicht nachträglich auflösen.
+  Child-Führung und zählen nicht als fachlicher Trigger.
 - **TRN-017 Modellinvariante:** Ein fehlender oder doppelt beanspruchter Trigger,
   zwei Timer oder `auto` neben einem weiteren fachlichen Ausgang sind kein
   speicherbarer Modellzustand. Editoroperationen werden vor History,
@@ -1288,11 +1290,14 @@ Abdeckungsbereiche:
   deklarierte `states.<id>.<feld>`-Pfade schreiben; der Payload bleibt unter
   `events.<name>.detail` lesbar.
 - **GAP-017 Mehrdeutige Ereignisauflösung, geschlossen am 2026-07-14:** Ein
-  gültiges Modell kann für dieselbe effektive Quelle dieselbe Triggeridentität
-  nicht mehrfach enthalten. Der Editor kann den Konflikt nicht speichern;
-  Import, API und MCP lehnen ihn ab. Ein dennoch eingeschleustes Fremdmodell
-  erzeugt `invalid-trigger-contract` ohne State-Wechsel. Conditions sind Guards
-  eines bereits eindeutig zugeordneten Triggers und keine Prioritätslogik.
+  gültiges Modell kann für dieselbe effektive Quelle dieselbe
+  Trigger-Condition-Identität nicht mehrfach enthalten. Derselbe Event darf
+  mehrmals vorkommen, wenn die Conditions unterschiedlich sind. Der Editor kann
+  einen echten Identitätskonflikt nicht speichern; Import, API und MCP lehnen
+  ihn ab. Ein dennoch eingeschleustes Fremdmodell erzeugt
+  `invalid-trigger-contract` ohne State-Wechsel. Beim Ereignis darf zur Laufzeit
+  genau eine Condition wahr sein; mehrere wahre Treffer bleiben mehrdeutig und
+  werden nicht als Prioritätslogik aufgelöst.
 - **GAP-018 Realtime-Zustellgarantie, geschlossen am 2026-07-12:** Der aktuelle
   Browser ist trigger-only und besitzt keine ausgehende Queue oder Outbox. Der
   zustandslose Server garantiert geordnete Live-Übertragung innerhalb der
@@ -1592,9 +1597,11 @@ Varianten stillschweigend zum Vertrag erklären:
   Standardname `Weiter`, Route separat, Zustandsumbenennung ohne Labeländerung.
   GAP-014 und GAP-039 sind geschlossen.
 - **Mehrere Ausgänge auf dasselbe Ereignis:** GAP-017 und DEC-002 sind
-  entschieden: dieselbe Triggeridentität darf pro effektiver Quelle nur einmal
-  vorkommen. Konflikte gelangen nicht in einen gültigen Modellstand; die Runtime
-  bleibt bei einem eingeschleusten Fremdmodell fail-closed.
+  entschieden: dieselbe Trigger-Condition-Identität darf pro effektiver Quelle
+  nur einmal vorkommen. Derselbe Event darf mit unterschiedlichen Conditions
+  mehrere Ausgänge besitzen. Konflikte gelangen nicht in einen gültigen
+  Modellstand; die Runtime bleibt bei einem eingeschleusten Fremdmodell
+  fail-closed.
 - **Realtime-Trigger oder Emitter:** DEC-003 und RT-024 sind trigger-only
   entschieden. Zustellklasse und eine mögliche spätere Erweiterung stehen
   getrennt in DEC-004; GAP-018 und GAP-026 sind geschlossen.
@@ -1729,11 +1736,12 @@ festgelegt.
 ### 22.3 Deterministische Transitionen
 
 - Ein State darf mehrere fachliche Ausgänge besitzen, solange deren Trigger
-  verschieden sind. Triggerbesitz bleibt an der Transition; es gibt kein
-  zusätzliches Triggerfeld und keine Priorität am State.
+  oder Conditions verschieden sind. Triggerbesitz bleibt an der Transition; es
+  gibt kein zusätzliches Triggerfeld und keine Priorität am State.
 - Ein Button-Ereignis trägt seine Transition-ID. Change verwendet Buspfad oder
-  `*`; Event und Realtime verwenden den konkreten Ereignisnamen. Jede dieser
-  Identitäten darf pro effektiver aktiver Quelle genau einmal vorkommen.
+  `*`; Event und Realtime verwenden den konkreten Ereignisnamen. Für Change,
+  Event und Realtime wird die normalisierte Condition Teil der Identität. Jede
+  dieser Identitäten darf pro effektiver aktiver Quelle genau einmal vorkommen.
 - Pro effektiver Quelle ist höchstens ein Timer erlaubt. `auto` ist exklusiv
   und darf dort neben keiner weiteren fachlichen Transition existieren.
 - Interne `flow`-Kanten führen den Child-Ablauf und sind von dieser
@@ -1741,8 +1749,9 @@ festgelegt.
   konfigurierten `groupExitId` zur effektiven Kandidatenmenge und kollidiert
   dort gegebenenfalls mit einem direkten Child-Ausgang.
 - Ein passender Trigger mit falscher Condition bewirkt keinen State-Wechsel.
-  Conditions disambiguieren niemals doppelte Trigger, und Modellreihenfolge ist
-  niemals Priorität.
+  Ein passender Trigger mit genau einer wahren Condition führt genau diese
+  Transition aus. Mehrere wahre Conditions bleiben mehrdeutig, und
+  Modellreihenfolge ist niemals Priorität.
 - Editor, formaler Import, API und MCP verhindern konfliktäre Modelle. Die
   Runtime prüft dieselbe Invariante zusätzlich und führt bei einem extern
   eingeschleusten Konflikt keine Transition aus.

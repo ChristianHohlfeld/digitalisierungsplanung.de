@@ -1290,6 +1290,14 @@ test.describe("Core source contracts", () => {
         transition("click_a", "a", "button", "button.click_a.clicked"),
         transition("click_b", "b", "button", "button.click_b.clicked")
       ];
+      const guarded = definition();
+      guarded.model.states[0].data.route = "b";
+      guarded.model.states[0].dataTypes.route = "text";
+      guarded.model.transitions[1].condition = 'states.start.route == "b"';
+      guarded.model.transitions.push({
+        ...transition("event_c", "a", "realtime", "realtime.route.b"),
+        condition: 'states.start.route == "c"'
+      });
       const duplicateChange = definition();
       duplicateChange.model.transitions = [
         transition("change_a", "a", "change", "change.states.start.value"),
@@ -1332,6 +1340,7 @@ test.describe("Core source contracts", () => {
       return [
         valid,
         distinctButtons,
+        guarded,
         duplicateChange,
         duplicateWildcardChange,
         duplicateEvent,
@@ -1348,6 +1357,7 @@ test.describe("Core source contracts", () => {
     expect(messages).toEqual([
       "",
       "",
+      "",
       expect.stringContaining("duplicates trigger change:change.states.start.value"),
       expect.stringContaining("duplicates trigger change:*"),
       expect.stringContaining("duplicates trigger event:event.route"),
@@ -1358,6 +1368,89 @@ test.describe("Core source contracts", () => {
       expect.stringContaining("must define one concrete trigger"),
       expect.stringContaining("duplicates trigger realtime:realtime.route.b"),
       ""
+    ]);
+  });
+
+  test("formal definitions require server-declared contract event fields in conditions @smoke", async ({ page }) => {
+    await page.goto("/state.html");
+    await page.waitForFunction(() => eval("Boolean(productContract && productContract.stateContributions && productContract.stateContributions.length)"));
+
+    const messages = await page.evaluate(() => {
+      const boundary = { entryId: "", exitId: "", entryDisabled: false, exitDisabled: false, title: "", note: "" };
+      const definition = condition => ({
+        kind: "state-blueprint-definition",
+        schemaVersion: 2,
+        app: "Zustand",
+        savedAt: new Date().toISOString(),
+        model: {
+          version: 2,
+          name: "Server field contract",
+          initial: "start",
+          boundary,
+          states: [
+            {
+              id: "start",
+              title: "Start",
+              components: [],
+              data: {},
+              dataTypes: {},
+              dataSource: { url: "", target: "states.start.fetch", select: "", timeoutMs: 8000, retries: 2 },
+              repeat: { path: "", as: "item", index: "i" },
+              dataWires: [],
+              subscriptions: [],
+              boundary,
+              x: 100,
+              y: 100
+            },
+            {
+              id: "done",
+              title: "Done",
+              components: [],
+              data: {},
+              dataTypes: {},
+              dataSource: { url: "", target: "states.done.fetch", select: "", timeoutMs: 8000, retries: 2 },
+              repeat: { path: "", as: "item", index: "i" },
+              dataWires: [],
+              subscriptions: [],
+              boundary,
+              x: 320,
+              y: 100
+            }
+          ],
+          transitions: [{
+            id: "to_done",
+            from: "start",
+            to: "done",
+            label: "Done",
+            condition,
+            triggerType: "event",
+            triggerEvent: "event.route",
+            set: {},
+            groupEntryId: "",
+            groupExitId: ""
+          }]
+        },
+        stateTemplates: [],
+        camera: { x: 0, y: 0, scale: 1 },
+        previewCollapsed: false
+      });
+      const validate = value => {
+        try {
+          validateBlueprintDefinition(value);
+          return "";
+        } catch (error) {
+          return String(error?.message || error);
+        }
+      };
+      return [
+        validate(definition('events.realtime.sip.call.incoming.detail.caller == "+491234"')),
+        validate(definition('events.realtime.sip.call.incoming.detail.kunde == "Heinz"'))
+      ];
+    });
+
+    expect(messages).toEqual([
+      "",
+      expect.stringContaining("must reference a field declared by the Product Contract")
     ]);
   });
 
@@ -2806,6 +2899,48 @@ test.describe("Core browser contracts", () => {
       { name: "valid-events", handled: null, current: "waiting", reason: "", transitionIds: [] }
     ]);
     await expect(appFrame(page).locator("#statePill")).toHaveText("waiting");
+  });
+
+  test("runtime routes one shared event through exactly one matching condition @smoke", async ({ page }) => {
+    await openWithModel(page, {
+      version: 2,
+      name: "Runtime conditional trigger variants",
+      initial: "waiting",
+      states: [
+        { id: "waiting", title: "Waiting", components: [], data: { kunde: "Heinz" }, dataTypes: { kunde: "text" }, x: 120, y: 180 },
+        { id: "heinz", title: "Heinz", components: [], data: {}, dataTypes: {}, x: 420, y: 100 },
+        { id: "mueller", title: "Mueller", components: [], data: {}, dataTypes: {}, x: 420, y: 280 }
+      ],
+      transitions: [
+        {
+          id: "to_heinz",
+          from: "waiting",
+          to: "heinz",
+          label: "Heinz",
+          condition: 'states.waiting.kunde == "Heinz"',
+          triggerType: "event",
+          triggerEvent: "event.route",
+          set: {}
+        },
+        {
+          id: "to_mueller",
+          from: "waiting",
+          to: "mueller",
+          label: "Mueller",
+          condition: 'states.waiting.kunde == "Mueller"',
+          triggerType: "event",
+          triggerEvent: "event.route",
+          set: {}
+        }
+      ]
+    });
+
+    const runtimeResult = await appFrame(page).locator("html").evaluate(() => {
+      const handled = eval("emitRuntimeEvent")("event.route", { type: "event", source: "event" });
+      return { handled, current: eval("current"), validation: eval("runtimeValidation") };
+    });
+
+    expect(runtimeResult).toEqual({ handled: true, current: "heinz", validation: null });
   });
 
   test("canvas deletion removes the complete enriched state branch from the same runtime bus @smoke", async ({ page }) => {

@@ -856,14 +856,21 @@ function effectiveTransitionTriggerStateId(transition) {
   return String(transition?.groupExitId || transition?.from || "");
 }
 
+function normalizeTransitionConditionKey(condition) {
+  return String(condition || "").trim().replace(/\s+/g, " ");
+}
+
 function transitionTriggerContractKey(transition) {
   const triggerType = normalizeTransitionTriggerType(transition);
   if (triggerType === "flow") return "";
   if (triggerType === "button") return `button:${transition.id}`;
   if (triggerType === "auto" || triggerType === "timer") return triggerType;
   const eventName = normalizeTransitionEvent(transition?.triggerEvent || "");
-  if (triggerType === "change") return `change:${eventName || "*"}`;
-  return eventName ? `${triggerType}:${eventName}` : "";
+  const baseKey = triggerType === "change"
+    ? `change:${eventName || "*"}`
+    : eventName ? `${triggerType}:${eventName}` : "";
+  const conditionKey = normalizeTransitionConditionKey(transition?.condition);
+  return baseKey && conditionKey ? `${baseKey}|condition:${conditionKey}` : baseKey;
 }
 
 function transitionTriggerContractIssues(transitions) {
@@ -910,7 +917,7 @@ function transitionTriggerContractIssues(transitions) {
           stateId,
           triggerKey,
           transitionIds: [claims.get(triggerKey), transition.id],
-          message: "Each trigger identity may be claimed only once per effective state."
+          message: "Each trigger-condition identity may be claimed only once per effective state."
         });
         continue;
       }

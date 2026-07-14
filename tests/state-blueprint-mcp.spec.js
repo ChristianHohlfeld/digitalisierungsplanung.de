@@ -264,6 +264,22 @@ test.describe("State Blueprint MCP", () => {
     ];
     expect(validateModel(distinctButtons).ok).toBe(true);
 
+    const guarded = base();
+    guarded.states[0].data.route = "b";
+    guarded.states[0].dataTypes = { route: "text" };
+    guarded.transitions[1].condition = 'states.start.route == "b"';
+    guarded.transitions.push({
+      id: "event_c",
+      from: "start",
+      to: "c",
+      label: "C event",
+      triggerType: "realtime",
+      triggerEvent: "realtime.route.b",
+      condition: 'states.start.route == "c"',
+      set: {}
+    });
+    expect(validateModel(guarded).ok).toBe(true);
+
     const duplicateChange = base();
     duplicateChange.transitions = [
       { id: "change_a", from: "start", to: "a", label: "A", triggerType: "change", triggerEvent: "change.states.start.value", set: {} },
@@ -320,7 +336,7 @@ test.describe("State Blueprint MCP", () => {
       label: "C event",
       triggerType: "realtime",
       triggerEvent: "realtime.route.b"
-    }])).toThrow("Each trigger identity may be claimed only once");
+    }])).toThrow("Each trigger-condition identity may be claimed only once");
 
     expect(() => applyActions(base(), [{
       type: "upsert_transition",

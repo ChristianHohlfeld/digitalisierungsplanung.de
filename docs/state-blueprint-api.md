@@ -91,15 +91,18 @@ Transition-ID und eine URL im selben Slot sind ungültig.
 
 Der Trigger wird ausschließlich an der Transition modelliert. Bezogen auf die
 effektive Quelle (`from`, bei Parent-Ausgängen `groupExitId`) darf dieselbe
-Triggeridentität nur einmal vorkommen. Mehrere unterschiedliche Button-,
-Change-, Event- und Realtime-Ausgänge sind erlaubt, ein Timer höchstens einmal;
-`auto` ist exklusiv. Interne `flow`-Kanten zählen nicht als fachliche Trigger.
-Die Identität ist für `button` die Transition-ID, für `change` der vollständige
-Buspfad oder `*`, für `event` und `realtime` der vollständige konkrete
-Ereignisname sowie für `timer` und `auto` jeweils der Typ selbst. Zulässige
+Trigger-Condition-Identität nur einmal vorkommen. Mehrere Ausgänge auf denselben
+Event sind erlaubt, wenn ihre Conditions unterschiedlich sind; bei einem
+Ereignis muss zur Laufzeit genau eine Condition passen. Ein Timer ist höchstens
+einmal erlaubt, `auto` ist exklusiv. Interne `flow`-Kanten zählen nicht als
+fachliche Trigger. Die Identität ist für `button` die Transition-ID, für
+`timer` und `auto` jeweils der Typ selbst, und für `change`, `event` und
+`realtime` der vollständige Trigger plus normalisierte Condition. Zulässige
 fachliche Typen sind ausschließlich `button`, `change`, `event`, `realtime`,
 `timer` und `auto`; `flow` ist ausschließlich intern. Andere Werte und
 ungültige Kombinationen werden ohne Alias oder Normalisierung abgelehnt.
+Condition-Pfade unter `events.*`, `realtime.*` und `emitters.*` müssen aus dem
+Product Contract kommen.
 
 Nutze `state_blueprint_apply_commands`, wenn ein externe Anwendung die App wie ein
 Nutzer steuern soll, aber ohne DOM-Klicks. Befehle laufen über dieselben

@@ -64,8 +64,10 @@ nicht über DOM-Klicks.
 - Ein Aktionsslot besitzt entweder eine Transition-ID oder eine URL. Beides im
   selben Slot ist ein Contract-Fehler.
 - Trigger bleiben an Transitionen. Pro effektiver Quelle darf jede konkrete
-  Triggeridentität nur einmal vorkommen; ein Timer ist einmal zulässig und
-  `auto` ist exklusiv. MCP-Aktionen mit einem Konflikt werden nicht angewendet.
+  Trigger-Condition-Identität nur einmal vorkommen; derselbe Event darf mehrere
+  Ausgänge besitzen, wenn deren Conditions unterschiedlich sind. Ein Timer ist
+  einmal zulässig und `auto` ist exklusiv. MCP-Aktionen mit einem Konflikt
+  werden nicht angewendet.
 - Zulässige fachliche `triggerType`-Werte sind ausschließlich `button`,
   `change`, `event`, `realtime`, `timer` und `auto`; internes `flow` ist nur
   strukturelle Child-Führung. Andere Werte werden weder als Alias akzeptiert
@@ -82,6 +84,9 @@ nicht über DOM-Klicks.
   Editor-Zwischenablage.
 - Lokale `state.data`-Pfade deklarieren Defaults; Runtime-Referenzen sind immer
   vollqualifizierte `states.<id>.*`-Buspfade.
+- Server-getriebene Runtime-Felder unter `events.*`, `realtime.*` und
+  `emitters.*` gehören in den Product Contract; MCP kopiert diese Feldliste
+  nicht ins Modell.
 - Preview, Editor-HTML-Export und MCP-HTML-Export verwenden dieselbe kanonische
   Runtime-Quelle.
 

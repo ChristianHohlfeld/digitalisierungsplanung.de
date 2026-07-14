@@ -165,13 +165,16 @@ Ein UI-Aktionsslot besitzt entweder genau eine Transition-ID oder genau eine
 URL, niemals beides.
 
 Trigger bleiben Eigentum der Transition. Pro effektiver aktiver Quelle darf
-eine Triggeridentität nur einmal vorkommen; mehrere unterschiedliche Buttons
-und Ereignisse bleiben möglich. Ein Timer ist einmal zulässig, `auto` ist
-exklusiv. Der Editor speichert keinen Konflikt, Import/API/MCP lehnen ihn ab und
-die gemeinsame Preview-/Export-Runtime bleibt bei Fremdmodellen fail-closed.
-Zulässige fachliche Typen sind ausschließlich `button`, `change`, `event`,
-`realtime`, `timer` und `auto`; internes `flow` dient nur der Child-Führung.
-Unbekannte Werte werden nicht als Alias akzeptiert oder normalisiert.
+dieselbe Trigger-Condition-Identität nur einmal vorkommen. Derselbe Event darf
+mehrere Ausgänge besitzen, wenn deren Conditions unterschiedlich sind; beim
+Ereignis muss zur Laufzeit genau eine Condition passen. Ein Timer ist einmal
+zulässig, `auto` ist exklusiv. Der Editor speichert keinen Konflikt, Import/API/MCP
+lehnen ihn ab und die gemeinsame Preview-/Export-Runtime bleibt bei Fremdmodellen
+fail-closed. Zulässige fachliche Typen sind ausschließlich `button`, `change`,
+`event`, `realtime`, `timer` und `auto`; internes `flow` dient nur der
+Child-Führung. Unbekannte Werte werden nicht als Alias akzeptiert oder
+normalisiert. Server-getriebene Condition-Pfade unter `events.*`, `realtime.*`
+und `emitters.*` müssen exakt im Product Contract deklariert sein.
 
 Der Designer arbeitet in der gleichen Reihenfolge wie der Canvas-Vertrag:
 Event-Type, Dataset-Key, Felder, Quelle. Das Admin-Secret bleibt lokal im
