@@ -2367,7 +2367,7 @@ test.describe("State Blueprint tool", () => {
         "site_profile",
         "site_thanks"
       ],
-      userTransitions: 47,
+      userTransitions: 50,
       loginHeroTransitionId: "site_login_submit",
       boundary: { entryId: "site_home", exitId: "site_thanks" },
       scopedDataOnly: true,
@@ -2498,7 +2498,22 @@ test.describe("State Blueprint tool", () => {
       "Entscheidungen, Ausnahmen und Daten gemeinsam sichtbar testen.",
       "Als klickbare Anwendung exportieren und Schritt für Schritt verbessern."
     ]);
-    await expect(app.locator("li.step-primary")).toContainText("Nutzen");
+    await expect(app.locator("li.step-primary")).toContainText("Prüfen");
+    await expect(app.locator("li.step-primary")).toHaveAttribute("aria-current", "step");
+    await expect(app.locator('.steps button[data-transition-id="site_features_step_capture"]')).toHaveCount(1);
+    await expect(app.locator('.steps button[data-transition-id="site_features_step_check"]')).toHaveCount(1);
+    await expect(app.locator('.steps button[data-transition-id="site_features_step_use"]')).toHaveCount(1);
+    await app.locator('.steps button[data-transition-id="site_features_step_capture"]').click();
+    await expectDemoShell("site_contact");
+    await navButton("Nutzen").click();
+    await expectDemoShell("site_features");
+    await app.locator('.steps button[data-transition-id="site_features_step_check"]').click();
+    await expectDemoShell("site_features");
+    await expect.poll(async () => (await runtimeContext(page)).states?.site_features?.steps?.current).toBe("Prüfen");
+    await app.locator('.steps button[data-transition-id="site_features_step_use"]').click();
+    await expectDemoShell("site_pricing");
+    await navButton("Nutzen").click();
+    await expectDemoShell("site_features");
     await expect(navButton("Nutzen")).toHaveCount(1);
     await expectNoHorizontalOverflow();
 
@@ -2575,7 +2590,7 @@ test.describe("State Blueprint tool", () => {
     const allEntityIds = [...stateIds, ...transitionIds];
     expect(new Set(allEntityIds).size).toBe(allEntityIds.length);
     expect(stateIds).toHaveLength(9);
-    expect(transitionIds).toHaveLength(47);
+    expect(transitionIds).toHaveLength(50);
 
     const stateIdSet = new Set(stateIds);
     for (const transition of transitions) {

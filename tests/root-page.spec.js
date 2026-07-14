@@ -75,6 +75,18 @@ test.describe("Root demo export", () => {
     await page.locator(".navbar").getByRole("button", { name: "Nutzen", exact: true }).click();
     await expect(page.locator("#statePill")).toHaveText("site_features");
     await expect(page.getByRole("heading", { name: "Was Ihr Unternehmen gewinnt" })).toBeVisible();
+    await expect(page.locator("li.step-primary")).toContainText("Prüfen");
+    await expect(page.locator("li.step-primary")).toHaveAttribute("aria-current", "step");
+    await expect(page.locator('.steps button[data-transition-id="site_features_step_capture"]')).toHaveCount(1);
+    await expect(page.locator('.steps button[data-transition-id="site_features_step_check"]')).toHaveCount(1);
+    await expect(page.locator('.steps button[data-transition-id="site_features_step_use"]')).toHaveCount(1);
+    await page.locator('.steps button[data-transition-id="site_features_step_check"]').click();
+    await expect(page.locator("#statePill")).toHaveText("site_features");
+    await page.locator('.steps button[data-transition-id="site_features_step_capture"]').click();
+    await expect(page.locator("#statePill")).toHaveText("site_contact");
+    await page.locator(".navbar").getByRole("button", { name: "Nutzen", exact: true }).click();
+    await page.locator('.steps button[data-transition-id="site_features_step_use"]').click();
+    await expect(page.locator("#statePill")).toHaveText("site_pricing");
 
     await page.locator(".navbar").getByRole("button", { name: "Angebot", exact: true }).click();
     await expect(page.locator("#statePill")).toHaveText("site_pricing");

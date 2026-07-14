@@ -7111,16 +7111,21 @@
       .daisy-pricing { grid-template-columns: 1fr; }
     }
     .steps { grid-template-columns: repeat(auto-fit, minmax(min(100%, 168px), 1fr)); gap: 10px; align-items: stretch; }
-    .step { position: relative; display: grid; grid-template-columns: 32px minmax(0, 1fr); align-items: start; gap: 10px; min-width: 0; min-height: 86px; padding: 12px; border: 1px solid rgba(148,163,184,.2); border-radius: 16px; background: rgba(8,24,39,.72); color: var(--muted); box-shadow: inset 0 1px 0 rgba(255,255,255,.04); }
-    .step::before { width: 30px; height: 30px; margin-top: 1px; border: 1px solid rgba(148,163,184,.22); box-shadow: inset 0 1px 0 rgba(255,255,255,.06); }
-    .step-primary { border-color: rgba(56,189,248,.5); background: linear-gradient(135deg, rgba(56,189,248,.17), rgba(8,24,39,.82)); }
+    .step { position: relative; display: grid; grid-template-columns: 32px minmax(0, 1fr); align-items: start; gap: 10px; min-width: 0; min-height: 96px; padding: 12px; border: 1px solid rgba(148,163,184,.22); border-radius: 16px; background: rgba(8,24,39,.72); color: var(--muted); box-shadow: inset 0 1px 0 rgba(255,255,255,.04); transition: border-color .16s ease, background .16s ease, box-shadow .16s ease, transform .16s ease; }
+    .step::before { position: relative; z-index: 1; width: 30px; height: 30px; margin-top: 1px; border: 1px solid rgba(148,163,184,.22); box-shadow: inset 0 1px 0 rgba(255,255,255,.06); pointer-events: none; }
+    .step:hover { border-color: rgba(125,211,252,.42); background: linear-gradient(135deg, rgba(56,189,248,.12), rgba(8,24,39,.82)); box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 14px 34px rgba(2,6,23,.24); transform: translateY(-1px); }
+    .step-primary { border-color: rgba(56,189,248,.72); background: linear-gradient(135deg, rgba(56,189,248,.22), rgba(52,211,153,.1) 48%, rgba(8,24,39,.86)); box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 16px 36px rgba(56,189,248,.13); }
+    .step-primary::before { background: var(--primary); color: var(--primary-text); border-color: rgba(186,230,253,.72); }
+    .step-primary::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: 8px; height: 3px; border-radius: 999px; background: linear-gradient(90deg, var(--primary), var(--success)); opacity: .9; pointer-events: none; }
     .step .step-action { display: grid; align-content: start; gap: 3px; min-width: 0; width: 100%; justify-items: start; text-align: left; }
     .step span.step-action { min-height: 36px; }
-    .step button.step-action { min-height: 0; padding: 0; border: 0; background: transparent; box-shadow: none; color: inherit; }
+    .step button.step-action { position: absolute; inset: 0; min-height: 100%; padding: 12px 12px 14px 54px; border: 0; border-radius: inherit; background: transparent; box-shadow: none; color: inherit; cursor: pointer; }
+    .step button.step-action:focus-visible { outline: 3px solid rgba(56,189,248,.36); outline-offset: 2px; }
     .step button.step-action .daisy-step-label { color: var(--button-color, #f8fbff); }
     .step button.step-action:hover .daisy-step-label { color: #f8fbff; text-decoration: none; }
     .daisy-step-label { min-width: 0; color: #f8fbff; font-weight: 950; line-height: 1.2; overflow-wrap: anywhere; }
     .step-primary .daisy-step-label { color: #e0f2fe; }
+    .step-primary .daisy-step-copy { color: #c7e8ff; }
     .daisy-step-copy { color: var(--muted); font-size: 12px; font-weight: 800; line-height: 1.35; overflow-wrap: anywhere; }`;
       const maskCss = `    .mask { object-fit: cover; border: 1px solid var(--line-strong); background: #020617; }
     .mask-squircle { border-radius: 24px; }
@@ -9085,13 +9090,16 @@
         };
         stepEntries.forEach(entry => {
           const item = document.createElement("li");
-          item.className = entry.label === String(currentStep) ? "step step-primary" : "step";
+          const isCurrentStep = entry.label === String(currentStep);
+          item.className = isCurrentStep ? "step step-primary" : "step";
+          if (isCurrentStep) item.setAttribute("aria-current", "step");
           const explicitId = entry.value && typeof entry.value === "object" && !Array.isArray(entry.value) ? String(entry.value.transitionId || "") : "";
           const transition = explicitId ? transitionById.get(explicitId) : null;
           if (transition) {
             const button = document.createElement("button");
             button.type = "button";
             button.className = "btn-ghost step-action daisy-transition-button";
+            button.setAttribute("aria-label", entry.detail ? entry.label + ": " + entry.detail : entry.label);
             button.onclick = () => {
               if (Date.now() < suppressActionUntil) return;
               emitRuntimeEvent(transitionEventName(transition), { type: "button", source: "steps", transitionId: transition.id });
@@ -9740,11 +9748,11 @@
             ]
           },
           steps: {
-            current: "Nutzen",
+            current: "Prüfen",
             items: [
-              { label: "Aufnehmen", description: "Den echten Ablauf mit Menschen erfassen, die ihn täglich leben.", transitionId: "site_features_nav_home" },
-              { label: "Prüfen", description: "Entscheidungen, Ausnahmen und Daten gemeinsam sichtbar testen.", transitionId: "site_features_nav_features" },
-              { label: "Nutzen", description: "Als klickbare Anwendung exportieren und Schritt für Schritt verbessern.", transitionId: "site_features_nav_pricing" }
+              { label: "Aufnehmen", description: "Den echten Ablauf mit Menschen erfassen, die ihn täglich leben.", transitionId: "site_features_step_capture" },
+              { label: "Prüfen", description: "Entscheidungen, Ausnahmen und Daten gemeinsam sichtbar testen.", transitionId: "site_features_step_check" },
+              { label: "Nutzen", description: "Als klickbare Anwendung exportieren und Schritt für Schritt verbessern.", transitionId: "site_features_step_use" }
             ]
           },
           footer: footerData("site_features")
@@ -9943,9 +9951,21 @@
         }
         return t;
       }));
+      const featureStepTransitions = [
+        transition("site_features_step_capture", "site_features", "site_contact", "Aufnehmen", {
+          "states.site_features.steps.current": "Aufnehmen"
+        }),
+        transition("site_features_step_check", "site_features", "site_features", "Prüfen", {
+          "states.site_features.steps.current": "Prüfen"
+        }),
+        transition("site_features_step_use", "site_features", "site_pricing", "Nutzen", {
+          "states.site_features.steps.current": "Nutzen"
+        })
+      ];
 
       const transitions = [
         ...navTransitions,
+        ...featureStepTransitions,
         ...pricingPlans.map(plan => {
           return transition(`site_pricing_buy_${plan.id}`, "site_pricing", checkoutFlowId, plan.cta || `${plan.title} anfragen`, {
             "states.site_pricing.plans.selectedPlan": plan.title,
