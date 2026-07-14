@@ -12996,15 +12996,26 @@ test.describe("State Blueprint tool", () => {
 
     const before = await savedModel(page);
     const preset = componentPreset(page, "Externer Link");
-    await expect(preset.getByRole("button", { name: "Externer Link ansehen" })).toBeVisible();
-    await preset.locator(".template-title").click();
+    const infoButton = preset.getByRole("button", { name: "Externer Link ansehen" });
+    await expect(infoButton).toBeVisible();
+    await expect(infoButton).toHaveAttribute("aria-expanded", "false");
+    await infoButton.click();
 
     await expect(page.locator("#presetComposer")).toBeHidden();
     await expect(page.locator(".preview-title-text")).toHaveText("Generierte App");
     await expect(page.locator("#presetPreviewPopover")).toBeVisible();
     await expect(preset).toHaveClass(/info-open/);
+    await expect(infoButton).toHaveAttribute("aria-expanded", "true");
     await expect(page.frameLocator("#presetPreviewPopover iframe").getByRole("link", { name: "Dokumentation öffnen" })).toBeVisible();
     await expect(appFrame(page).getByRole("link", { name: "Dokumentation öffnen" })).toHaveCount(0);
+    await infoButton.click();
+    await expect(page.locator("#presetPreviewPopover")).toHaveCount(0);
+    await expect(preset).not.toHaveClass(/info-open/);
+    await expect(infoButton).toHaveAttribute("aria-expanded", "false");
+    await infoButton.click();
+    await expect(page.locator("#presetPreviewPopover")).toBeVisible();
+    await expect(preset).toHaveClass(/info-open/);
+    await expect(infoButton).toHaveAttribute("aria-expanded", "true");
     await expect.poll(async () => {
       const stored = await savedModel(page);
       return {

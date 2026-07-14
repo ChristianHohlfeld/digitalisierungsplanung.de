@@ -23952,6 +23952,7 @@
         presetInfoPreviewSendTimer = null;
       }
       unbindPresetInfoPreviewDismiss();
+      presetInfoPreviewAnchor?.querySelector?.(".template-info")?.setAttribute("aria-expanded", "false");
       presetInfoPreviewAnchor?.classList?.remove("info-open");
       presetInfoPreviewAnchor = null;
       if (presetInfoPreviewEl) {
@@ -24031,6 +24032,7 @@
       presetInfoPreviewEl = overlay;
       presetInfoPreviewAnchor = anchor || null;
       presetInfoPreviewAnchor?.classList?.add("info-open");
+      presetInfoPreviewAnchor?.querySelector?.(".template-info")?.setAttribute("aria-expanded", "true");
       positionPresetInfoOverlay(anchor, overlay);
 
       const frame = overlay.querySelector(".preset-preview-frame");
@@ -24053,6 +24055,14 @@
         window.addEventListener("scroll", closePresetInfoOverlay, true);
       }, 0);
       return true;
+    }
+
+    function togglePresetInfoOverlay(template, anchor) {
+      if (presetInfoPreviewEl && presetInfoPreviewAnchor === anchor) {
+        closePresetInfoOverlay();
+        return true;
+      }
+      return showPresetInfoOverlay(template, anchor);
     }
 
     function previewTemplateInGeneratedApp(template, opts = {}) {
@@ -26036,7 +26046,7 @@
           <div class="template-title"></div>
           <div class="template-body"></div>
           <div class="template-actions">
-            <button class="template-info" type="button" aria-label="${escapeHtml(template.title)} ansehen" title="${escapeHtml(template.title)} ansehen">i</button>
+            <button class="template-info" type="button" aria-label="${escapeHtml(template.title)} ansehen" title="${escapeHtml(template.title)} ansehen" aria-expanded="false">i</button>
             <button class="template-use" type="button" aria-label="${escapeHtml(template.title)} hinzufügen" title="${escapeHtml(template.title)} hinzufügen">Hinzufügen</button>
           </div>
         `;
@@ -26057,7 +26067,7 @@
           evt.preventDefault();
           evt.stopPropagation();
           if (Date.now() < suppressTemplateClickUntil) return;
-          showPresetInfoOverlay(template, card);
+          togglePresetInfoOverlay(template, card);
         };
         card.querySelector(".template-use").onclick = evt => {
           evt.stopPropagation();
