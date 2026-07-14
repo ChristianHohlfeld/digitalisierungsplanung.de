@@ -2248,8 +2248,8 @@ test.describe("State Blueprint tool", () => {
       await expect(app.locator(".navbar")).toContainText("Digitalisierungsplanung");
       await expect(app.locator(".navbar")).toContainText("Start");
       await expect(app.locator(".navbar")).not.toContainText("Kopf-Navigation");
-      await expect(app.getByText("Klarheits-Workshop")).toBeVisible();
-      await expect(app.getByText("1.900 EUR")).toBeVisible();
+      await expect(app.getByText("Starter")).toBeVisible();
+      await expect(app.getByText("49 EUR")).toBeVisible();
       await expect(app.getByRole("button", { name: "Anfrage senden", exact: true })).toHaveCount(1);
     };
 
@@ -2366,6 +2366,7 @@ test.describe("State Blueprint tool", () => {
   });
 
   test("loads a clean website demo scene with real FSM navigation @smoke", async ({ page }) => {
+    test.setTimeout(45000);
     await openTool(page);
 
     await page.locator("#topbarMore summary").click();
@@ -2410,7 +2411,7 @@ test.describe("State Blueprint tool", () => {
         "site_profile",
         "site_thanks"
       ],
-      userTransitions: 50,
+      userTransitions: 54,
       loginHeroTransitionId: "site_login_submit",
       boundary: { entryId: "site_home", exitId: "site_thanks" },
       scopedDataOnly: true,
@@ -2453,11 +2454,11 @@ test.describe("State Blueprint tool", () => {
     expect(layerRouteViolations).toEqual([]);
 
     const app = appFrame(page);
-    const expectedNavLabels = ["Digitalisierungsplanung", "Start", "Nutzen", "Angebot", "Kontakt", "Konto"];
+    const expectedNavLabels = ["Digitalisierungsplanung", "Start", "Nutzen", "Pakete", "Kontakt", "Konto"];
     const expectedTitles = {
       site_home: "Start",
       site_features: "Nutzen",
-      site_pricing: "Angebot",
+      site_pricing: "Pakete",
       site_checkout: "Anfrage",
       site_contact: "Kontakt",
       site_thanks: "Danke",
@@ -2560,38 +2561,42 @@ test.describe("State Blueprint tool", () => {
     await expect(navButton("Nutzen")).toHaveCount(1);
     await expectNoHorizontalOverflow();
 
-    await expect(navButton("Angebot")).toHaveCount(1);
-    await navButton("Angebot").click();
+    await expect(navButton("Pakete")).toHaveCount(1);
+    await navButton("Pakete").click();
     await expectDemoShell("site_pricing");
-    await expect(app.getByText("Starten Sie mit einem echten Prozess")).toBeVisible();
+    await expect(app.getByText("Wählen Sie ein Abo")).toBeVisible();
     await expect(app.locator(".daisy-pricing")).toHaveCount(1);
     await expect(app.locator(".daisy-pricing > .card")).toHaveCount(3);
-    await expect(app.locator(".daisy-pricing .card .card-title")).toContainText(["Klarheits-Workshop", "Klickbarer Prozess-Blueprint", "Umsetzungsbegleitung"]);
-    await expect(app.locator(".daisy-pricing .daisy-card-price")).toContainText(["1.900 EUR", "4.900 EUR", "auf Anfrage"]);
+    await expect(app.locator(".daisy-pricing .card .card-title")).toContainText(["Starter", "Business", "Scale"]);
+    await expect(app.locator(".daisy-pricing .daisy-card-price")).toContainText(["49 EUR", "149 EUR", "399 EUR"]);
     await expect(app.locator(".daisy-pricing button[data-transition-id]")).toHaveCount(3);
+    await expect(app.locator(".daisy-feature-grid").filter({ hasText: "Zubuchbare Pakete" })).toHaveCount(1);
+    await expect(app.locator(".daisy-feature-grid").filter({ hasText: "Zubuchbare Pakete" }).locator(".daisy-feature-cards > .card")).toHaveCount(4);
+    await expect(app.locator(".daisy-feature-grid").filter({ hasText: "Zubuchbare Pakete" }).locator("button[data-transition-id]")).toHaveCount(4);
     await expect(app.locator(".actions [data-transition-id]")).toHaveCount(0);
-    await expect(app.getByRole("button", { name: "Workshop anfragen", exact: true })).toHaveCount(1);
-    await expect(app.getByRole("button", { name: "Blueprint anfragen", exact: true })).toHaveCount(1);
-    await expect(app.getByRole("button", { name: "Begleitung anfragen", exact: true })).toHaveCount(1);
+    await expect(app.getByRole("button", { name: "Starter anfragen", exact: true })).toHaveCount(1);
+    await expect(app.getByRole("button", { name: "Business anfragen", exact: true })).toHaveCount(1);
+    await expect(app.getByRole("button", { name: "Scale anfragen", exact: true })).toHaveCount(1);
+    await expect(app.getByRole("button", { name: "BI zubuchen", exact: true })).toHaveCount(1);
     await expectNoHorizontalOverflow();
     await expect.poll(async () => app.locator("body").evaluate(() => {
       window.scrollTo(0, document.body.scrollHeight);
       return Math.round(window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0);
     })).toBeGreaterThan(0);
-    await app.getByRole("button", { name: "Blueprint anfragen", exact: true }).click();
+    await app.getByRole("button", { name: "Business anfragen", exact: true }).click();
     await expectDemoShell("site_checkout");
     await expect.poll(async () => app.locator("body").evaluate(() =>
       Math.round(window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0)
     )).toBe(0);
-    await expect(app.getByText("Klickbarer Prozess-Blueprint")).toBeVisible();
-    await expect(app.getByText("4.900 EUR")).toBeVisible();
+    await expect(app.getByText("Business")).toBeVisible();
+    await expect(app.getByText("149 EUR")).toBeVisible();
     await app.locator('input').fill("billing@example.test");
     await expect(app.getByRole("button", { name: "Anfrage senden", exact: true })).toHaveCount(1);
     await app.getByRole("button", { name: "Anfrage senden", exact: true }).click();
     await expectDemoShell("site_thanks");
     await expect.poll(async () => (await runtimeContext(page)).states?.site_thanks?.order).toMatchObject({
-      plan: "Klickbarer Prozess-Blueprint",
-      price: "4.900 EUR",
+      plan: "Business",
+      price: "149 EUR",
       completed: true
     });
 
@@ -2633,7 +2638,7 @@ test.describe("State Blueprint tool", () => {
     const allEntityIds = [...stateIds, ...transitionIds];
     expect(new Set(allEntityIds).size).toBe(allEntityIds.length);
     expect(stateIds).toHaveLength(9);
-    expect(transitionIds).toHaveLength(50);
+    expect(transitionIds).toHaveLength(54);
 
     const stateIdSet = new Set(stateIds);
     for (const transition of transitions) {
@@ -2801,11 +2806,13 @@ test.describe("State Blueprint tool", () => {
       )).toBeLessThanOrEqual(2);
     };
     const openPricing = async () => {
-      await navButton("Angebot").click();
-      await expectStandaloneShell("site_pricing", "Angebot");
+      await navButton("Pakete").click();
+      await expectStandaloneShell("site_pricing", "Pakete");
       await expect(standalone.locator(".daisy-pricing > .card")).toHaveCount(3);
-      await expect(standalone.locator(".daisy-pricing .card .card-title")).toContainText(["Klarheits-Workshop", "Klickbarer Prozess-Blueprint", "Umsetzungsbegleitung"]);
+      await expect(standalone.locator(".daisy-pricing .card .card-title")).toContainText(["Starter", "Business", "Scale"]);
       await expect(standalone.locator(".daisy-pricing button[data-transition-id]")).toHaveCount(3);
+      await expect(standalone.locator(".daisy-feature-grid").filter({ hasText: "Zubuchbare Pakete" }).locator(".daisy-feature-cards > .card")).toHaveCount(4);
+      await expect(standalone.locator(".daisy-feature-grid").filter({ hasText: "Zubuchbare Pakete" }).locator("button[data-transition-id]")).toHaveCount(4);
       await expect(standalone.locator(".actions [data-transition-id]")).toHaveCount(0);
       await expectStandaloneNoHorizontalOverflow();
     };
@@ -2835,13 +2842,14 @@ test.describe("State Blueprint tool", () => {
     await navButton("Start").click();
     await expectStandaloneShell("site_home", "Start");
 
-    await footerButton("Angebot").click();
-    await expectStandaloneShell("site_pricing", "Angebot");
+    await footerButton("Pakete").click();
+    await expectStandaloneShell("site_pricing", "Pakete");
     await openPricing();
     for (const plan of [
-      { label: "Klarheits-Workshop", action: "Workshop anfragen", stateId: "site_checkout", title: "Anfrage", price: "1.900 EUR" },
-      { label: "Klickbarer Prozess-Blueprint", action: "Blueprint anfragen", stateId: "site_checkout", title: "Anfrage", price: "4.900 EUR" },
-      { label: "Umsetzungsbegleitung", action: "Begleitung anfragen", stateId: "site_checkout", title: "Anfrage", price: "auf Anfrage" }
+      { label: "Starter", action: "Starter anfragen", stateId: "site_checkout", title: "Anfrage", price: "49 EUR" },
+      { label: "Business", action: "Business anfragen", stateId: "site_checkout", title: "Anfrage", price: "149 EUR" },
+      { label: "Scale", action: "Scale anfragen", stateId: "site_checkout", title: "Anfrage", price: "399 EUR" },
+      { label: "BI & Analyse", action: "BI zubuchen", stateId: "site_checkout", title: "Anfrage", price: "+79 EUR" }
     ]) {
       await expect(standalone.getByRole("button", { name: plan.action, exact: true })).toBeVisible();
       await standalone.getByRole("button", { name: plan.action, exact: true }).click();
@@ -6673,7 +6681,7 @@ test.describe("State Blueprint tool", () => {
       variant: (template.components || []).find(component => component.type === "daisy")?.variant || ""
     })));
     expect(templates.length).toBeGreaterThan(40);
-    expect(templates.length).toBeLessThan(55);
+    expect(templates.length).toBeLessThan(60);
 
     for (const template of templates) {
       await page.evaluate(index => showPresetComposer(builtinStateTemplates()[index]), template.index);
@@ -6755,6 +6763,12 @@ test.describe("State Blueprint tool", () => {
             selectCount: root.querySelectorAll("select").length,
             summaryCount: root.querySelectorAll("summary").length,
             currentCount: root.querySelectorAll("span").length
+          })),
+          charts: [...document.querySelectorAll(".daisy-chart")].map(root => ({
+            metricCount: root.querySelectorAll(".daisy-chart-metric").length,
+            rowCount: root.querySelectorAll(".daisy-chart-row").length,
+            barWidths: [...root.querySelectorAll(".daisy-chart-bar")].map(bar => bar.style.width || ""),
+            text: root.textContent || ""
           }))
         };
       });
@@ -6810,6 +6824,14 @@ test.describe("State Blueprint tool", () => {
           summaryCount: 0,
           currentCount: 1
         }]);
+      }
+      if (template.variant === "chart") {
+        expect(metrics.charts, template.title).toHaveLength(1);
+        expect(metrics.charts[0].metricCount, template.title).toBeGreaterThan(0);
+        expect(metrics.charts[0].rowCount, template.title).toBeGreaterThan(0);
+        expect(metrics.charts[0].barWidths.every(width => /%$/.test(width)), template.title).toBe(true);
+        expect(metrics.charts[0].text.trim().length, template.title).toBeGreaterThan(0);
+        if (template.id === "builtin_daisy_bi_bar_chart") expect(metrics.charts[0].text).toContain("Auftraege nach Status");
       }
       if (template.id === "builtin_content_list") {
         expect(metrics.brokenImages, template.title).toEqual([]);

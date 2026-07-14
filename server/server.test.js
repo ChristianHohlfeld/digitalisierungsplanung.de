@@ -220,6 +220,21 @@ test("serves the event and connector catalog only to allowed origins", async () 
     assert.ok(productContractPayload.triggerTypes.some(type => type.id === "button"));
     assert.ok(productContractPayload.triggerTypes.some(type => type.id === "timer"));
     assert.ok(productContractPayload.triggerTypes.some(type => type.id === "api"));
+    assert.deepEqual(
+      productContractPayload.subscriptionPlans.map(plan => plan.id),
+      ["starter", "business", "scale"]
+    );
+    assert.ok(productContractPayload.presetPackages.some(pack =>
+      pack.id === "website.builder" &&
+      pack.includedInPlanIds.includes("business") &&
+      pack.presetCount > 0
+    ));
+    assert.ok(productContractPayload.presetPackages.some(pack =>
+      pack.id === "bi.analytics" &&
+      pack.upsell === true &&
+      pack.includedInPlanIds.length === 0 &&
+      pack.presetIds.includes("builtin_daisy_bi_kpi_board")
+    ));
     const flowTrigger = productContractPayload.triggerTypes.find(type => type.id === "flow");
     assert.ok(flowTrigger);
     assert.equal(flowTrigger.internal, true);
@@ -259,6 +274,13 @@ test("serves the event and connector catalog only to allowed origins", async () 
     ));
     const buttonPreset = productContractPayload.presets.find(preset => preset.id === "builtin_daisy_button");
     assert.ok(buttonPreset);
+    assert.deepEqual(buttonPreset.packageIds, ["core.process"]);
+    const chartPreset = productContractPayload.presets.find(preset => preset.id === "builtin_daisy_bi_kpi_board");
+    assert.ok(chartPreset);
+    assert.deepEqual(chartPreset.packageIds, ["bi.analytics"]);
+    assert.equal(chartPreset.components[0].variant, "chart");
+    assert.equal(chartPreset.stateContribution.root, "states.bi_kpi_board");
+    assert.equal(chartPreset.stateContribution.fieldSchemas["states.bi_kpi_board.items"].type, "list");
     assert.equal(buttonPreset.dataTypes.clicked, "boolean");
     assert.equal(buttonPreset.stateContribution.root, "states.button");
     assert.equal(buttonPreset.stateContribution.fieldSchemas["states.button.clicked"].type, "boolean");

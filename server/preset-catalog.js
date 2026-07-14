@@ -36,6 +36,153 @@ function stateDataScopeForId(id) {
   return clean ? "states." + clean : "";
 }
 
+const PRESET_PACKAGES = Object.freeze([
+  {
+    id: "core.process",
+    label: "Process Core",
+    category: "base",
+    description: "Grundbausteine fuer Prozessaufnahme, Formulare, Entscheidungen und einfache Apps.",
+    buyerValue: "Startet jeden Digitalisierungsprozess ohne Zusatzpaket.",
+    upsell: false,
+    sort: 10
+  },
+  {
+    id: "website.builder",
+    label: "Website Builder",
+    category: "package",
+    description: "Landingpages, Portale, Navigation, Angebotsseiten und exportierbare Web-Apps.",
+    buyerValue: "Macht aus geklaerten Ablaeufen sofort sichtbare Web-Oberflaechen.",
+    upsell: false,
+    sort: 20
+  },
+  {
+    id: "approval.compliance",
+    label: "Freigabe & Compliance",
+    category: "package",
+    description: "Freigaben, Nachweise, Pruefschritte, Status und dokumentierte Entscheidungen.",
+    buyerValue: "Reduziert Rueckfragen, E-Mail-Pingpong und unklare Verantwortlichkeiten.",
+    upsell: false,
+    sort: 30
+  },
+  {
+    id: "service.operations",
+    label: "Service & Operations",
+    category: "package",
+    description: "Servicefaelle, Echtzeit-Ereignisse, Eskalationen, Aufgaben und operative Uebersichten.",
+    buyerValue: "Verbindet reale Ereignisse wie Anruf, Mail oder Webhook mit dem Prozess.",
+    upsell: false,
+    sort: 40
+  },
+  {
+    id: "bi.analytics",
+    label: "BI & Analyse",
+    category: "addon",
+    description: "KPI-Karten, Tabellen, Charts, Pipeline- und Management-Auswertungen.",
+    buyerValue: "Macht Prozessdaten fuer Geschaeftsfuehrung und Bereichsleitung entscheidbar.",
+    upsell: true,
+    sort: 50
+  },
+  {
+    id: "sales.crm",
+    label: "Sales & CRM",
+    category: "addon",
+    description: "Lead-Status, Angebotsstrecken, Kundenservice, Pipeline und Follow-up-Prozesse.",
+    buyerValue: "Hilft Vertrieb und Service, Chancen und Kundenkontakte nachvollziehbar zu fuehren.",
+    upsell: true,
+    sort: 60
+  },
+  {
+    id: "knowledge.portal",
+    label: "Wissensportal",
+    category: "addon",
+    description: "FAQ, interne Portale, Onboarding, Prozesswissen und wiederverwendbare Inhalte.",
+    buyerValue: "Sichert Erfahrungswissen, bevor es bei Urlaub, Wechsel oder Wachstum fehlt.",
+    upsell: true,
+    sort: 70
+  },
+  {
+    id: "integration.automation",
+    label: "Integration & Automation",
+    category: "addon",
+    description: "Webhook-, Mail-, Telefonie- und Datenquellen fuer echte Business-Ereignisse.",
+    buyerValue: "Bringt reale Systeme in den Prozess, ohne den Canvas als Schattenbackend zu nutzen.",
+    upsell: true,
+    sort: 80
+  }
+]);
+
+const PACKAGE_BY_ID = new Map(PRESET_PACKAGES.map(item => [item.id, item]));
+
+const SUBSCRIPTION_PLANS = Object.freeze([
+  {
+    id: "starter",
+    label: "Starter",
+    price: "49 EUR",
+    period: "/Monat",
+    description: "Fuer einzelne Prozesse, schnelle Prototypen und erste digitale Anwendungen.",
+    includedPackageIds: ["core.process"],
+    recommendedAddOnPackageIds: ["website.builder", "approval.compliance"],
+    cta: "Starter anfragen",
+    sort: 10
+  },
+  {
+    id: "business",
+    label: "Business",
+    badge: "Beliebt",
+    price: "149 EUR",
+    period: "/Monat",
+    description: "Fuer Mittelstandsteams, die Prozesse modellieren, pruefen und als Web-App nutzen.",
+    includedPackageIds: ["core.process", "website.builder", "approval.compliance"],
+    recommendedAddOnPackageIds: ["bi.analytics", "service.operations"],
+    cta: "Business anfragen",
+    highlight: true,
+    sort: 20
+  },
+  {
+    id: "scale",
+    label: "Scale",
+    badge: "Teams",
+    price: "399 EUR",
+    period: "/Monat",
+    description: "Fuer mehrere Bereiche, operative Echtzeit-Prozesse und wiederholbare Rollouts.",
+    includedPackageIds: ["core.process", "website.builder", "approval.compliance", "service.operations"],
+    recommendedAddOnPackageIds: ["bi.analytics", "sales.crm", "integration.automation"],
+    cta: "Scale anfragen",
+    sort: 30
+  }
+]);
+
+function cloneJson(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function normalizePackageIds(value, fallback = ["core.process"]) {
+  const out = [];
+  const push = id => {
+    const clean = String(id || "").trim();
+    if (PACKAGE_BY_ID.has(clean) && !out.includes(clean)) out.push(clean);
+  };
+  if (Array.isArray(value)) value.forEach(push);
+  if (!out.length && Array.isArray(fallback)) fallback.forEach(push);
+  if (out.length) return out;
+  return Array.isArray(fallback) && fallback.length === 0 ? [] : ["core.process"];
+}
+
+function inferPackageIdsForPreset(preset) {
+  const variant = String((preset.components || []).find(component => component?.type === "daisy")?.variant || "");
+  const haystack = `${preset.id || ""} ${preset.title || ""} ${variant}`.toLowerCase();
+  const out = [];
+  const add = id => { if (!out.includes(id)) out.push(id); };
+  if (/(?:^|[\s_-])(?:chart|kpi|stat|table|progress|radial|indicator|pipeline|analyse|analytics)(?:[\s_-]|$)/.test(haystack)) add("bi.analytics");
+  if (/toast|loading|timeline|countdown/.test(haystack)) add("service.operations");
+  if (/accordion|faq|body_copy|info_note|content_list/.test(haystack)) add("knowledge.portal");
+  if (/external_link|content_list/.test(haystack)) add("integration.automation");
+  if (/navbar|hero|footer|feature|pricing|card|carousel|image|link|menu|tabs|breadcrumbs|bottom-navigation|content_list/.test(haystack)) add("website.builder");
+  if (/task|checklist|file|steps/.test(haystack)) add("approval.compliance");
+  if (/input|textarea|select|checkbox|toggle|radio|range|button|modal/.test(haystack)) add("core.process");
+  return out.length ? out : ["core.process"];
+}
+
 function builtinStateTemplates() {
   const component = (id, type, text = "", url = "", extra = {}) => ({ id, type, text, url, ...extra });
   const daisy = (variant, title, key = variant) => component("builtin_daisy_" + normalizeId(key) + "_component", "daisy", "", "", {
@@ -60,6 +207,11 @@ function builtinStateTemplates() {
       rootStateId: key,
       title: spec.title,
       description: spec.description || "Komponente mit geteilten Daten dieses Zustands verbunden.",
+      packageIds: normalizePackageIds(spec.packageIds, inferPackageIdsForPreset({
+        id: spec.id,
+        title: spec.title,
+        components: [{ type: "daisy", variant: spec.variant || spec.id }]
+      })),
       components: [daisy(spec.variant || spec.id, spec.title, spec.id)],
       data: defaults,
       dataTypes: {},
@@ -109,7 +261,10 @@ function builtinStateTemplates() {
     { id: "button", title: "Aktionsbutton", description: "Primäre Schaltfläche, die Klickzustand schreibt oder echte ausgehende Übergänge feuert.", data: { label: "Weiter", clicked: false, clickedAt: 0 } },
     { id: "card", title: "Produktkarte", description: "Bildkarte mit Titel, Kurztext und Aktionsfeld.", data: { title: "Premium-Sneaker", body: "Leichte Schuhe für Alltag, Arbeit und Reisen.", image: "https://img.daisyui.com/images/stock/photo-1606107557195-0e29a4b5b4aa.webp", imageAlt: "Schuhe", actionLabel: "Jetzt kaufen" } },
     { id: "feature-grid", title: "Feature-Raster", description: "Responsive Feature-Karten, deren Aktionen echte FSM-Zustände ansteuern.", data: { eyebrow: "Vorteile", heading: "Alles für einen sauberen Ablauf", body: "Nutze diese Vorlage für Produktvorteile, App-Bereiche oder Navigationsteaser.", selected: "", items: [{ title: "Wiederverwendbare Ansichten", body: "Seiten aus Bausteinen zusammensetzen, ohne Verhalten im HTML zu verstecken.", image: featurePresetImages.screens, imageAlt: "Wiederverwendbare Bildschirmbereiche in einem Arbeitsbereich", features: ["Gescopte Zustandsdaten", "Explizite Übergangsaktion"], actionLabel: "Ansichten ansehen", transitionId: "" }, { title: "Datengebundene UI", body: "Felder und Labels lesen aus dem globalen JSON-Bus.", image: featurePresetImages.data, imageAlt: "Dashboard-Daten als Grundlage für UI-Karten", features: ["eine Wahrheit", "In Eigenschaften editierbar"], actionLabel: "Datenfluss ansehen", transitionId: "" }, { title: "FSM-sichere Ereignisse", body: "Schaltflächen feuern nur Übergänge, die wirklich existieren.", image: featurePresetImages.events, imageAlt: "Strukturierte Ereignisverbindungen", features: ["Keine lokale Navigation", "Kein Label-Raten"], actionLabel: "Ereignisse prüfen", transitionId: "" }] } },
-    { id: "pricing", title: "Preiskarten", description: "Drei Angebotskarten, deren Schaltflächen auf echte Zustände verdrahtet sind.", data: { selectedPlan: "", plans: [{ title: "Klarheit", price: "1.900 EUR", period: "einmalig", body: "Für einen kritischen Ablauf, der vor der Umsetzung verstanden werden muss.", features: ["Ein Prozessbild", "Klare Verantwortliche", "Nächster Schritt"], actionLabel: "Klarheit anfragen", transitionId: "" }, { title: "Blueprint", badge: "Beliebt", price: "4.900 EUR", period: "Projekt", body: "Für Teams, die einen Ablauf prüfbar modellieren und übergeben wollen.", features: ["Mehrere Pfade", "Daten und Auslöser", "Klickbare Prüfung"], highlight: true, actionLabel: "Blueprint anfragen", transitionId: "" }, { title: "Begleitung", badge: "Individuell", price: "auf Anfrage", period: "laufend", body: "Für Umsetzung mit klaren Schnittstellen, Abnahmen und Prioritäten.", features: ["Übergabe vorbereiten", "Automatisierung prüfen", "Risiken senken"], actionLabel: "Begleitung anfragen", transitionId: "" }] } },
+    { id: "pricing", title: "Preiskarten", description: "Drei Abo-Karten, deren Schaltflächen auf echte Zustände verdrahtet sind.", data: { selectedPlan: "", plans: [{ title: "Starter", price: "49 EUR", period: "/Monat", body: "Für einzelne Prozesse, schnelle Prototypen und erste digitale Anwendungen.", features: ["Process Core", "1 Prozess-App", "HTML-Export"], actionLabel: "Starter anfragen", transitionId: "" }, { title: "Business", badge: "Beliebt", price: "149 EUR", period: "/Monat", body: "Für Teams, die Abläufe modellieren, prüfen und als Web-App nutzen.", features: ["Website Builder", "Freigaben", "Team-Nutzung"], highlight: true, actionLabel: "Business anfragen", transitionId: "" }, { title: "Scale", badge: "Teams", price: "399 EUR", period: "/Monat", body: "Für mehrere Bereiche, operative Ereignisse und wiederholbare Rollouts.", features: ["Service & Operations", "Mehrere Räume", "Add-ons zubuchbar"], actionLabel: "Scale anfragen", transitionId: "" }] } },
+    { id: "bi-kpi-board", variant: "chart", title: "BI-KPI-Board", description: "KPI-Karten und Balkenvergleich fuer Management- und Bereichskennzahlen.", packageIds: ["bi.analytics"], data: { title: "Umsatz & Marge", subtitle: "Monatliche Sicht fuer Geschaeftsfuehrung und Bereichsleitung.", unit: "Tsd. EUR", metrics: [{ label: "Umsatz", value: "428 Tsd. EUR", delta: "+12%" }, { label: "Marge", value: "31%", delta: "+4%" }, { label: "Offene Chancen", value: "86", delta: "-7" }], items: [{ label: "Service", value: 128 }, { label: "Projekt", value: 96 }, { label: "Lizenz", value: 74 }, { label: "Beratung", value: 52 }] } },
+    { id: "bi-bar-chart", variant: "chart", title: "Balkendiagramm", description: "Einfaches Chart fuer Umsatz, Mengen, SLA, Pipeline oder Prozesskennzahlen.", packageIds: ["bi.analytics"], data: { title: "Auftraege nach Status", subtitle: "Aktueller Stand aus dem globalen State.", unit: "Faelle", metrics: [{ label: "Gesamt", value: "184", delta: "+18" }, { label: "Durchlaufzeit", value: "3,2 Tage", delta: "-0,6" }], items: [{ label: "Neu", value: 42 }, { label: "Pruefung", value: 68 }, { label: "Freigabe", value: 31 }, { label: "Erledigt", value: 43 }] } },
+    { id: "bi-pipeline-analysis", variant: "chart", title: "Pipeline-Analyse", description: "Sales- und Angebotsuebersicht mit Kennzahlen und Fortschrittsbalken.", packageIds: ["bi.analytics", "sales.crm"], data: { title: "Pipeline", subtitle: "Chancen nach Phase und naechstem Schritt.", unit: "Tsd. EUR", metrics: [{ label: "Pipeline", value: "1,28 Mio. EUR", delta: "+9%" }, { label: "Abschlussquote", value: "27%", delta: "+3%" }, { label: "Naechste Aktionen", value: "14", delta: "heute" }], items: [{ label: "Lead", value: 220 }, { label: "Qualifiziert", value: 180 }, { label: "Angebot", value: 310 }, { label: "Verhandlung", value: 145 }] } },
     { id: "carousel", title: "Bildkarussell", description: "Bildindex und Bilder liegen in gemeinsamen Daten.", data: { index: 0, images: ["https://picsum.photos/seed/state-1/640/360", "https://picsum.photos/seed/state-2/640/360", "https://picsum.photos/seed/state-3/640/360"] } },
     { id: "checkbox", title: "Checkbox-Feld", description: "Checkbox-Auswahlen werden gespeichert und können Übergänge steuern.", data: { legend: "Einstellungen", items: [{ label: "Angemeldet bleiben", checked: false }], checked: false } },
     { id: "countdown", title: "Countdown-Timer", description: "Timerwerte laufen in gemeinsamen Daten herunter und können den nächsten Zustand auslösen.", data: { duration: 20, value: 20, label: "Sekunden übrig", running: true, finished: false, startedAt: 0, endsAt: 0 } },
@@ -304,12 +459,22 @@ function normalizePreset(preset) {
   const hasData = Object.keys(data).length > 0;
   const fieldTypes = absoluteFieldTypes(rootStateId, dataTypes, hasData);
   const fields = Object.keys(fieldTypes);
+  const packageIds = normalizePackageIds(preset.packageIds, inferPackageIdsForPreset(preset));
+  const primaryPackageId = packageIds[0] || "core.process";
   return {
     builtIn: true,
     ...preset,
     rootStateId,
     data,
     dataTypes,
+    packageIds,
+    primaryPackageId,
+    commercial: {
+      packageIds,
+      primaryPackageId,
+      packageLabels: packageIds.map(id => PACKAGE_BY_ID.get(id)?.label || id),
+      addOn: packageIds.some(id => PACKAGE_BY_ID.get(id)?.upsell === true)
+    },
     stateContribution: {
       id: String(preset.id || rootStateId),
       source: "preset",
@@ -325,8 +490,46 @@ function presetCatalogResponse() {
   return builtinStateTemplates().map(normalizePreset);
 }
 
+function presetPackagesResponse() {
+  const presets = presetCatalogResponse();
+  return PRESET_PACKAGES
+    .map(item => {
+      const presetIds = presets
+        .filter(preset => Array.isArray(preset.packageIds) && preset.packageIds.includes(item.id))
+        .map(preset => preset.id);
+      const includedInPlanIds = SUBSCRIPTION_PLANS
+        .filter(plan => normalizePackageIds(plan.includedPackageIds, []).includes(item.id))
+        .map(plan => plan.id);
+      return {
+        ...cloneJson(item),
+        includedInPlanIds,
+        presetIds,
+        presetCount: presetIds.length
+      };
+    })
+    .sort((a, b) => a.sort - b.sort);
+}
+
+function subscriptionPlansResponse() {
+  return SUBSCRIPTION_PLANS
+    .map(plan => {
+      const includedPackageIds = normalizePackageIds(plan.includedPackageIds, []);
+      const recommendedAddOnPackageIds = normalizePackageIds(plan.recommendedAddOnPackageIds, []);
+      return {
+        ...cloneJson(plan),
+        includedPackageIds,
+        recommendedAddOnPackageIds,
+        includedPackages: includedPackageIds.map(id => cloneJson(PACKAGE_BY_ID.get(id))).filter(Boolean),
+        recommendedAddOns: recommendedAddOnPackageIds.map(id => cloneJson(PACKAGE_BY_ID.get(id))).filter(Boolean)
+      };
+    })
+    .sort((a, b) => a.sort - b.sort);
+}
+
 module.exports = {
   builtinStateTemplates,
   collectLocalFieldTypes,
-  presetCatalogResponse
+  presetCatalogResponse,
+  presetPackagesResponse,
+  subscriptionPlansResponse
 };

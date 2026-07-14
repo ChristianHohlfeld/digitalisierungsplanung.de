@@ -164,13 +164,19 @@ Ereignisdefinitionen. Das ist die Live-Quelle für auswählbare Realtime-Ereigni
 Zentraler Product Contract für `state.html` und den Event Designer. Dieser
 Endpoint ist die frische Server-Wahrheit für vordefinierte Contract-Teile:
 Trigger-Typen, Value-Types mit Constraints, Realtime-Datasets, Connector-Quellen,
-Presets und State-Contribution-Pfade. Jedes Feld, das vom Contract in den
+Presets, Preset-Pakete, Abo-Pläne und State-Contribution-Pfade. Jedes Feld, das vom Contract in den
 globalen JSON-State geschrieben werden kann, hat neben dem kompakten Typstring
 ein `fieldSchemas`-Objekt mit `type`, `jsonType`, `default` und harten
 `constraints`.
 
 Die App darf daraus UI-Optionen rendern und konkrete Referenzen speichern, aber
 keine Contract-Kopie in den Canvas schreiben.
+
+`presetPackages` und `subscriptionPlans` sind Verkaufs- und Anzeige-Metadaten.
+Sie entscheiden nicht lokal im Canvas über Verhalten. Ein Preset bleibt
+contract-konform, weil sein fachlicher Beitrag ausschließlich über
+`stateContribution` im globalen State landet. Add-on-Pakete können auch dann
+separat verkauft werden, wenn ein Kunde bereits das größte Standard-Abo nutzt.
 
 Antwort, gekürzt:
 
@@ -228,11 +234,41 @@ Antwort, gekürzt:
     }
   ],
   "connectors": [],
+  "presetPackages": [
+    {
+      "id": "website.builder",
+      "label": "Website Builder",
+      "category": "package",
+      "includedInPlanIds": ["business", "scale"],
+      "presetIds": ["builtin_daisy_hero", "builtin_daisy_pricing"],
+      "presetCount": 2
+    },
+    {
+      "id": "bi.analytics",
+      "label": "BI & Analyse",
+      "category": "addon",
+      "upsell": true,
+      "includedInPlanIds": [],
+      "presetIds": ["builtin_daisy_bi_kpi_board"],
+      "presetCount": 1
+    }
+  ],
+  "subscriptionPlans": [
+    {
+      "id": "business",
+      "label": "Business",
+      "price": "149 EUR",
+      "period": "/Monat",
+      "includedPackageIds": ["core.process", "website.builder", "approval.compliance"],
+      "recommendedAddOnPackageIds": ["bi.analytics", "service.operations"]
+    }
+  ],
   "presets": [
     {
       "id": "builtin_daisy_button",
       "title": "Aktionsbutton",
       "rootStateId": "button",
+      "packageIds": ["core.process"],
       "data": { "label": "Weiter", "clicked": false, "clickedAt": 0 },
       "dataTypes": { "label": "text", "clicked": "boolean", "clickedAt": "number" },
       "stateContribution": {

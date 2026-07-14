@@ -103,7 +103,7 @@ Der Server in [`server/`](server/) ist nur Transport. Er speichert keine fachlic
 | --- | --- |
 | `GET /healthz` | Gesundheitsprüfung |
 | `GET /version` | gemeinsame Frontend-/Backend-Release-ID |
-| `GET /contract` | zentraler Product Contract: Trigger-Typen, Datentypen, Datasets, Quellen und State-Beiträge |
+| `GET /contract` | zentraler Product Contract: Trigger-Typen, Datentypen, Datasets, Quellen, Presets, Preset-Pakete, Abo-Pläne und State-Beiträge |
 | `GET /events` | aktueller Echtzeit-Contract mit Quellen |
 | `GET /events/contract` | niedriger Realtime-Katalog-Contract mit Detail-Typen und State-Beiträgen |
 | `GET /token` | signiertes Raum-Token für den Browser |
@@ -116,8 +116,8 @@ Der Server in [`server/`](server/) ist nur Transport. Er speichert keine fachlic
 Der harte Contract kommt aus [`server/event-catalog.json`](server/event-catalog.json)
 und wird vom Server unter `/contract` als Product Contract ausgeliefert:
 Trigger-Typen, Value-Types mit Constraints, `realtime.*`-Datasets, Quellen,
-Standard-Presets aus `server/preset-catalog.js` und kollisionsfreie
-State-Beiträge. Jedes Contract-Feld liefert neben `fieldTypes`
+Standard-Presets aus `server/preset-catalog.js`, Preset-Pakete,
+Abo-Pläne und kollisionsfreie State-Beiträge. Jedes Contract-Feld liefert neben `fieldTypes`
 auch `fieldSchemas` mit `type`, `jsonType`, `default` und `constraints`
 wie `min`, `max`, `maxLength`, `format`, `protocols`, `maxDepth` oder
 `maxItems`. `/emit` und WebSocket-Runtime-Events prüfen dieselben Schemas,
@@ -127,6 +127,14 @@ konkrete Referenzen wie `triggerType: realtime` und `triggerEvent`.
 `state.html` lädt `/contract` beim Start mit `no-store`; wenn der Product
 Contract nicht erreichbar ist, startet der Editor nicht mit lokalen
 Fallback-Typen oder lokalen Preset-Definitionen.
+
+Preset-Pakete sind reine Server-Metadaten für Verkauf, Anzeige und spätere
+Freischaltung. Der Canvas speichert keine Paketkopie; ein Preset schreibt
+weiter nur seinen eindeutigen `stateContribution` in den globalen JSON-State.
+Die drei Standard-Abos sind `starter`, `business` und `scale`. Zusatzpakete
+wie `bi.analytics`, `sales.crm`, `knowledge.portal` und
+`integration.automation` bleiben auch neben dem größten Paket separat
+zubuchbar.
 
 Der Designer arbeitet in der gleichen Reihenfolge wie der Canvas-Vertrag:
 Event-Type, Dataset-Key, Felder, Quelle. Das Admin-Secret bleibt lokal im

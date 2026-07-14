@@ -163,6 +163,8 @@ function productContractResponse(configOrCatalog) {
     triggerTypes: triggerTypesForCatalog(catalog),
     datasets: datasetsForCatalog(catalog),
     connectors: response.emitters,
+    presetPackages: presetCatalog.presetPackagesResponse(),
+    subscriptionPlans: presetCatalog.subscriptionPlansResponse(),
     presets: presetCatalog.presetCatalogResponse(),
     stateContributions: stateContributionsForCatalog(catalog)
   };

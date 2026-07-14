@@ -57,15 +57,6 @@ test.describe("Root demo export", () => {
       }, { once: true });
     });
 
-    const expectFunnel = async (current, prefix) => {
-      await expect(page.locator(".steps")).toHaveCount(1);
-      await expect(page.locator("li.step-primary")).toContainText(current);
-      await expect(page.locator("li.step-primary")).toHaveAttribute("aria-current", "step");
-      await expect(page.locator(`.steps button[data-transition-id="${prefix}_nav_features"]`)).toHaveCount(1);
-      await expect(page.locator(`.steps button[data-transition-id="${prefix}_nav_pricing"]`)).toHaveCount(1);
-      await expect(page.locator(`.steps button[data-transition-id="${prefix}_nav_contact"]`)).toHaveCount(1);
-    };
-
     await page.goto("/");
     await expect.poll(() => page.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).length)).toBe(0);
     await expect.poll(() => page.evaluate(async () => "caches" in window ? (await caches.keys()).length : 0)).toBe(0);
@@ -76,31 +67,30 @@ test.describe("Root demo export", () => {
     await expect(page.getByRole("heading", { name: "Aus Erfahrungswissen wird Software.", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Erstgespräch anfragen" })).toBeVisible();
     await expect(page.locator(".hero .card-actions.justify-center")).toHaveCSS("justify-content", "center");
-    await expectFunnel("Ablauf verstehen", "site_home");
+    await expect(page.locator(".navbar").getByRole("button", { name: "Pakete", exact: true })).toBeVisible();
 
     const manifest = await page.request.get("/manifest.webmanifest");
     expect(manifest.ok()).toBe(true);
     expect((await manifest.json()).name).toBe("Digitalisierungsplanung.de");
 
-    await page.locator('.steps button[data-transition-id="site_home_nav_features"]').click();
+    await page.locator(".navbar").getByRole("button", { name: "Nutzen", exact: true }).click();
     await expect(page.locator("#statePill")).toHaveText("site_features");
     await expect(page.getByRole("heading", { name: "Was Ihr Unternehmen gewinnt" })).toBeVisible();
-    await expectFunnel("Ablauf verstehen", "site_features");
 
-    await page.locator('.steps button[data-transition-id="site_features_nav_pricing"]').click();
+    await page.locator(".navbar").getByRole("button", { name: "Pakete", exact: true }).click();
     await expect(page.locator("#statePill")).toHaveText("site_pricing");
-    await expectFunnel("Blueprint prüfen", "site_pricing");
-    await page.getByRole("button", { name: "Blueprint anfragen" }).click();
+    await expect(page.getByRole("heading", { name: "Pakete", exact: true })).toBeVisible();
+    await expect(page.locator(".daisy-pricing .card-title")).toContainText(["Starter", "Business", "Scale"]);
+    await expect(page.getByRole("button", { name: "BI zubuchen", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Business anfragen" }).click();
     await expect(page.locator("#statePill")).toHaveText("site_checkout");
     await expect(page.getByRole("heading", { name: "Anfrage" })).toBeVisible();
-    await expectFunnel("Gespräch starten", "site_checkout");
+    await expect(page.getByText("149 EUR")).toBeVisible();
 
-    await page.locator('.steps button[data-transition-id="site_checkout_nav_contact"]').click();
+    await page.locator(".navbar").getByRole("button", { name: "Kontakt", exact: true }).click();
     await expect(page.locator("#statePill")).toHaveText("site_contact");
-    await expectFunnel("Gespräch starten", "site_contact");
     await page.getByRole("button", { name: "Anfrage senden" }).click();
     await expect(page.locator("#statePill")).toHaveText("site_thanks");
-    await expectFunnel("Gespräch starten", "site_thanks");
 
     await page.reload({ waitUntil: "load" });
     await expect.poll(() => page.evaluate(() => window.__safariLateRestoreApplied === true)).toBe(true);

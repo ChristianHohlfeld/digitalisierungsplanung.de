@@ -7055,9 +7055,26 @@
     .daisy-pricing > .card > .card-body { display: flex; flex: 1 1 auto; flex-direction: column; gap: 8px; width: 100%; padding: 22px; }
     .daisy-pricing .card-actions { margin-top: auto; }
     .daisy-pricing .btn { width: 100%; }
+    .daisy-chart { width: 100%; }
+    .daisy-chart > .card-body { display: grid; gap: 14px; padding: 22px; }
+    .daisy-chart-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 132px), 1fr)); gap: 10px; }
+    .daisy-chart-metric { display: grid; gap: 3px; min-width: 0; padding: 12px; border: 1px solid rgba(148,163,184,.2); border-radius: 14px; background: rgba(15,23,42,.46); }
+    .daisy-chart-metric-value { color: #f8fbff; font-size: 22px; font-weight: 950; line-height: 1.1; }
+    .daisy-chart-metric-label,
+    .daisy-chart-metric-delta { color: var(--muted); font-size: 12px; font-weight: 850; line-height: 1.3; }
+    .daisy-chart-metric-delta { color: #86efac; }
+    .daisy-chart-bars { display: grid; gap: 10px; }
+    .daisy-chart-row { display: grid; grid-template-columns: minmax(82px, 1fr) minmax(120px, 3fr) minmax(54px, auto); gap: 10px; align-items: center; min-width: 0; }
+    .daisy-chart-label,
+    .daisy-chart-value { min-width: 0; color: var(--text); font-size: 13px; font-weight: 850; overflow-wrap: anywhere; }
+    .daisy-chart-value { color: #bfdbfe; text-align: right; }
+    .daisy-chart-track { height: 14px; overflow: hidden; border-radius: 999px; background: rgba(148,163,184,.18); }
+    .daisy-chart-bar { height: 100%; min-width: 4px; border-radius: inherit; background: linear-gradient(90deg, var(--primary), var(--accent)); box-shadow: 0 0 18px rgba(56,189,248,.2); }
     @media (max-width: 540px) {
       .daisy-feature-cards,
       .daisy-pricing { grid-template-columns: 1fr; }
+      .daisy-chart-row { grid-template-columns: 1fr; gap: 5px; }
+      .daisy-chart-value { text-align: left; }
     }
     .steps { grid-template-columns: repeat(auto-fit, minmax(min(100%, 168px), 1fr)); gap: 10px; align-items: stretch; }
     .step { position: relative; display: grid; grid-template-columns: 32px minmax(0, 1fr); align-items: start; gap: 10px; min-width: 0; min-height: 96px; padding: 12px; border: 1px solid rgba(148,163,184,.22); border-radius: 16px; background: rgba(8,24,39,.72); color: var(--muted); box-shadow: inset 0 1px 0 rgba(255,255,255,.04); transition: border-color .16s ease, background .16s ease, box-shadow .16s ease, transform .16s ease; }
@@ -7606,7 +7623,7 @@
       return runtimeNormalizeBindingPath(component.dataPath, "");`;
       const daisySupportJsEnhanced = `    const SUPPORTED_DAISY_VARIANTS = new Set([
       "accordion", "alert", "avatar", "badge", "bottom-navigation", "breadcrumbs",
-      "button", "card", "carousel", "checkbox", "countdown", "drawer", "dropdown",
+      "button", "card", "chart", "carousel", "checkbox", "countdown", "drawer", "dropdown",
       "feature-grid", "file-input", "footer", "hero", "indicator", "input", "loading", "mask", "menu", "modal",
       "navbar", "pricing", "progress", "radial-progress", "radio", "range", "rating",
       "select", "stat", "steps", "table", "tabs", "textarea", "timeline",
@@ -7757,7 +7774,7 @@
           box.appendChild(actions);
         }
         el.appendChild(box);`;
-      const heroJsEnhanced = `      } else if (variant === "card" || variant === "hero" || variant === "feature-grid" || variant === "pricing") {
+      const heroJsEnhanced = `      } else if (variant === "card" || variant === "hero" || variant === "feature-grid" || variant === "pricing" || variant === "chart") {
         const actionLabel = daisyOwnerCanWrite(component) ? daisyDataText(component, "actionLabel", "") : "";
         if (variant === "hero") {
           const layout = daisyDataText(component, "layout", "centered");
@@ -8008,6 +8025,58 @@
             card.appendChild(box);
             el.appendChild(card);
           });
+        } else if (variant === "chart") {
+          el.className = daisyClass(el.className, "daisy-chart card bg-base-100 shadow-sm");
+          const data = daisyScopeData(component);
+          const box = document.createElement("div");
+          box.className = "card-body";
+          appendDaisyText(box, "h2", "card-title", String(data.title || title || "Analyse"));
+          const subtitle = String(data.subtitle || data.body || "").trim();
+          if (subtitle) appendDaisyText(box, "p", "daisy-copy", subtitle);
+          const metrics = daisyDataArray(component, "metrics", [])
+            .filter(item => item && typeof item === "object" && !Array.isArray(item));
+          if (metrics.length) {
+            const metricGrid = document.createElement("div");
+            metricGrid.className = "daisy-chart-metrics";
+            metrics.slice(0, 6).forEach(metric => {
+              const card = document.createElement("div");
+              card.className = "daisy-chart-metric";
+              appendDaisyText(card, "div", "daisy-chart-metric-label", String(metric.label || metric.title || "Kennzahl"));
+              appendDaisyText(card, "div", "daisy-chart-metric-value", String(metric.value ?? ""));
+              const delta = String(metric.delta || metric.description || "").trim();
+              if (delta) appendDaisyText(card, "div", "daisy-chart-metric-delta", delta);
+              metricGrid.appendChild(card);
+            });
+            box.appendChild(metricGrid);
+          }
+          const items = daisyDataArray(component, "items", [])
+            .filter(item => item && typeof item === "object" && !Array.isArray(item));
+          const values = items.map(item => Math.max(0, Number(item.value))).filter(Number.isFinite);
+          const max = Math.max(1, ...values);
+          if (items.length) {
+            const bars = document.createElement("div");
+            bars.className = "daisy-chart-bars";
+            const unit = String(data.unit || "").trim();
+            items.slice(0, 12).forEach(item => {
+              const value = Math.max(0, Number(item.value));
+              const safeValue = Number.isFinite(value) ? value : 0;
+              const pct = Math.max(0, Math.min(100, Math.round(safeValue / max * 100)));
+              const row = document.createElement("div");
+              row.className = "daisy-chart-row";
+              appendDaisyText(row, "div", "daisy-chart-label", String(item.label || item.title || item.name || "Wert"));
+              const track = document.createElement("div");
+              track.className = "daisy-chart-track";
+              const bar = document.createElement("div");
+              bar.className = "daisy-chart-bar";
+              bar.style.width = pct + "%";
+              track.appendChild(bar);
+              row.appendChild(track);
+              appendDaisyText(row, "div", "daisy-chart-value", String(item.valueLabel || (safeValue + (unit ? " " + unit : ""))));
+              bars.appendChild(row);
+            });
+            box.appendChild(bars);
+          }
+          el.appendChild(box);
         } else {
           el.className = daisyClass(el.className, "card bg-base-100 w-96 shadow-sm");
           if (daisyDataBool(component, "highlight", false)) el.dataset.highlight = "true";
@@ -9433,7 +9502,7 @@
     const DATA_WIRE_ROLES = ["image", "title", "price", "description", "field", "link", "note"];
     const SUPPORTED_DAISY_VARIANTS = new Set([
       "accordion", "alert", "avatar", "badge", "bottom-navigation", "breadcrumbs",
-      "button", "card", "carousel", "checkbox", "countdown", "drawer", "dropdown",
+      "button", "card", "chart", "carousel", "checkbox", "countdown", "drawer", "dropdown",
       "feature-grid", "file-input", "footer", "hero", "indicator", "input", "loading", "mask", "menu", "modal",
       "navbar", "pricing", "progress", "radial-progress", "radio", "range", "rating",
       "select", "stat", "steps", "table", "tabs", "textarea", "timeline",
@@ -9585,7 +9654,7 @@
       const navItems = [
         { label: "Start", target: "site_home" },
         { label: "Nutzen", target: "site_features" },
-        { label: "Angebot", target: "site_pricing" },
+        { label: "Pakete", target: "site_pricing" },
         { label: "Kontakt", target: "site_contact" },
         { label: "Konto", target: "site_login" }
       ];
@@ -9612,7 +9681,7 @@
           brand: "Digitalisierungsplanung.de",
           note: "Aus Erfahrungswissen wird Software.",
           columns: [
-            { title: "Produkt", items: ["Nutzen", "Angebot", "Kontakt"].map(label => navLink(stateId, label)) },
+            { title: "Produkt", items: ["Nutzen", "Pakete", "Kontakt"].map(label => navLink(stateId, label)) },
             { title: "Unternehmen", items: ["Start", "Konto"].map(label => navLink(stateId, label)) },
             { title: "Werkzeug", items: [{ label: "Editor öffnen", url: "state.html?demo=zustand" }] }
           ]
@@ -9632,37 +9701,80 @@
       });
       const pricingPlans = [
         {
-          id: "workshop",
-          title: "Klarheits-Workshop",
+          id: "starter",
+          title: "Starter",
           badge: "",
-          price: "1.900 EUR",
-          period: "einmalig",
-          body: "Ein echter Ablauf wird gemeinsam sichtbar: Start, Ziel, Entscheidungen, Daten und Verantwortliche.",
-          features: ["Ablauf aus Köpfen holen", "Risiken und Lücken sichtbar", "Nächsten Schritt priorisieren"],
-          cta: "Workshop anfragen"
+          price: "49 EUR",
+          period: "/Monat",
+          body: "Für den ersten echten Ablauf: modellieren, prüfen und als einfache Web-App nutzen.",
+          features: ["Process Core enthalten", "1 Prozess-App", "Export als Web-Anwendung"],
+          cta: "Starter anfragen"
         },
         {
-          id: "blueprint",
-          title: "Klickbarer Prozess-Blueprint",
+          id: "business",
+          title: "Business",
           badge: "Beliebt",
-          price: "4.900 EUR",
-          period: "Projekt",
-          body: "Aus einem unklaren Ablauf wird eine prüfbare Web-Anwendung, die Fachbereich und Leitung testen können.",
-          features: ["Klickbare Prozess-App", "Ausnahmen und Freigaben prüfen", "Übergabe an Umsetzung vorbereiten"],
-          cta: "Blueprint anfragen",
+          price: "149 EUR",
+          period: "/Monat",
+          body: "Für Teams, die Abläufe sichtbar machen, Website-/Portal-Apps bauen und Freigaben sauber prüfen.",
+          features: ["Process Core", "Website Builder", "Freigabe & Compliance"],
+          cta: "Business anfragen",
           highlight: true
         },
         {
-          id: "delivery",
-          title: "Umsetzungsbegleitung",
-          badge: "Individuell",
-          price: "auf Anfrage",
-          period: "laufend",
-          body: "Begleitung bis zur Umsetzung: weniger Schleifen, klare Abnahmen und ein Ablauf, den alle verstehen.",
-          features: ["Umsetzung priorisieren", "Akzeptanz im Fachbereich sichern", "Schrittweise digitalisieren"],
-          cta: "Begleitung anfragen"
+          id: "scale",
+          title: "Scale",
+          badge: "Teams",
+          price: "399 EUR",
+          period: "/Monat",
+          body: "Für mehrere Bereiche, operative Echtzeit-Prozesse und wiederholbare Digitalisierung im Unternehmen.",
+          features: ["Business-Pakete enthalten", "Service & Operations", "Mehrere Teams und Räume"],
+          cta: "Scale anfragen"
         }
       ];
+      const addOnPackages = [
+        {
+          id: "bi",
+          title: "BI & Analyse",
+          badge: "Add-on",
+          price: "+79 EUR",
+          period: "/Monat",
+          body: "KPI-Boards, Charts, Tabellen und Management-Auswertungen direkt aus Prozessdaten.",
+          features: ["KPI-Boards", "Charts & Tabellen", "Pipeline-Auswertung"],
+          cta: "BI zubuchen"
+        },
+        {
+          id: "sales",
+          title: "Sales & CRM",
+          badge: "Add-on",
+          price: "+99 EUR",
+          period: "/Monat",
+          body: "Lead-Strecken, Angebotsstatus, Follow-ups und Kundenservice-Prozesse.",
+          features: ["Lead-Status", "Angebotsstrecken", "Follow-up-Prozesse"],
+          cta: "Sales zubuchen"
+        },
+        {
+          id: "knowledge",
+          title: "Wissensportal",
+          badge: "Add-on",
+          price: "+69 EUR",
+          period: "/Monat",
+          body: "FAQ, Onboarding, interne Portale und dokumentiertes Erfahrungswissen.",
+          features: ["Onboarding", "FAQ und Hilfe", "Wissenssicherung"],
+          cta: "Portal zubuchen"
+        },
+        {
+          id: "automation",
+          title: "Integration & Automation",
+          badge: "Add-on",
+          price: "+129 EUR",
+          period: "/Monat",
+          body: "Webhook-, Mail-, Telefonie- und Datenquellen als echte Ereignisse im Prozess.",
+          features: ["Webhooks", "Mail und Telefonie", "Datenquellen"],
+          cta: "Integration zubuchen"
+        }
+      ];
+      const purchasableOffers = [...pricingPlans, ...addOnPackages];
       const checkoutFlowId = "site_checkout_flow";
       const checkoutStateId = "site_checkout";
       const makeState = (id, title, x, y, components, data, extra = {}) => ({
@@ -9730,7 +9842,7 @@
                 image: featureImages.clarity,
                 imageAlt: "Team klärt einen Geschäftsprozess am Tisch",
                 features: ["Rückfragen reduzieren", "Fehler vermeiden"],
-                actionLabel: "Angebot",
+                actionLabel: "Pakete",
                 transitionId: "site_home_nav_pricing"
               },
               {
@@ -9765,7 +9877,7 @@
                 image: featureImages.decision,
                 imageAlt: "Führungsteam trifft eine Projektentscheidung",
                 features: ["Abhängigkeit reduzieren", "Einarbeitung beschleunigen"],
-                actionLabel: "Angebot",
+                actionLabel: "Pakete",
                 transitionId: "site_features_nav_pricing"
               },
               {
@@ -9798,16 +9910,17 @@
           },
           footer: footerData("site_features")
         }),
-        makeState("site_pricing", "Angebot", 480, 456, [
+        makeState("site_pricing", "Pakete", 480, 456, [
           ...shell("site_pricing"),
           daisy("pricing_intro", "alert", "states.site_pricing.intro", "Preishinweis"),
           daisy("pricing_plans", "pricing", "states.site_pricing.plans", "Preispläne"),
+          daisy("pricing_addons", "feature-grid", "states.site_pricing.addons", "Zusatzpakete"),
           ...footer("pricing")
         ], {
-          nav: nav("site_pricing", "Angebot"),
+          nav: nav("site_pricing", "Pakete"),
           intro: {
             tone: "info",
-            message: "Starten Sie mit einem echten Prozess, der heute Zeit, Geld oder Nerven kostet: Rechnungseingang, Freigabe, Reklamation oder Auftragsklärung."
+            message: "Wählen Sie ein Abo für den Kern und buchen Sie Pakete dazu, wenn BI, CRM, Wissensportal oder Integrationen echten Mehrwert bringen."
           },
           plans: {
             selectedPlan: "",
@@ -9821,6 +9934,20 @@
               highlight: Boolean(plan.highlight),
               actionLabel: plan.cta || `${plan.title} anfragen`,
               transitionId: `site_pricing_buy_${plan.id}`
+            }))
+          },
+          addons: {
+            eyebrow: "Zubuchbare Pakete",
+            heading: "Nicht alles muss im größten Paket stecken",
+            body: "Scale bleibt schlank. Spezielle Business-Pakete können weiter separat gebucht werden, damit der Preis nicht künstlich gedeckelt ist.",
+            selected: "",
+            items: addOnPackages.map(pack => ({
+              title: pack.title,
+              badge: pack.badge,
+              body: pack.body,
+              features: pack.features,
+              actionLabel: pack.cta,
+              transitionId: `site_pricing_buy_${pack.id}`
             }))
           },
           footer: footerData("site_pricing")
@@ -9838,13 +9965,13 @@
           daisy("checkout_submit", "button", "states.site_checkout.submit", "Anfrage senden"),
           ...footer("checkout")
         ], {
-          nav: nav(checkoutStateId, "Angebot"),
+          nav: nav(checkoutStateId, "Pakete"),
           summary: {
-            title: "Klarheits-Workshop",
+            title: "Starter",
             badge: "Anfrage",
-            price: "1.900 EUR",
-            period: "einmalig",
-            body: "Prüfen Sie das gewählte Angebot und senden Sie die Anfrage. Danach klären wir Ziel, Prozess und den nächsten passenden Termin.",
+            price: "49 EUR",
+            period: "/Monat",
+            body: "Prüfen Sie das gewählte Abo oder Zusatzpaket und senden Sie die Anfrage. Danach klären wir Start, Paketumfang und nächsten Schritt.",
             features: pricingPlans[0].features,
             actionLabel: ""
           },
@@ -9858,8 +9985,8 @@
             transitionId: "site_checkout_complete"
           },
           order: {
-            plan: "Klarheits-Workshop",
-            price: "1.900 EUR",
+            plan: "Starter",
+            price: "49 EUR",
             completed: false
           },
           footer: footerData(checkoutStateId)
@@ -10006,14 +10133,14 @@
       const transitions = [
         ...navTransitions,
         ...featureStepTransitions,
-        ...pricingPlans.map(plan => {
+        ...purchasableOffers.map(plan => {
           return transition(`site_pricing_buy_${plan.id}`, "site_pricing", checkoutFlowId, plan.cta || `${plan.title} anfragen`, {
             "states.site_pricing.plans.selectedPlan": plan.title,
             "states.site_checkout.summary.title": plan.title,
             "states.site_checkout.summary.badge": plan.badge || "Anfrage",
             "states.site_checkout.summary.price": plan.price,
             "states.site_checkout.summary.period": plan.period,
-            "states.site_checkout.summary.body": "Prüfen Sie das gewählte Angebot und senden Sie die Anfrage. Danach klären wir Ziel, Prozess und den nächsten passenden Termin.",
+            "states.site_checkout.summary.body": "Prüfen Sie das gewählte Abo oder Zusatzpaket und senden Sie die Anfrage. Danach klären wir Start, Paketumfang und nächsten Schritt.",
             "states.site_checkout.summary.features": plan.features,
             "states.site_checkout.order.plan": plan.title,
             "states.site_checkout.order.price": plan.price,
@@ -11966,6 +12093,7 @@
       if (!id) return null;
       const rootStateId = String(value.rootStateId || value.id || "");
       const data = normalizeStateDataObject(value.data);
+      const packageIds = (Array.isArray(value.packageIds) ? value.packageIds : []).map(item => String(item || "").trim()).filter(Boolean);
       return {
         ...value,
         id,
@@ -11983,6 +12111,9 @@
         boundary: normalizeBoundaryConfig(value.boundary),
         states: snapshotTemplateStates(value),
         transitions: snapshotTemplateTransitions(value),
+        packageIds,
+        primaryPackageId: String(value.primaryPackageId || packageIds[0] || "").trim(),
+        commercial: isPlainObject(value.commercial) ? value.commercial : null,
         stateContribution: normalizeProductContractContribution(value.stateContribution)
       };
     }
@@ -12016,6 +12147,8 @@
           triggerTypes: (Array.isArray(source.triggerTypes) ? source.triggerTypes : []).map(normalizeProductContractTriggerType).filter(Boolean),
           datasets: (Array.isArray(source.datasets) ? source.datasets : []).map(normalizeProductContractDataset).filter(Boolean),
           connectors: Array.isArray(source.connectors) ? source.connectors : [],
+          presetPackages: Array.isArray(source.presetPackages) ? source.presetPackages : [],
+          subscriptionPlans: Array.isArray(source.subscriptionPlans) ? source.subscriptionPlans : [],
           presets: (Array.isArray(source.presets) ? source.presets : []).map(normalizeProductContractPreset).filter(Boolean),
           stateContributions: (Array.isArray(source.stateContributions) ? source.stateContributions : []).map(normalizeProductContractContribution).filter(Boolean),
           release: isPlainObject(source.release) ? source.release : null
@@ -26023,8 +26156,11 @@
         if (id === "builtin_content_list") return "website";
         if (/^builtin_(page_heading|body_copy|media_image|task_checklist|external_link|info_note|section_divider)$/.test(id)) return "basics";
         if (/input|textarea|select|checkbox|toggle|radio|range|button|modal/.test(id)) return "forms";
+        const packageIds = new Set(Array.isArray(template?.packageIds) ? template.packageIds : []);
+        if (packageIds.has("bi.analytics")) return "data";
+        if (packageIds.has("website.builder")) return "website";
         if (/navbar|hero|card|avatar|badge|menu|dropdown|breadcrumbs|bottom_navigation|tabs|drawer|alert|accordion/.test(id)) return "website";
-        if (/table|stat|progress|countdown|loading|toast|indicator|rating|steps|timeline|carousel/.test(id)) return "data";
+        if (/bi|chart|table|stat|progress|countdown|loading|toast|indicator|rating|steps|timeline|carousel/.test(id)) return "data";
         return "more";
       };
       const usageRanksByGroup = {
@@ -26078,6 +26214,9 @@
           "builtin_daisy_progress",
           "builtin_daisy_rating",
           "builtin_daisy_steps",
+          "builtin_daisy_bi_kpi_board",
+          "builtin_daisy_bi_bar_chart",
+          "builtin_daisy_bi_pipeline_analysis",
           "builtin_daisy_carousel",
           "builtin_daisy_timeline",
           "builtin_daisy_countdown",

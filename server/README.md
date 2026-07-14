@@ -65,7 +65,7 @@ The event catalog is the server-side source of truth for offered realtime events
 
 - `server/event-catalog.json`: single contract/catalog source in Git.
 - `server/preset-catalog.js`: single standard-preset source in Git.
-- `/contract`: product contract for frontend trigger types, value types, datasets, connector sources, and collision-free state contribution paths.
+- `/contract`: product contract for frontend trigger types, value types, datasets, connector sources, preset packages, subscription plans, and collision-free state contribution paths.
 - `/events`: current event and connector definitions.
 - `/events/contract`: lower-level realtime catalog contract for event keys, detail types, and contribution paths.
 - `/ws`: WebSocket relay only.
@@ -98,6 +98,8 @@ same strict server contract, writes `server/event-catalog.json` and
 There is no version selector and no old contract pinning; runtime always uses
 the latest green `release-N`. Release IDs are audit labels, not compatibility
 branches.
+
+Preset packages and subscription plans are commercial metadata in the same product contract. Presets keep their normal `stateContribution`; package IDs never become a second canvas state or a local catalog copy. `starter`, `business`, and `scale` are the default subscriptions. Add-on packages such as `bi.analytics`, `sales.crm`, `knowledge.portal`, and `integration.automation` stay upsellable even when `scale` is selected.
 
 All connector IDs are globally unique and path-safe. Runtime state is written under `events.<eventName>.*` and `emitters.<emitterId>.*`. Exact ID collisions and parent/child path collisions are rejected server-side. Every global-state contribution includes `fieldTypes` for compact display and `fieldSchemas` for hard validation: each field has a concrete value type, JSON type, default, and constraints such as length, range, format, protocol, max depth, or max items. `/emit` and WebSocket runtime events use the same schema validator, so a value can have the right JSON type and still be rejected when it violates the contract. The canvas loads `/contract` fresh with `no-store` before editor boot. If the Product Contract is unavailable, the editor must fail closed instead of inventing local trigger types, value types, preset contracts, endpoint definitions, catalog copies, or preset instances.
 
