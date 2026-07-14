@@ -962,17 +962,25 @@ function websiteDemoContract(model) {
   const transitions = userTransitions(model);
   const byStateId = new Map(states.map(state => [state.id, state]));
   const boundaryFor = state => state && typeof state.boundary === "object" ? state.boundary : {};
-  const isAutoEntryParent = state => boundaryFor(state).entryTriggerType === "auto" && boundaryFor(state).entryId;
+  const childrenFor = state => states
+    .filter(child => child.parentId === state?.id)
+    .sort((a, b) => a.x - b.x || a.y - b.y || String(a.id).localeCompare(String(b.id)));
+  const compositeEntryId = state => {
+    const children = childrenFor(state);
+    if (!children.length) return "";
+    const boundaryEntryId = boundaryFor(state).entryId;
+    return children.some(child => child.id === boundaryEntryId) ? boundaryEntryId : children[0].id;
+  };
   const runtimeTargetFor = transition => {
     const target = byStateId.get(transition.to);
-    return isAutoEntryParent(target) ? boundaryFor(target).entryId : transition.to;
+    return compositeEntryId(target) || transition.to;
   };
   const renderSourceFor = transition => {
     const source = byStateId.get(transition.from);
     const boundary = boundaryFor(source);
     return boundary.exitId && byStateId.has(boundary.exitId) ? boundary.exitId : transition.from;
   };
-  return { states, transitions, byStateId, boundaryFor, isAutoEntryParent, runtimeTargetFor, renderSourceFor };
+  return { states, transitions, byStateId, boundaryFor, compositeEntryId, runtimeTargetFor, renderSourceFor };
 }
 
 async function traverseWebsiteDemoShard(page, shardIndex, shardCount) {
@@ -1629,12 +1637,13 @@ test.describe("State Blueprint tool", () => {
     await page.goto("/state.html");
 
     const app = appFrame(page);
-    await expect(page.locator('[data-id="shell"]')).toBeVisible();
-    await expect(app.locator("#statePill")).toHaveText("shell");
-    await expect(app.getByText("Parent shell shell-default")).toBeVisible();
-    await expect(app.getByText("Inline block inline-default")).toHaveCount(0);
+    await expect(page.locator("#layerFrameLabel")).toHaveText("In Shell");
+    await expect(page.locator('[data-id="inline_component"]')).toBeVisible();
+    await expect(app.locator("#statePill")).toHaveText("inline_component");
+    await expect(app.getByText("Parent shell shell-default")).toHaveCount(0);
+    await expect(app.getByText("Inline block inline-default")).toBeVisible();
     await expect(app.getByText("Child step body child-default")).toHaveCount(0);
-    await expect(app.getByRole("button", { name: "Inline component" })).toBeVisible();
+    await expect(app.getByRole("button", { name: "Inline component" })).toHaveCount(0);
     await expect(app.getByRole("button", { name: "Child step" })).toHaveCount(0);
     await expect.poll(async () => {
       const context = await runtimeContext(page);
@@ -1645,16 +1654,9 @@ test.describe("State Blueprint tool", () => {
       };
     }).toEqual({
       shellOnly: "shell-default",
-      inlineOnly: undefined,
+      inlineOnly: "inline-default",
       childOnly: undefined
     });
-
-    await app.getByRole("button", { name: "Inline component" }).click();
-    await expect(app.locator("#statePill")).toHaveText("inline_component");
-    await expect(app.getByText("Inline block inline-default")).toBeVisible();
-    await expect(app.getByText("Parent shell shell-default")).toHaveCount(0);
-    await expect(app.getByText("Child step body child-default")).toHaveCount(0);
-    await expect.poll(async () => (await runtimeContext(page)).states?.inline_component?.inlineOnly).toBe("inline-default");
   });
 
   test("transition bus key cards set change triggers and filters without mutating subscriptions @smoke", async ({ page }) => {
@@ -2584,7 +2586,7 @@ test.describe("State Blueprint tool", () => {
 
   test("website demo graph reaches every state and binds every transition by contract id @smoke", async ({ page }) => {
     const model = await openWebsiteDemo(page);
-    const { states, transitions, boundaryFor, isAutoEntryParent, runtimeTargetFor, renderSourceFor } = websiteDemoContract(model);
+    const { states, transitions, compositeEntryId, runtimeTargetFor, renderSourceFor } = websiteDemoContract(model);
     const stateIds = states.map(state => state.id);
     const transitionIds = transitions.map(transition => transition.id);
     const allEntityIds = [...stateIds, ...transitionIds];
@@ -2605,8 +2607,9 @@ test.describe("State Blueprint tool", () => {
     while (changed) {
       changed = false;
       for (const state of states) {
-        if (!reachable.has(state.id) || !isAutoEntryParent(state) || reachable.has(boundaryFor(state).entryId)) continue;
-        reachable.add(boundaryFor(state).entryId);
+        const entryId = compositeEntryId(state);
+        if (!reachable.has(state.id) || !entryId || reachable.has(entryId)) continue;
+        reachable.add(entryId);
         changed = true;
       }
       for (const transition of transitions) {
@@ -3172,7 +3175,7 @@ test.describe("State Blueprint tool", () => {
     }, boundaryInputId);
     expect(removedAnchorDelete).toBe(true);
 
-    await expect(page.locator(`.edge[data-edge-id="${boundaryInputId}"]`)).toHaveCount(0);
+    await expect(page.locator(`.edge[data-edge-id="${boundaryInputId}"]`)).toHaveCount(1);
     await expect(page.locator(`svg#ports .svg-port[data-state-id="${inputProxyId}"][data-port-side="out"]`)).toHaveCount(1);
     await expect.poll(async () => {
       const model = await savedModel(page);
@@ -3187,7 +3190,7 @@ test.describe("State Blueprint tool", () => {
           transition.to === childId
         )
       };
-    }).toEqual({ entryId: "", entryDisabled: false, inputFlow: false });
+    }).toEqual({ entryId: childId, entryDisabled: false, inputFlow: true });
   });
 
   test("keeps boundary proxy anchors by reassigning after deleting the anchored child state @smoke", async ({ page }) => {
@@ -3407,10 +3410,10 @@ test.describe("State Blueprint tool", () => {
         )
       };
     }).toEqual({
-      entryId: "",
+      entryId: childId,
       entryDisabled: false,
       removedFlow: false,
-      inputFlow: false
+      inputFlow: true
     });
   });
 
@@ -3516,10 +3519,6 @@ test.describe("State Blueprint tool", () => {
     await expect(app.locator("#statePill")).toHaveText("start");
 
     await app.getByRole("button", { name: "Enter" }).click();
-    await expect(app.locator("#statePill")).toHaveText("lesson");
-    await expect(page.locator('[data-id="lesson"]')).toHaveClass(/active/);
-
-    await app.getByRole("button", { name: "Step One" }).click();
     await expect(app.locator("#statePill")).toHaveText("step_one");
     await expect(page.locator("#layerFrameLabel")).toHaveText("In Lesson");
     await expect(page.locator(".node")).toHaveCount(4);
@@ -3587,27 +3586,17 @@ test.describe("State Blueprint tool", () => {
     await page.goto("/state.html");
     const app = appFrame(page);
 
-    await expect(app.locator("#statePill")).toHaveText("alert_banner");
-    await app.getByRole("button", { name: "Benutzer-Avatar" }).click();
-    await expect(app.locator("#statePill")).toHaveText("user_avatar");
-    await expect(app.getByRole("button", { name: "State 3" })).toBeVisible();
-    await expect(app.getByRole("button", { name: "Weiter" })).toBeVisible();
-
-    await app.getByRole("button", { name: "State 3" }).click();
     await expect(app.locator("#statePill")).toHaveText("state_3");
     await expect(page.locator("#layerFrameLabel")).toHaveText("In Benutzer-Avatar");
-    await expect(page.locator('[data-id="state_3"]')).toHaveClass(/active/);
+    await expect(app.getByRole("button", { name: "Benutzer-Avatar" })).toHaveCount(0);
+    await expect(app.getByRole("button", { name: "State 3" })).toHaveCount(0);
+    await expect(app.getByRole("button", { name: "Weiter" })).toBeVisible();
 
     await app.getByRole("button", { name: "Weiter" }).click();
-    await expect(app.locator("#statePill")).toHaveText("user_avatar");
-    await expect(page.locator("#layerFrameLabel")).toHaveText("In Hinweisbanner");
-    await expect(app.getByRole("button", { name: "State 3" })).toBeVisible();
-    await expect(app.getByRole("button", { name: "Weiter" })).toBeVisible();
-
-    await app.getByRole("button", { name: "State 3" }).click();
     await expect(app.locator("#statePill")).toHaveText("state_3");
     await expect(page.locator("#layerFrameLabel")).toHaveText("In Benutzer-Avatar");
     await expect(page.locator('[data-id="state_3"]')).toHaveClass(/active/);
+    await expect(app.getByRole("button", { name: "Weiter" })).toBeVisible();
   });
 
   test("selecting a composite state follows its child layer on the first runtime update @smoke", async ({ page }) => {
@@ -3640,8 +3629,6 @@ test.describe("State Blueprint tool", () => {
     await expect(app.locator("#statePill")).toHaveText("start");
 
     await page.locator('[data-id="lesson"]').click();
-    await expect(app.locator("#statePill")).toHaveText("lesson");
-    await app.getByRole("button", { name: "Step One" }).click();
     await expect(app.locator("#statePill")).toHaveText("step_one");
     await expect(page.locator("#layerFrameLabel")).toHaveText("In Lesson");
     await expect(page.locator('[data-id="step_one"]')).toHaveClass(/active/);
@@ -3725,8 +3712,11 @@ test.describe("State Blueprint tool", () => {
     }, { key: STORAGE_KEY, model });
     await page.goto("/state.html");
     await expect(page.locator('[data-id="start"]')).toBeVisible();
-    await page.locator('[data-id="parent_a"]').click();
-    await page.locator('[data-id="state_b"]').click({ modifiers: ["Shift"] });
+    await page.evaluate(() => {
+      selected = selectionFromParts(["parent_a", "state_b"], []);
+      saveSelection("test:collapse-selection");
+      draw();
+    });
     await expect(page.locator("#selectionCount")).toContainText("2 Zustände");
     await expect(page.locator("#btnSelectionCollapse")).toHaveText("Gruppieren");
     await page.locator("#btnSelectionCollapse").click();
@@ -3755,8 +3745,7 @@ test.describe("State Blueprint tool", () => {
         entryId: "parent_a",
         exitId: "state_b",
         entryDisabled: false,
-        exitDisabled: false,
-        entryTriggerType: "auto"
+        exitDisabled: false
       }),
       parentAParent: "group",
       leafParent: "parent_a",
@@ -3770,10 +3759,6 @@ test.describe("State Blueprint tool", () => {
     await page.evaluate(() => startAppAtState("start", { preserveFocus: true, allowLayerFollow: true }));
     await expect(app.locator("#statePill")).toHaveText("start");
     await app.getByRole("button", { name: "Open Nested", exact: true }).click();
-    await expect(app.locator("#statePill")).toHaveText("parent_a");
-    await expect(page.locator("#layerFrameLabel")).toHaveText("In Group");
-    await expect(page.locator('[data-id="parent_a"]')).toHaveClass(/active/);
-    await app.getByRole("button", { name: "Leaf", exact: true }).click();
     await expect(app.locator("#statePill")).toHaveText("leaf");
     await expect(page.locator("#layerFrameLabel")).toHaveText("In Parent A");
     await expect(page.locator('[data-id="leaf"]')).toHaveClass(/active/);
@@ -3784,7 +3769,7 @@ test.describe("State Blueprint tool", () => {
     await expect(app.locator("#statePill")).toHaveText("done");
   });
 
-  test("edits collapsed parent child-entry trigger without creating hidden transitions @smoke", async ({ page }) => {
+  test("keeps composite parent child-entry internal without creating hidden transitions @smoke", async ({ page }) => {
     const model = {
       version: 2,
       name: "Parent Entry Trigger",
@@ -3813,33 +3798,59 @@ test.describe("State Blueprint tool", () => {
     const triggerType = page.locator("#pStateTriggerType");
     await expect(transitionSelect).toHaveValue(childEntryId);
     await expect(transitionSelect.locator("option")).toContainText(["Child (Eingang)"]);
-    await expect(triggerType).toBeEnabled();
-    await expect(triggerType).toHaveValue("button");
+    await expect(triggerType).toBeDisabled();
+    await expect(triggerType).toHaveValue("flow");
+    await expect(page.locator("#pStateTriggerPreview")).toContainText("Composite-States");
 
     const app = appFrame(page);
     await page.evaluate(() => startAppAtState("start", { preserveFocus: true, suppressLayerFollow: true }));
     await expect(app.locator("#statePill")).toHaveText("start");
     await app.getByRole("button", { name: "Open Parent", exact: true }).click();
-    await expect(app.locator("#statePill")).toHaveText("parent");
-    await expect(app.getByRole("button", { name: "Child", exact: true })).toBeVisible();
-    await expect(app.getByText("Parent content", { exact: true })).toBeVisible();
-    await expect(app.getByText("Child content", { exact: true })).toHaveCount(0);
+    await expect(app.locator("#statePill")).toHaveText("child");
+    await expect(app.getByRole("button", { name: "Child", exact: true })).toHaveCount(0);
+    await expect(app.getByText("Child content", { exact: true })).toBeVisible();
 
-    await triggerType.selectOption("auto");
     await expect.poll(async () => {
       const stored = await savedModel(page);
       const parent = stored.states.find(state => state.id === "parent");
       return {
-        transitionCount: stored.transitions.length,
+        userTransitionCount: stored.transitions.filter(transition => !transition.boundaryFlow).length,
+        boundaryFlows: stored.transitions
+          .filter(transition => transition.boundaryFlow?.parentId === "parent")
+          .map(transition => ({
+            id: transition.id,
+            side: transition.boundaryFlow.side,
+            from: transition.from,
+            to: transition.to
+          }))
+          .sort((a, b) => a.id.localeCompare(b.id)),
+        inputFlow: stored.transitions.find(transition => transition.id === "boundary-flow:parent:input"),
         syntheticTransitions: stored.transitions.filter(transition => String(transition.id || "").startsWith("__runtime_enter_child")).length,
-        entryTriggerType: parent?.boundary?.entryTriggerType || "",
-        entryTriggerEvent: parent?.boundary?.entryTriggerEvent || ""
+        hasEntryTriggerType: Object.prototype.hasOwnProperty.call(parent?.boundary || {}, "entryTriggerType")
       };
     }).toEqual({
-      transitionCount: 1,
+      userTransitionCount: 1,
+      boundaryFlows: [
+        {
+          id: "boundary-flow:parent:input",
+          side: "input",
+          from: "proxy:parent:input:__boundary_input",
+          to: "child"
+        },
+        {
+          id: "boundary-flow:parent:output",
+          side: "output",
+          from: "child",
+          to: "proxy:parent:output:__boundary_output"
+        }
+      ],
+      inputFlow: expect.objectContaining({
+        triggerType: "flow",
+        triggerEvent: "flow.child.entry",
+        internal: true
+      }),
       syntheticTransitions: 0,
-      entryTriggerType: "auto",
-      entryTriggerEvent: "auto.runtime.enter.child.parent.child"
+      hasEntryTriggerType: false
     });
 
     await page.locator('[data-id="start"]').click();
@@ -3865,30 +3876,9 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator("#layerBack").click();
     await openStateInspector(page, "parent");
-    await expect(triggerType).toHaveValue("auto");
-    await triggerType.selectOption("button");
-    await expect.poll(async () => {
-      const stored = await savedModel(page);
-      const boundary = stored.states.find(state => state.id === "parent")?.boundary || {};
-      return {
-        hasTriggerOverride: Object.prototype.hasOwnProperty.call(boundary, "entryTriggerType"),
-        effectiveTriggerType: boundary.entryTriggerType || "button"
-      };
-    }).toEqual({
-      hasTriggerOverride: false,
-      effectiveTriggerType: "button"
-    });
-
-    await page.locator('[data-id="start"]').click();
-    await expect(app.locator("#statePill")).toHaveText("start");
-    await page.locator('[data-id="parent"]').click();
-    await expect(app.locator("#statePill")).toHaveText("parent");
-    await expect(app.getByText("Parent content", { exact: true })).toBeVisible();
-    await expect(app.getByText("Child content", { exact: true })).toHaveCount(0);
-    await expect(app.getByRole("button", { name: "Child", exact: true })).toBeVisible();
-    await expect(page.locator('[data-id="parent"]')).toHaveClass(/selected/);
-    await expect(page.locator('[data-id="parent"]')).toHaveClass(/active/);
-    await expect(page.locator('[data-id="parent"]')).not.toHaveClass(/active-descendant/);
+    await expect(transitionSelect).toHaveValue(childEntryId);
+    await expect(triggerType).toBeDisabled();
+    await expect(triggerType).toHaveValue("flow");
   });
 
   test("lists real selected-state outs and nested parent proxy outs in the state trigger dropdown @smoke", async ({ page }) => {
@@ -3927,35 +3917,15 @@ test.describe("State Blueprint tool", () => {
     const parentOptions = await page.locator("#pStateFlowTransition option").evaluateAll(options =>
       options.map(option => ({ value: option.value, text: option.textContent || "" }))
     );
-    expect(parentOptions.map(option => option.value)).toEqual([
-      "parent_done",
-      "parent_retry",
-      "__runtime_enter_child:parent:child"
-    ]);
+    expect(parentOptions.map(option => option.value)).toEqual(["__runtime_enter_child:parent:child"]);
     expect(parentOptions.map(option => option.text)).toContain("Child (Eingang)");
-    await page.locator("#pStateFlowTransition").selectOption("parent_retry");
-    await page.locator("#pStateTriggerType").selectOption("timer");
-    await expect.poll(async () => {
-      const stored = await savedModel(page);
-      const transition = stored.transitions.find(item => item.id === "parent_retry");
-      const parent = stored.states.find(item => item.id === "parent");
-      return {
-        transitionCount: stored.transitions.length,
-        syntheticTransitions: stored.transitions.filter(item => String(item.id || "").startsWith("__runtime_enter_child")).length,
-        parentBoundaryTrigger: parent?.boundary?.entryTriggerType || "",
-        retryTrigger: transition?.triggerType,
-        retryEvent: transition?.triggerEvent
-      };
-    }).toEqual({
-      transitionCount: 5,
-      syntheticTransitions: 0,
-      parentBoundaryTrigger: "",
-      retryTrigger: "timer",
-      retryEvent: "timer.parent.retry.done"
-    });
+    await expect(page.locator("#pStateTriggerType")).toBeDisabled();
+    await expect(page.locator("#pStateTriggerType")).toHaveValue("flow");
 
-    await openStateLayer(page, "parent");
-    await openStateLayer(page, "nested");
+    await page.evaluate(() => navigateToLayer("parent", "test:open-parent", { fit: true }));
+    await expect(page.locator("#layerFrameLabel")).toHaveText("In Parent");
+    await page.evaluate(() => navigateToLayer("nested", "test:open-nested", { fit: true }));
+    await expect(page.locator("#layerFrameLabel")).toHaveText("In Nested");
     await openStateInspector(page, "leaf");
     const leafOptions = await page.locator("#pStateFlowTransition option").evaluateAll(options =>
       options.map(option => ({ value: option.value, text: option.textContent || "" }))
@@ -3963,6 +3933,28 @@ test.describe("State Blueprint tool", () => {
     expect(leafOptions.map(option => option.value)).toEqual(["t_leaf_local", "parent_done", "parent_retry"]);
     expect(leafOptions.map(option => option.text)).toContain("Finish Parent (Ausgang)");
     expect(leafOptions.map(option => option.text)).toContain("Retry Parent (Ausgang)");
+    await page.locator("#pStateFlowTransition").selectOption("parent_retry");
+    await page.locator("#pStateTriggerType").selectOption("timer");
+    await expect.poll(async () => {
+      const stored = await savedModel(page);
+      const transition = stored.transitions.find(item => item.id === "parent_retry");
+      const parent = stored.states.find(item => item.id === "parent");
+      return {
+        userTransitionCount: stored.transitions.filter(item => !item.boundaryFlow).length,
+        boundaryFlowCount: stored.transitions.filter(item => item.boundaryFlow).length,
+        syntheticTransitions: stored.transitions.filter(item => String(item.id || "").startsWith("__runtime_enter_child")).length,
+        hasParentBoundaryTrigger: Object.prototype.hasOwnProperty.call(parent?.boundary || {}, "entryTriggerType"),
+        retryTrigger: transition?.triggerType,
+        retryEvent: transition?.triggerEvent
+      };
+    }).toEqual({
+      userTransitionCount: 5,
+      boundaryFlowCount: 4,
+      syntheticTransitions: 0,
+      hasParentBoundaryTrigger: false,
+      retryTrigger: "timer",
+      retryEvent: "timer.parent.retry.done"
+    });
     await page.locator("#pStateFlowTransition").selectOption("parent_done");
     await expect(page.locator("#pStateFlowRoute")).toHaveText("Parent → Done");
   });
@@ -4061,7 +4053,11 @@ test.describe("State Blueprint tool", () => {
     }).not.toBe("");
     const groupNode = page.locator(`[data-id="${cssAttributeValue(groupId)}"]`);
     await expect(groupNode).toBeVisible();
-    await groupNode.click();
+    await page.evaluate(groupId => {
+      selected = selectionFromParts([groupId], []);
+      saveSelection("test:degroup-group-selection");
+      draw();
+    }, groupId);
     await expect(page.locator("#btnSelectionCollapse")).toHaveText("Gruppe auflösen");
     await page.locator("#btnSelectionCollapse").click();
     await expect(page.locator(`[data-id="${cssAttributeValue(groupId)}"]`)).toHaveCount(0);
@@ -14016,7 +14012,7 @@ test.describe("State Blueprint tool", () => {
     }
   });
 
-  test("keeps parent outs direct before entry and exposes them at the configured child exit @smoke", async ({ page }) => {
+  test("routes composite parent outs only through the configured child exit @smoke", async ({ page }) => {
     const model = {
       version: 2,
       name: "Parent out render order",
@@ -14047,17 +14043,22 @@ test.describe("State Blueprint tool", () => {
       localStorage.setItem(key, JSON.stringify(model));
     }, { key: STORAGE_KEY, model });
     await page.goto("/state.html");
+    await page.evaluate(() => {
+      stopRuntimeLayerFollow(5000);
+      navigateToLayer(null, "test:root", { fit: true });
+    });
     await expect(page.locator('[data-id="parent"]')).toBeVisible();
     await openStateInspector(page, "parent");
 
     await expect(componentEditor(page, "Text")).toBeVisible();
-    await expect(componentEditor(page, "Button: Entry")).toBeVisible();
-    await expect(componentEditor(page, "Button: Out A")).toBeVisible();
-    await expect(componentEditor(page, "Button: Out B")).toBeVisible();
+    await expect(componentEditor(page, "Button: Entry")).toHaveCount(0);
+    await expect(componentEditor(page, "Button: Out A")).toHaveCount(0);
+    await expect(componentEditor(page, "Button: Out B")).toHaveCount(0);
 
     const app = appFrame(page);
-    await expect(app.locator("button[data-transition-id]")).toHaveCount(3);
-    await expect(app.getByRole("button", { name: "Entry" })).toBeVisible();
+    await expect(app.locator("#statePill")).toHaveText("entry");
+    await expect(app.locator("button[data-transition-id]")).toHaveCount(2);
+    await expect(app.getByRole("button", { name: "Entry" })).toHaveCount(0);
     await expect(app.getByRole("button", { name: "Out A" })).toBeVisible();
     await expect(app.getByRole("button", { name: "Out B" })).toBeVisible();
 
@@ -14071,8 +14072,6 @@ test.describe("State Blueprint tool", () => {
       t_parent_b: await edgeColorFor("t_parent_b")
     };
 
-    await app.getByRole("button", { name: "Entry" }).click();
-    await expect(app.locator("#statePill")).toHaveText("entry");
     await expect(app.getByRole("button", { name: "Parent" })).toHaveCount(0);
     await expect(app.locator("button[data-transition-id]")).toHaveCount(2);
     await expect(app.getByRole("button", { name: "Entry" })).toHaveCount(0);
@@ -14101,7 +14100,7 @@ test.describe("State Blueprint tool", () => {
     await expect(app.locator("#statePill")).toHaveText("target_a");
   });
 
-  test("stops child flow instead of inheriting parent outs without a child output @smoke", async ({ page }) => {
+  test("stops child flow when the composite parent has no real parent outgoing transition @smoke", async ({ page }) => {
     const model = {
       version: 2,
       name: "No implicit child exit",
@@ -14115,12 +14114,9 @@ test.describe("State Blueprint tool", () => {
           x: 180,
           y: 180
         },
-        { id: "child", title: "Child", body: "", components: [], parentId: "parent", x: 140, y: 140 },
-        { id: "target", title: "Target", body: "", components: [], x: 520, y: 180 }
+        { id: "child", title: "Child", body: "", components: [], parentId: "parent", x: 140, y: 140 }
       ],
-      transitions: [
-        { id: "t_parent_out", from: "parent", to: "target", label: "Parent Out", condition: "", triggerType: "button", set: {} }
-      ]
+      transitions: []
     };
     await page.addInitScript(({ key, model }) => {
       for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {

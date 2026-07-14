@@ -62,16 +62,9 @@ test.describe("Nested runtime regressions", () => {
     await expect(app.locator("h1")).toHaveText("State 6");
 
     await app.getByRole("button", { name: "Next" }).click();
-    await expect(app.locator("#statePill")).toHaveText("state_3");
-    await expect(app.locator("h1")).toHaveText("State 3");
-    await expect(app.locator("h1")).not.toHaveText(/State 3\s*\/\s*State 4/);
-    await expect(page.locator('[data-id="state_3"]')).toBeVisible();
-    await expect(page.locator('[data-id="state_4"]')).toHaveCount(0);
-
-    await page.waitForTimeout(320);
-    await app.getByRole("button", { name: "State 4" }).click();
     await expect(app.locator("#statePill")).toHaveText("state_4");
     await expect(app.locator("h1")).toHaveText("State 4");
+    await expect(app.locator("h1")).not.toHaveText(/State 3\s*\/\s*State 4/);
     await expect(app.getByText("No outgoing transitions")).toHaveCount(0);
     await expect(page.locator('[data-id="state_4"]')).toBeVisible();
 

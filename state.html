@@ -7417,6 +7417,7 @@
           const sourceDetail = isPlainDataObject(message.detail) ? JSON.parse(JSON.stringify(message.detail)) : {};
           emitRuntimeEvent(name, {
             ...sourceDetail,
+            type: "realtime",
             source: "realtime",
             __realtimeRemote: true,
             emitterId: String(message.emitterId || ""),
@@ -7561,24 +7562,12 @@
     }`;
       const runtimeBoundaryConfigForJsEnhanced = `    function boundaryConfigFor(state) {
       const boundary = state && typeof state.boundary === "object" ? state.boundary : {};
-      const out = {
+      return {
         entryId: String(boundary.entryId || ""),
         exitId: String(boundary.exitId || ""),
         entryDisabled: Boolean(boundary.entryDisabled),
         exitDisabled: Boolean(boundary.exitDisabled)
       };
-      if (boundary.entryTriggerType !== undefined) {
-        out.entryTriggerType = normalizeTransitionTriggerType({ triggerType: boundary.entryTriggerType });
-        out.entryTriggerEvent = normalizeTransitionTriggerEvent({
-          id: out.entryId || "child-entry",
-          label: out.entryId || "Eingang",
-          triggerType: out.entryTriggerType,
-          triggerEvent: boundary.entryTriggerEvent || ""
-        });
-        out.entryTimerMs = normalizeTransitionTimerMs(boundary.entryTimerMs);
-        out.entryCondition = String(boundary.entryCondition || "");
-      }
-      return out;
     }`;
       const runtimeChildEntryTransitionJsEnhanced = `    function runtimeChildEntryTransition(state) {
       if (!state) return null;
@@ -7586,24 +7575,16 @@
       if (!entry) return null;
       const id = \`__runtime_enter_child:\${state.id}:\${entry.id}\`;
       const label = entry.title || "Weiter";
-      const boundary = boundaryConfigFor(state);
-      const triggerType = normalizeTransitionTriggerType({ triggerType: boundary.entryTriggerType || "button" });
-      const triggerEvent = normalizeTransitionTriggerEvent({
-        id,
-        label,
-        triggerType,
-        triggerEvent: boundary.entryTriggerEvent || ""
-      });
       return {
         id,
         from: state.id,
         to: entry.id,
         label,
-        condition: String(boundary.entryCondition || ""),
+        condition: "",
         set: {},
-        triggerType,
-        triggerEvent,
-        timerMs: normalizeTransitionTimerMs(boundary.entryTimerMs),
+        triggerType: "flow",
+        triggerEvent: "flow.child.entry",
+        internal: true,
         runtimeGenerated: true,
         runtimeBoundaryEntry: true
       };
@@ -7615,13 +7596,17 @@
       const runtimeResolveRuntimeTargetJsEnhanced = `    function resolveRuntimeTarget(targetId, transition = null) {
       const target = findState(targetId);
       if (!target) return targetId;
-      const boundary = boundaryConfigFor(target);
-      const triggerType = normalizeTransitionTriggerType({ triggerType: boundary.entryTriggerType || "button" });
-      if (triggerType === "auto") {
-        const entry = groupEntryState(target.id, transition);
-        if (entry) return entry.id;
+      let currentTarget = target;
+      let currentTransition = transition;
+      const seen = new Set();
+      while (currentTarget && !seen.has(currentTarget.id)) {
+        seen.add(currentTarget.id);
+        const entry = groupEntryState(currentTarget.id, currentTransition);
+        if (!entry) return currentTarget.id;
+        currentTarget = entry;
+        currentTransition = null;
       }
-      return target.id;
+      return currentTarget?.id || target.id;
     }`;
       const notifyRuntimeJs = `    function notifyRuntime() {
       const payload = {
@@ -8750,6 +8735,40 @@
         .replace(runtimeEventCandidateLoopJs, runtimeEventCandidateLoopJsEnhanced)
         .replace(emitRuntimeEventJs, emitRuntimeEventJsEnhanced)
         .replace(runtimeNormalizeModelRealtimeJs, runtimeNormalizeModelRealtimeJsEnhanced)
+        .replace(`      return ["button", "change", "event", "realtime", "timer", "auto"].includes(value) ? value : "button";`, `      return ["button", "change", "event", "realtime", "timer", "auto", "flow"].includes(value) ? value : "button";`)
+        .replace(`      const runtimeTarget = resolveRuntimeTarget(transition.to, transition);
+      log(\`\${fromStateId} --\${transition.label || reason}--> \${runtimeTarget}\`);`, `      const requestedTarget = findState(transition.to);
+      const runtimeTarget = resolveRuntimeTarget(transition.to, transition);
+      const requestedEntry = requestedTarget ? groupEntryState(requestedTarget.id, transition) : null;
+      if (requestedTarget && requestedEntry && requestedTarget.id !== runtimeTarget) {
+        recordRuntimeEvent("flow.child.entry", {
+          type: "flow",
+          source: "flow",
+          parentId: requestedTarget.id,
+          childId: requestedEntry.id,
+          resolvedChildId: runtimeTarget,
+          transitionId: transition?.id || ""
+        });
+      }
+      log(\`\${fromStateId} --\${transition.label || reason}--> \${runtimeTarget}\`);`)
+        .replace(`      if (triggerType === "auto") return "auto." + eventSegment(transition?.id || transition?.label || "next");
+      return "";`, `      if (triggerType === "auto") return "auto." + eventSegment(transition?.id || transition?.label || "next");
+      if (triggerType === "flow") return "flow.child.entry";
+      return "";`)
+        .replace(`        return /^(button|event|realtime|timer|auto)\\./i.test(rawTriggerEvent) ? "" : rawTriggerEvent;`, `        return /^(button|event|realtime|timer|auto|flow)\\./i.test(rawTriggerEvent) ? "" : rawTriggerEvent;`)
+        .replace(`        return rawTriggerEvent && !/^(button|change|realtime|timer|auto)\\./i.test(rawTriggerEvent)`, `        return rawTriggerEvent && !/^(button|change|realtime|timer|auto|flow)\\./i.test(rawTriggerEvent)`)
+        .replace(`      if (triggerType === "realtime") {
+        return rawTriggerEvent.startsWith("realtime.") ? rawTriggerEvent : "";
+      }
+      if (["button", "timer", "auto"].includes(triggerType)) {`, `      if (triggerType === "realtime") {
+        return rawTriggerEvent.startsWith("realtime.") ? rawTriggerEvent : "";
+      }
+      if (triggerType === "flow") {
+        return rawTriggerEvent === "flow.child.entry" ? rawTriggerEvent : "flow.child.entry";
+      }
+      if (["button", "timer", "auto"].includes(triggerType)) {`)
+        .replace(`      if ((type === "change" || type === "event" || type === "realtime") && !explicit) return "";`, `      if ((type === "change" || type === "event" || type === "realtime" || type === "flow") && !explicit) return "";`)
+        .replace(`      if (type === "button" || type === "event" || type === "realtime" || type === "timer" || type === "auto") return configured === eventName;`, `      if (type === "button" || type === "event" || type === "realtime" || type === "timer" || type === "auto" || type === "flow") return configured === eventName;`)
         .replace(realtimeRuntimeStateAnchor, realtimeRuntimeStateJs + realtimeRuntimeStateAnchor)
         .replace(scheduleAutomaticContinuationJs, scheduleAutomaticContinuationJsEnhanced)
         .replace(clearDaisyCountdownTimersJs, clearDaisyCountdownTimersJsEnhanced)
@@ -8898,9 +8917,6 @@
       const handled = runtimeSet(path, value, { source: "daisy", eventName: "change." + path });`, `      if (!path || !runtimeStateDataPathIsDeclared(path)) return false;
       const previous = readValueAtPath(context, path);
       const handled = runtimeSet(path, value, { source: "daisy", eventName: "change." + path });`)
-        .replace(`      if (childEntry) return [childEntry];
-      if (!state?.parentId) return direct;`, `      if (childEntry) return combineRuntimeTransitions([childEntry], direct);
-      if (!state?.parentId) return direct;`)
         .replace(`    function candidateStatesForRuntimeEvent(eventName, detail = {}) {
       const state = stateById(current);
       if (!state) return [];
@@ -8914,6 +8930,7 @@
       if (!state) return [];
       const runtimeEventKind = String(detail?.type || "");
       if (runtimeEventKind && runtimeEventKind !== "change" && runtimeEventKind !== "fetch") return [state];
+      if (!normalizeTransitionEvent(eventName).startsWith("change.")) return [state];
       const rawPath = normalizeContextPath(detail.path || "", "");
       const eventPath = rawPath || normalizeContextPath("events." + normalizeTransitionEvent(eventName) + ".count", "");
       const chain = activeStateChain(state).reverse();
@@ -9787,8 +9804,7 @@
         makeState(checkoutFlowId, "Anfrage", 888, 456, [], {}, {
           boundary: normalizeBoundaryConfig({
             entryId: checkoutStateId,
-            exitId: checkoutStateId,
-            entryTriggerType: "auto"
+            exitId: checkoutStateId
           })
         }),
         makeState(checkoutStateId, "Anfrage", 216, 180, [
@@ -12214,6 +12230,7 @@
         id,
         label: String(value.label || id).trim(),
         description: String(value.description || "").trim(),
+        internal: value.internal === true,
         settings: isPlainObject(value.settings) ? value.settings : {},
         events: Array.isArray(value.events)
           ? value.events.map(event => id === "realtime" ? normalizeRealtimeEventConfig(event) : event).filter(Boolean)
@@ -12288,7 +12305,8 @@
     function editorTriggerTypes(options = {}) {
       const source = productContractTriggerTypes();
       const includeApi = options.includeApi !== false;
-      return source.filter(type => includeApi || type.id !== "api");
+      const includeInternal = options.includeInternal === true;
+      return source.filter(type => (includeInternal || !type.internal) && (includeApi || type.id !== "api"));
     }
 
     function populateTriggerTypeOptions(select, selected, options = {}) {
@@ -12853,7 +12871,7 @@
 
     function normalizeBoundaryConfig(value) {
       const source = isPlainObject(value) ? value : {};
-      const boundary = {
+      return {
         entryId: String(source.entryId || ""),
         exitId: String(source.exitId || ""),
         entryDisabled: Boolean(source.entryDisabled),
@@ -12861,19 +12879,6 @@
         title: String(source.title || ""),
         note: String(source.note || "")
       };
-      if (source.entryTriggerType !== undefined) {
-        const entryTriggerType = normalizeTransitionTriggerType({ triggerType: source.entryTriggerType });
-        boundary.entryTriggerType = entryTriggerType;
-        boundary.entryTriggerEvent = normalizeTransitionTriggerEvent({
-          id: source.entryId || "child-entry",
-          label: source.entryId || "Eingang",
-          triggerType: entryTriggerType,
-          triggerEvent: source.entryTriggerEvent || ""
-        });
-        boundary.entryTimerMs = normalizeTransitionTimerMs(source.entryTimerMs);
-        boundary.entryCondition = String(source.entryCondition || "");
-      }
-      return boundary;
     }
 
     function dataSourcePreviewText(source, rawTarget = source.target, rawSelect = source.select) {
@@ -13063,6 +13068,7 @@
     }
 
     function transitionIsRenderButtonAction(transition) {
+      if (transition?.boundaryFlow || isBoundaryProxyId(transition?.from) || isBoundaryProxyId(transition?.to)) return false;
       const type = normalizeTransitionTriggerType(transition);
       return type === "button";
     }
@@ -13087,6 +13093,7 @@
       if (triggerType === "button") return "button." + eventSegment(transition?.id || transition?.label || "next") + ".clicked";
       if (triggerType === "timer") return "timer." + eventSegment(transition?.id || transition?.label || "done") + ".done";
       if (triggerType === "auto") return "auto." + eventSegment(transition?.id || transition?.label || "next");
+      if (triggerType === "flow") return "flow.child.entry";
       return "";
     }
 
@@ -13098,15 +13105,18 @@
       const triggerType = normalizeTransitionTriggerType(transition);
       const rawTriggerEvent = normalizeTransitionEvent(transition?.triggerEvent || "");
       if (triggerType === "change") {
-        return /^(button|event|realtime|timer|auto)\./i.test(rawTriggerEvent) ? "" : rawTriggerEvent;
+        return /^(button|event|realtime|timer|auto|flow)\./i.test(rawTriggerEvent) ? "" : rawTriggerEvent;
       }
       if (triggerType === "event") {
-        return rawTriggerEvent && !/^(button|change|realtime|timer|auto)\./i.test(rawTriggerEvent)
+        return rawTriggerEvent && !/^(button|change|realtime|timer|auto|flow)\./i.test(rawTriggerEvent)
           ? rawTriggerEvent
           : "";
       }
       if (triggerType === "realtime") {
         return rawTriggerEvent.startsWith("realtime.") ? rawTriggerEvent : "";
+      }
+      if (triggerType === "flow") {
+        return rawTriggerEvent === "flow.child.entry" ? rawTriggerEvent : "flow.child.entry";
       }
       if (["button", "timer", "auto"].includes(triggerType)) {
         const prefix = triggerType + ".";
@@ -13239,6 +13249,7 @@
         t.groupEntryId = typeof t.groupEntryId === "string" ? t.groupEntryId : "";
         t.groupExitId = typeof t.groupExitId === "string" ? t.groupExitId : "";
       }
+      ensureCompositeBoundaryContract(m);
       const nonRenderableTransitionButtonIds = new Set(m.transitions
         .filter(transition => transition.id && !transitionIsRenderButtonAction(transition))
         .map(transition => transition.id));
@@ -13513,6 +13524,11 @@
         transition.to = side === "input" ? state.id : outputProxyId;
         transition.boundaryFlow = { parentId, side, stateId: state.id };
       }
+      if (side === "input") {
+        transition.triggerType = "flow";
+        transition.triggerEvent = "flow.child.entry";
+        transition.internal = true;
+      }
       pruneBoundarySideTransitions(parent, side, transition.id);
       return transition;
     }
@@ -13532,6 +13548,71 @@
       else model.transitions = model.transitions.filter(transition => transition.id !== inputId);
       if (outputState) ensureBoundaryFlowTransition(parent, "output", outputState);
       else model.transitions = model.transitions.filter(transition => transition.id !== outputId);
+    }
+
+    function modelStateParentId(state) {
+      return state?.parentId || null;
+    }
+
+    function firstCompositeChild(parentId, sourceModel = model) {
+      return sourceModel.states
+        .filter(state => !state.virtualProxy && modelStateParentId(state) === parentId)
+        .slice()
+        .sort((a, b) => a.x - b.x || a.y - b.y || String(a.id).localeCompare(String(b.id)))[0] || null;
+    }
+
+    function lastCompositeChild(parentId, sourceModel = model) {
+      return sourceModel.states
+        .filter(state => !state.virtualProxy && modelStateParentId(state) === parentId)
+        .slice()
+        .sort((a, b) => b.x - a.x || b.y - a.y || String(a.id).localeCompare(String(b.id)))[0] || null;
+    }
+
+    function ensureModelBoundaryFlowTransition(sourceModel, parent, side, state) {
+      if (!sourceModel || !parent || !state) return null;
+      const parentId = parent.id;
+      const id = layerBoundaryFlowId(parentId, side);
+      const inputProxyId = boundaryProxyForSide(parentId, "input");
+      const outputProxyId = boundaryProxyForSide(parentId, "output");
+      sourceModel.transitions = sourceModel.transitions.filter(transition => {
+        if (transition.id === id) return true;
+        if (transition.boundaryFlow?.parentId === parentId && transition.boundaryFlow?.side === side) return false;
+        if (transition.from === (side === "input" ? inputProxyId : state.id) && transition.to === (side === "input" ? state.id : outputProxyId)) return false;
+        return true;
+      });
+      let transition = sourceModel.transitions.find(item => item.id === id);
+      if (!transition) {
+        transition = { id, condition: "", set: {} };
+        sourceModel.transitions.push(transition);
+      }
+      transition.from = side === "input" ? inputProxyId : state.id;
+      transition.to = side === "input" ? state.id : outputProxyId;
+      transition.label = side === "input" ? "IN" : "OUT";
+      transition.boundaryFlow = { parentId, side, stateId: state.id };
+      if (side === "input") {
+        transition.triggerType = "flow";
+        transition.triggerEvent = "flow.child.entry";
+        transition.internal = true;
+      }
+      return transition;
+    }
+
+    function ensureCompositeBoundaryContract(sourceModel = model) {
+      if (!sourceModel || !Array.isArray(sourceModel.states) || !Array.isArray(sourceModel.transitions)) return;
+      for (const parent of sourceModel.states) {
+        const children = sourceModel.states.filter(state => !state.virtualProxy && modelStateParentId(state) === parent.id);
+        if (!children.length) continue;
+        parent.boundary = normalizeBoundaryConfig(parent.boundary);
+        const childIds = new Set(children.map(child => child.id));
+        if (!parent.boundary.entryDisabled && !childIds.has(parent.boundary.entryId)) {
+          const entry = firstCompositeChild(parent.id, sourceModel);
+          if (entry) parent.boundary.entryId = entry.id;
+        }
+        const entry = parent.boundary.entryDisabled ? null : children.find(child => child.id === parent.boundary.entryId);
+        const exit = parent.boundary.exitDisabled ? null : children.find(child => child.id === parent.boundary.exitId);
+        if (entry) ensureModelBoundaryFlowTransition(sourceModel, parent, "input", entry);
+        if (exit) ensureModelBoundaryFlowTransition(sourceModel, parent, "output", exit);
+      }
     }
 
     function wireFirstChildToBoundary(parent, state) {
@@ -13743,24 +13824,16 @@
       if (!entry) return null;
       const id = `__runtime_enter_child:${state.id}:${entry.id}`;
       const label = entry.title || "Weiter";
-      const boundary = normalizeBoundaryConfig(state.boundary);
-      const triggerType = normalizeTransitionTriggerType({ triggerType: boundary.entryTriggerType || "button" });
-      const triggerEvent = normalizeTransitionTriggerEvent({
-        id,
-        label,
-        triggerType,
-        triggerEvent: boundary.entryTriggerEvent || ""
-      });
       return {
         id,
         from: state.id,
         to: entry.id,
         label,
-        condition: String(boundary.entryCondition || ""),
+        condition: "",
         set: {},
-        triggerType,
-        triggerEvent,
-        timerMs: normalizeTransitionTimerMs(boundary.entryTimerMs),
+        triggerType: "flow",
+        triggerEvent: "flow.child.entry",
+        internal: true,
         runtimeGenerated: true,
         runtimeBoundaryEntry: true
       };
@@ -13784,7 +13857,7 @@
       const state = byId(stateId);
       const direct = editorGraphOutgoing(stateId);
       const childEntry = editorRuntimeChildEntryTransition(state);
-      if (childEntry) return editorCombineRuntimeTransitions([childEntry], direct);
+      if (childEntry) return [childEntry];
       if (!state?.parentId) return direct;
       if (editorIsBoundaryExitState(state)) return editorCombineRuntimeTransitions(direct, editorParentExitTransitions(state));
       if (direct.length) return direct;
@@ -14110,12 +14183,11 @@
       if (!state || state.virtualProxy) return false;
       const children = statesInLayer(state.id);
       if (!children.length) return false;
-      const boundary = normalizeBoundaryConfig(state.boundary);
-      const triggerType = normalizeTransitionTriggerType({ triggerType: boundary.entryTriggerType || "button" });
-      if (triggerType !== "auto") return false;
       const entry = editorGroupEntryState(state.id, null) || children[0];
       if (!entry) return false;
       cancelPendingNodeRuntimeStart();
+      suppressLayerExitUntil = Date.now() + 800;
+      suppressEmptyCanvasDblClickUntil = Date.now() + 800;
       lastNodeClick = null;
       lastTouchNodeTap = null;
       lastEmptyCanvasClick = null;
@@ -15661,7 +15733,7 @@
         "Group",
         outerParentId
       );
-      group.boundary = normalizeBoundaryConfig({ entryId: entry.id, exitId: exit.id, entryTriggerType: "auto" });
+      group.boundary = normalizeBoundaryConfig({ entryId: entry.id, exitId: exit.id });
       model.states.push(group);
 
       for (const transition of model.transitions) {
@@ -21791,7 +21863,8 @@
           seen.add(id);
           rows.push(row);
         };
-        editorGraphOutgoing(s.id).forEach(transition => addRow({ transition, runtime: transition }));
+        const compositeEntry = editorRuntimeChildEntryTransition(s);
+        if (!compositeEntry) editorGraphOutgoing(s.id).forEach(transition => addRow({ transition, runtime: transition }));
         editorRuntimeOutgoing(s.id).forEach(transition => {
           if (transition?.runtimeBoundaryEntry) {
             addRow({ transition: { ...transition }, runtime: transition, boundaryEntry: true });
@@ -21832,30 +21905,6 @@
       };
       const clearStateFlowApiCondition = transition => {
         if (String(transition?.condition || "").trim() === stateFlowApiCondition()) transition.condition = "";
-      };
-      const persistBoundaryEntryTrigger = transition => {
-        const triggerType = normalizeTransitionTriggerType(transition);
-        const currentBoundary = normalizeBoundaryConfig(s.boundary);
-        const baseBoundary = {
-          entryId: currentBoundary.entryId,
-          exitId: currentBoundary.exitId,
-          entryDisabled: currentBoundary.entryDisabled,
-          exitDisabled: currentBoundary.exitDisabled,
-          title: currentBoundary.title,
-          note: currentBoundary.note
-        };
-        const condition = String(transition.condition || "");
-        if (triggerType === "button" && !condition) {
-          s.boundary = normalizeBoundaryConfig(baseBoundary);
-          return;
-        }
-        s.boundary = normalizeBoundaryConfig({
-          ...baseBoundary,
-          entryTriggerType: triggerType,
-          entryTriggerEvent: normalizeTransitionTriggerEvent({ ...transition, triggerType }),
-          entryTimerMs: normalizeTransitionTimerMs(transition.timerMs),
-          entryCondition: condition
-        });
       };
       const ensureStateFlowLoadingIndicator = timerMs => {
         const path = stateVariableLocalPath(s, "loading");
@@ -21927,7 +21976,7 @@
           if (current.startsWith("change.")) addPath(current.slice("change.".length));
         } else if (mode === "event") {
           stateTriggerEventLabel.textContent = "Bus-Ereignis";
-          if (current && !/^(button|change|timer|auto|realtime)\./i.test(current)) addOption(current, current);
+          if (current && !/^(button|change|timer|auto|realtime|flow)\./i.test(current)) addOption(current, current);
         } else if (mode === "realtime") {
           stateTriggerEventLabel.textContent = "Realtime-/WSS-Ereignis";
           if (current.startsWith("realtime.")) addOption(current, current);
@@ -22028,10 +22077,11 @@
           flowTransitionRoute.hidden = !flowTransitionRoute.textContent;
         }
         const mode = stateFlowTriggerMode(selectedTransition);
-        populateTriggerTypeOptions(stateTriggerType, mode, { includeApi: true });
-        stateTriggerType.disabled = false;
+        const isInternalFlow = mode === "flow";
+        populateTriggerTypeOptions(stateTriggerType, mode, { includeApi: true, includeInternal: isInternalFlow });
+        stateTriggerType.disabled = isInternalFlow;
         stateTriggerType.value = mode;
-        stateTriggerTimer.disabled = mode !== "timer";
+        stateTriggerTimer.disabled = isInternalFlow || mode !== "timer";
         if (stateTriggerTimerField) stateTriggerTimerField.hidden = mode !== "timer";
         stateTriggerTimer.value = String(normalizeTransitionTimerMs(selectedTransition.timerMs));
         renderStateTriggerEventEditor(selectedTransition, mode);
@@ -22046,7 +22096,8 @@
           change: selectedTransition.triggerEvent ? `Listens to ${selectedTransition.triggerEvent}.` : "Hört auf ein Datenbus-Änderungsereignis.",
           event: selectedTransition.triggerEvent ? `Listens to ${selectedTransition.triggerEvent}.` : "Hört auf ein explizites Bus-Ereignis.",
           realtime: selectedTransition.triggerEvent ? `Listens to ${selectedTransition.triggerEvent} from the realtime room.` : "Hört auf ein Realtime-Raumereignis.",
-          auto: "Bewegt sich sofort beim Eintritt."
+          auto: "Bewegt sich sofort beim Eintritt.",
+          flow: "Interner Contract: Composite-States betreten immer ihren Unterablauf über den IN-Proxy."
         };
         stateTriggerPreview.className = "condition-preview ok";
         stateTriggerPreview.textContent = labels[mode] || labels.button;
@@ -22056,6 +22107,7 @@
         const transition = row?.transition || null;
         if (!transition || !stateTriggerType) return;
         const mode = String(stateTriggerType.value || "button");
+        if (mode === "flow") return;
         if (mode === "button") {
           transition.triggerType = "button";
           transition.triggerEvent = defaultTransitionEvent(transition);
@@ -22087,7 +22139,7 @@
           const requestedEvent = normalizeTransitionEvent(stateTriggerEvent?.value || "");
           const existingEvent = normalizeTransitionEvent(transition.triggerEvent || "");
           const eventName = requestedEvent || existingEvent;
-          transition.triggerEvent = eventName && !/^(button|change|timer|auto|realtime)\./i.test(eventName) ? eventName : "";
+          transition.triggerEvent = eventName && !/^(button|change|timer|auto|realtime|flow)\./i.test(eventName) ? eventName : "";
           clearStateFlowApiCondition(transition);
         } else if (mode === "realtime") {
           transition.triggerType = "realtime";
@@ -22107,7 +22159,6 @@
         transition.triggerType = normalizeTransitionTriggerType(transition);
         transition.triggerEvent = normalizeTransitionTriggerEvent(transition);
         transition.timerMs = normalizeTransitionTimerMs(transition.timerMs);
-        if (row.boundaryEntry) persistBoundaryEntryTrigger(transition);
         const runtimeStateId = hostRuntimeStateView();
         const reapplyActiveBoundary = Boolean(
           row.boundaryEntry &&

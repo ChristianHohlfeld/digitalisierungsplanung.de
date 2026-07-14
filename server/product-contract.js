@@ -63,6 +63,19 @@ const BUILTIN_TRIGGER_TYPES = Object.freeze([
     events: [{ name: "auto.*", label: "State entered" }]
   },
   {
+    id: "flow",
+    label: "Ablauf",
+    description: "Internal composite-state routing owned by the flow contract.",
+    internal: true,
+    settings: {},
+    events: [{
+      id: "flow.child.entry",
+      name: "flow.child.entry",
+      internal: true,
+      label: "Unterablauf betreten"
+    }]
+  },
+  {
     id: "api",
     label: "API-Antwort",
     description: "A state data-source request succeeds or fails.",

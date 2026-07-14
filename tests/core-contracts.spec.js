@@ -118,7 +118,7 @@ async function openTool(page) {
   await expect(page.locator('[data-id="auth_start"]')).toBeVisible();
 }
 
-async function openWithModel(page, model, url = "/state.html") {
+async function openWithModel(page, model, url = "/state.html", expectedState = model.initial) {
   await page.addInitScript(({ key, model }) => {
     for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
       localStorage.removeItem(name);
@@ -126,7 +126,7 @@ async function openWithModel(page, model, url = "/state.html") {
     localStorage.setItem(key, JSON.stringify(model));
   }, { key: STORAGE_KEY, model });
   await page.goto(url);
-  await expect(appFrame(page).locator("#statePill")).toHaveText(model.initial);
+  await expect(appFrame(page).locator("#statePill")).toHaveText(expectedState);
 }
 
 async function installFakeRealtimeTransport(page, options = {}) {
@@ -1143,6 +1143,11 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("toggleRenderPath");
     expect(html).toContain("pTransitionKeyGrid");
     expect(productContract.triggerTypes.some(type => type.id === "change" && type.label === "Daten aendern sich")).toBe(true);
+    expect(productContract.triggerTypes.some(type =>
+      type.id === "flow" &&
+      type.internal === true &&
+      type.events?.some(event => event.id === "flow.child.entry" && event.internal === true)
+    )).toBe(true);
     expect(html).not.toContain('label: "Daten aendern sich"');
     expect(html).toContain(".data-wire-row");
     expect(html).toContain("Sichtbare Felder");
@@ -1295,7 +1300,7 @@ test.describe("Core source contracts", () => {
     expect(appHtml).toContain("function declaredBusVariables");
     expect(appHtml).toContain("visit(state, normalizeStateDataObject(state.data))");
     expect(appHtml).toContain("function transitionMatchesRuntimeEvent");
-    expect(appHtml).toContain('if (type === "button" || type === "event" || type === "realtime" || type === "timer" || type === "auto") return configured === eventName;');
+    expect(appHtml).toContain('if (type === "button" || type === "event" || type === "realtime" || type === "timer" || type === "auto" || type === "flow") return configured === eventName;');
   });
 
   test("data wires drive rendered content through global state @smoke", () => {
@@ -1526,7 +1531,7 @@ test.describe("Core source contracts", () => {
       .toBe("change.states.start.remote.caller");
   });
 
-  test("realtime events can leave an active parent before its manual boundary entry @smoke", async ({ page }) => {
+  test("realtime events cannot bypass a composite parent's child-entry contract @smoke", async ({ page }) => {
     const event = await installFakeRealtimeTransport(page);
     await openWithModel(page, {
       version: 2,
@@ -1541,11 +1546,12 @@ test.describe("Core source contracts", () => {
           components: [],
           data: {},
           dataTypes: {},
-          boundary: { entryId: "child", exitId: "child", entryDisabled: false, exitDisabled: false },
+          boundary: { entryId: "child", exitId: "exit_child", entryDisabled: false, exitDisabled: false },
           x: 120,
           y: 140
         },
         { id: "child", title: "Child", parentId: "start", components: [], data: {}, dataTypes: {}, x: 120, y: 140 },
+        { id: "exit_child", title: "Exit Child", parentId: "start", components: [], data: {}, dataTypes: {}, x: 260, y: 140 },
         { id: "done", title: "Done", parentId: null, components: [], data: {}, dataTypes: {}, x: 420, y: 140 }
       ],
       transitions: [{
@@ -1558,15 +1564,16 @@ test.describe("Core source contracts", () => {
         triggerEvent: "realtime.sip.call.incoming",
         set: {}
       }]
-    }, "/state.html?room=parent-contract");
+    }, "/state.html?room=parent-contract", "child");
 
     const app = appFrame(page);
-    await expect(app.getByRole("button", { name: "Child", exact: true })).toBeVisible();
+    await expect(app.locator("#statePill")).toHaveText("child");
+    await expect(app.getByRole("button", { name: "Child", exact: true })).toHaveCount(0);
     await waitForRuntimeRealtimeJoin(page);
     await receiveRuntimeRealtimeEvent(page, event, { caller: "+491234" }, "parent-contract");
 
-    await expect(app.locator("#statePill")).toHaveText("done");
-    await expect.poll(async () => (await runtimeContext(page)).state?.lastTransition).toBe("incoming_call");
+    await expect(app.locator("#statePill")).toHaveText("child");
+    await expect.poll(async () => (await runtimeContext(page)).state?.lastTransition || "").toBe("");
   });
 
   test("browser runtime has no local realtime emitter or outbound event path @smoke", async ({ page }) => {
@@ -1611,11 +1618,9 @@ test.describe("Core source contracts", () => {
           components: [],
           data: {},
           dataTypes: {},
-          boundary: { entryId: "child", exitId: "child", entryDisabled: false, exitDisabled: false },
           x: 120,
           y: 140
         },
-        { id: "child", title: "Child", parentId: "start", components: [], data: {}, dataTypes: {}, x: 120, y: 140 },
         { id: "done", title: "Done", components: [], data: {}, dataTypes: {}, x: 420, y: 140 }
       ],
       transitions: [{
@@ -2667,11 +2672,9 @@ test.describe("Core browser contracts", () => {
         { id: "t_settings", from: "navbar_shop_cart", to: "settings", label: "Settings", condition: "", triggerType: "button", set: {} },
         { id: "t_logout", from: "navbar_shop_cart", to: "logout", label: "Logout", condition: "", triggerType: "button", set: {} }
       ]
-    });
+    }, "/state.html", "navbar_shop_cart");
 
     const app = appFrame(page);
-    await expect(app.locator("#statePill")).toHaveText("start");
-    await app.getByRole("button", { name: "Kopfleiste Shop/Warenkorb" }).click();
     await expect(app.locator("#statePill")).toHaveText("navbar_shop_cart");
 
     const navbar = app.locator(".navbar").first();
@@ -2710,11 +2713,9 @@ test.describe("Core browser contracts", () => {
         { id: "t_settings", from: "navbar_shop_cart", to: "settings", label: "Settings", condition: "", triggerType: "button", set: {} },
         { id: "t_back", from: "settings", to: "navbar_shop_cart", label: "Back to navbar", condition: "", triggerType: "button", set: {} }
       ]
-    });
+    }, "/state.html", "navbar_shop_cart");
 
     const app = appFrame(page);
-    await expect(app.locator("#statePill")).toHaveText("start");
-    await app.getByRole("button", { name: "Kopfleiste Shop/Warenkorb" }).click();
     await expect(app.locator("#statePill")).toHaveText("navbar_shop_cart");
 
     await page.evaluate(() => {
@@ -2760,11 +2761,9 @@ test.describe("Core browser contracts", () => {
         { id: "t_settings", from: "navbar_shop_cart", to: "settings", label: "Settings", condition: "", triggerType: "button", set: {} },
         { id: "t_back", from: "settings", to: "navbar_shop_cart", label: "Back to navbar", condition: "", triggerType: "button", set: {} }
       ]
-    });
+    }, "/state.html", "navbar_shop_cart");
 
     const app = appFrame(page);
-    await expect(app.locator("#statePill")).toHaveText("start");
-    await app.getByRole("button", { name: "Kopfleiste Shop/Warenkorb" }).click();
     await expect(app.locator("#statePill")).toHaveText("navbar_shop_cart");
     await expect(app.getByRole("button", { name: "Weiter" })).toBeVisible();
 

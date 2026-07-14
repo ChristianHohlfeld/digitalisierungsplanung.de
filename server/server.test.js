@@ -220,6 +220,14 @@ test("serves the event and connector catalog only to allowed origins", async () 
     assert.ok(productContractPayload.triggerTypes.some(type => type.id === "button"));
     assert.ok(productContractPayload.triggerTypes.some(type => type.id === "timer"));
     assert.ok(productContractPayload.triggerTypes.some(type => type.id === "api"));
+    const flowTrigger = productContractPayload.triggerTypes.find(type => type.id === "flow");
+    assert.ok(flowTrigger);
+    assert.equal(flowTrigger.internal, true);
+    assert.ok(flowTrigger.events.some(event =>
+      event.id === "flow.child.entry" &&
+      event.name === "flow.child.entry" &&
+      event.internal === true
+    ));
     const realtimeTrigger = productContractPayload.triggerTypes.find(type => type.id === "realtime");
     assert.ok(realtimeTrigger);
     assert.ok(realtimeTrigger.events.some(event => event.name === "realtime.sip.call.incoming"));
