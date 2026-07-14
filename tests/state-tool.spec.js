@@ -4317,7 +4317,13 @@ test.describe("State Blueprint tool", () => {
     await page.locator("svg text.edge-label").filter({ hasText: /^Einloggen/ }).click();
     await page.locator("#pSetVariableName").fill("states.logged_in.role");
     await page.locator("#pSetVariableAdd").click();
-    await page.locator('.state-variable-row[data-transition-set-path="states.logged_in.role"] [data-transition-set-value="true"]').fill("admin");
+    const roleSetValue = page.locator('.state-variable-row[data-transition-set-path="states.logged_in.role"] [data-transition-set-value="true"]');
+    await expect(roleSetValue).toBeVisible();
+    await roleSetValue.fill("admin");
+    await expect.poll(async () => {
+      const nextModel = await savedModel(page);
+      return nextModel.transitions.find(transition => transition.label === "Einloggen").set;
+    }).toEqual({ "states.logged_in.role": "admin" });
     await openInspectorDetails(page, "#pTransitionRawSetCard");
     await page.locator("#pSet").fill('{"role":');
     await expect(page.locator("#pSetPreview")).toContainText("Unexpected end of JSON input");
