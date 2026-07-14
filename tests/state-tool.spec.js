@@ -633,6 +633,9 @@ async function assertVisibleInViewport(page, selector) {
 }
 
 async function emptyCanvasPoint(page) {
+  await page.locator(".workspace").evaluate(async workspace => {
+    await Promise.all(workspace.getAnimations().map(animation => animation.finished.catch(() => {})));
+  });
   const point = await page.evaluate(() => {
     const map = document.querySelector("#map");
     const rect = map.getBoundingClientRect();
@@ -11676,9 +11679,14 @@ test.describe("State Blueprint tool", () => {
     const beforeDrag = await worldTransform(page);
 
     const point = await emptyCanvasPoint(page);
+    const mapBox = await page.locator("#map").boundingBox();
+    const dragTarget = {
+      x: point.x + (point.x < mapBox.x + mapBox.width / 2 ? 80 : -80),
+      y: point.y + (point.y < mapBox.y + mapBox.height / 2 ? 45 : -45)
+    };
     await page.mouse.move(point.x, point.y);
     await page.mouse.down();
-    await page.mouse.move(point.x + 120, point.y + 70, { steps: 8 });
+    await page.mouse.move(dragTarget.x, dragTarget.y);
     await expect(page.locator("#map")).toHaveClass(/panning/);
     await expect.poll(() => worldTransform(page)).not.toBe(beforeDrag);
     await page.mouse.up();
