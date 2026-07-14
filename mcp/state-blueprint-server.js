@@ -3,7 +3,6 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
-const vm = require("node:vm");
 const {
   blankModel,
   normalizeModel,
@@ -61,19 +60,10 @@ function extractGeneratedAppHtml() {
   const appMatch = hostHtml.match(/const APP_HTML = "((?:\\.|[^"\\])*)";/);
   if (!appMatch) throw new Error("Could not find generated app HTML template in state.html.");
   const appHtml = JSON.parse(`"${appMatch[1]}"`);
-  const enhancerMatch = hostHtml.match(/function enhanceGeneratedAppHtml\(html\) \{[\s\S]*?\r?\n    \}\r?\n\r?\n    const GENERATED_APP_HTML/);
-  if (!enhancerMatch) throw new Error("Could not find generated app enhancer in state.html.");
-  const enhancerSource = enhancerMatch[0].replace(/\r?\n\r?\n    const GENERATED_APP_HTML[\s\S]*$/, "");
-  const sandbox = { appHtml, generatedAppHtml: "" };
-  vm.runInNewContext(
-    `${enhancerSource}\ngeneratedAppHtml = enhanceGeneratedAppHtml(appHtml);`,
-    sandbox,
-    { timeout: 1000 }
-  );
-  if (typeof sandbox.generatedAppHtml !== "string" || !sandbox.generatedAppHtml.includes("<!doctype html>")) {
+  if (!appHtml.includes("<!doctype html>")) {
     throw new Error("Could not prepare generated app HTML.");
   }
-  return sandbox.generatedAppHtml;
+  return appHtml;
 }
 
 function buildStandaloneAppHtml(appHtml, payload) {

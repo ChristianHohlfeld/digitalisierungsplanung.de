@@ -1021,13 +1021,12 @@ Abdeckungsbereiche:
   `kind: "state-blueprint-definition"` mit `schemaVersion: 2`. Ein Smoke-Test
   liest den Editor-Discriminator, vergleicht ihn mit dem MCP-Export und prüft
   Export, Reimport, Validierung und persistierten Workspace als Roundtrip.
-- **GAP-003 Geteilte Kernlogik, offen am 2026-07-12:** Modellnormalisierung und Teile der
-  Ablauflogik existieren getrennt im Host, in der eingebetteten Runtime und im
-  MCP-Core. Die finale Runtime wird zusätzlich durch exakte String-Ersetzungen
-  von `enhanceGeneratedAppHtml(APP_HTML)` erzeugt. Source-Tests wirken als
-  Driftalarm, aber es gibt noch kein gemeinsam importiertes Kernmodul. Kleine
-  Quellenabweichungen können deshalb Editor, Export und MCP auseinanderlaufen
-  lassen.
+- **GAP-003 Geteilte Kernlogik, offen am 2026-07-14:** Teile der
+  Modellnormalisierung existieren weiterhin getrennt im Host und im MCP-Core.
+  Die Runtime-Erzeugung gehört nicht mehr zu diesem Gap: `APP_HTML` ist die
+  einzige Runtime-Quelle für Preview, Standalone-Export und MCP-Export; sie wird
+  weder gepatcht noch nachträglich erweitert. Für die verbleibende
+  Modellnormalisierung gibt es noch kein gemeinsam importiertes Kernmodul.
 - **GAP-004 Übersetzungs- und Testdrift, geschlossen am 2026-07-10:** Die 21
   zuvor roten `state-tool`-Fälle wurden gegen das beabsichtigte deutsche
   Produktverhalten bereinigt. Sichtbare Systemtexte werden deutsch erwartet;
@@ -1136,14 +1135,12 @@ Abdeckungsbereiche:
   lokale automatische Standard verwendet deshalb höchstens vier Worker. Die
   Abdeckung bleibt vollständig; CI beschleunigt weiter über vier disjunkte
   Shards mit jeweils höchstens zwei Workern.
-- **GAP-013 Geteilte Runtime-Erzeugung, offen am 2026-07-12:** Die finale
-  Runtime entsteht weiterhin aus `APP_HTML` und zahlreichen String- und
-  Bereichsersetzungen in `enhanceGeneratedAppHtml`. Der zuvor wirkungslose
-  `runtimeChildEntryTransition`-Patch ist korrigiert und wird am final erzeugten
-  Preview-, Standalone- und MCP-HTML bewiesen. Strukturell bleibt offen, dass
-  `replaceGeneratedRange` bei einem künftig fehlenden Marker unverändert die
-  Quelle zurückgibt. Die Erzeugung sollte deshalb langfristig auf eine gemeinsam
-  importierte Runtime-Quelle ohne Textpatching umgestellt werden.
+- **GAP-013 Geteilte Runtime-Erzeugung, geschlossen am 2026-07-14:** `APP_HTML`
+  ist die einzige kanonische Runtime-Quelle. `GENERATED_APP_HTML` referenziert
+  sie unverändert; Preview, Standalone-Export und MCP-Export lesen exakt diese
+  Quelle. Runtime-Enhancer, String- und Bereichsersetzungen sowie die dafür
+  benötigte VM-Auswertung wurden entfernt. Ein Smoke-Vertrag verbietet ihre
+  Wiedereinführung.
 - **GAP-014 Label als Ablaufsemantik, geschlossen am 2026-07-12:** Leere Labels
   werden zu `Weiter`. Explizite Labels bleiben opak. Die Runtime klassifiziert
   keine Namen als positiv oder negativ; Enter verwendet die erste bereits
@@ -1302,16 +1299,15 @@ einer Vertragsregel, ist er in Abschnitt 18 als offene Abweichung zu behandeln.
 - **ARC-003 Historie:** Undo/Redo erfasst normalisierte Modell- und relevante
   Sitzungssnapshots, fasst zusammengehörige Dauerinteraktionen über einen
   History-Key zusammen und begrenzt die Historie auf 100 Einträge.
-- **ARC-004 Runtime-Erzeugung:** `APP_HTML` enthält die eingebettete
-  Standalone-Runtime. `enhanceGeneratedAppHtml` erweitert diesen Quelltext;
-  `GENERATED_APP_HTML` wird anschließend als Blob-URL in das Vorschau-Iframe
-  geladen. Der Standalone-Export injiziert das Modell in genau diesen Quelltext
-  und aktiviert keine Host-Kommunikation. Die generierte Runtime besitzt weder
-  lokale Modellpersistenz noch Storage-Synchronisation. Die Erweiterungen beruhen
-  derzeit auf kontrollierten String- und Bereichsersetzungen; die verbleibende
-  strukturelle Risikostelle steht in GAP-013. Standalone und Root-Demo besitzen
-  getrennte Veröffentlichungsprofile; eine Parent-/Opener-Beziehung allein
-  aktiviert keine Hostbrücke.
+- **ARC-004 Runtime-Erzeugung:** `APP_HTML` ist die einzige eingebettete
+  Standalone-Runtime; `GENERATED_APP_HTML` ist dieselbe Zeichenfolge. Sie wird
+  unverändert als Blob-URL in das Vorschau-Iframe geladen. Der Standalone-Export
+  und der MCP-Export injizieren das Modell in genau diesen Quelltext. Es gibt
+  keine Runtime-Enhancer, String-Patches oder zweite Exportvorlage. Die
+  generierte Runtime besitzt weder lokale Modellpersistenz noch
+  Storage-Synchronisation. Standalone und Root-Demo besitzen getrennte
+  Veröffentlichungsprofile; eine Parent-/Opener-Beziehung allein aktiviert
+  keine Hostbrücke.
 - **ARC-005 Host-Runtime-Brücke:** Der Host sendet Modell, Reset- und
   Startinformationen per `STATE_BLUEPRINT_MODEL`. Die Runtime antwortet mit
   `STATE_BLUEPRINT_RUNTIME_STATE`. Der Host verarbeitet jede Meldung unmittelbar
@@ -1494,7 +1490,7 @@ Abnahmevertrag:
 - einfachere Auswahl von Datenkonstellationen für Change-Übergänge,
 - ein Preset-Designer für vollständig vertragskonforme DaisyUI-Bausteine,
 - vollständige, nachvollziehbare und testbare API-Steuerung jeder Editoraktion,
-- eine gemeinsam importierte Modell-/Runtime-Quelle statt String-Patching,
+- eine gemeinsam importierte Modellnormalisierung für Editor und MCP,
 - ausschließlich explizite Trigger, Datenbindungen und Transitionwirkungen,
 - ein Resolver, der Mehrdeutigkeit sichtbar und fehlgeschlossen behandelt,
 - eine benannte und technisch nachweisbare Realtime-Zustellklasse.
@@ -1650,18 +1646,25 @@ auch extern erfüllt.
   Komponenten, keine Runtime-Daten werden in `state.data` kopiert, Touch-Auswahl
   lässt den Inspectorzustand unverändert und echte Touch-Taps bleiben unabhängig
   von asynchronen Runtime-Nachrichten deterministisch.
-- Vollständige lokale Abnahme vom 2026-07-13: 26/26 Node-Server-Tests bestanden
-  in 7,9 Sekunden; 345/345 Playwright-Fälle bestanden mit vier Workern in
-  3,1 Minuten. Der langsamste Browser-Einzelfall benötigte 13,6 Sekunden und
-  blieb damit deutlich unter TST-010. Das State-Reparenting bestand zusätzlich
-  zehn frische Browserkontexte in Folge ohne Retry.
+- Vollständige lokale Abnahme vom 2026-07-14: 27/27 Node-Server-Tests sowie
+  355/355 Playwright-Fälle bestanden. Die Browserabnahme lief vollständig und
+  disjunkt als 258/258 Smoke- und 97/97 übrige Fälle mit vier Workern; kein Test
+  wurde ausgelassen oder durch Retry beziehungsweise Force ersetzt.
+- Lean-Audit vom 2026-07-14: Die Runtime-Enhancer-Kette und 54 nachweislich
+  aufruferlose Hostfunktionen wurden entfernt. Der Produktcode in `state.html`
+  und `mcp/state-blueprint-server.js` schrumpfte netto um 4.421 Zeilen. Die
+  kanonische Runtime blieb gegenüber dem vollständigen Upstream-Endergebnis mit
+  264.354 Byte und SHA-256
+  `736630e9aed63799603b28da28d6ac607f6d114db6c70cc218184f17b13ddcb7`
+  bytegenau unverändert. Der statische Abschluss-Audit findet keine deklarierte
+  Hostfunktion ohne Verwendung.
 
 ### 22.6 Weiterhin offen, ohne stillen Fallback
 
-- **GAP-003/GAP-013:** Editor und MCP teilen noch nicht eine importierte
-  Kernimplementierung; die Runtime wird weiterhin über kontrollierte
-  Stringersetzungen aus `APP_HTML` gebaut. Parität wird getestet, ist aber noch
-  nicht strukturell erzwungen.
+- **GAP-003:** Editor und MCP teilen noch nicht dieselbe importierte
+  Modellnormalisierung. Die Runtime-Parität ist dagegen strukturell erzwungen:
+  GAP-013 ist geschlossen und alle Auslieferungspfade verwenden `APP_HTML`
+  unverändert.
 - **DEC-001:** Die fachliche Standardaktion für Enter ist noch nicht als
   explizites Modellfeld entschieden.
 - **DEC-005:** Der abgeleitete Boundary-Eintritt ist noch nicht als normale

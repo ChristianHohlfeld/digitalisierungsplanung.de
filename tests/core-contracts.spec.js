@@ -270,6 +270,15 @@ test.describe("Core source contracts", () => {
     }
   });
 
+  test("generated runtime is one canonical source without string patching @smoke", () => {
+    const html = stateHtml();
+
+    expect(html).toContain("const GENERATED_APP_HTML = APP_HTML;");
+    expect(html).not.toContain("enhanceGeneratedAppHtml");
+    expect(html).not.toContain("removeGeneratedRange");
+    expect(html).not.toContain("replaceGeneratedRange");
+  });
+
   test("state tool text uses clean UTF-8 and native German spelling @smoke", () => {
     const html = stateHtml();
     const mojibakePattern = new RegExp("[\\u00c2\\u00c3\\ufffd]|\\u00e2(?:[\\u0080-\\u00bf]|[^\\x00-\\x7f])");
@@ -343,7 +352,7 @@ test.describe("Core source contracts", () => {
     expect(appHtml).not.toContain("editorGroups");
   });
 
-  test("generated blank runtime starts without editor-only helpers @smoke", async ({ page }) => {
+  test("generated blank runtime ignores unowned host messages without editor-only helpers @smoke", async ({ page }) => {
     await page.goto("/state.html");
     await page.evaluate(key => localStorage.removeItem(key), STORAGE_KEY);
 
@@ -362,7 +371,7 @@ test.describe("Core source contracts", () => {
         transitions: []
       }
     }, "*"));
-    await expect(page.locator("#appName")).toHaveText("Demo Checkout");
+    await expect(page.locator("#appName")).toHaveText("Zustand");
     await expect(page.locator("#flowDebug")).toHaveCount(0);
     expect(pageErrors).toEqual([]);
   });
@@ -1167,7 +1176,7 @@ test.describe("Core source contracts", () => {
     const appHtml = generatedAppHtml();
     const presetCatalog = fs.readFileSync(path.join(process.cwd(), "server", "preset-catalog.js"), "utf8");
 
-    expect(html).toContain("function derivedRepeatComponents");
+    expect(html).not.toContain("function derivedRepeatComponents");
     expect(html).toContain("function pickDerivedRepeatFields");
     expect(html).toContain("function imagePathSpecificityScore");
     expect(html).toContain("category|categories|brand|manufacturer");
@@ -1213,10 +1222,11 @@ test.describe("Core source contracts", () => {
     expect(presetCatalog).not.toContain('title: "Kopfleiste - Farben"');
     expect(presetCatalog).toContain('title: "Titelbereich mit Bild rechts"');
     expect(presetCatalog).toContain('title: "Aktionsbutton"');
-    expect(html).toContain("const SUPPORTED_DAISY_VARIANTS = new Set");
-    expect(html).toContain("function runtimeSupportedDaisyComponent");
-    expect(html).toContain("pruneUnsupportedDaisyRuntime");
-    expect(html).not.toContain("pruneLegacyDaisyRuntime");
+    expect(appHtml).toContain("const SUPPORTED_DAISY_VARIANTS = new Set");
+    expect(appHtml).toContain("function runtimeSupportedDaisyComponent");
+    expect(html).not.toContain("pruneUnsupportedDaisyRuntime");
+    expect(appHtml).not.toContain("pruneUnsupportedDaisyRuntime");
+    expect(appHtml).not.toContain("pruneLegacyDaisyRuntime");
     expect(html).not.toContain('dataPath: "$state"');
     expect(html).not.toContain("function applyStateScopedTemplateBindings");
     expect(html).not.toContain("function expandStateScopedDataObject");
@@ -1244,9 +1254,10 @@ test.describe("Core source contracts", () => {
     expect(appHtml).toContain("function daisyScopeData");
     expect(appHtml).toContain("readContextPathRaw(daisyScopePath(component))");
     expect(appHtml).toContain("function daisyWrite");
-    expect(appHtml).toContain('runtimeSet(targetPath, value, { source: "state-default", notify: false');
-    expect(appHtml).toContain("pruneRemovedStateDataDefaults(previousModel, nextModel, oldContext)");
-    expect(appHtml).toContain("function pruneRemovedStateDataDefaults");
+    expect(appHtml).toContain('runtimeSet(path, JSON.parse(JSON.stringify(value)), { source: "state-default"');
+    expect(appHtml).toContain("function runtimeContextAfterModelUpdate");
+    expect(appHtml).toContain("runtimeContextAfterModelUpdate(previousModel, model, context)");
+    expect(appHtml).not.toContain("pruneRemovedStateDataDefaults");
     expect(appHtml).toContain("createDaisyComponentElement(component, ownerState, renderOptions)");
     expect(appHtml).not.toContain("component.data?.");
     expect(appHtml).not.toContain("component.data ||");
@@ -1276,9 +1287,9 @@ test.describe("Core source contracts", () => {
     expect(html).not.toContain("applyEditorDataSourceResult");
     expect(html).toContain("sourceChanged = dataSourceSignature(previous) !== dataSourceSignature(next)");
     expect(html).toContain("function renderJsonInspect");
-    expect(html).toContain("data: null");
-    expect(html).toContain("count: 0");
-    expect(html).toContain("error: \"\"");
+    expect(appHtml).toContain("data: null");
+    expect(appHtml).toContain("count: 0");
+    expect(appHtml).toContain('error: ""');
     expect(appHtml).toContain("function changedDataSourceTargets");
     expect(appHtml).toContain("function resetDataSourceContextTargets");
     expect(appHtml).toContain("if (changedTargets.length) resetDataSourceContextTargets(changedTargets)");
@@ -1309,7 +1320,7 @@ test.describe("Core source contracts", () => {
 
     expect(html).toContain("function normalizeDataWire(value)");
     expect(html).toContain("function dataWireFromPath");
-    expect(html).toContain("function dataWireComponentsForState");
+    expect(html).not.toContain("function dataWireComponentsForState");
     expect(html).toContain("function applyDerivedDataWires");
     expect(html).toContain("dataWires: normalizeDataWires");
     expect(html).toContain("Sichtbare Felder");
@@ -1339,25 +1350,25 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("const dataWireComponentId = wireId => `data-wire:${wireId}`");
     expect(html).toContain('if (component.type === "dataWire") clean.wireId');
     expect(html).toContain('type: "dataWire"');
-    expect(html).toContain("function daisyOwnerIsCurrent");
-    expect(html).toContain("function daisyOwnerCanWrite");
-    expect(html).toContain("function appendDaisyLocalActionButton");
-    expect(html).toContain("ownerId === current");
+    expect(appHtml).toContain("function daisyOwnerIsCurrent");
+    expect(appHtml).toContain("function daisyOwnerCanWrite");
+    expect(appHtml).toContain("function appendDaisyLocalActionButton");
+    expect(appHtml).toContain("ownerId === current");
     expect(appHtml).toContain("function runtimeChildEntryTransition(state)");
     expect(appHtml).toContain("__runtime_enter_child");
     expect(appHtml).toContain("function parentExitTransitions(state, activeState = state)");
     expect(appHtml).not.toContain("combinedRender");
     expect(appHtml).not.toContain("childOutlet");
     expect(appHtml).not.toContain("passiveRender");
-    expect(html).toContain("scheduleDaisyCountdown(component, ownerState);");
-    expect(html).toContain("if (ownerStateId !== current) return;");
-    expect(html).not.toContain("resetDaisyCountdown");
-    expect(html).not.toContain("daisy-countdown-entry");
-    expect(html).not.toContain("resetOnEnter");
-    expect(html).toContain("__ownerStateId");
-    expect(html).toContain('if (runtimeEventKind && runtimeEventKind !== "change" && runtimeEventKind !== "fetch") return [state];');
-    expect(html).toContain("if (detail?.transitionId && transition?.id !== detail.transitionId) return false;");
-    expect(html).toContain("wireId: wire.id");
+    expect(appHtml).toContain("scheduleDaisyCountdown(component, ownerState);");
+    expect(appHtml).toContain("if (ownerStateId !== current) return;");
+    expect(appHtml).not.toContain("resetDaisyCountdown");
+    expect(appHtml).not.toContain("daisy-countdown-entry");
+    expect(appHtml).not.toContain("resetOnEnter");
+    expect(appHtml).toContain("__ownerStateId");
+    expect(appHtml).toContain('if (runtimeEventKind && runtimeEventKind !== "change" && runtimeEventKind !== "fetch") return [state];');
+    expect(appHtml).toContain("if (detail?.transitionId && transition?.id !== detail.transitionId) return false;");
+    expect(appHtml).toContain("wireId: wire.id");
     expect(html).toContain("function snapshotStateTemplates");
     expect(html).toContain("components: normalizeComponents(item.components || [])");
     expect(html).toContain('if (component.type === "list") {');
@@ -1397,10 +1408,11 @@ test.describe("Core source contracts", () => {
     expect(appHtml).toContain("const handledChange = runtimeSet(target, result, { source: \"fetch\", eventName: \"change.\" + target })");
     expect(appHtml).toContain('detail?.source === "fetch" && detail?.type === "change"');
     expect(appHtml).toContain('runtimeSet("state.current", runtimeTarget || ""');
-    expect(appHtml).toContain('runtimeSet(targetPath, value, { source: "state-default"');
+    expect(appHtml).toContain('runtimeSet(path, JSON.parse(JSON.stringify(value)), { source: "state-default"');
     expect(appHtml).toContain('runtimeSet(targetPath, dataSourceResult({ status: "source-changed"');
     expect(appHtml).toContain('runtimeSet(v.name, sanitizeValue(readContextPathRaw(v.name), v)');
-    expect(appHtml).toContain("return { state: { current: m?.initial || \"\", previous: \"\", lastTransition: \"\" } };");
+    expect(appHtml).toContain('state: { current: m?.initial || "", previous: "", lastTransition: "" }');
+    expect(appHtml).toContain("runtime: { paused: false }");
     expect(appHtml).not.toContain("Object.assign(context");
     expect(appHtml).not.toContain("context[key] = value");
     expect(appHtml).not.toContain('runtimeSet("fetched"');
@@ -1769,19 +1781,19 @@ test.describe("Core source contracts", () => {
 
   test("generated runtime exposes a contract-level pause gate @smoke", () => {
     const html = stateHtml();
+    const appHtml = generatedAppHtml();
 
     expect(html).toContain('id="btnPause"');
     expect(html).toContain('type: "STATE_BLUEPRINT_RUNTIME_CONTROL"');
-    expect(html).toContain('runtime: { paused: false }');
-    expect(html).toContain("function runtimeIsPaused()");
-    expect(html).toContain('readValueAtPath(context, "runtime.paused") === true');
-    expect(html).toContain('writeRuntimeState("runtime.paused", next');
-    expect(html).toContain("runtimeEventQueue = [];");
-    expect(html).toContain("scheduleAutomaticContinuationJsEnhanced");
-    expect(html).toContain("if (runtimeIsPaused()) {");
-    expect(html).toContain("const eligibleTransitions = transitions.filter(t => conditionOk(t.condition));");
-    expect(html).not.toContain('writeRuntimeState("runtime.paused", runtimePaused');
-    expect(html).not.toContain("if (runtimePaused) {");
+    expect(appHtml).toContain('runtime: { paused: false }');
+    expect(appHtml).toContain("function runtimeIsPaused()");
+    expect(appHtml).toContain('readValueAtPath(context, "runtime.paused") === true');
+    expect(appHtml).toContain('writeRuntimeState("runtime.paused", next');
+    expect(appHtml).toContain("runtimeEventQueue = [];");
+    expect(appHtml).toContain("if (runtimeIsPaused()) {");
+    expect(appHtml).toContain("const eligibleTransitions = transitions.filter(t => conditionOk(t.condition));");
+    expect(appHtml).not.toContain('writeRuntimeState("runtime.paused", runtimePaused');
+    expect(appHtml).not.toContain("if (runtimePaused) {");
   });
 
   test("realtime events enter the generated runtime through the global bus @smoke", async ({ page }) => {

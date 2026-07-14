@@ -6378,7 +6378,7 @@ test.describe("State Blueprint tool", () => {
         const root = instance.root;
         const component = root.components.find(item => item.type === "daisy");
         const data = stateScopedComponentData(root, component);
-        const expectedLabels = daisyFlowActionLabels(component, data);
+        const expectedLabels = daisyFlowActionItems(component, data).map(item => item.label);
         const stateIds = new Set(instance.states.map(state => state.id));
         const transitions = instance.transitions.filter(transition => transition.from === root.id);
         const itemTransitionIds = items => Array.isArray(items)
@@ -6684,7 +6684,27 @@ test.describe("State Blueprint tool", () => {
     expect(templates.length).toBeLessThan(60);
 
     for (const template of templates) {
-      await page.evaluate(index => showPresetComposer(builtinStateTemplates()[index]), template.index);
+      await page.evaluate(index => {
+        const source = builtinStateTemplates()[index];
+        const prepared = composerTemplateFrom(source);
+        if (!prepared) throw new Error(`Preset ${source?.id || index} konnte nicht vorbereitet werden.`);
+        ensureComposerVariableDataTypes(prepared);
+        const instance = instantiateStateTemplate(prepared, 120, 120, null);
+        postRuntimePayload({
+          type: "STATE_BLUEPRINT_MODEL",
+          model: {
+            version: 2,
+            name: "",
+            initial: instance.root.id,
+            states: instance.states,
+            transitions: instance.transitions
+          },
+          reset: true,
+          startStateId: instance.root.id,
+          paused: hostRuntimePausedView(),
+          preserveFocus: true
+        });
+      }, template.index);
       const screen = appFrame(page).locator("#screen");
       if (template.variant) {
         await expect(screen.locator(".daisy-widget").first()).toHaveCount(1);
@@ -13023,7 +13043,7 @@ test.describe("State Blueprint tool", () => {
     await expect(infoButton).toHaveAttribute("aria-expanded", "false");
     await infoButton.click();
 
-    await expect(page.locator("#presetComposer")).toBeHidden();
+    await expect(page.locator("#presetComposer")).toHaveCount(0);
     await expect(page.locator(".preview-title-text")).toHaveText("Generierte App");
     await expect(page.locator("#presetPreviewPopover")).toBeVisible();
     await expect(preset).toHaveClass(/info-open/);
@@ -13072,7 +13092,7 @@ test.describe("State Blueprint tool", () => {
 
     const composer = page.locator("#stateInspectorBody .preset-composer-shell");
     await expect(composer).toHaveCount(0);
-    await expect(page.locator("#presetComposer")).toBeHidden();
+    await expect(page.locator("#presetComposer")).toHaveCount(0);
     await expect(page.locator("#stateExplorer")).not.toHaveClass(/composer-active/);
     await expect(page.locator(".preview")).not.toHaveClass(/composer-active/);
     await expect(page.locator(".workspace")).toHaveClass(/inspector-collapsed/);
