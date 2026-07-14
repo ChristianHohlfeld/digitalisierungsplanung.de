@@ -11071,7 +11071,7 @@ test.describe("State Blueprint tool", () => {
     await context.close();
   });
 
-  test("drops presets onto the mobile canvas with an intentional fast touch drag @smoke", async ({ browser }) => {
+  test("drops presets onto the mobile canvas with one native touch drag @smoke", async ({ browser }) => {
     const context = await browser.newContext({
       baseURL: "http://localhost:8124",
       viewport: { width: 390, height: 820 },
@@ -11084,66 +11084,64 @@ test.describe("State Blueprint tool", () => {
     await page.locator('[data-mobile-view="presets"]').tap();
     const preset = componentPreset(page, "Textblock");
     await expect(preset).toBeVisible();
-    const start = await centerOf(preset);
+    await preset.scrollIntoViewIfNeeded();
+    const dragSurface = preset.locator(".template-drag-surface");
+    await expect(preset).toHaveCSS("touch-action", "pan-y");
+    await expect(dragSurface).toHaveCSS("touch-action", "none");
+    const start = await centerOf(dragSurface);
+    const startHit = await page.evaluate(({ x, y }) => {
+      const hit = document.elementFromPoint(x, y);
+      return {
+        inside: Boolean(hit?.closest(".template-drag-surface")),
+        tag: hit?.tagName || "",
+        id: hit?.id || "",
+        className: String(hit?.className || "")
+      };
+    }, start);
+    expect(startHit.inside, JSON.stringify(startHit)).toBe(true);
     const before = await canvasStateNodes(page).count();
-
-    await preset.dispatchEvent("pointerdown", {
-      pointerId: 41,
-      pointerType: "touch",
-      isPrimary: true,
-      button: 0,
-      buttons: 1,
-      clientX: start.x,
-      clientY: start.y,
-      bubbles: true,
-      cancelable: true
+    await page.evaluate(() => {
+      window.__templateTouchTrace = [];
+      ["pointerdown", "pointermove", "pointerup", "pointercancel", "touchstart", "touchmove", "touchend", "touchcancel"].forEach(type => {
+        window.addEventListener(type, evt => {
+          if (!type.startsWith("pointer") || evt.pointerType === "touch") window.__templateTouchTrace.push(type);
+        }, { capture: true });
+      });
     });
-    await page.waitForTimeout(40);
-    await page.evaluate(({ x, y }) => {
-      window.dispatchEvent(new PointerEvent("pointermove", {
-        pointerId: 41,
-        pointerType: "touch",
-        isPrimary: true,
-        button: 0,
-        buttons: 1,
-        clientX: x,
-        clientY: y,
-        bubbles: true,
-        cancelable: true
-      }));
-    }, { x: start.x + 18, y: start.y + 4 });
+    const client = await context.newCDPSession(page);
+    await client.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [{ x: start.x, y: start.y, id: 41, radiusX: 2, radiusY: 2, force: 1 }]
+    });
+    for (const offset of [4, 10, 18]) {
+      await page.waitForTimeout(12);
+      await client.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: [{ x: start.x + 2, y: start.y - offset, id: 41, radiusX: 2, radiusY: 2, force: 1 }]
+      });
+    }
+    await expect.poll(() => page.evaluate(() => window.__templateTouchTrace)).toEqual(expect.arrayContaining(["pointerdown", "pointermove", "touchstart", "touchmove"]));
     await expect(page.locator('[data-mobile-view="canvas"]')).toHaveClass(/active/);
     await expect(page.locator(".template-drag-ghost")).toBeVisible();
 
+    const commandBar = await centerOf(page.locator("#mobileCommandBar"));
+    await client.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [{ x: commandBar.x, y: commandBar.y, id: 41, radiusX: 2, radiusY: 2, force: 1 }]
+    });
+    await expect(page.locator(".template-drag-ghost")).toBeVisible();
+
     const drop = await emptyCanvasPoint(page);
-    await page.evaluate(({ x, y }) => {
-      window.dispatchEvent(new PointerEvent("pointermove", {
-        pointerId: 41,
-        pointerType: "touch",
-        isPrimary: true,
-        button: 0,
-        buttons: 1,
-        clientX: x,
-        clientY: y,
-        bubbles: true,
-        cancelable: true
-      }));
-      window.dispatchEvent(new PointerEvent("pointerup", {
-        pointerId: 41,
-        pointerType: "touch",
-        isPrimary: true,
-        button: 0,
-        buttons: 0,
-        clientX: x,
-        clientY: y,
-        bubbles: true,
-        cancelable: true
-      }));
-    }, drop);
+    await client.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [{ x: drop.x, y: drop.y, id: 41, radiusX: 2, radiusY: 2, force: 1 }]
+    });
+    await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
 
     await expect(canvasStateNodes(page)).toHaveCount(before + 1);
     await expect(nodeByTitle(page, "Textblock")).toBeVisible();
     await expect(page.locator(".template-drag-ghost")).toHaveCount(0);
+    expect(await page.evaluate(() => window.__templateTouchTrace.some(type => type === "pointercancel" || type === "touchcancel"))).toBe(false);
     await context.close();
   });
 
@@ -11164,10 +11162,11 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#stateExplorer")).toHaveClass(/searching/);
     await expect(page.locator("#stateExplorer")).toHaveClass(/search-direct-drag/);
     await expect(preset).toHaveCSS("touch-action", "none");
-    const start = await centerOf(preset);
+    const dragSurface = preset.locator(".template-drag-surface");
+    const start = await centerOf(dragSurface);
     const before = await canvasStateNodes(page).count();
 
-    await preset.dispatchEvent("pointerdown", {
+    await dragSurface.dispatchEvent("pointerdown", {
       pointerId: 42,
       pointerType: "touch",
       isPrimary: true,
@@ -11227,7 +11226,7 @@ test.describe("State Blueprint tool", () => {
     await context.close();
   });
 
-  test("keeps vertical mobile preset scrolling from starting a template drag", async ({ browser }) => {
+  test("scrolls mobile presets from their action area without starting a template drag", async ({ browser }) => {
     const context = await browser.newContext({
       baseURL: "http://localhost:8124",
       viewport: { width: 390, height: 820 },
@@ -11238,38 +11237,27 @@ test.describe("State Blueprint tool", () => {
     await openTool(page);
 
     await page.locator('[data-mobile-view="presets"]').tap();
-    const preset = componentPreset(page, "Textblock");
+    await page.locator("#stateExplorerList").evaluate(el => { el.scrollTop = 0; });
+    const preset = page.locator(".component-preset-card").first();
     await expect(preset).toBeVisible();
-    const start = await centerOf(preset);
-
-    await preset.dispatchEvent("pointerdown", {
-      pointerId: 42,
-      pointerType: "touch",
-      isPrimary: true,
-      button: 0,
-      buttons: 1,
-      clientX: start.x,
-      clientY: start.y,
-      bubbles: true,
-      cancelable: true
+    const start = await centerOf(preset.locator(".template-actions"));
+    const client = await context.newCDPSession(page);
+    await client.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [{ x: start.x, y: start.y, id: 42, radiusX: 2, radiusY: 2, force: 1 }]
     });
-    await page.waitForTimeout(40);
-    await page.evaluate(({ x, y }) => {
-      window.dispatchEvent(new PointerEvent("pointermove", {
-        pointerId: 42,
-        pointerType: "touch",
-        isPrimary: true,
-        button: 0,
-        buttons: 1,
-        clientX: x,
-        clientY: y,
-        bubbles: true,
-        cancelable: true
-      }));
-    }, { x: start.x + 2, y: start.y + 28 });
+    for (const offset of [24, 52, 90]) {
+      await page.waitForTimeout(20);
+      await client.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: [{ x: start.x + 2, y: start.y - offset, id: 42, radiusX: 2, radiusY: 2, force: 1 }]
+      });
+    }
+    await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
 
     await expect(page.locator('[data-mobile-view="presets"]')).toHaveClass(/active/);
     await expect(page.locator(".template-drag-ghost")).toHaveCount(0);
+    await expect.poll(() => page.locator("#stateExplorerList").evaluate(el => el.scrollTop)).toBeGreaterThan(0);
     await context.close();
   });
 

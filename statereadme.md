@@ -606,7 +606,13 @@ Editoraktion
   umverdrahten. State-Drag und Transition-Rerouting DÜRFEN weiterhin erst nach
   ihrem vorgesehenen Long-Press beginnen; Rerouting DARF ausschließlich von den
   dafür vorgesehenen Arrowheads und Pins starten. Vertikales Preset-Scrollen
-  DARF keinen Drag starten.
+  DARF keinen Drag starten. Auf Mobile MÜSSEN Titel und Beschreibung einer
+  Preset-Karte als zusammenhängende direkte Drag-Fläche ohne Long-Press
+  funktionieren. Ein dort begonnener Ein-Finger-Drag MUSS mit demselben Pointer
+  bis zum Canvas-Drop laufen und DARF beim Wechsel der Arbeitsansicht oder über
+  der mobilen Aktionsleiste keinen `pointercancel` auslösen. Die Aktionsfläche
+  der Karte und freie Listenfläche MÜSSEN für vertikales Scrollen erhalten
+  bleiben.
 - **ED-014 Gestenabbruch:** Verlorenes `mouseup`, Pointer-Verlassen oder
   Fenster-Blur MUSS Drag, Pan, Connect und Rechteckauswahl sauber abbrechen.
 - **ED-015 Keine Browser-Nebeneffekte:** Canvas und Vorschau MÜSSEN

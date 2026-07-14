@@ -3254,6 +3254,16 @@
       opacity: .42;
     }
 
+    .template-drag-surface {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      gap: 3px;
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+      cursor: grab;
+    }
+
     .template-drag-ghost {
       position: fixed;
       left: 0;
@@ -4353,6 +4363,10 @@
         flex-basis: auto;
         border-radius: 8px;
         touch-action: pan-y;
+      }
+
+      .workspace.mobile-presets-active .template-drag-surface {
+        touch-action: none;
       }
 
       .workspace.mobile-presets-active .state-explorer.search-direct-drag .state-template-card,
@@ -21441,6 +21455,11 @@
     }
 
     function clearTemplateTouchDragUi() {
+      const pointerTarget = templateTouchDrag?.pointerTarget;
+      const pointerId = templateTouchDrag?.pointerId;
+      try {
+        if (pointerTarget?.hasPointerCapture?.(pointerId)) pointerTarget.releasePointerCapture(pointerId);
+      } catch (_) {}
       workspaceEl.classList.remove("template-touch-dragging");
       document.querySelectorAll(".touch-drag-source").forEach(el => el.classList.remove("touch-drag-source"));
       document.querySelectorAll(".template-drag-ghost").forEach(el => el.remove());
@@ -21497,11 +21516,16 @@
 
     function startTemplateTouchPointer(evt, card, template) {
       if (!isTouchPointer(evt) || evt.target?.closest?.("button, input, textarea, select, [contenteditable]")) return;
+      const dragSurface = evt.target?.closest?.(".template-drag-surface");
+      const pointerTarget = dragSurface && card.contains(dragSurface) ? dragSurface : card;
       if (templateTouchDrag) cancelTemplateTouchDrag({ restoreView: true });
       evt.stopPropagation();
       lastTouchAt = Date.now();
+      try { pointerTarget.setPointerCapture(evt.pointerId); } catch (_) {}
       templateTouchDrag = {
         pointerId: evt.pointerId,
+        pointerTarget,
+        directDrag: pointerTarget === dragSurface,
         templateId: template.id,
         card,
         startX: evt.clientX,
@@ -21524,16 +21548,17 @@
       const absY = Math.abs(dy);
       const distance = Math.hypot(dx, dy);
       if (!templateTouchDrag.active) {
+        const directDrag = templateTouchDrag.directDrag;
         const listStyle = stateExplorerListEl ? getComputedStyle(stateExplorerListEl) : null;
         const scrollsVertically = listStyle?.flexDirection === "column";
         const searchDragMode = Boolean(stateExplorerEl?.classList.contains("search-direct-drag"));
         const scrollAxis = scrollsVertically ? absY : absX;
         const dragAxis = scrollsVertically ? absX : absY;
-        if (!searchDragMode && scrollAxis >= TOUCH_TEMPLATE_SCROLL_CANCEL_PX && scrollAxis > dragAxis * 1.35) {
+        if (!directDrag && !searchDragMode && scrollAxis >= TOUCH_TEMPLATE_SCROLL_CANCEL_PX && scrollAxis > dragAxis * 1.35) {
           cancelTemplateTouchDrag({ restoreView: false });
           return false;
         }
-        if (distance >= TOUCH_TEMPLATE_DRAG_START_PX && (searchDragMode || dragAxis >= Math.min(scrollAxis * 0.75 + 1, TOUCH_TEMPLATE_DRAG_START_PX))) {
+        if (distance >= TOUCH_TEMPLATE_DRAG_START_PX && (directDrag || searchDragMode || dragAxis >= Math.min(scrollAxis * 0.75 + 1, TOUCH_TEMPLATE_DRAG_START_PX))) {
           beginTemplateTouchDrag();
         }
       }
@@ -21724,8 +21749,10 @@
         card.className = "component-preset-card";
         card.dataset.templateKind = "core";
         card.innerHTML = `
-          <div class="template-title"></div>
-          <div class="template-body"></div>
+          <div class="template-drag-surface" aria-label="${escapeHtml(template.title)} auf den Canvas ziehen">
+            <div class="template-title"></div>
+            <div class="template-body"></div>
+          </div>
           <div class="template-actions">
             <button class="template-info" type="button" aria-label="${escapeHtml(template.title)} ansehen" title="${escapeHtml(template.title)} ansehen" aria-expanded="false">i</button>
             <button class="template-use" type="button" aria-label="${escapeHtml(template.title)} hinzufügen" title="${escapeHtml(template.title)} hinzufügen">Hinzufügen</button>
