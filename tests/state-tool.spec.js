@@ -14311,6 +14311,75 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#btnTogglePreview")).toBeHidden();
   });
 
+  test("opens generated app in a reserved popup before writing the standalone page @smoke", async ({ page }) => {
+    await openTool(page);
+    await page.goto("/state.html?room=smoke");
+    await expect(page.locator('[data-id="auth_start"]')).toBeVisible();
+    await expect(appFrame(page).locator("#statePill")).toHaveText("auth_start");
+
+    await page.evaluate(() => {
+      window.__stateBlueprintPopupEvents = [];
+      window.open = (url, target, features) => {
+        const location = {
+          replace(nextUrl) {
+            window.__stateBlueprintPopupEvents.push({ type: "navigate", url: String(nextUrl || "") });
+          }
+        };
+        Object.defineProperty(location, "hash", {
+          get() {
+            return "";
+          },
+          set(value) {
+            window.__stateBlueprintPopupEvents.push({ type: "hash", value: String(value || "") });
+          }
+        });
+        window.__stateBlueprintPopupEvents.push({
+          type: "open",
+          url: String(url || ""),
+          target: String(target || ""),
+          features: String(features || "")
+        });
+        return {
+          opener: window,
+          document: {
+            open() {
+              window.__stateBlueprintPopupEvents.push({ type: "doc-open" });
+            },
+            write(html) {
+              window.__stateBlueprintPopupEvents.push({
+                type: "doc-write",
+                standalone: String(html || "").includes("const IS_STANDALONE_EXPORT = true;"),
+                exported: String(html || "").includes("EXPORTED_STATE_BLUEPRINT"),
+                hostListenerGuarded: String(html || "").includes("if (!IS_STANDALONE_EXPORT) window.addEventListener")
+              });
+            },
+            close() {
+              window.__stateBlueprintPopupEvents.push({ type: "doc-close" });
+            }
+          },
+          location,
+          focus() {
+            window.__stateBlueprintPopupEvents.push({ type: "focus" });
+          },
+          close() {
+            window.__stateBlueprintPopupEvents.push({ type: "popup-close" });
+          }
+        };
+      };
+    });
+
+    await page.locator("#btnOpen").click();
+
+    await expect.poll(() => page.evaluate(() => window.__stateBlueprintPopupEvents)).toEqual([
+      { type: "open", url: "about:blank", target: "_blank", features: "" },
+      { type: "hash", value: "room=smoke" },
+      { type: "doc-open" },
+      { type: "doc-write", standalone: true, exported: true, hostListenerGuarded: true },
+      { type: "doc-close" },
+      { type: "focus" }
+    ]);
+  });
+
   test("keeps narrow topbar actions visible without horizontal scrolling", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 820 });
     await openTool(page);

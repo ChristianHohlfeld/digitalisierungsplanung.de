@@ -9309,13 +9309,82 @@
       return url.href;
     }
 
-    function createStandaloneAppUrl() {
-      const html = buildStandaloneAppHtml(GENERATED_APP_HTML, definitionPayload());
+    function standaloneAppHtml() {
+      return buildStandaloneAppHtml(GENERATED_APP_HTML, definitionPayload());
+    }
+
+    function standaloneRoomFragment() {
+      const room = new URLSearchParams(window.location.search).get("room") || "";
+      return /^[a-zA-Z0-9_.:-]{1,128}$/.test(room) ? new URLSearchParams({ room }).toString() : "";
+    }
+
+    function createStandaloneAppUrlFromHtml(html) {
       const blobUrl = URL.createObjectURL(new Blob([html], { type: "text/html" }));
       const url = new URL(blobUrl);
-      const room = new URLSearchParams(window.location.search).get("room") || "";
-      if (/^[a-zA-Z0-9_.:-]{1,128}$/.test(room)) url.hash = new URLSearchParams({ room }).toString();
+      const roomFragment = standaloneRoomFragment();
+      if (roomFragment) url.hash = roomFragment;
       return url.href;
+    }
+
+    function createStandaloneAppUrl() {
+      return createStandaloneAppUrlFromHtml(standaloneAppHtml());
+    }
+
+    function writeStandaloneAppToPopup(popup, html) {
+      if (!popup || !popup.document) return false;
+      try {
+        const roomFragment = standaloneRoomFragment();
+        if (roomFragment) popup.location.hash = roomFragment;
+        popup.document.open();
+        popup.document.write(html);
+        popup.document.close();
+        try { popup.opener = null; } catch (_) {}
+        try { popup.focus(); } catch (_) {}
+        return true;
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function navigatePopupToStandaloneUrl(popup, html) {
+      const url = createStandaloneAppUrlFromHtml(html);
+      if (popup) {
+        try { popup.opener = null; } catch (_) {}
+        try {
+          if (popup.location?.replace) popup.location.replace(url);
+          else popup.location.href = url;
+          try { popup.focus(); } catch (_) {}
+          setTimeout(() => revokeRuntimeAppUrl(url), 60000);
+          return true;
+        } catch (_) {}
+      }
+      try {
+        const opened = window.open(url, "_blank");
+        if (opened) {
+          try { opened.opener = null; } catch (_) {}
+          setTimeout(() => revokeRuntimeAppUrl(url), 60000);
+          return true;
+        }
+      } catch (_) {}
+      revokeRuntimeAppUrl(url);
+      return false;
+    }
+
+    function openStandaloneAppWindow() {
+      let popup = null;
+      try { popup = window.open("about:blank", "_blank"); } catch (_) {}
+      let html = "";
+      try {
+        html = standaloneAppHtml();
+      } catch (err) {
+        try { popup?.close?.(); } catch (_) {}
+        modalAlert(err?.message || "Die App konnte nicht in einem neuen Fenster vorbereitet werden.", "Öffnen fehlgeschlagen");
+        return false;
+      }
+      if (writeStandaloneAppToPopup(popup, html)) return true;
+      if (navigatePopupToStandaloneUrl(popup, html)) return true;
+      modalAlert("Der Browser hat das neue Fenster blockiert. Bitte Pop-ups für diese Seite erlauben und erneut tippen.", "Öffnen blockiert");
+      return false;
     }
 
     function revokeRuntimeAppUrl(url) {
@@ -27345,9 +27414,7 @@
       applyRuntimePaused(!hostRuntimePausedView());
     };
     document.getElementById("btnOpen").onclick = () => {
-      const url = createStandaloneAppUrl();
-      window.open(url, "_blank", "noopener,noreferrer,width=480,height=760");
-      setTimeout(() => revokeRuntimeAppUrl(url), 10000);
+      openStandaloneAppWindow();
     };
     document.getElementById("btnReset").onclick = () => runTopbarAction(async () => {
       const ok = await modalConfirm("Arbeitsfläche wirklich neu und leer starten?", "Arbeitsfläche zurücksetzen", {
