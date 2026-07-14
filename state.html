@@ -9446,7 +9446,9 @@
     const MIN_CANVAS_COLUMN = 240;
     const initialEditorState = loadEditorState();
     const initialStoredModel = initialEditorState?.model ? null : loadModel();
-    const initialPersistedModelExists = Boolean(initialEditorState?.model || initialStoredModel);
+    const initialPersistedModel = initialEditorState?.model || initialStoredModel || null;
+    const initialPersistedModelExists = Boolean(initialPersistedModel);
+    const initialPersistedModelIsSingleEmptyInitialState = isSingleEmptyInitialStateModel(initialPersistedModel);
     let productContract = null;
     let productContractValueTypesInFlight = null;
     let model = initialEditorState?.model || initialStoredModel || blankModel();
@@ -9545,6 +9547,24 @@
         ],
         transitions: []
       };
+    }
+
+    function isSingleEmptyInitialStateModel(candidate) {
+      if (!candidate || typeof candidate !== "object") return false;
+      const states = Array.isArray(candidate.states) ? candidate.states : [];
+      const transitions = Array.isArray(candidate.transitions) ? candidate.transitions : [];
+      if (states.length !== 1 || transitions.length) return false;
+      const state = states[0] || {};
+      const stateId = String(state.id || "").trim();
+      const initial = String(candidate.initial || "").trim();
+      if (!stateId || initial !== stateId) return false;
+      if (String(state.parentId || "").trim()) return false;
+      if (Array.isArray(state.components) && state.components.length) return false;
+      if (state.data && typeof state.data === "object" && Object.keys(state.data).length) return false;
+      if (state.dataTypes && typeof state.dataTypes === "object" && Object.keys(state.dataTypes).length) return false;
+      if (Array.isArray(state.dataWires) && state.dataWires.length) return false;
+      if (Array.isArray(state.subscriptions) && state.subscriptions.length) return false;
+      return true;
     }
 
     function exampleWebsiteModel() {
@@ -28042,7 +28062,8 @@
 
       applyPersistedEditorState(initialEditorState);
       const demoEntry = requestedDemoEntryId();
-      if (demoEntry === "zustand" && !initialPersistedModelExists) {
+      const canReplaceWithDemoWithoutPrompt = !initialPersistedModelExists || initialPersistedModelIsSingleEmptyInitialState;
+      if (demoEntry === "zustand" && canReplaceWithDemoWithoutPrompt) {
         model = normalizeModel(exampleWebsiteModel());
         selected = null;
         currentLayerId = null;
@@ -28066,7 +28087,7 @@
       persistModel(false);
       syncToApp(true);
       if (isMobileWorkspaceLayout()) setTimeout(focusMobileCanvasState, 50);
-      if (demoEntry && initialPersistedModelExists) {
+      if (demoEntry && initialPersistedModelExists && !initialPersistedModelIsSingleEmptyInitialState) {
         consumeDemoEntryUrl();
         setTimeout(async () => {
           const demoLabel = demoLabelForId(demoEntry);

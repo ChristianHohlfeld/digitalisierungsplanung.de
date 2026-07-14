@@ -2208,6 +2208,45 @@ test.describe("State Blueprint tool", () => {
     });
   });
 
+  test("loads the Zustand demo without asking over a single empty initial state @smoke", async ({ page }) => {
+    const starter = {
+      version: 2,
+      name: "Zustand",
+      initial: "start",
+      boundary: { entryId: "start", exitId: "start", entryDisabled: false, exitDisabled: false },
+      states: [{ id: "start", title: "Start", components: [], data: {}, x: 120, y: 168 }],
+      transitions: []
+    };
+    await page.addInitScript(({ key, model }) => {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(key, JSON.stringify(model));
+    }, { key: STORAGE_KEY, model: starter });
+
+    await page.goto("/state.html?demo=zustand");
+
+    await expect(page).toHaveURL(/\/state\.html$/);
+    await expect(page.getByRole("dialog", { name: "Digitalisierungsplanung" })).toBeHidden();
+    await expect(page.getByRole("button", { name: "Beispiel laden" })).toHaveCount(0);
+    await expect(page.locator('[data-id="site_home"]')).toBeVisible();
+    await expect(appFrame(page).locator("#statePill")).toHaveText("site_home");
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return {
+        name: model?.name || "",
+        initial: model?.initial || "",
+        hasStarterOnly: Boolean(model?.states?.some(state => state.id === "start")) && model?.states?.length === 1,
+        loginHeroTransitionId: model?.states?.find(state => state.id === "site_login")?.data?.hero?.transitionId || ""
+      };
+    }).toEqual({
+      name: "Digitalisierungsplanung",
+      initial: "site_home",
+      hasStarterOnly: false,
+      loginHeroTransitionId: "site_login_submit"
+    });
+  });
+
   test("opens the demo Anfrage auto parent as its exclusive child on every real click @smoke", async ({ page }) => {
     await page.addInitScript(key => {
       if (sessionStorage.getItem("demo-parent-test-ready")) return;
