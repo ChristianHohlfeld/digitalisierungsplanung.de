@@ -278,9 +278,9 @@ const promptExamples = [
   { prompt: "baue checkout workflow", intent: "create_workflow" },
   { prompt: "füge timer 10s hinzu und weiter zu Done", intent: "add_timer" },
   { prompt: "erstelle inner state Schritt 1", intent: "add_inner_state" },
-  { prompt: "verbinde diesen State mit Checkout", intent: "add_transition" },
+  { prompt: "verbinde diesen State mit Checkout", intent: "upsert_transition" },
   { prompt: "füge Card Preset hinzu", intent: "add_component" },
-  { prompt: "füge Variable email vom Typ email hinzu", intent: "add_state_variable" },
+  { prompt: "füge Variable email vom Typ email hinzu", intent: "upsert_state_variable" },
   { prompt: "lade API https://example.test/items als Liste", intent: "configure_fetch" }
 ];
 

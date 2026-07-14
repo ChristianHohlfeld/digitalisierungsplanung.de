@@ -237,7 +237,7 @@ function planTransition(model, prompt, args) {
   return {
     understood: true,
     confidence: 0.84,
-    intent: "add_transition",
+    intent: "upsert_transition",
     targetStateId: sourceId,
     actions,
     assumptions,
@@ -476,7 +476,7 @@ function planVariable(model, prompt, args) {
   return {
     understood: true,
     confidence: 0.75,
-    intent: "add_state_variable",
+    intent: "upsert_state_variable",
     targetStateId: stateId,
     actions,
     assumptions,
@@ -537,7 +537,7 @@ function fallbackPlan(reason) {
     targetStateId: "",
     actions: [],
     assumptions: [reason],
-    explanation: "Use direct actions or one of the prompt intents: create workflow, add timer, add inner state, add transition, add preset/component, add variable, configure API/list.",
+    explanation: "Use direct actions or one of the prompt intents: create workflow, add timer, add inner state, upsert transition, add preset/component, upsert variable, configure API/list.",
     examples: [
       "füge timer 10s hinzu und weiter zu Done",
       "erstelle inner state Schritt 1",
@@ -561,9 +561,9 @@ function promptIntentMarkdown() {
     "",
     "- `add_timer`: phrases like `füge timer hinzu`, `add countdown 10s`, `warte 5 Sekunden und weiter zu Done`.",
     "- `add_inner_state`: phrases like `erstelle inner state Step 1`, `add child state Details`.",
-    "- `add_transition`: phrases like `verbinde mit Checkout`, `add transition to Done`, `gehe zu Error`.",
+    "- `upsert_transition`: phrases like `verbinde mit Checkout`, `upsert transition to Done`, `gehe zu Error`.",
     "- `add_component`: phrases like `füge Card Preset hinzu`, `add modal`, `add email input`.",
-    "- `add_state_variable`: phrases like `füge variable email vom typ email hinzu`.",
+    "- `upsert_state_variable`: phrases like `füge variable email vom typ email hinzu`.",
     "- `configure_fetch`: phrases like `lade API https://... als Liste`.",
     "- `create_workflow`: phrases like `baue checkout workflow`, `build login flow`, `Cart -> Shipping -> Payment -> Done`.",
     "",
