@@ -3575,7 +3575,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#pLayerNote")).toHaveCount(0);
   });
 
-  test("keeps boundary input anchors after deleting a selected boundary flow @smoke", async ({ page }) => {
+  test("keeps boundary input proxy reusable after deleting a selected boundary flow @smoke", async ({ page }) => {
     await openTool(page);
     const parentInputIds = await savedModel(page).then(model =>
       model.transitions.filter(transition => transition.to === "login").map(transition => transition.id)
@@ -3619,7 +3619,7 @@ test.describe("State Blueprint tool", () => {
     }, boundaryInputId);
     expect(removedAnchorDelete).toBe(true);
 
-    await expect(page.locator(`.edge[data-edge-id="${boundaryInputId}"]`)).toHaveCount(1);
+    await expect(page.locator(`.edge[data-edge-id="${boundaryInputId}"]`)).toHaveCount(0);
     await expect(page.locator(`svg#ports .svg-port[data-state-id="${inputProxyId}"][data-port-side="out"]`)).toHaveCount(1);
     await expect.poll(async () => {
       const model = await savedModel(page);
@@ -3634,10 +3634,10 @@ test.describe("State Blueprint tool", () => {
           transition.to === childId
         )
       };
-    }).toEqual({ entryId: childId, entryDisabled: false, inputFlow: true });
+    }).toEqual({ entryId: "", entryDisabled: false, inputFlow: false });
   });
 
-  test("rewires boundaries to the remaining child after deleting the anchored child @smoke", async ({ page }) => {
+  test("keeps boundary proxies open after deleting the anchored child without guessing a new endpoint @smoke", async ({ page }) => {
     await openTool(page);
     await openStateLayer(page, "login");
     const firstChildId = await addChildByDoubleClick(page, "login");
@@ -3649,6 +3649,8 @@ test.describe("State Blueprint tool", () => {
       const parent = byId("login");
       setBoundaryEndpoint(parent, "input", firstChildId);
       setBoundaryEndpoint(parent, "output", firstChildId);
+      const parentOut = model.transitions.find(transition => transition.id === "t_login_success");
+      if (parentOut) parentOut.label = "Parent out";
       ensureDefaultBoundaryTransitions(parent, statesInLayer("login"));
       saveModel("test:boundary-anchor-first-child");
       draw();
@@ -3709,13 +3711,19 @@ test.describe("State Blueprint tool", () => {
         )
       };
     }).toEqual({
-      entryId: secondChildId,
-      exitId: secondChildId,
+      entryId: "",
+      exitId: "",
       entryDisabled: false,
       exitDisabled: false,
-      inputFlow: true,
-      outputFlow: true
+      inputFlow: false,
+      outputFlow: false
     });
+
+    const leakedParentOuts = await page.evaluate(secondChildId => {
+      applyRuntimeStateView(secondChildId);
+      return editorActionTransitionsForState(byId(secondChildId)).map(transition => transition.label);
+    }, secondChildId);
+    expect(leakedParentOuts).not.toContain("Parent out");
   });
 
   test("keeps layer boundary proxies reusable after deleting the last child state @smoke", async ({ page }) => {
@@ -3809,7 +3817,7 @@ test.describe("State Blueprint tool", () => {
     });
   });
 
-  test("keeps boundary proxies and canonical flows enabled after deleting selected boundary transitions @smoke", async ({ page }) => {
+  test("keeps boundary proxies enabled after deleting selected boundary transitions @smoke", async ({ page }) => {
     await openTool(page);
     await openStateLayer(page, "login");
     const childId = await addChildByDoubleClick(page, "login");
@@ -3863,12 +3871,12 @@ test.describe("State Blueprint tool", () => {
         )
       };
     }).toEqual({
-      entryId: childId,
+      entryId: "",
       exitId: childId,
       entryDisabled: false,
       exitDisabled: false,
       removedFlow: false,
-      inputFlow: true,
+      inputFlow: false,
       outputFlow: true
     });
 
@@ -3879,7 +3887,7 @@ test.describe("State Blueprint tool", () => {
     expect(removedOutputAnchorDelete).toBe(true);
 
     await expect(page.locator(".node.boundary-proxy")).toHaveCount(2);
-    await expect(page.locator(`.edge[data-edge-id="boundary-flow:login:output"]`)).toHaveCount(1);
+    await expect(page.locator(`.edge[data-edge-id="boundary-flow:login:output"]`)).toHaveCount(0);
     await expect(page.locator(`svg#ports .svg-port[data-state-id="${outputProxyId}"][data-port-side="in"]`)).toHaveCount(1);
     await expect.poll(async () => {
       const model = await savedModel(page);
@@ -3895,9 +3903,9 @@ test.describe("State Blueprint tool", () => {
         )
       };
     }).toEqual({
-      exitId: childId,
+      exitId: "",
       exitDisabled: false,
-      outputFlow: true
+      outputFlow: false
     });
   });
 

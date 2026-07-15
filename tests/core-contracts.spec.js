@@ -1000,7 +1000,7 @@ test.describe("Core source contracts", () => {
     expect(message).toContain("must not collide with a state id");
   });
 
-  test("formal definitions require an explicit composite entry boundary @smoke", async ({ page }) => {
+  test("formal definitions allow open composite boundary proxies @smoke", async ({ page }) => {
     await page.goto("/state.html");
 
     const messages = await page.evaluate(() => {
@@ -1054,11 +1054,7 @@ test.describe("Core source contracts", () => {
       return [validate(missing), validate(explicit), validate(disabled)];
     });
 
-    expect(messages).toEqual([
-      expect.stringContaining("boundary.entryId must reference a child unless automatic entry is explicitly disabled"),
-      "",
-      ""
-    ]);
+    expect(messages).toEqual(["", "", ""]);
   });
 
   test("formal definitions reject dotted state data keys and qualified data type keys @smoke", async ({ page }) => {
@@ -2135,9 +2131,11 @@ test.describe("Core source contracts", () => {
           y: 140
         },
         { id: "first", title: "First", parentId: "parent", components: [], data: {}, x: 120, y: 120 },
-        { id: "last", title: "Last", parentId: "parent", components: [], data: {}, x: 420, y: 120 }
+        { id: "last", title: "Last", parentId: "parent", components: [], data: {}, x: 420, y: 120 },
+        { id: "done", title: "Done", components: [], data: {}, x: 620, y: 140 }
       ],
       transitions: [
+        { id: "parent_to_done", from: "parent", to: "done", label: "Direct parent out", condition: "", triggerType: "button", set: {} },
         { id: "last_to_first", from: "last", to: "first", label: "Back", condition: "", triggerType: "button", set: {} }
       ]
     });
@@ -2152,6 +2150,7 @@ test.describe("Core source contracts", () => {
     expect(current).toBe("parent");
     await expect(app.locator("#statePill")).toHaveText("parent");
     await expect(app.getByText("Parent only", { exact: true })).toBeVisible();
+    await expect(app.locator('button[data-transition-id="parent_to_done"]')).toHaveCount(0);
     await expect(app.locator("#statePill")).not.toHaveText("first");
     await expect(app.locator("#statePill")).not.toHaveText("last");
   });
