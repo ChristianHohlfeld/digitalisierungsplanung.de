@@ -3506,6 +3506,8 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#layerFrameComment")).toBeVisible();
     await expect(page.locator("#layerFrameCommentTitle")).toHaveAttribute("aria-label", "Ebenentitel");
     await expect(page.locator("#layerFrameCommentBody")).toHaveAttribute("aria-label", "Ebenen-Kommentar");
+    await expect(page.locator("#layerFrameCommentTitle")).toHaveAttribute("autocomplete", "off");
+    await expect(page.locator("#layerFrameCommentBody")).toHaveAttribute("autocomplete", "off");
     await expect(page.locator("#layerFrameCommentTitle")).toHaveValue("");
     await expect(page.locator("#layerFrameCommentBody")).toHaveValue("");
     await page.locator("#layerFrameCommentTitle").fill("Credential gate");
