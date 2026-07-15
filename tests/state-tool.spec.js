@@ -68,6 +68,26 @@ function appFrame(page) {
   return page.frameLocator("#appFrame");
 }
 
+async function expectStepContentInsideCards(root) {
+  await expect.poll(async () => root.locator(".steps").evaluate(list => {
+    const footer = document.querySelector(".footer");
+    const footerTop = footer?.getBoundingClientRect().top ?? Number.POSITIVE_INFINITY;
+    return [...list.querySelectorAll(".step")].map(item => {
+      const card = item.getBoundingClientRect();
+      const content = [...item.querySelectorAll(".daisy-step-label, .daisy-step-copy")]
+        .map(element => element.getBoundingClientRect());
+      return {
+        insideCard: content.every(rect => rect.top >= card.top - 0.5 && rect.bottom <= card.bottom + 0.5),
+        aboveFooter: content.every(rect => rect.bottom <= footerTop - 0.5)
+      };
+    });
+  })).toEqual([
+    { insideCard: true, aboveFooter: true },
+    { insideCard: true, aboveFooter: true },
+    { insideCard: true, aboveFooter: true }
+  ]);
+}
+
 function productContractForTest(options = {}) {
   const contract = productContractResponse(DEFAULT_EVENT_CATALOG);
   const presets = Array.isArray(options.presets) ? options.presets : [];
@@ -2654,6 +2674,7 @@ test.describe("State Blueprint tool", () => {
     await expect(app.locator('.steps button[data-transition-id="site_features_step_capture"]')).toHaveCount(1);
     await expect(app.locator('.steps button[data-transition-id="site_features_step_check"]')).toHaveCount(1);
     await expect(app.locator('.steps button[data-transition-id="site_features_step_use"]')).toHaveCount(1);
+    await expectStepContentInsideCards(app);
     await app.locator('.steps button[data-transition-id="site_features_step_capture"]').click();
     await expectDemoShell("site_contact");
     await navButton("Nutzen").click();
@@ -3039,7 +3060,10 @@ test.describe("State Blueprint tool", () => {
       "Prüfen",
       "Nutzen"
     ]);
+    await standalone.setViewportSize({ width: 711, height: 900 });
+    await expectStepContentInsideCards(standalone);
     await expectStandaloneNoHorizontalOverflow();
+    await standalone.setViewportSize({ width: 1280, height: 720 });
     await navButton("Start").click();
     await expectStandaloneShell("site_home", "Start");
 
