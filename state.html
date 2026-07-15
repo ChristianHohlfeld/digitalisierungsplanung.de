@@ -7409,23 +7409,23 @@
       return JSON.stringify(model);
     }
 
-    function modelDefinitionValue(value) {
+    function modelDefinitionValue(value, options = {}) {
       const normalized = normalizeModel(JSON.parse(JSON.stringify(value)));
       return {
         version: DEFINITION_SCHEMA_VERSION,
         name: String(normalized.name || "Unbenannter Ablauf"),
         initial: String(normalized.initial || ""),
         boundary: normalizeBoundaryConfig(normalized.boundary),
-        states: normalized.states.map(stateExportSnapshot),
+        states: normalized.states.map(state => stateExportSnapshot(state, options)),
         transitions: normalized.transitions
           .filter(transition => !isBoundaryFlowTransition(transition))
           .map(transitionExportSnapshot)
       };
     }
 
-    function modelDefinitionSnapshot() {
+    function modelDefinitionSnapshot(options = {}) {
       normalizeModel(model);
-      return modelDefinitionValue(model);
+      return modelDefinitionValue(model, options);
     }
 
     function normalizeSelection(value = selected) {
@@ -7627,13 +7627,13 @@
       restoreHistorySnapshot(next);
     }
 
-    function definitionPayload() {
+    function definitionPayload(options = {}) {
       const definition = {
         kind: DEFINITION_KIND,
         schemaVersion: DEFINITION_SCHEMA_VERSION,
         app: "Zustand",
         savedAt: new Date().toISOString(),
-        model: modelDefinitionSnapshot(),
+        model: modelDefinitionSnapshot(options),
         camera: {
           x: Number(camera.x),
           y: Number(camera.y),
@@ -8618,11 +8618,11 @@
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     }
 
-    function stateExportSnapshot(s) {
+    function stateExportSnapshot(s, options = {}) {
       const snapshot = {
         id: String(s.id),
         title: String(s.title || s.id),
-        components: normalizeComponents(s.components || []),
+        components: options.runtime === true ? runtimeContractComponentsForState(s) : normalizeComponents(s.components || []),
         data: normalizeStateDataObject(s.data),
         dataTypes: normalizeDataTypes(s.dataTypes, s.data),
         dataSource: normalizeDataSource(s.dataSource),
@@ -8701,7 +8701,7 @@
       saveUiState();
       let text;
       try {
-        const payload = await inlineExportImages(definitionPayload());
+        const payload = await inlineExportImages(definitionPayload({ runtime: true }));
         const appHtml = typeof GENERATED_APP_HTML === "string" ? GENERATED_APP_HTML : await (await fetch(APP_URL, { cache: "no-store" })).text();
         text = buildStandaloneAppHtml(appHtml, payload);
       } catch (err) {
@@ -16010,6 +16010,11 @@
       return String(variant?.label || "").trim();
     }
 
+    function productContractHasPresetVariant(typeId, variantId) {
+      const id = String(variantId || "").trim();
+      return Boolean(id && productContractPresetVariants(typeId).some(item => item.id === id));
+    }
+
     function componentTitle(type) {
       const contractLabel = productContractPresetVariantLabel("component", type);
       if (contractLabel) return contractLabel;
@@ -16026,6 +16031,17 @@
 
     function componentPresetTypes() {
       return productContractPresetVariants("component").map(variant => variant.id);
+    }
+
+    function daisyComponentIsRuntimeContractual(state, component) {
+      if (!component || component.type !== "daisy") return true;
+      if (!productContractHasPresetVariant("daisy", daisyVariantName(component))) return false;
+      return daisyLayoutAllowsFlow(component, stateScopedComponentData(state, component));
+    }
+
+    function runtimeContractComponentsForState(state) {
+      return normalizeComponents(state?.components || [])
+        .filter(component => daisyComponentIsRuntimeContractual(state, component));
     }
 
     function builtinStateTemplates() {
@@ -21583,6 +21599,9 @@
       if (issue) throw new Error(issue.message);
       const snap = normalizeModel(JSON.parse(JSON.stringify(model)));
       delete snap.editorGroups;
+      snap.states.forEach(state => {
+        state.components = runtimeContractComponentsForState(state);
+      });
       snap.transitions.forEach(t => {
         const layerId = transitionLineColorLayerId(t, null, t.from ? stateParentId(byId(t.from)) : null);
         const index = Math.max(0, transitionsInLayer(layerId).findIndex(item => item.id === t.id));

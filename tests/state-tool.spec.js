@@ -10432,7 +10432,7 @@ test.describe("State Blueprint tool", () => {
     await expect(quickTitleInput).toHaveValue("A");
     await expect(quickTitleInput).toBeFocused();
     await quickTitleInput.press("Control+A");
-    await page.keyboard.type("Arbeitsfläche step");
+    await quickTitleInput.fill("Arbeitsfläche step");
     await expect(quickTitleInput).toHaveValue("Arbeitsfläche step");
     await expect(quickTitleInput).toBeFocused();
     await expect.poll(async () => (await savedModel(page)).states.some(state => state.title === "Arbeitsfläche step")).toBe(true);
