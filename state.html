@@ -898,14 +898,16 @@
 
     @keyframes stateEnterPulse {
       0% {
-        filter: brightness(1) saturate(1);
-        outline-color: rgba(34,197,94,.1);
+        filter: brightness(1.05) saturate(1.08);
+        outline-color: rgba(134,239,172,.92);
         box-shadow:
-          0 0 0 0 rgba(34,197,94,0),
-          0 8px 18px rgba(0,0,0,.28),
-          inset 0 1px 0 rgba(255,255,255,.1);
+          0 0 0 5px rgba(34,197,94,.18),
+          0 0 0 12px rgba(34,197,94,.08),
+          0 0 28px rgba(34,197,94,.28),
+          0 14px 30px rgba(0,0,0,.38),
+          inset 0 1px 0 rgba(255,255,255,.15);
       }
-      30% {
+      22% {
         filter: brightness(1.32) saturate(1.25);
         outline-color: rgba(134,239,172,1);
         box-shadow:
@@ -1112,8 +1114,8 @@
 
     .node.runtime-enter {
       animation:
-        stateEnterPulse 1.34s cubic-bezier(.16, 1, .3, 1),
-        activeStateBreath 2.35s ease-in-out 1.34s infinite;
+        stateEnterPulse .64s cubic-bezier(.16, 1, .3, 1),
+        activeStateBreath 2.35s ease-in-out .64s infinite;
     }
 
     .node.runtime-exit {
@@ -1135,8 +1137,41 @@
 
     .node.active.selected.runtime-enter {
       animation:
-        stateEnterPulse 1.34s cubic-bezier(.16, 1, .3, 1),
-        activeSelectedStateBreath 2.35s ease-in-out 1.34s infinite;
+        stateEnterPulse .64s cubic-bezier(.16, 1, .3, 1),
+        activeSelectedStateBreath 2.35s ease-in-out .64s infinite;
+    }
+
+    .node.state-click-feedback {
+      border-color: #86efac;
+      outline: 2px solid rgba(134,239,172,.92);
+      outline-offset: 5px;
+      box-shadow:
+        0 0 0 5px rgba(34,197,94,.18),
+        0 0 0 12px rgba(34,197,94,.08),
+        0 0 28px rgba(34,197,94,.28),
+        0 14px 30px rgba(0,0,0,.38),
+        inset 0 1px 0 rgba(255,255,255,.15);
+    }
+
+    .node.state-click-feedback.selected {
+      border-color: var(--selected);
+      outline-color: var(--selected);
+      outline-offset: 4px;
+      box-shadow:
+        0 0 0 5px rgba(245,158,11,.22),
+        0 0 0 12px rgba(34,197,94,.16),
+        0 0 38px rgba(34,197,94,.38),
+        0 14px 34px rgba(0,0,0,.42),
+        inset 0 1px 0 rgba(255,255,255,.15);
+    }
+
+    .node:active:not(.boundary-proxy) {
+      box-shadow:
+        0 0 0 5px rgba(245,158,11,.22),
+        0 0 0 12px rgba(34,197,94,.16),
+        0 0 38px rgba(34,197,94,.38),
+        0 14px 34px rgba(0,0,0,.42),
+        inset 0 1px 0 rgba(255,255,255,.15);
     }
 
     .node.inner-drop-target {
@@ -10839,16 +10874,39 @@
       selected = selectionFromParts([entry.id], []);
       if (isMobileWorkspaceLayout()) focusMobileCanvasState({ allowPanelView: true, stateId: entry.id });
       saveSelection("layer:auto-entry:" + state.id + ":" + entry.id);
-      showNodeProperties(entry, {
+      const inspectorOptions = {
         focus: false,
         forceOpen: opts.forceOpen ?? !inspectorCollapsedByUser,
         manualOpen: opts.manualOpen ?? (!inspectorCollapsedByUser && !isMobileWorkspaceLayout()),
         pulse: opts.pulse ?? inspectorCollapsedByUser
-      });
+      };
       pendingAutoEntryLayerBackPulseId = state.id;
-      startAppAtState(state.id, { preserveFocus: true, allowLayerFollow: true });
       draw();
+      flashStateClickFeedback(entry.id);
+      startAppAtState(state.id, { preserveFocus: true, allowLayerFollow: true, redraw: false });
+      showNodePropertiesAfterInput(entry, inspectorOptions);
       return true;
+    }
+
+    function flashStateClickFeedback(stateId) {
+      const node = nodesEl.querySelector(`.node[data-id="${cssEscapeValue(stateId)}"]`);
+      if (!node) return;
+      if (node.__stateClickFeedbackTimer) clearTimeout(node.__stateClickFeedbackTimer);
+      node.classList.add("state-click-feedback");
+      node.__stateClickFeedbackTimer = setTimeout(() => {
+        node.classList.remove("state-click-feedback");
+        node.__stateClickFeedbackTimer = 0;
+      }, 700);
+    }
+
+    function showNodePropertiesAfterInput(state, options = {}) {
+      const stateId = state?.id || "";
+      const layerId = currentLayerId || null;
+      setTimeout(() => {
+        const currentState = byId(stateId);
+        if (!currentState || (currentLayerId || null) !== layerId || singleSelectedNodeId() !== stateId) return;
+        showNodeProperties(currentState, options);
+      }, 0);
     }
 
     function pulseAutoEntryLayerBack() {
@@ -11068,13 +11126,14 @@
       focusCanvasForSelection();
       if (autoEnterCompositeStateOnSelect(state, { forceOpen: false, manualOpen: false, pulse: true })) return true;
       setSingleSelection("node", state.id);
+      flashStateClickFeedback(state.id);
       lastNodeClick = null;
       lastEmptyCanvasTap = null;
       const now = Number.isFinite(tap?.startedAt) ? tap.startedAt : Date.now();
       const previousClick = lastTouchNodeTap;
       if (state.id === lastCreatedStateId && now - lastCreatedStateTime < 500) {
         lastTouchNodeTap = null;
-        showNodeProperties(state, { forceOpen: false, manualOpen: false, pulse: true });
+        showNodePropertiesAfterInput(state, { forceOpen: false, manualOpen: false, pulse: true });
         return true;
       }
       const x = tap?.clientX ?? evt.clientX;
@@ -11089,7 +11148,7 @@
         return true;
       }
       lastTouchNodeTap = { id: state.id, layerId: currentLayerId || null, time: now, x, y };
-      showNodeProperties(state, { forceOpen: false, manualOpen: false, pulse: true });
+      showNodePropertiesAfterInput(state, { forceOpen: false, manualOpen: false, pulse: true });
       return true;
     }
 
@@ -20921,7 +20980,7 @@
         preserveFocus: Boolean(opts.preserveFocus)
       };
       postRuntimePayload(payload);
-      draw();
+      if (opts.redraw !== false) draw();
       setTimeout(() => { syncStateEl.textContent = "aktiv"; }, 400);
     }
 
@@ -22519,8 +22578,9 @@
             return;
           }
           lastNodeClick = { id: s.id, layerId: currentLayerId || null, time: now, x: evt.clientX, y: evt.clientY };
-          startAppAtState(s.id, { preserveFocus: true, allowLayerFollow: true });
-          showNodeProperties(s);
+          flashStateClickFeedback(s.id);
+          startAppAtState(s.id, { preserveFocus: true, allowLayerFollow: true, redraw: false });
+          showNodePropertiesAfterInput(s);
           return;
         }
         if (didMove) {
@@ -22933,7 +22993,21 @@
 
     window.addEventListener("pointerup", evt => {
       if (!isTouchPointer(evt)) {
-        flushQueuedCanvasMove(evt);
+        const queuedNodeMoveDistance = dragging && queuedCanvasMoveEvent
+          ? Math.hypot(queuedCanvasMoveEvent.clientX - dragging.startClientX, queuedCanvasMoveEvent.clientY - dragging.startClientY)
+          : 0;
+        const stationaryNodeRelease = Boolean(
+          dragging &&
+          !dragging.moved &&
+          queuedNodeMoveDistance <= 4 &&
+          Math.hypot(evt.clientX - dragging.startClientX, evt.clientY - dragging.startClientY) <= 4
+        );
+        if (stationaryNodeRelease) {
+          cancelQueuedCanvasMove();
+          if (!dragging.shiftKey) flashStateClickFeedback(dragging.id);
+        } else {
+          flushQueuedCanvasMove(evt);
+        }
         if (finishPendingEdgeMouse(evt)) return;
         if (finishPendingCanvasMouse()) return;
         handleCanvasEnd(evt);
@@ -23104,7 +23178,7 @@
     document.addEventListener("beforeinput", handleBeforeInput, { capture: true });
 
     var RUNTIME_EDGE_PULSE_MS = 1220;
-    var RUNTIME_STATE_ENTER_PULSE_MS = 1420;
+    var RUNTIME_STATE_ENTER_PULSE_MS = 720;
     var RUNTIME_STATE_EXIT_PULSE_MS = 920;
     var runtimePulseSerial = 0;
     var activeRuntimeEdgePulses = new Map();

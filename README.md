@@ -92,7 +92,7 @@ npm run build:release-version
 ```
 
 CI führt denselben Schritt erst nach allen Verträgen aus. Die Datei enthält
-danach beispielsweise `release-59`; `/version` und `/healthz` melden exakt
+danach die aktuelle `release-N`-ID; `/version` und `/healthz` melden exakt
 dieselbe ID für den Backend-Prozess.
 
 Die App registriert keinen Service Worker. `disable-sw.js` und der
@@ -120,6 +120,7 @@ Der Server in [`server/`](server/) ist nur Transport. Er speichert keine fachlic
 | `GET/POST /presets-admin/catalog` | vollständige Preset-Library laden, validieren, committen und pushen |
 | `POST /presets-admin/parse` | DaisyUI-Markup ohne Persistenz in eine strukturierte Preset-Definition übersetzen |
 | `POST /presets-admin/import` | kanonische Preset-Definition von einer öffentlichen HTTPS-API als Entwurf importieren |
+| `POST /assets/inline-image` | öffentliches Bild ohne Persistenz als Data URI für einen eigenständigen HTML-Export laden |
 | `POST /emit` | authentifiziertes Ereignis von außen |
 | `WSS /ws` | WebSocket-Verbindung |
 

@@ -6,8 +6,9 @@ Schema: State Blueprint Version 2
 
 Stand: 2026-07-15
 
-Auditbasis: Repository-Commit `d061538`, gemeinsame Freigabe zu Auditabschluss
-`release-96`
+Auditbasis: der Repository-Stand dieses Dokuments. Die aktuelle gemeinsame
+Freigabe steht ausschließlich in [`release-version.js`](release-version.js),
+damit eine festgeschriebene Nummer nicht nach dem nächsten grünen Lauf driftet.
 
 Die normative, kompakte Vertragsgrammatik steht in
 [`docs/state-contract.md`](docs/state-contract.md). Dieses Dokument erläutert
@@ -252,7 +253,7 @@ Editoraktion
   Quelle im aktuellen Runtime-Kontext aktiv und erreichbar ist.
 - **TRN-003 Auslöser:** Ein Übergang startet nur durch seinen deklarierten
   Auslöser. Vertragsrelevante Typen sind `button`, `timer`, `change`, `event`,
-  `realtime` und `auto`.
+  `realtime`, `api` und `auto`.
 - **TRN-004 Button-Ereignis:** Ein Button-Übergang bindet über seine
   `transitionId` und das Ereignis `button.<transitionId>.clicked`. Sein Label
   ist ausschließlich Anzeige.
@@ -276,7 +277,7 @@ Editoraktion
   automatische Übergänge DÜRFEN NICHT als irreführende Buttons erscheinen.
   Das gilt für den allgemeinen Aktionsbereich und für jeden explizit über eine
   Transition-ID gebundenen DaisyUI-Aktionsslot. Wechselt dessen Transition von
-  `button` auf `timer`, `change`, `event`, `realtime`, `auto` oder einen internen
+  `button` auf `timer`, `change`, `event`, `realtime`, `api`, `auto` oder einen internen
   Trigger, bleibt die eindeutige Besitzreferenz erhalten, aber der Slot rendert
   kein Control. Insbesondere sind lokale Ersatzaktionen, deaktivierte
   Scheinbuttons und labelbasierte Fallbacks verboten. Preview und
@@ -731,11 +732,13 @@ und Parent-Ausgänge an ihrem `groupExitId`.
   Rückmeldung DARF weder die Transition auslösen noch Modell, Runtime-Zustand
   oder Canvas-Auswahl verändern.
 - **ED-022 Einzel- und Doppelclick:** Der erste bewegungsfreie State-Click MUSS
-  sofort auswählen. Erst nach Ablauf des Doppelclick-Zeitfensters darf er als
-  bestätigter Einzelclick die Runtime starten. Ein gültiger Doppelclick MUSS den
-  ausstehenden Runtime-Start verwerfen und ausschließlich die innere State-Ebene
-  öffnen. Jede vorher beginnende weitere Canvas- oder Inspector-Interaktion
-  MUSS den ausstehenden Runtime-Start ebenfalls verwerfen.
+  beim zugehörigen `pointerup` sofort auswählen und die Runtime genau einmal
+  starten. Es gibt keinen ausstehenden Timer und keine Doppelklick-Wartezeit.
+  Ein gültiger zweiter Click darf zusätzlich die innere State-Ebene öffnen,
+  den bereits bestätigten ersten Runtime-Start aber weder verzögern noch
+  zurücknehmen. Der bestätigte Click MUSS noch im selben Ereignis eine grüne
+  Canvas-Rückmeldung zeigen, ohne damit den State vor der Runtime-Bestätigung
+  als aktiv auszugeben. Drag, Pan und Port-Connect starten keine Runtime-Aktion.
 - **ED-023 Deterministischer Desktop-Abschluss:** State-, Canvas- und
   Transition-Gesten MÜSSEN beim zugehörigen `pointerup` genau einmal
   abgeschlossen werden. Ein nachfolgendes `mouseup` DARF dieselbe Geste weder
@@ -773,7 +776,10 @@ und Parent-Ausgänge an ihrem `groupExitId`.
   Runtime-Kontextänderung DARF keinen vollen Canvas-Redraw auslösen.
 - **CAN-011 Runtime-Markierung:** Aktiver Zustand, Eintritt, Austritt und
   Transition-Puls MÜSSEN sichtbar unterscheidbar sein. Der Puls DARF keine
-  frameweise DOM-Geometrieabfrage oder Style-Mutation verwenden.
+  frameweise DOM-Geometrieabfrage oder Style-Mutation verwenden. Die grüne
+  Eintrittsmarkierung MUSS bereits im ersten dargestellten Frame mindestens so
+  sichtbar wie die ruhende Aktivmarkierung sein; sie DARF nicht von unsichtbar
+  hochblenden oder auf den nächsten Host-Animationsframe warten.
 - **CAN-012 Hit-Priorität:** Innerhalb der sichtbaren Fläche eines State-Nodes
   MUSS der Node für Auswahl und Drag vor unsichtbaren Hitflächen fremder
   `.edge-pin`, `.edge-tip-hit` oder `.svg-port` liegen. Edge-Hitflächen DÜRFEN
@@ -945,13 +951,13 @@ und Parent-Ausgänge an ihrem `groupExitId`.
 - **RT-014 Keine Modellwrites:** Nachrichten wie `graph.patch` und `snapshot`
   MÜSSEN abgelehnt werden. Kanonische Modellwrites gehören ausschließlich zur
   Modell-API.
-- **RT-015 Öffentliche Routen:** Nginx darf nur `/console.html`,
-  `/events-admin.html`, `/events-admin/catalog`, `/healthz`, `/version`,
-  `/presets-admin.html`, `/presets-admin/catalog`, `/presets-admin/parse`,
-  `/presets-admin/import`,
-  `/token`, `/contract`, `/events`, `/emit` und `/ws` an den lokalen Prozess auf
-  `127.0.0.1:8788` weiterleiten. Nicht definierte Kernrouten wie `/`,
-  `/catalog`, `/schema`, `/api` und `/process/*` liefern 404.
+- **RT-015 Öffentliche Routen:** Nginx darf nur `/`, `/admin.html`,
+  `/admin/routes`, `/console.html`, `/events-admin.html`,
+  `/events-admin/catalog`, `/healthz`, `/version`, `/presets-admin.html`,
+  `/presets-admin/catalog`, `/presets-admin/parse`, `/presets-admin/import`,
+  `/assets/inline-image`, `/token`, `/contract`, `/events`, `/emit` und `/ws`
+  an den lokalen Prozess auf `127.0.0.1:8788` weiterleiten. Nicht definierte
+  Kernrouten wie `/catalog`, `/schema`, `/api` und `/process/*` liefern 404.
 - **RT-016 Transportierte Definition:** Der Server MUSS einem akzeptierten
   `runtime.event` die zu diesem Namen gehörende normalisierte Katalogdefinition
   beilegen. Der Empfänger verwendet diese Definition für Bindings und DARF den
@@ -1799,10 +1805,15 @@ auch extern erfüllt.
   Komponenten, keine Runtime-Daten werden in `state.data` kopiert, Touch-Auswahl
   lässt den Inspectorzustand unverändert und echte Touch-Taps bleiben unabhängig
   von asynchronen Runtime-Nachrichten deterministisch.
-- Vollständige lokale Abnahme vom 2026-07-14: 28/28 Node-Server-Tests sowie
-  360/360 Playwright-Fälle bestanden. Die Browserabnahme lief vollständig und
-  disjunkt als 263/263 Smoke- und 97/97 übrige Fälle mit vier Workern; kein Test
+- Vollständige lokale Abnahme vom 2026-07-15: 31/31 Node-Server-Tests,
+  18/18 MCP-Verträge und 366/366 Playwright-Fälle bestanden. Die Browserabnahme
+  lief vollständig als 255/255 Werkzeug- und 111/111 Core-Verträge; kein Test
   wurde ausgelassen oder durch Retry beziehungsweise Force ersetzt.
+- Die aktuelle Klick-Nachschärfung wurde zusätzlich mit 10/10 angrenzenden
+  Browserfällen für Auto-Parent, Runtime-Markierung, dichte Graphen, Drag,
+  Hitbox, Auswahl, Undo/Redo und Layer-Follow geprüft. Im vollständigen
+  Beispielablauf erscheint die grüne Canvas-Rückmeldung 12,6 ms nach
+  `pointerup`; das Aktiv-Badge bleibt an die Runtime-Bestätigung gebunden.
 - Lean-Audit vom 2026-07-14: Die Runtime-Enhancer-Kette und 54 nachweislich
   aufruferlose Hostfunktionen wurden entfernt. Der Produktcode in `state.html`
   und `mcp/state-blueprint-server.js` schrumpfte netto um 4.421 Zeilen.

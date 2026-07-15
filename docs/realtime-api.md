@@ -87,13 +87,14 @@ im globalen State Tree werden serverseitig abgelehnt.
 
 Öffentlicher Healthcheck ohne Auth.
 
-Antwort:
+Beispielantwort; die Werte kommen immer aus der aktuellen
+[`release-version.js`](../release-version.js):
 
 ```json
 {
   "ok": true,
-  "releaseId": "release-59",
-  "releaseSequence": 59,
+  "releaseId": "release-123",
+  "releaseSequence": 123,
   "builtAt": "2026-07-12T00:00:00Z",
   "sourceCommit": "1234567890abcdef",
   "deployedCommit": "abcdef1234567890",
@@ -112,8 +113,8 @@ Browser-, Proxy- oder Servercache für diese Antwort.
 ```json
 {
   "ok": true,
-  "releaseId": "release-59",
-  "releaseSequence": 59,
+  "releaseId": "release-123",
+  "releaseSequence": 123,
   "builtAt": "2026-07-12T00:00:00Z",
   "sourceCommit": "1234567890abcdef",
   "deployedCommit": "abcdef1234567890"
@@ -224,6 +225,15 @@ Secret-geschützte API für die vollständige `server/preset-library.json`.
 Einträge. Weitere Kategorien und Pakete dürfen ergänzt werden. Parsen allein
 ändert weder Library noch Product Contract; erst ein erfolgreicher Save wird
 unmittelbar über `/contract` sichtbar.
+
+### `POST /assets/inline-image`
+
+Zustandsloser Exporthelfer für eigenständige HTML-Dateien. Der Body enthält
+ausschließlich `{ "url": "https://..." }`. Der Server akzeptiert nur öffentliche
+HTTP(S)-Bildziele, folgt keinen Redirects und lehnt private Netze, Nicht-Bilder
+und zu große Antworten ab. Die Antwort enthält die ursprüngliche URL,
+MIME-Type, Bytezahl und `dataUri`; weder URL noch Bild werden gespeichert.
+Schlägt das Inlining fehl, behält der Export den ursprünglichen Bildwert.
 
 ### `GET /events`
 
@@ -655,6 +665,7 @@ REALTIME_PRESETS_ADMIN_PATH=/presets-admin.html
 REALTIME_PRESETS_ADMIN_CATALOG_PATH=/presets-admin/catalog
 REALTIME_PRESETS_ADMIN_PARSE_PATH=/presets-admin/parse
 REALTIME_PRESETS_ADMIN_IMPORT_PATH=/presets-admin/import
+REALTIME_IMAGE_INLINE_PATH=/assets/inline-image
 REALTIME_PRESET_LIBRARY_PATH=/path/to/preset-library.json
 REALTIME_ALLOWED_ORIGINS=https://digitalisierungsplanung.de
 REALTIME_ROOM_SECRET=<secret>

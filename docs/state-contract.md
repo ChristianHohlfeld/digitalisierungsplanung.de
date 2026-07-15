@@ -197,6 +197,10 @@ Ein API-Ereignis ist ein echter Trigger und kein `change`-Alias. Ein generischer
   und Child-Inhalt werden niemals gemischt.
 - Ein Child kann den Parent nur über die deklarierte Exit-Boundary verlassen.
 - Ohne gültige innere oder äußere Verbindung stoppt der Ablauf.
+- Ein bestätigter bewegungsfreier State-Klick zeigt noch im zugehörigen
+  `pointerup` eine grüne Canvas-Rückmeldung. Diese Rückmeldung ist reine
+  Interaktionsprojektion; ausschließlich die Runtime-Bestätigung darf einen
+  State als aktiv markieren oder das Aktiv-Badge anzeigen.
 - Auswahl, Layer-Follow, Undo und Redo verändern das Modell deterministisch;
   Drag und Scroll starten keine Runtime-Aktion.
 

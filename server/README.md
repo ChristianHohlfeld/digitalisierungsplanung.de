@@ -47,7 +47,7 @@ Realtime is transport only. Runtime state still flows through the existing globa
 runtime.event -> emitRuntimeEvent(...) -> writeRuntimeState("events..." / "lastEvent")
 ```
 
-`/emit` accepts only offered `realtime.*` events from `/events` and requires an offered `emitterId`. The emitter must be allowed to fire that event. Existing `button.*`, `change.*`, `timer.*`, and `auto.*` events remain local runtime events.
+`/emit` accepts only offered `realtime.*` events from `/events` and requires an offered `emitterId`. The emitter must be allowed to fire that event. `button`, `change`, `event`, `api`, `timer`, and `auto` remain local runtime triggers; internal `flow` only guides nested states.
 Graph/model collaboration must go through the documented State Blueprint API, not through this WSS relay.
 
 The browser bridge has no emitter. Offered events enter through the authenticated external `/emit` boundary or the stateless test console.
@@ -76,6 +76,7 @@ The event catalog is the server-side source of truth for offered realtime events
 - `/emit`: authenticated server-to-server fire endpoint only.
 - `/console.html`: manual browser emitter for testing only.
 - `/events-admin.html`: simple event designer for event type, dataset, fields, source, and global-state contribution.
+- `/events-admin/catalog`: load, validate, commit, and push the complete managed event catalog.
 - `/presets-admin.html`: secret-protected DaisyUI snippet, category, package, and preset designer.
 - `/presets-admin/parse`: parse-only conversion from DaisyUI v5.6.18 markup to structured preset data; it never persists raw HTML.
 - `/presets-admin/import`: admin-only import of one exact canonical preset definition from a public HTTPS JSON endpoint; URL and response are never persisted.

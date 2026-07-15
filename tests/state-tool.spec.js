@@ -3931,7 +3931,7 @@ test.describe("State Blueprint tool", () => {
     await expect(doneEdge.evaluate(el => el.style.strokeDashoffset)).resolves.toBe("");
   });
 
-  test("starts runtime state highlight without waiting for the next host animation frame @smoke", async ({ page }) => {
+  test("starts runtime state highlight with an immediate green glow and without waiting for the next host animation frame @smoke", async ({ page }) => {
     await openTool(page);
     await page.evaluate(() => {
       window.__heldRuntimeRafs = [];
@@ -3947,7 +3947,23 @@ test.describe("State Blueprint tool", () => {
     const app = appFrame(page);
     await app.getByRole("button", { name: "Login", exact: true }).click();
     await expect(app.locator("#statePill")).toHaveText("login");
-    await expect(page.locator('[data-id="login"]')).toHaveClass(/runtime-enter/);
+    const loginNode = page.locator('[data-id="login"]');
+    await expect(loginNode).toHaveClass(/runtime-enter/);
+    const immediateGlow = await loginNode.evaluate(el => {
+      const style = getComputedStyle(el);
+      const keyframes = [...document.styleSheets]
+        .flatMap(sheet => [...sheet.cssRules])
+        .find(rule => rule.type === CSSRule.KEYFRAMES_RULE && rule.name === "stateEnterPulse");
+      const firstFrame = keyframes ? [...keyframes.cssRules].find(rule => rule.keyText === "0%") : null;
+      return {
+        animationDuration: style.animationDuration.split(",")[0].trim(),
+        outlineColor: firstFrame?.style.outlineColor || "",
+        boxShadow: firstFrame?.style.boxShadow || ""
+      };
+    });
+    expect(Number.parseFloat(immediateGlow.animationDuration) * 1000).toBeLessThanOrEqual(700);
+    expect(immediateGlow.outlineColor).toBe("rgba(134, 239, 172, 0.92)");
+    expect(immediateGlow.boxShadow).toContain("rgba(34, 197, 94, 0.18)");
     await expect(page.locator('.edge[data-edge-id="t_auth_login"]')).toHaveClass(/runtime-pulse/);
 
     await page.evaluate(() => {
@@ -5104,9 +5120,35 @@ test.describe("State Blueprint tool", () => {
 
     await expect(appFrame(page).getByRole("heading", { name: "Auth start" })).toBeVisible();
     await expect.poll(() => page.evaluate(() => typeof pendingNodeRuntimeStartTimer)).toBe("undefined");
+    await page.evaluate(() => {
+      const node = document.querySelector('[data-id="login"]');
+      window.__stateClickFeedback = new Promise(resolve => {
+        let pointerUpAt = 0;
+        document.addEventListener("pointerup", event => {
+          if (event.target.closest?.('[data-id="login"]')) pointerUpAt = performance.now();
+        }, { capture: true, once: true });
+        new MutationObserver((_, observer) => {
+          if (!node.classList.contains("state-click-feedback")) return;
+          observer.disconnect();
+          resolve({
+            delayMs: performance.now() - pointerUpAt,
+            active: node.classList.contains("active"),
+            liveBadgeDisplay: getComputedStyle(node.querySelector(".live-badge")).display
+          });
+        }).observe(node, { attributes: true, attributeFilter: ["class"] });
+      });
+    });
 
-    await page.locator('[data-id="login"]').click();
+    const loginNode = page.locator('[data-id="login"]');
+    await loginNode.hover();
+    await page.mouse.down();
+    await expect(loginNode).toHaveCSS("box-shadow", /rgba\(34, 197, 94, 0\.16\)/);
+    await page.mouse.up();
 
+    const feedback = await page.evaluate(() => window.__stateClickFeedback);
+    expect(feedback.delayMs).toBeLessThan(50);
+    expect(feedback.active).toBe(false);
+    expect(feedback.liveBadgeDisplay).toBe("none");
     await expect(appFrame(page).locator("#statePill")).toHaveText("login", { timeout: 300 });
     await expect(appFrame(page).getByRole("heading", { name: "Login" })).toBeVisible();
     await expect(page.locator('[data-id="login"]')).toHaveClass(/active/);

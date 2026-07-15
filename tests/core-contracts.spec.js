@@ -2660,8 +2660,8 @@ test.describe("Core source contracts", () => {
     expect(html).not.toContain(".node.active::after");
     expect(html).toContain("animation: activeStateBreath 2.35s ease-in-out infinite");
     expect(html).toContain("animation: activeSelectedStateBreath 2.35s ease-in-out infinite");
-    expect(html).toContain("stateEnterPulse 1.34s cubic-bezier(.16, 1, .3, 1)");
-    expect(html).toContain("var RUNTIME_STATE_ENTER_PULSE_MS = 1420");
+    expect(html).toContain("stateEnterPulse .64s cubic-bezier(.16, 1, .3, 1)");
+    expect(html).toContain("var RUNTIME_STATE_ENTER_PULSE_MS = 720");
     expect(html).toContain("function applyRuntimeStatePulses(now = performance.now())");
     expect(html).toContain("applyRuntimeStatePulses(started);");
     expect(html).not.toContain("requestAnimationFrame(() => {\n        applyRuntimeStatePulses();\n        setTimeout(() => {");
