@@ -178,7 +178,7 @@ const tools = [
       actions: {
         type: "array",
         items: actionSchema,
-        description: "Actions are applied in dependency order so declared states exist before transitions. Supported types include create_flow, set_model_name, upsert_state, delete_state, move_state, set_initial, upsert_transition, delete_transition, upsert_state_variable, delete_state_variable, configure_fetch, configure_repeat, upsert_data_wire, remove_data_wire, add_component, update_component, remove_component, reorder_components, set_boundary. Use state_blueprint_apply_commands for editor session commands such as selection, viewport, undo/redo, and grouping through real parent states. upsert_transition accepts triggerType values button, change, event, realtime, timer, and auto."
+        description: "Actions are applied in dependency order so declared states exist before transitions. Supported types include create_flow, set_model_name, upsert_state, delete_state, move_state, set_initial, upsert_transition, delete_transition, upsert_state_variable, delete_state_variable, configure_fetch, configure_repeat, upsert_data_wire, remove_data_wire, add_component, update_component, remove_component, reorder_components, set_boundary. Use state_blueprint_apply_commands for editor session commands such as selection, viewport, undo/redo, and grouping through real parent states. upsert_transition accepts the public Product Contract triggerType values button, change, realtime, api, timer, and auto."
       },
       dryRun: { type: "boolean", description: "Validate and return the result without writing to disk." },
       allowInvalid: { type: "boolean", description: "Return invalid results for diagnostics instead of rejecting." }

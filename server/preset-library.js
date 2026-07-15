@@ -12,7 +12,16 @@ const ID_PATTERN = /^[a-z][a-z0-9_.-]{0,63}$/;
 const CUSTOM_PRESET_ID_PATTERN = /^custom_[a-z0-9_]{1,56}$/;
 const LOCAL_KEY_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const REQUIRED_PACKAGE_IDS = new Set(["core.process", "website.builder", "approval.compliance", "service.operations", "bi.analytics", "sales.crm", "knowledge.portal", "integration.automation"]);
-const SUPPORTED_VARIANTS = new Set([
+const COMPONENT_PRESET_TYPES = Object.freeze([
+  { id: "heading", label: "\u00dcberschrift" },
+  { id: "text", label: "Text" },
+  { id: "image", label: "Bild" },
+  { id: "list", label: "Liste" },
+  { id: "link", label: "Link" },
+  { id: "note", label: "Hinweis" },
+  { id: "divider", label: "Trenner" }
+]);
+const DAISY_PRESET_VARIANTS = new Set([
   "accordion", "alert", "avatar", "badge", "bottom-navigation", "breadcrumbs",
   "button", "card", "carousel", "checkbox", "countdown", "drawer", "dropdown",
   "feature-grid", "file-input", "footer", "hero", "indicator", "input", "loading",
@@ -50,6 +59,34 @@ function requiredText(value, code, max = 160) {
   const text = cleanText(value, "", max);
   if (!text) throw contractError(code);
   return text;
+}
+
+function labelFromId(value) {
+  return String(value || "")
+    .split(/[-_.]+/)
+    .filter(Boolean)
+    .map(part => part ? part[0].toUpperCase() + part.slice(1) : "")
+    .join(" ");
+}
+
+function presetTypesResponse() {
+  return [
+    {
+      id: "component",
+      label: "Basis-Bausteine",
+      description: "Editor-native Komponenten ohne externe Preset-Definition.",
+      variants: COMPONENT_PRESET_TYPES.map(cloneJson)
+    },
+    {
+      id: "daisy",
+      label: "DaisyUI",
+      description: "Server-validierte DaisyUI-Preset-Varianten.",
+      daisyVersion: DAISY_VERSION,
+      variants: [...DAISY_PRESET_VARIANTS]
+        .sort()
+        .map(id => ({ id, label: labelFromId(id) }))
+    }
+  ];
 }
 
 function validId(value, code = "invalid_id") {
@@ -125,7 +162,7 @@ function validatePreset(value, categoryIds, packageIds) {
   const id = cleanText(value.id, "", 64);
   if (!CUSTOM_PRESET_ID_PATTERN.test(id)) throw contractError("invalid_custom_preset_id");
   const variant = cleanText(value.variant, "", 40);
-  if (!SUPPORTED_VARIANTS.has(variant)) throw contractError("unsupported_daisy_variant");
+  if (!DAISY_PRESET_VARIANTS.has(variant)) throw contractError("unsupported_daisy_variant");
   const categoryId = validId(value.categoryId, "invalid_category_id");
   if (!categoryIds.has(categoryId)) throw contractError("unknown_category");
   const assignedPackages = Array.isArray(value.packageIds)
@@ -431,11 +468,13 @@ function parseDaisySnippet(payload) {
 
 module.exports = {
   DAISY_VERSION,
+  COMPONENT_PRESET_TYPES,
+  DAISY_PRESET_VARIANTS,
   DEFAULT_PRESET_LIBRARY_PATH,
   PRESET_LIBRARY_SCHEMA_VERSION,
-  SUPPORTED_VARIANTS,
   loadPresetLibraryFile,
   parseDaisySnippet,
+  presetTypesResponse,
   serializePresetLibrary,
   validatePresetDefinition,
   validatePresetLibrary

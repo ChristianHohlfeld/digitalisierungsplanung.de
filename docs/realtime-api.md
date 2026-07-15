@@ -245,8 +245,9 @@ Ereignisdefinitionen. Das ist die Live-Quelle für auswählbare Realtime-Ereigni
 
 Zentraler Product Contract für `state.html` und den Event Designer. Dieser
 Endpoint ist die frische Server-Wahrheit für vordefinierte Contract-Teile:
-Trigger-Typen, Value-Types mit Constraints, Match-Operatoren, Realtime-Datasets, Connector-Quellen,
-Preset-Kategorien, Presets, Preset-Pakete, Abo-Pläne und State-Contribution-Pfade. Jedes Feld, das vom Contract in den
+Trigger-Typen, Value-Types mit Constraints, Realtime-Datasets, Connector-Quellen,
+Match-Operatoren, Preset-Typen mit Varianten, Preset-Kategorien, Presets,
+Preset-Pakete, Abo-Pläne und State-Contribution-Pfade. Jedes Feld, das vom Contract in den
 globalen JSON-State geschrieben werden kann, hat neben dem kompakten Typstring
 ein `fieldSchemas`-Objekt mit `type`, `jsonType`, `default` und harten
 `constraints`.
@@ -260,7 +261,9 @@ genau die dort erlaubten Operator-IDs. Consumer dürfen weder Match-Felder aus
 Die App darf daraus UI-Optionen rendern und konkrete Referenzen speichern, aber
 keine Contract-Kopie in den Canvas schreiben.
 
-`presetCategories` steuert ausschließlich die sichtbaren Gruppen im Editor.
+`presetTypes` definiert die serverseitig gültigen Preset- und Component-Typen.
+`state.html` darf daraus UI-Optionen ableiten, aber keine eigene Variantenliste
+als Produktwahrheit führen. `presetCategories` steuert ausschließlich die sichtbaren Gruppen im Editor.
 Initial enthält sie nur `websuite-builder`; alle mitgelieferten Presets gehören
 zu dieser Kategorie. `presetPackages` und `subscriptionPlans` sind davon
 getrennte Verkaufs- und Anzeige-Metadaten.
@@ -343,6 +346,26 @@ Antwort, gekürzt:
     }
   ],
   "connectors": [],
+  "presetTypes": [
+    {
+      "id": "component",
+      "label": "Basis-Bausteine",
+      "variants": [
+        { "id": "heading", "label": "Überschrift" },
+        { "id": "text", "label": "Text" },
+        { "id": "image", "label": "Bild" }
+      ]
+    },
+    {
+      "id": "daisy",
+      "label": "DaisyUI",
+      "daisyVersion": "5.6.18",
+      "variants": [
+        { "id": "button", "label": "Button" },
+        { "id": "chart", "label": "Chart" }
+      ]
+    }
+  ],
   "presetCategories": [
     {
       "id": "websuite-builder",

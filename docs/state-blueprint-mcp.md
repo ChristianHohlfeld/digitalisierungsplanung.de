@@ -70,11 +70,10 @@ nicht über DOM-Klicks.
   `auto` ist exklusiv. MCP-Aktionen mit einem Konflikt werden nicht angewendet.
 - Der Editor zeigt fachliche Trigger-Typen aus dem serverseitigen Product
   Contract. Leere generische Bus-Events werden nicht angeboten; `event` wird nur
-  produktiv auswählbar, wenn der Contract konkrete `event.*`-Ereignisse
-  deklariert. Engine-seitig bleiben `button`, `change`, `event`, `realtime`,
-  `api`, `timer` und `auto` gültig; internes `flow` ist nur strukturelle
-  Child-Führung. Andere Werte werden weder als Alias akzeptiert noch zu `button`
-  normalisiert.
+  produktiv gültig, wenn der Contract konkrete `event.*`-Ereignisse deklariert.
+  Aktuell öffentliche Trigger sind `button`, `change`, `realtime`, `api`,
+  `timer` und `auto`; internes `flow` ist nur strukturelle Child-Führung.
+  Andere Werte werden weder als Alias akzeptiert noch zu `button` normalisiert.
 - `transition.set` ist Wirkung nach einem Ereignis, nicht die Quelle einer
   Schaltflächen-Bindung.
 - Realtime-Übergänge speichern `triggerType: "realtime"` plus konkrete

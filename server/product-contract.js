@@ -2,6 +2,7 @@
 
 const eventCatalog = require("./event-catalog");
 const presetCatalog = require("./preset-catalog");
+const presetLibrary = require("./preset-library");
 const valueTypes = require("./value-types");
 
 const CONTRACT_SCHEMA_VERSION = 2;
@@ -228,6 +229,7 @@ function productContractResponse(configOrCatalog) {
     triggerTypes: triggerTypesForCatalog(catalog),
     datasets: datasetsForCatalog(catalog),
     connectors: response.emitters,
+    presetTypes: presetLibrary.presetTypesResponse(),
     presetCategories: presetCatalog.presetCategoriesResponse(library),
     presetPackages: presetCatalog.presetPackagesResponse(library),
     subscriptionPlans: presetCatalog.subscriptionPlansResponse(library),

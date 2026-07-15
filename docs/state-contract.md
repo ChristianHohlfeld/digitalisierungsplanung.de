@@ -124,7 +124,6 @@ deklariert sein.
 | --- | --- |
 | `button` | Transition-ID; erzeugt eine echte Schaltfläche |
 | `change` | ein konkreter `change.<busPath>` |
-| `event` | ein konkreter fachlicher Ereignisname außerhalb reservierter Namensräume |
 | `realtime` | ein konkretes katalogisiertes `realtime.*`-Ereignis |
 | `api` | exakt `fetch.<target>.success` oder `fetch.<target>.error` |
 | `timer` | der eine Timer des wirksamen States |
@@ -186,8 +185,10 @@ globalen Bus geschrieben.
 - HTTP-, Timeout-, JSON-, Select- oder Nullish-Fehler:
   `fetch.<target>.error`
 
-Ein API-Ereignis ist ein echter Trigger und kein `change`-Alias. Ein generischer
-`event`-Trigger darf den `fetch.*`-Namensraum nicht verwenden.
+Ein API-Ereignis ist ein echter Trigger und kein `change`-Alias. Generische
+`event`-Trigger sind kein aktueller öffentlicher Product-Contract-Typ; neue
+fachliche Ereignisse werden als konkret deklarierte Contract-Typen oder
+`realtime.*`-Events angeboten.
 
 ## 8. Verschachtelte FSM
 

@@ -99,8 +99,9 @@ Feld sind erlaubt, Zahlenbereiche dürfen sich nicht schneiden, unterschiedliche
 Felder gelten als potenziell überlappend, und ein fehlender Match ist ein
 exklusiver Catch-all. Ein Timer ist höchstens einmal erlaubt, `auto` ist
 exklusiv. Interne `flow`-Kanten zählen nicht als fachliche Trigger.
-Zulässige fachliche Typen sind ausschließlich `button`, `change`, `event`,
-`realtime`, `api`, `timer` und `auto`; `flow` ist ausschließlich intern.
+Zulässige fachliche Trigger-Typen kommen ausschließlich aus
+`/contract.triggerTypes`; aktuell öffentlich sind `button`, `change`,
+`realtime`, `api`, `timer` und `auto`. `flow` ist ausschließlich intern.
 Andere Werte und ungültige Kombinationen werden ohne Alias oder Normalisierung
 abgelehnt. Condition-Pfade unter `events.*`, `realtime.*` und `emitters.*`
 müssen aus dem Product Contract kommen.
@@ -283,8 +284,8 @@ Fields:
 | `from` | Zustands-ID | ja | Quellzustand. |
 | `to` | Zustands-ID | ja | Zielzustand. |
 | `label` | string | nein | Nutzereigene Beschriftung für Schaltfläche oder Kante. Ohne Angabe exakt `Weiter`; Quelle und Ziel bleiben davon getrennte `from`-/`to`-Referenzen. |
-| `triggerType` | `button`, `change`, `event`, `realtime`, `api`, `timer`, `auto` | nein | Standard ist `button`. |
-| `triggerEvent` | string | nein | Konkreter Ereignisname. Wird nur für Schaltfläche/Timer/Auto erzeugt. Change, Event, Realtime und API verlangen eine konkrete Referenz. |
+| `triggerType` | Product-Contract-ID, aktuell `button`, `change`, `realtime`, `api`, `timer`, `auto` | nein | Standard ist `button`. |
+| `triggerEvent` | string | nein | Konkreter Ereignisname. Wird nur für Schaltfläche/Timer/Auto erzeugt. Change, Realtime und API verlangen eine konkrete Referenz. |
 | `triggerMatch` | object | nein | Nur für `realtime`: `{ field, operator, value }` gegen Product-Contract-Felder. Das Feld fehlt für Catch-all vollständig oder ist mit allen drei Eigenschaften typgerecht gesetzt. Zulässige Operatoren stehen ausschließlich in `matchFieldSchemas.<field>.operators`; ihre Definitionen und Operandenformen liefert `/contract.matchOperators`. Matches desselben Events müssen disjunkt sein. |
 | `timerMs` | number | nein | Dauer für Timer-Übergänge. |
 | `condition` | string | nein | Bedingung über Bus-Pfade. |

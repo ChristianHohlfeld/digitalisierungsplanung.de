@@ -14,11 +14,20 @@ const WORLD_MAX_X = 20000;
 const WORLD_MAX_Y = 16000;
 const STATE_VARIABLE_TYPES = ["text", "email", "password", "number", "boolean", "url", "image", "object", "list"];
 const COMPONENT_TYPES = ["heading", "text", "image", "list", "link", "note", "divider", "daisy", "transitionButton", "dataWire"];
-const TRANSITION_TRIGGER_TYPES = ["button", "change", "event", "realtime", "api", "timer", "auto"];
-const TRANSITION_TRIGGER_CONTRACT_TYPES = new Set([...TRANSITION_TRIGGER_TYPES, "flow"]);
 const DATA_WIRE_ROLES = ["image", "title", "price", "description", "field", "link", "note"];
 const FORBIDDEN_COMPONENT_STATE_KEYS = ["localState", "stateStore", "store", "html"];
 const REPOSITORY_PRODUCT_CONTRACT = productContract.productContractResponse(eventCatalog.loadEventCatalogFile());
+const CONTRACT_TRIGGER_TYPES = Array.isArray(REPOSITORY_PRODUCT_CONTRACT.triggerTypes) ? REPOSITORY_PRODUCT_CONTRACT.triggerTypes : [];
+const CONTRACT_TRIGGER_TYPES_BY_ID = new Map(CONTRACT_TRIGGER_TYPES.map(type => [type.id, type]));
+const CONTRACT_TRIGGER_TYPE_IDS = new Set(CONTRACT_TRIGGER_TYPES_BY_ID.keys());
+const CONTRACT_PUBLIC_TRIGGER_TYPES = CONTRACT_TRIGGER_TYPES.filter(type => type.internal !== true);
+const CONTRACT_PUBLIC_TRIGGER_TYPE_IDS = new Set(CONTRACT_PUBLIC_TRIGGER_TYPES.map(type => type.id));
+const CONTRACT_PUBLIC_TRIGGER_TYPE_LIST = CONTRACT_PUBLIC_TRIGGER_TYPES.map(type => type.id).join(", ");
+const CONTRACT_MATCH_TRIGGER_TYPES = new Set(
+  CONTRACT_TRIGGER_TYPES
+    .filter(type => (type.events || []).some(event => (event.matchFields || []).length))
+    .map(type => type.id)
+);
 const CONTRACT_READABLE_PATHS = new Set(
   REPOSITORY_PRODUCT_CONTRACT.stateContributions.flatMap(contribution => [
     contribution.root,
@@ -36,7 +45,6 @@ const CONTRACT_REALTIME_EVENTS_BY_NAME = new Map(
 const CONTRACT_MATCH_OPERATORS_BY_ID = new Map(
   (REPOSITORY_PRODUCT_CONTRACT.matchOperators || []).map(operator => [operator.id, operator])
 );
-const TRIGGER_MATCH_TYPES = new Set(["realtime"]);
 
 function isPlainObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -330,8 +338,8 @@ function triggerMatchContractIssues(transition) {
     add("invalid_trigger_match", "triggerMatch must be absent or define field, operator and value completely.");
     return issues;
   }
-  if (!TRIGGER_MATCH_TYPES.has(triggerType)) {
-    add("invalid_trigger_match_type", "triggerMatch is only supported for Product Contract realtime events.");
+  if (!CONTRACT_MATCH_TRIGGER_TYPES.has(triggerType)) {
+    add("invalid_trigger_match_type", "triggerMatch is only supported for matchable Product Contract events.");
     return issues;
   }
   const event = CONTRACT_REALTIME_EVENTS_BY_NAME.get(eventName);
@@ -1136,12 +1144,12 @@ function transitionTriggerContractIssues(transitions) {
   const byState = new Map();
   for (const transition of transitions) {
     const contractType = transitionTriggerContractType(transition);
-    if (!TRANSITION_TRIGGER_CONTRACT_TYPES.has(contractType)) {
+    if (!CONTRACT_TRIGGER_TYPE_IDS.has(contractType)) {
       issues.push({
         code: "invalid_transition_trigger_type",
         transitionId: String(transition?.id || ""),
         triggerType: contractType,
-        message: "Transition triggerType must be one of button, change, event, realtime, api, timer, auto, flow."
+        message: `Transition triggerType must be one of ${CONTRACT_TRIGGER_TYPES.map(type => type.id).join(", ")}.`
       });
       continue;
     }
@@ -1828,8 +1836,8 @@ function upsertTransition(model, args) {
   target.condition = validateTransitionCondition(args.condition || "");
   target.set = normalizeTransitionPatch(args.set);
   const triggerType = transitionTriggerContractType(args);
-  if (!TRANSITION_TRIGGER_CONTRACT_TYPES.has(triggerType) || triggerType === "flow") {
-    throw new Error("upsert_transition triggerType must be one of button, change, event, realtime, api, timer, auto.");
+  if (!CONTRACT_PUBLIC_TRIGGER_TYPE_IDS.has(triggerType)) {
+    throw new Error(`upsert_transition triggerType must be one of ${CONTRACT_PUBLIC_TRIGGER_TYPE_LIST}.`);
   }
   target.triggerType = triggerType;
   target.triggerEvent = normalizeTransitionEventName(args.triggerEvent || (target.triggerType === "change" ? "" : defaultTransitionEvent(target)));

@@ -75,7 +75,7 @@ The event catalog is the server-side source of truth for offered realtime events
 - `server/preset-library.json`: single managed source for preset categories, package metadata, and custom presets.
 - `/` and `/admin.html`: central admin hub for human-facing server tools.
 - `/admin/routes`: one JSON route index consumed by the admin hub.
-- `/contract`: product contract for frontend trigger types, value types, datasets, connector sources, preset packages, subscription plans, and collision-free state contribution paths.
+- `/contract`: product contract for frontend trigger types, value types, datasets, connector sources, preset types, preset packages, subscription plans, and collision-free state contribution paths.
 - `/events`: canonical realtime catalog for event keys, detail types, emitters, and contribution paths.
 - `/ws`: WebSocket relay only.
 - `/emit`: authenticated server-to-server fire endpoint only.
@@ -120,10 +120,11 @@ The editor initially exposes one preset category, `websuite-builder`, containing
 all shipped website, basic, form, data, and additional presets. Categories are
 navigation; packages are separate commercial metadata. The Preset Designer may
 add categories, packages, and custom presets through the complete-library
-contract. Active markup, event attributes, unsupported or ambiguous components,
-and malformed structured defaults are rejected. Only the normalized variant and
-data are persisted in Git; snippets and raw HTML never enter `/contract` or a
-canvas model.
+contract. Preset and component variants are exposed through `/contract.presetTypes`;
+the frontend must not keep a second product variant list. Active markup, event
+attributes, unsupported or ambiguous components, and malformed structured
+defaults are rejected. Only the normalized variant and data are persisted in
+Git; snippets and raw HTML never enter `/contract` or a canvas model.
 
 Website Builder includes `Exportierbares Bild`, a normal contract preset with
 an `image` field under its unique state contribution. A local editor upload is

@@ -212,6 +212,11 @@ test("serves the event and connector catalog only to allowed origins", async () 
     assert.ok(productContractPayload.triggerTypes.some(type => type.id === "button"));
     assert.ok(productContractPayload.triggerTypes.some(type => type.id === "timer"));
     assert.ok(productContractPayload.triggerTypes.some(type => type.id === "api"));
+    assert.deepEqual(
+      productContractPayload.presetTypes.find(type => type.id === "component").variants.map(variant => variant.id),
+      ["heading", "text", "image", "list", "link", "note", "divider"]
+    );
+    assert.ok(productContractPayload.presetTypes.find(type => type.id === "daisy").variants.some(variant => variant.id === "chart"));
     const apiTrigger = productContractPayload.triggerTypes.find(type => type.id === "api");
     assert.deepEqual(apiTrigger.events.map(event => event.name), ["fetch.*.success", "fetch.*.error"]);
     assert.deepEqual(

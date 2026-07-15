@@ -372,7 +372,7 @@ test.describe("State Blueprint MCP", () => {
       { id: "event_a", from: "start", to: "a", label: "A", triggerType: "event", triggerEvent: "event.route", set: {} },
       { id: "event_b", from: "start", to: "b", label: "B", triggerType: "event", triggerEvent: "event.route", set: {} }
     ];
-    expect(validateModel(duplicateEvent).issues).toContainEqual(expect.objectContaining({ code: "duplicate_transition_trigger", triggerKey: "event:event.route|match:*" }));
+    expect(validateModel(duplicateEvent).issues).toContainEqual(expect.objectContaining({ code: "invalid_transition_trigger_type", triggerType: "event" }));
 
     const duplicateRealtime = base();
     duplicateRealtime.transitions.push({ id: "event_c", from: "start", to: "c", label: "C event", triggerType: "realtime", triggerEvent: "realtime.sip.call.incoming", set: {} });
@@ -423,7 +423,7 @@ test.describe("State Blueprint MCP", () => {
       to: "c",
       label: "Invalid",
       triggerType: "click"
-    }])).toThrow("triggerType must be one of button, change, event, realtime, api, timer, auto");
+    }])).toThrow("triggerType must be one of button, change, realtime, timer, auto, api");
   });
 
   test("rejects undefined JSON values and keeps API responses as a first-class trigger @smoke", () => {
@@ -473,7 +473,7 @@ test.describe("State Blueprint MCP", () => {
 
     const genericFetch = structuredClone(model);
     genericFetch.transitions[0].triggerType = "event";
-    expect(validateModel(genericFetch).issues).toContainEqual(expect.objectContaining({ code: "invalid_event_trigger_namespace" }));
+    expect(validateModel(genericFetch).issues).toContainEqual(expect.objectContaining({ code: "invalid_transition_trigger_type" }));
 
     for (const [triggerMatch, code] of [
       [{}, "invalid_trigger_match"],

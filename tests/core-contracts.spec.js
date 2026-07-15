@@ -478,7 +478,8 @@ test.describe("Core source contracts", () => {
     await page.goto("/state.html");
     const appHtml = await generatedPreviewHtml(page);
 
-    expect(appHtml).toContain("function runtimeSupportedDaisyComponent");
+    expect(appHtml).toContain("function runtimeDaisyLayoutAllowsFlow");
+    expect(appHtml).not.toContain("SUPPORTED_DAISY_VARIANTS");
     expect(appHtml).toContain('variant === "button"');
     expect(appHtml).toContain('layout === "search-dropdown"');
     expect(appHtml).toContain('layout === "figure-reverse"');
@@ -537,7 +538,7 @@ test.describe("Core source contracts", () => {
       "function appendDaisyLocalActionButton(parent, component, label, onClick, className = \"\")",
       "if (detail?.transitionId && transition?.id !== detail.transitionId) return false;",
       "function daisyExplicitTransitionIds(component)",
-      '"navbar", "pricing", "progress"',
+      "function runtimeDaisyLayoutAllowsFlow(component)",
       '"columns", "links", "plans"',
       'source: "pricing"',
       'variant === "card" || variant === "hero" || variant === "feature-grid" || variant === "pricing"',
@@ -1205,6 +1206,7 @@ test.describe("Core source contracts", () => {
 
   test("formal definitions require owned and unambiguous transition action targets @smoke", async ({ page }) => {
     await page.goto("/state.html");
+    await page.waitForFunction(() => eval("Boolean(productContract && productContract.triggerTypes && productContract.triggerTypes.length)"));
 
     const messages = await page.evaluate(() => {
       const boundary = { entryId: "", exitId: "", entryDisabled: false, exitDisabled: false, title: "", note: "" };
@@ -1521,16 +1523,16 @@ test.describe("Core source contracts", () => {
       expect.stringContaining("overlaps trigger match realtime:realtime.sip.call.ended"),
       expect.stringContaining("duplicates trigger change:change.states.start.value"),
       expect.stringContaining("must reference one concrete change bus path"),
-      expect.stringContaining("duplicates trigger event:event.route"),
+      expect.stringContaining("triggerType must be one of button, change, realtime, timer, auto, api"),
       expect.stringContaining("duplicates trigger realtime:realtime.sip.call.incoming|match:*"),
       expect.stringContaining("duplicates trigger timer"),
       expect.stringContaining("must contain only one auto transition"),
-      expect.stringContaining("triggerType must be one of button, change, event, realtime, api, timer, auto"),
+      expect.stringContaining("triggerType must be one of button, change, realtime, timer, auto, api"),
       expect.stringContaining("must reference a realtime event declared by the Product Contract"),
       expect.stringContaining("triggerMatch must be absent or define field, operator and value completely"),
       expect.stringContaining("triggerMatch must be absent or define field, operator and value completely"),
       expect.stringContaining("duplicates trigger realtime:realtime.sip.call.incoming|match:*"),
-      expect.stringContaining("triggerType must be one of button, change, event, realtime, api, timer, auto")
+      expect.stringContaining("triggerType must be one of button, change, realtime, timer, auto, api")
     ]);
   });
 
@@ -1586,8 +1588,8 @@ test.describe("Core source contracts", () => {
             to: "done",
             label: "Done",
             condition,
-            triggerType: "event",
-            triggerEvent: "event.route",
+            triggerType: "button",
+            triggerEvent: "button.to_done.clicked",
             set: {},
             groupEntryId: "",
             groupExitId: ""
@@ -1802,8 +1804,9 @@ test.describe("Core source contracts", () => {
     expect(presetCatalog).not.toContain('title: "Kopfleiste - Farben"');
     expect(presetCatalog).toContain('title: "Titelbereich mit Bild rechts"');
     expect(presetCatalog).toContain('title: "Aktionsbutton"');
-    expect(appHtml).toContain("const SUPPORTED_DAISY_VARIANTS = new Set");
-    expect(appHtml).toContain("function runtimeSupportedDaisyComponent");
+    expect(appHtml).not.toContain("const SUPPORTED_DAISY_VARIANTS = new Set");
+    expect(appHtml).toContain("function runtimeDaisyLayoutAllowsFlow");
+    expect(appHtml).toContain('"card bg-base-100 shadow-sm"');
     expect(html).not.toContain("pruneUnsupportedDaisyRuntime");
     expect(appHtml).not.toContain("pruneUnsupportedDaisyRuntime");
     expect(appHtml).not.toContain("pruneLegacyDaisyRuntime");
@@ -2211,13 +2214,12 @@ test.describe("Core source contracts", () => {
     await expect.poll(async () => (await runtimeContext(page)).state?.lastTransition || "").toBe("");
   });
 
-  for (const triggerType of ["button", "timer", "change", "event", "realtime", "auto"]) {
+  for (const triggerType of ["button", "timer", "change", "realtime", "auto"]) {
     test(`explicit daisy actions render only for button triggers: ${triggerType} @smoke`, async ({ page }) => {
       const triggerEvent = {
         button: "button.bound_action.clicked",
         timer: "timer.bound_action.done",
         change: "change.states.start.signal",
-        event: "event.bound.action",
         realtime: "realtime.sip.call.incoming",
         auto: "auto.bound_action"
       }[triggerType];
@@ -2319,13 +2321,12 @@ test.describe("Core source contracts", () => {
     await expect(app.getByRole("button", { name: "Öffnen", exact: true })).toHaveCount(0);
   });
 
-  for (const triggerType of ["button", "timer", "change", "event", "realtime", "auto"]) {
+  for (const triggerType of ["button", "timer", "change", "realtime", "auto"]) {
     test(`parent ${triggerType} exits become eligible only at the configured child exit @smoke`, async ({ page }) => {
       const triggerEvent = {
         button: "button.parent_out.clicked",
         timer: "timer.parent_out.done",
         change: "change.states.parent.signal",
-        event: "event.parent.exit",
         realtime: "realtime.sip.call.incoming",
         auto: "auto.parent_out"
       }[triggerType];
@@ -2689,6 +2690,11 @@ test.describe("Core source contracts", () => {
     expect(hostHtml).not.toContain("DEFAULT_STATE_VARIABLE_TYPES");
     expect(hostHtml).not.toContain("types.length ? types : [");
     expect(hostHtml).not.toContain('{ id: "button", label: "Klick" }');
+    expect(hostHtml).not.toContain("TRANSITION_TRIGGER_CONTRACT_TYPES");
+    expect(hostHtml).not.toContain("TRIGGER_MATCH_TYPES");
+    expect(hostHtml).toContain("normalizeProductContractPresetType");
+    expect(hostHtml).toContain("productContractPresetVariants(\"component\")");
+    expect(hostHtml).not.toContain("SUPPORTED_DAISY_VARIANTS");
   });
 
   test("canonical JSON and runtime contracts do not keep removed aliases @smoke", () => {
@@ -3058,7 +3064,7 @@ test.describe("Core browser contracts", () => {
         { id: "route_b", title: "Route B", components: [], data: {}, dataTypes: {}, x: 420, y: 280 }
       ],
       transitions: [
-        { id: "to_a", from: "waiting", to: "route_a", label: "A", condition: "", triggerType: "event", triggerEvent: "event.route", set: {} }
+        { id: "to_a", from: "waiting", to: "route_a", label: "A", condition: "", triggerType: "button", triggerEvent: "button.to_a.clicked", set: {} }
       ]
     });
 
@@ -3078,7 +3084,7 @@ test.describe("Core browser contracts", () => {
       const scenarios = [
         { name: "change", eventName: "change.states.waiting.value", transitions: [candidate("change_a", "change", "change.states.waiting.value"), candidate("change_b", "change", "change.states.waiting.value")] },
         { name: "change-wildcard", eventName: "change.any", transitions: [candidate("change_a", "change"), candidate("change_b", "change")] },
-        { name: "event", eventName: "event.route", transitions: [candidate("event_a", "event", "event.route"), candidate("event_b", "event", "event.route")] },
+        { name: "event", eventName: "event.route", transitions: [candidate("event_a", "event", "event.route")] },
         { name: "realtime", eventName: "realtime.route", transitions: [candidate("realtime_a", "realtime", "realtime.route"), candidate("realtime_b", "realtime", "realtime.route")] },
         { name: "api", eventName: "fetch.states.waiting.fetch.success", transitions: [candidate("api_a", "api", "fetch.states.waiting.fetch.success"), candidate("api_b", "api", "fetch.states.waiting.fetch.success")] },
         { name: "public-flow", eventName: "flow.child.entry", transitions: [candidate("flow_a", "flow", "flow.child.entry")] },
@@ -3092,11 +3098,11 @@ test.describe("Core browser contracts", () => {
           ]
         },
         { name: "timer", eventName: "timer.timer_a.done", transitions: [candidate("timer_a", "timer", "timer.timer_a.done"), candidate("timer_b", "timer", "timer.timer_b.done")] },
-        { name: "auto", eventName: "auto.auto_a", transitions: [candidate("auto_a", "auto", "auto.auto_a"), candidate("event_b", "event", "event.route")] },
-        { name: "missing-event", eventName: "event.route", transitions: [candidate("event_a", "event")] },
+        { name: "auto", eventName: "auto.auto_a", transitions: [candidate("auto_a", "auto", "auto.auto_a"), candidate("button_b", "button", "button.button_b.clicked")] },
+        { name: "missing-realtime", eventName: "realtime.sip.call.incoming", transitions: [candidate("realtime_missing", "realtime")] },
         { name: "invalid-type", eventName: "click.invalid", transitions: [candidate("invalid_a", "click", "click.invalid")] },
         { name: "valid-buttons", transitions: [candidate("button_a", "button", "button.button_a.clicked"), candidate("button_b", "button", "button.button_b.clicked")] },
-        { name: "valid-events", transitions: [candidate("event_a", "event", "event.a"), candidate("event_b", "event", "event.b")] }
+        { name: "valid-realtime-events", transitions: [candidate("realtime_a", "realtime", "realtime.sip.call.incoming"), candidate("realtime_b", "realtime", "realtime.sip.call.answered")] }
       ];
       return scenarios.map(scenario => {
         runtimeModel.transitions = JSON.parse(JSON.stringify(scenario.transitions));
@@ -3118,18 +3124,18 @@ test.describe("Core browser contracts", () => {
     expect(runtimeResult).toEqual([
       { name: "change", handled: false, current: "waiting", reason: "duplicate-trigger", transitionIds: ["change_a", "change_b"] },
       { name: "change-wildcard", handled: false, current: "waiting", reason: "missing-trigger", transitionIds: ["change_a"] },
-      { name: "event", handled: false, current: "waiting", reason: "duplicate-trigger", transitionIds: ["event_a", "event_b"] },
+      { name: "event", handled: false, current: "waiting", reason: "invalid-trigger-type", transitionIds: ["event_a"] },
       { name: "realtime", handled: false, current: "waiting", reason: "duplicate-trigger", transitionIds: ["realtime_a", "realtime_b"] },
       { name: "api", handled: false, current: "waiting", reason: "duplicate-trigger", transitionIds: ["api_a", "api_b"] },
       { name: "public-flow", handled: false, current: "waiting", reason: "invalid-public-flow", transitionIds: ["flow_a"] },
       { name: "invalid-match", handled: false, current: "waiting", reason: "invalid-trigger-match", transitionIds: ["match_a"] },
       { name: "overlapping-match", handled: false, current: "waiting", reason: "ambiguous-trigger-match", transitionIds: ["match_a", "match_b"] },
       { name: "timer", handled: false, current: "waiting", reason: "duplicate-trigger", transitionIds: ["timer_a", "timer_b"] },
-      { name: "auto", handled: false, current: "waiting", reason: "exclusive-auto", transitionIds: ["auto_a", "event_b"] },
-      { name: "missing-event", handled: false, current: "waiting", reason: "missing-trigger", transitionIds: ["event_a"] },
+      { name: "auto", handled: false, current: "waiting", reason: "exclusive-auto", transitionIds: ["auto_a", "button_b"] },
+      { name: "missing-realtime", handled: false, current: "waiting", reason: "missing-trigger", transitionIds: ["realtime_missing"] },
       { name: "invalid-type", handled: false, current: "waiting", reason: "invalid-trigger-type", transitionIds: ["invalid_a"] },
       { name: "valid-buttons", handled: null, current: "waiting", reason: "", transitionIds: [] },
-      { name: "valid-events", handled: null, current: "waiting", reason: "", transitionIds: [] }
+      { name: "valid-realtime-events", handled: null, current: "waiting", reason: "", transitionIds: [] }
     ]);
     await expect(appFrame(page).locator("#statePill")).toHaveText("waiting");
   });

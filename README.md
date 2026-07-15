@@ -111,7 +111,7 @@ Der Server in [`server/`](server/) ist nur Transport. Er speichert keine fachlic
 | `GET /admin/routes` | JSON-Index aller sichtbaren Realtime-Tools und Endpunkte |
 | `GET /healthz` | Gesundheitsprüfung |
 | `GET /version` | gemeinsame Frontend-/Backend-Release-ID |
-| `GET /contract` | zentraler Product Contract v2: Trigger-Typen, Datentypen, Match-Operatoren, Datasets, Quellen, Presets, Preset-Pakete, Abo-Pläne und State-Beiträge |
+| `GET /contract` | zentraler Product Contract: Trigger-Typen, Datentypen, Match-Operatoren, Datasets, Quellen, Preset-Typen, Presets, Preset-Pakete, Abo-Pläne und State-Beiträge |
 | `GET /events` | kanonischer Realtime-Katalog mit Ereignissen, Emittern, Datentypen und State-Beiträgen |
 | `GET /token` | signiertes Raum-Token für den Browser |
 | `GET /console.html` | Testoberfläche für Ereignisse |
@@ -129,7 +129,7 @@ Der harte Contract kommt aus [`server/event-catalog.json`](server/event-catalog.
 und wird vom Server unter `/contract` als Product Contract ausgeliefert:
 Trigger-Typen, Value-Types mit Constraints, `matchOperators` samt strikter
 Operandenform, `realtime.*`-Datasets, Quellen,
-Standard-Presets aus `server/preset-catalog.js`, verwaltete Presets und
+Preset-Typen und deren Varianten, Standard-Presets aus `server/preset-catalog.js`, verwaltete Presets und
 Kategorien aus `server/preset-library.json`, Preset-Pakete,
 Abo-Pläne und kollisionsfreie State-Beiträge. Jedes Contract-Feld liefert neben `fieldTypes`
 auch `fieldSchemas` mit `type`, `jsonType`, `default` und `constraints`
@@ -143,7 +143,7 @@ Operator-IDs aus `matchFieldSchemas.<field>.operators`; er leitet weder Felder
 aus `detail` noch Operatoren aus dem Datentyp ab.
 `state.html` lädt `/contract` beim Start mit `no-store`; wenn der Product
 Contract nicht erreichbar ist, startet der Editor nicht mit lokalen
-Fallback-Typen oder lokalen Preset-Definitionen.
+Fallback-Typen, lokalen Preset-Varianten oder lokalen Preset-Definitionen.
 
 Preset-Pakete sind reine Server-Metadaten für Verkauf, Anzeige und spätere
 Freischaltung. Der Canvas speichert keine Paketkopie; ein Preset schreibt
@@ -177,8 +177,9 @@ dieselbe Triggeridentität nur einmal vorkommen. Conditions gehören nicht zur
 Identität und dürfen keinen mehrfach belegten Event priorisieren. Ein Timer ist einmal
 zulässig, `auto` ist exklusiv. Der Editor speichert keinen Konflikt, Import/API/MCP
 lehnen ihn ab und die gemeinsame Preview-/Export-Runtime bleibt bei Fremdmodellen
-fail-closed. Zulässige fachliche Typen sind ausschließlich `button`, `change`,
-`event`, `realtime`, `api`, `timer` und `auto`; internes `flow` dient nur der
+fail-closed. Zulässige fachliche Trigger-Typen kommen ausschließlich aus
+`/contract.triggerTypes`; aktuell öffentlich sind `button`, `change`,
+`realtime`, `api`, `timer` und `auto`. Internes `flow` dient nur der
 Child-Führung. Unbekannte Werte werden nicht als Alias akzeptiert oder
 normalisiert. Server-getriebene Condition-Pfade unter `events.*`, `realtime.*`
 und `emitters.*` müssen exakt im Product Contract deklariert sein.

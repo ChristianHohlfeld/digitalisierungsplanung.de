@@ -8182,7 +8182,7 @@ test.describe("State Blueprint tool", () => {
     }
   });
 
-  test("rejects bus-event transitions in owned runtime namespaces @smoke", async ({ page }) => {
+  test("rejects non-contract bus-event transitions before owned runtime namespaces @smoke", async ({ page }) => {
     await openTool(page);
 
     const result = await page.evaluate(() => {
@@ -8204,7 +8204,7 @@ test.describe("State Blueprint tool", () => {
     });
 
     expect(result).toEqual({
-      message: expect.stringContaining("must define one concrete trigger"),
+      message: expect.stringContaining("must use one contractual trigger type"),
       unchanged: true
     });
     await expect(appFrame(page).locator('button[data-transition-id="t_auth_login"]')).toBeVisible();
