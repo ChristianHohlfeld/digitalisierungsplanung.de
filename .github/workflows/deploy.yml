@@ -89,7 +89,7 @@ jobs:
         run: npm run build:site
       - uses: actions/configure-pages@v5
       - name: Upload the verified static release
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: dist
       - name: Publish or complete the release refs atomically
