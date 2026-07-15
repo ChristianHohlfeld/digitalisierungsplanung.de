@@ -740,7 +740,9 @@ und Parent-Ausgänge an ihrem `groupExitId`.
   den bereits bestätigten ersten Runtime-Start aber weder verzögern noch
   zurücknehmen. Der bestätigte Click MUSS noch im selben Ereignis eine grüne
   Canvas-Rückmeldung zeigen, ohne damit den State vor der Runtime-Bestätigung
-  als aktiv auszugeben. Drag, Pan und Port-Connect starten keine Runtime-Aktion.
+  als aktiv auszugeben. Ein vom Nutzer eingeklappter Inspector wird dabei nicht
+  unsichtbar neu aufgebaut; beim ausdrücklichen Ausklappen rendert er frisch aus
+  der aktuellen Auswahl. Drag, Pan und Port-Connect starten keine Runtime-Aktion.
 - **ED-023 Deterministischer Desktop-Abschluss:** State-, Canvas- und
   Transition-Gesten MÜSSEN beim zugehörigen `pointerup` genau einmal
   abgeschlossen werden. Ein nachfolgendes `mouseup` DARF dieselbe Geste weder
@@ -1816,9 +1818,11 @@ auch extern erfüllt.
   wurde ausgelassen oder durch Retry beziehungsweise Force ersetzt.
 - Die aktuelle Klick-Nachschärfung wurde zusätzlich mit 10/10 angrenzenden
   Browserfällen für Auto-Parent, Runtime-Markierung, dichte Graphen, Drag,
-  Hitbox, Auswahl, Undo/Redo und Layer-Follow geprüft. Im vollständigen
-  Beispielablauf erscheint die grüne Canvas-Rückmeldung 12,6 ms nach
-  `pointerup`; das Aktiv-Badge bleibt an die Runtime-Bestätigung gebunden.
+  Hitbox, Auswahl, Undo/Redo und Layer-Follow sowie mit dem vollständigen
+  zuvor betroffenen CI-Shard 4/4 als 97/97 geprüft. Der Browservertrag fordert
+  die grüne Canvas-Rückmeldung in weniger als 50 ms nach `pointerup`; die lokale
+  Messung im vollständigen Beispielablauf lag bei 12,6 ms. Das Aktiv-Badge
+  bleibt an die Runtime-Bestätigung gebunden.
 - Lean-Audit vom 2026-07-14: Die Runtime-Enhancer-Kette und 54 nachweislich
   aufruferlose Hostfunktionen wurden entfernt. Der Produktcode in `state.html`
   und `mcp/state-blueprint-server.js` schrumpfte netto um 4.421 Zeilen.

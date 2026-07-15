@@ -10022,6 +10022,10 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator(".quick-title-input")).toHaveValue("Join");
     await expect.poll(() => page.locator(".quick-title-input").evaluate(el => document.activeElement === el)).toBe(true);
     await expect(page.locator('[data-id="register"] .title')).toHaveText("Join");
+
+    await page.locator("#btnToggleInspector").click();
+    await expect(page.locator("#pTitle")).toBeVisible();
+    await expect(page.locator("#pTitle")).toHaveValue("Join");
   });
 
   test("double-click state creation keeps a collapsed inspector collapsed", async ({ page }) => {

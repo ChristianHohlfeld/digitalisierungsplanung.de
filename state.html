@@ -11162,13 +11162,11 @@
     }
 
     function showNodePropertiesAfterInput(state, options = {}) {
-      const stateId = state?.id || "";
-      const layerId = currentLayerId || null;
-      setTimeout(() => {
-        const currentState = byId(stateId);
-        if (!currentState || (currentLayerId || null) !== layerId || singleSelectedNodeId() !== stateId) return;
-        showNodeProperties(currentState, options);
-      }, 0);
+      if (inspectorCollapsedByUser && options.forceOpen !== true) {
+        if (options.pulse !== false) pulseCollapsedInspector();
+        return;
+      }
+      showNodeProperties(state, options);
     }
 
     function pulseAutoEntryLayerBack() {
@@ -24323,6 +24321,7 @@
       inspectorCollapsed = !inspectorCollapsed;
       inspectorCollapsedByUser = inspectorCollapsed;
       applyInspectorCollapsed();
+      if (!inspectorCollapsed) refreshInspectorForSelection();
     };
     document.getElementById("btnFit").onclick = () => runTopbarAction(fitView);
     document.getElementById("btnResetView").onclick = () => runTopbarAction(resetView);
