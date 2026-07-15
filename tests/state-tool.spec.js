@@ -1053,10 +1053,9 @@ async function traverseWebsiteDemoShard(page, shardIndex, shardCount) {
   const typeInto = async (selector, value, index = 0) => {
     const input = app.locator(selector).nth(index);
     await expect(input, `missing input ${selector} for ${await app.locator("#statePill").textContent()}`).toBeVisible();
-    await input.click();
-    await page.keyboard.press(process.platform === "darwin" ? "Meta+A" : "Control+A");
-    await page.keyboard.press("Backspace");
-    if (value) await input.pressSequentially(value);
+    await input.fill("");
+    if (value) await input.fill(value);
+    await expect(input).toHaveValue(value);
   };
   const prepare = async transition => {
     const shortId = String(transition.from || "").replace(/^site_/, "");
@@ -3636,7 +3635,7 @@ test.describe("State Blueprint tool", () => {
     }).toEqual({ entryId: childId, entryDisabled: false, inputFlow: true });
   });
 
-  test("disables boundaries instead of guessing a replacement after deleting the anchored child @smoke", async ({ page }) => {
+  test("rewires boundaries to the remaining child after deleting the anchored child @smoke", async ({ page }) => {
     await openTool(page);
     await openStateLayer(page, "login");
     const firstChildId = await addChildByDoubleClick(page, "login");
@@ -3682,9 +3681,9 @@ test.describe("State Blueprint tool", () => {
 
     await expect(page.locator(`[data-id="${firstChildId}"]`)).toHaveCount(0);
     await expect(page.locator(`[data-id="${secondChildId}"]`)).toBeVisible();
-    await expect(page.locator(".node.boundary-proxy")).toHaveCount(0);
-    await expect(page.locator(`svg#ports .svg-port[data-state-id="${inputProxyId}"][data-port-side="out"]`)).toHaveCount(0);
-    await expect(page.locator(`svg#ports .svg-port[data-state-id="${outputProxyId}"][data-port-side="in"]`)).toHaveCount(0);
+    await expect(page.locator(".node.boundary-proxy")).toHaveCount(2);
+    await expect(page.locator(`svg#ports .svg-port[data-state-id="${inputProxyId}"][data-port-side="out"]`)).toHaveCount(1);
+    await expect(page.locator(`svg#ports .svg-port[data-state-id="${outputProxyId}"][data-port-side="in"]`)).toHaveCount(1);
     await expect(page.locator(`svg#ports .svg-port[data-state-id="${secondChildId}"][data-port-side="in"]`)).toHaveCount(1);
     await expect(page.locator(`svg#ports .svg-port[data-state-id="${secondChildId}"][data-port-side="out"]`)).toHaveCount(1);
     await expect.poll(async () => {
@@ -3708,12 +3707,12 @@ test.describe("State Blueprint tool", () => {
         )
       };
     }).toEqual({
-      entryId: "",
-      exitId: "",
-      entryDisabled: true,
-      exitDisabled: true,
-      inputFlow: false,
-      outputFlow: false
+      entryId: secondChildId,
+      exitId: secondChildId,
+      entryDisabled: false,
+      exitDisabled: false,
+      inputFlow: true,
+      outputFlow: true
     });
   });
 
@@ -3808,11 +3807,12 @@ test.describe("State Blueprint tool", () => {
     });
   });
 
-  test("keeps boundary proxies enabled after deleting a selected boundary transition @smoke", async ({ page }) => {
+  test("keeps boundary proxies and canonical flows enabled after deleting selected boundary transitions @smoke", async ({ page }) => {
     await openTool(page);
     await openStateLayer(page, "login");
     const childId = await addChildByDoubleClick(page, "login");
     const inputProxyId = "proxy:login:input:__boundary_input";
+    const outputProxyId = "proxy:login:output:__boundary_output";
     const manualBoundaryId = "manual-boundary-login-input";
 
     const deleted = await page.evaluate(({ childId, manualBoundaryId }) => {
@@ -3838,25 +3838,64 @@ test.describe("State Blueprint tool", () => {
 
     await expect(page.locator(".node.boundary-proxy")).toHaveCount(2);
     await expect(page.locator(`svg#ports .svg-port[data-state-id="${inputProxyId}"][data-port-side="out"]`)).toHaveCount(1);
+    await expect(page.locator(`svg#ports .svg-port[data-state-id="${outputProxyId}"][data-port-side="in"]`)).toHaveCount(1);
     await expect.poll(async () => {
       const model = await savedModel(page);
       const parent = model.states.find(state => state.id === "login");
       const boundary = parent?.boundary || {};
       return {
         entryId: boundary.entryId || "",
+        exitId: boundary.exitId || "",
         entryDisabled: Boolean(boundary.entryDisabled),
+        exitDisabled: Boolean(boundary.exitDisabled),
         removedFlow: model.transitions.some(transition => transition.id === manualBoundaryId),
         inputFlow: model.transitions.some(transition =>
           transition.id === "boundary-flow:login:input" &&
           transition.from === inputProxyId &&
           transition.to === childId
+        ),
+        outputFlow: model.transitions.some(transition =>
+          transition.id === "boundary-flow:login:output" &&
+          transition.from === childId &&
+          transition.to === outputProxyId
         )
       };
     }).toEqual({
       entryId: childId,
+      exitId: childId,
       entryDisabled: false,
+      exitDisabled: false,
       removedFlow: false,
-      inputFlow: true
+      inputFlow: true,
+      outputFlow: true
+    });
+
+    const removedOutputAnchorDelete = await page.evaluate(() => {
+      selected = selectionFromParts([], ["boundary-flow:login:output"]);
+      return deleteSelectedItems();
+    });
+    expect(removedOutputAnchorDelete).toBe(true);
+
+    await expect(page.locator(".node.boundary-proxy")).toHaveCount(2);
+    await expect(page.locator(`.edge[data-edge-id="boundary-flow:login:output"]`)).toHaveCount(1);
+    await expect(page.locator(`svg#ports .svg-port[data-state-id="${outputProxyId}"][data-port-side="in"]`)).toHaveCount(1);
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      const parent = model.states.find(state => state.id === "login");
+      const boundary = parent?.boundary || {};
+      return {
+        exitId: boundary.exitId || "",
+        exitDisabled: Boolean(boundary.exitDisabled),
+        outputFlow: model.transitions.some(transition =>
+          transition.id === "boundary-flow:login:output" &&
+          transition.from === childId &&
+          transition.to === outputProxyId
+        )
+      };
+    }).toEqual({
+      exitId: childId,
+      exitDisabled: false,
+      outputFlow: true
     });
   });
 

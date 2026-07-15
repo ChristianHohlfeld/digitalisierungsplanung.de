@@ -11054,13 +11054,15 @@
       return out;
     }
 
-    function layerHasStateOutsideSet(parent, removeSet) {
+    function remainingBoundaryStateForParent(parent, removeSet) {
       const layerId = layerChildParentId(parent);
-      return model.states.some(state => !removeSet.has(state.id) && stateParentId(state) === layerId);
+      return model.states.find(state => !state.virtualProxy && !removeSet.has(state.id) && stateParentId(state) === layerId) || null;
     }
 
     function clearRemovedBoundaryEndpoint(parent, side, removeSet) {
-      clearBoundaryEndpoint(parent, side, { disable: layerHasStateOutsideSet(parent, removeSet) });
+      const replacement = remainingBoundaryStateForParent(parent, removeSet);
+      if (replacement) setBoundaryEndpoint(parent, side, replacement.id);
+      else clearBoundaryEndpoint(parent, side);
     }
 
     function boundaryParentKey(parent) {
@@ -12350,13 +12352,16 @@
       if (!flow) return false;
       const parent = boundaryParentFromFlow(flow);
       const side = flow.side;
-      if (side === "input" || side === "output") clearBoundaryEndpoint(parent, side);
-      else clearBoundaryRoute(parent);
       model.transitions = model.transitions.filter(item => {
         if (item.id === edgeId) return false;
         const itemFlow = boundaryFlowInfoFromTransition(item, item.id);
         return !(itemFlow && itemFlow.parentId === flow.parentId && itemFlow.side === side);
       });
+      if (side === "input" || side === "output") {
+        rebuildBoundaryTransitionsForParents([boundaryParentKey(parent)]);
+      } else {
+        clearBoundaryRoute(parent);
+      }
       return true;
     }
 
