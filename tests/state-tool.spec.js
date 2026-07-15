@@ -14957,6 +14957,62 @@ test.describe("State Blueprint tool", () => {
     expect(definition.model.transitions).toEqual([]);
   });
 
+  test("explains editor start failures in user language and retries without fallback data @smoke", async ({ page }) => {
+    const model = defaultTestModel();
+    let contractRequests = 0;
+    await page.route("**/contract", route => {
+      contractRequests += 1;
+      if (contractRequests <= 2) {
+        return route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          headers: { "Cache-Control": "no-store" },
+          body: JSON.stringify({ error: "temporarily_unavailable" })
+        });
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers: { "Cache-Control": "no-store" },
+        body: JSON.stringify(productContractForTest())
+      });
+    });
+    await page.addInitScript(({ key, model }) => {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(`${key}.editor`, JSON.stringify({ model }));
+    }, { key: STORAGE_KEY, model });
+
+    await page.goto("/state.html");
+    await expect(page.locator("#modalTitle")).toHaveText("Editor kann gerade nicht starten");
+    await expect(page.locator("#modalMessage")).toContainText("Deine gespeicherte Arbeit bleibt erhalten");
+    await expect(page.locator("#modalMessage")).not.toContainText("Contract");
+    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(0);
+    expect(contractRequests).toBe(1);
+    expect(await page.evaluate(key => {
+      const stored = JSON.parse(localStorage.getItem(`${key}.editor`) || "{}");
+      return stored.model?.states?.map(state => state.id) || [];
+    }, STORAGE_KEY)).toEqual(model.states.map(state => state.id));
+
+    await page.locator("#modalBackdrop").getByRole("button", { name: "Erneut versuchen", exact: true }).click();
+    await expect.poll(() => contractRequests).toBe(2);
+    await expect(page.locator("#modalBackdrop")).toBeVisible();
+    await expect(page.locator("#modalTitle")).toHaveText("Editor kann gerade nicht starten");
+    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Schließen", exact: true }).click();
+    const startError = page.locator(".state-explorer-start-error");
+    await expect(startError).toContainText("Editor kann gerade nicht starten");
+    await expect(startError).not.toContainText("Contract");
+    await startError.getByRole("button", { name: "Erneut versuchen", exact: true }).click();
+
+    await expect(page.locator('[data-id="auth_start"]')).toBeVisible();
+    await expect(appFrame(page).locator("#statePill")).toHaveText("auth_start");
+    await expect(page.locator("#modalBackdrop")).toBeHidden();
+    expect(contractRequests).toBe(3);
+  });
+
   test("keeps the editor a pure state tool without recorder surfaces @smoke", async ({ page }) => {
     await openTool(page);
     await expect(page.locator("#btnProcessRecord, #processRecordingStatus")).toHaveCount(0);

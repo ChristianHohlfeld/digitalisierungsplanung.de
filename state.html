@@ -3485,6 +3485,23 @@
       line-height: 1.35;
     }
 
+    .state-explorer-start-error {
+      gap: 8px;
+      white-space: normal;
+    }
+
+    .state-explorer-start-error strong {
+      color: #f8fbff;
+      font-size: 13px;
+    }
+
+    .state-explorer-start-error button {
+      width: fit-content;
+      min-height: 32px;
+      padding: 5px 10px;
+      font-size: 12px;
+    }
+
     .component-empty {
       border: 1px dashed #244766;
       border-radius: 12px;
@@ -8775,17 +8792,33 @@
     }
 
     function showProductContractUnavailable() {
-      const message = "Product Contract nicht erreichbar. Der Editor startet ohne Server-Contract nicht.";
+      const title = "Editor kann gerade nicht starten";
+      const message = "Zustand kann gerade keine Verbindung herstellen. Prüfe deine Internetverbindung oder versuche es in einem Moment erneut. Deine gespeicherte Arbeit bleibt erhalten.";
       if (stateExplorerGroupsEl) stateExplorerGroupsEl.innerHTML = "";
       if (stateExplorerListEl) {
         stateExplorerListEl.innerHTML = "";
         const empty = document.createElement("div");
-        empty.className = "state-explorer-empty-results";
-        empty.textContent = message;
+        empty.className = "state-explorer-empty-results state-explorer-start-error";
+        const heading = document.createElement("strong");
+        heading.textContent = title;
+        const copy = document.createElement("span");
+        copy.textContent = message;
+        const retry = document.createElement("button");
+        retry.type = "button";
+        retry.textContent = "Erneut versuchen";
+        retry.onclick = () => {
+          retry.disabled = true;
+          retry.textContent = "Verbindung wird hergestellt …";
+          void bootEditor();
+        };
+        empty.append(heading, copy, retry);
         stateExplorerListEl.appendChild(empty);
       }
       showEmptyInspector();
-      if (typeof modalAlert === "function") modalAlert(message, "Contract fehlt");
+      return modalConfirm(message, title, {
+        confirmText: "Erneut versuchen",
+        cancelText: "Schließen"
+      });
     }
 
     function productContractTriggerTypes() {
@@ -23652,10 +23685,11 @@
     wiresEl.style.height = WORLD_H + "px";
 
     async function bootEditor() {
-      const contract = await ensureProductContractLoaded({ notify: false });
-      if (!contract) {
-        showProductContractUnavailable();
-        return;
+      let contract = await ensureProductContractLoaded({ notify: false });
+      while (!contract) {
+        const retry = await showProductContractUnavailable();
+        if (!retry) return;
+        contract = await ensureProductContractLoaded({ notify: false });
       }
 
       applyPersistedEditorState(initialEditorState);

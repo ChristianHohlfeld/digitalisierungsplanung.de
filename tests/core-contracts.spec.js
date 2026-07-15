@@ -2469,9 +2469,11 @@ test.describe("Core source contracts", () => {
     const hostHtml = html.replace(/const APP_HTML = "((?:\\.|[^"\\])*)";/, 'const APP_HTML = "";');
 
     expect(hostHtml).toContain('fetch(PRODUCT_CONTRACT_URL, { method: "GET", cache: "no-store", credentials: "omit" })');
-    expect(hostHtml).toContain("const contract = await ensureProductContractLoaded({ notify: false });");
-    expect(hostHtml).toContain("if (!contract) {");
-    expect(hostHtml).toContain("showProductContractUnavailable();");
+    expect(hostHtml).toContain("let contract = await ensureProductContractLoaded({ notify: false });");
+    expect(hostHtml).toContain("while (!contract) {");
+    expect(hostHtml).toContain("const retry = await showProductContractUnavailable();");
+    expect(hostHtml).toContain("if (!retry) return;");
+    expect(hostHtml).not.toContain("Product Contract nicht erreichbar");
     expect(hostHtml).not.toContain("productContractPromise");
     expect(hostHtml).not.toContain("DEFAULT_STATE_VARIABLE_TYPES");
     expect(hostHtml).not.toContain("types.length ? types : [");

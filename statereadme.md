@@ -606,7 +606,10 @@ und Parent-Ausgänge an ihrem `groupExitId`.
 - **ED-000 Contract-Boot:** Der Editor MUSS `/contract` mit `no-store` laden,
   bevor er Typen, Trigger, Presets oder Contract-Felder normalisiert. Ist der
   Product Contract nicht erreichbar, DARF der Editor keine eigenen Defaults
-  erfinden und MUSS die contractrelevante Arbeit verweigern.
+  erfinden und MUSS die contractrelevante Arbeit verweigern. Die Oberfläche
+  MUSS dies ohne interne Contract-Begriffe verständlich erklären, einen echten
+  erneuten Verbindungsversuch anbieten und gespeicherte Arbeit unverändert
+  lassen.
 - **ED-001 Gemeinsame Operationen:** Verschieben, Verbinden, Umverdrahten,
   Gruppieren, Entgruppieren, Löschen, Kopieren, Einfügen, Undo und Redo MÜSSEN
   dieselben kanonischen Modelloperationen verwenden wie API und MCP.
