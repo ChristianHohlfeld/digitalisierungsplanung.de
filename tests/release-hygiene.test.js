@@ -58,6 +58,8 @@ test("shipped preset images have no third-party runtime dependency", () => {
 test("release publication is manual, sequential, and gated by the reusable full CI", () => {
   const releaseWorkflow = read(".github/workflows/deploy.yml");
   const ciWorkflow = read(".github/workflows/ci.yml");
+  const playwrightConfig = read("playwright.config.js");
+  const packageJson = JSON.parse(read("package.json"));
   const triggerSection = releaseWorkflow.slice(0, releaseWorkflow.indexOf("jobs:"));
 
   assert.match(triggerSection, /workflow_dispatch:/);
@@ -76,8 +78,17 @@ test("release publication is manual, sequential, and gated by the reusable full 
   assert.match(ciWorkflow, /pull_request:/);
   assert.match(ciWorkflow, /browser-contracts:/);
   assert.match(ciWorkflow, /webkit-smoke:/);
+  assert.match(ciWorkflow, /npm audit --omit=dev --audit-level=high/);
   assert.match(ciWorkflow, /npm run check:workspace-core/);
   assert.match(ciWorkflow, /npm run check:index/);
+  assert.match(ciWorkflow, /npm run test:server/);
+  assert.match(ciWorkflow, /npm run test:browser -- --shard=\$\{\{ matrix\.shard \}\} --reporter=line,github/);
+  assert.match(ciWorkflow, /npm run test:webkit/);
+  assert.equal(
+    packageJson.scripts["test:webkit"],
+    "playwright test tests/webkit-product-smoke.spec.js --browser=webkit --workers=1 --reporter=list"
+  );
+  assert.match(playwrightConfig, /forbidOnly:\s*Boolean\(process\.env\.CI\)/);
 });
 
 test("static production artifact is an explicit allowlist", () => {

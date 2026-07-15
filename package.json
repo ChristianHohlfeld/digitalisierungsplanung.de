@@ -21,7 +21,7 @@
     "test:server": "node --test server/*.test.js shared/*.test.js",
     "test:pilot": "node --test server/pilot-api.test.js",
     "test:browser": "playwright test",
-    "test:webkit": "playwright test --browser=webkit --grep @smoke --reporter=list",
+    "test:webkit": "playwright test tests/webkit-product-smoke.spec.js --browser=webkit --workers=1 --reporter=list",
     "test:contracts": "playwright test tests/core-contracts.spec.js --reporter=list",
     "test:state-explorer": "playwright test tests/state-tool.spec.js --grep \"drops state explorer presets|stores reusable states|adds and uses state explorer presets|updates, deletes|reuses state explorer presets|keeps state editor focus\" --reporter=list",
     "test:state-render": "playwright test tests/core-contracts.spec.js --grep \"component data rendering|repeat sources|data wires drive|state editor exposes|state data card|global-state json paths|global state json tree|repeat over\" --reporter=list && playwright test tests/state-tool.spec.js --grep \"renders state data defaults|state data defaults flow|inspects JSON endpoints|keeps data-wire paths|shows outgoing transition buttons\" --reporter=list",

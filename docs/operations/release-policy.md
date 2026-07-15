@@ -20,7 +20,8 @@ Der wiederverwendbare Workflow `.github/workflows/ci.yml` besteht aus:
 - Audit produktiver npm-Abhängigkeiten auf hohe/kritische Findings,
 - Serververträgen,
 - vollständigen Chromium-Tests in vier Shards und
-- allen mit `@smoke` markierten Produktabläufen in WebKit.
+- einer dedizierten WebKit-Produktsuite für öffentlichen Pilot-Funnel,
+  Studio-Boot und konfliktgesichertes Managed-Save.
 
 Der manuelle Release ruft denselben Workflow erneut auf. Erst wenn alle Jobs
 grün sind, darf der Releasejob schreiben.

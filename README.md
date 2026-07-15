@@ -384,10 +384,11 @@ npm run test:state-render
 `npm test` führt die Server-Tests und die wichtigsten Playwright-Abläufe aus.
 `npm run check` prüft Betriebsverträge und den deterministischen Root-Export.
 `npm run test:full` führt Server- und vollständige Chromium-Fälle aus;
-`npm run test:webkit` ergänzt den Produkt-Smoke in WebKit. GitHub Actions
-verteilt die vollständigen Chromium-Fälle auf vier Shards und sperrt einen
-Release, solange irgendein Repository-, Server-, Chromium- oder WebKit-Gate
-fehlschlägt.
+`npm run test:webkit` ergänzt eine dedizierte WebKit-Produktsuite für den
+öffentlichen Pilot-Funnel, Studio-Boot und konfliktgesichertes Managed-Save.
+GitHub Actions verteilt die vollständigen Chromium-Fälle auf vier Shards und
+sperrt einen Release, solange irgendein Repository-, Server-, Chromium- oder
+WebKit-Gate fehlschlägt.
 
 ## Ordner
 
