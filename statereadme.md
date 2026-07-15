@@ -310,9 +310,11 @@ Editoraktion
   Für direkte Ausgänge ist die effektive Quelle `from`, für einen projizierten
   Parent-Ausgang dessen `groupExitId`. `button` ist durch die Transition-ID
   eindeutig. `change`, `event`, `realtime` und `api` bestehen aus Typ und
-  vollständigem Ereignisnamen. Conditions gehören nicht zur Identität und
-  erzeugen keine Priorität. Derselbe konkrete Event darf nur einen Ausgang
-  besitzen. Pro effektiver Quelle ist höchstens ein
+  vollständigem Ereignisnamen; `realtime` darf zusätzlich einen formalen
+  `triggerMatch` gegen Product-Contract-Felder enthalten. Conditions gehören
+  nicht zur Identität und erzeugen keine Priorität. Realtime-Matches
+  desselben Events müssen mathematisch disjunkt sein; unterschiedliche Felder
+  gelten als potenziell überlappend. Pro effektiver Quelle ist höchstens ein
   `timer` zulässig. Sobald ein `auto` existiert, ist es der einzige fachliche
   Ausgang dieser effektiven Quelle. Interne `flow`-Kanten sind strukturelle
   Child-Führung und zählen nicht als fachlicher Trigger.
@@ -332,7 +334,7 @@ Die Triggeridentität ist vollständig und abschließend definiert:
 | `button` | Transition-ID | Mehrere unterschiedliche Transition-IDs sind zulässig. |
 | `change` | Vollständiger Buspfad aus `triggerEvent`, ohne Pfad `*` | Jede Pfadidentität einschließlich `*` höchstens einmal. |
 | `event` | Vollständiger konkreter Ereignisname | Derselbe Name höchstens einmal; ein leerer Name ist ungültig. |
-| `realtime` | Vollständiger konkreter `realtime.*`-Ereignisname | Derselbe Name höchstens einmal; ein leerer oder fremder Namespace ist ungültig. |
+| `realtime` | Vollständiger konkreter `realtime.*`-Ereignisname plus optionaler `triggerMatch` | Catch-all höchstens einmal. Spezifische Matches müssen dasselbe Feld nutzen und disjunkt sein; Zahlenbereiche dürfen sich nicht schneiden. |
 | `timer` | `timer` | Höchstens ein Timer, unabhängig von Dauer oder Ereignisname. |
 | `auto` | `auto` | Muss der einzige fachliche Ausgang der effektiven Quelle sein. |
 | `flow` | keine fachliche Identität | Nur interne Child-Führung; von der Triggerzählung ausgeschlossen. |
@@ -1312,9 +1314,12 @@ Abdeckungsbereiche:
 - **GAP-017 Mehrdeutige Ereignisauflösung, geschlossen am 2026-07-14:** Ein
   gültiges Modell kann für dieselbe effektive Quelle dieselbe
   Triggeridentität nicht mehrfach enthalten. Conditions ändern die Identität
-  nicht. Der Editor kann einen Identitätskonflikt nicht speichern; Import, API
-  und MCP lehnen ihn ab. Ein dennoch eingeschleustes Fremdmodell erzeugt
-  `invalid-trigger-contract` ohne State-Wechsel.
+  nicht. Realtime darf über `triggerMatch` in disjunkte Teilmengen aufgeteilt
+  werden; überlappende Zahlenbereiche, unterschiedliche Match-Felder oder
+  catch-all plus spezifischer Match sind ungültig. Der Editor kann einen
+  Identitätskonflikt nicht speichern; Import, API und MCP lehnen ihn ab. Ein
+  dennoch eingeschleustes Fremdmodell erzeugt `invalid-trigger-contract` ohne
+  State-Wechsel.
 - **GAP-018 Realtime-Zustellgarantie, geschlossen am 2026-07-12:** Der aktuelle
   Browser ist trigger-only und besitzt keine ausgehende Queue oder Outbox. Der
   zustandslose Server garantiert geordnete Live-Übertragung innerhalb der

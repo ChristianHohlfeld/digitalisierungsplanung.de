@@ -59,6 +59,11 @@ triggerType: realtime
 triggerEvent: realtime.sip.call.incoming
 ```
 
+If one state needs multiple transitions for the same realtime event, add a
+typed `triggerMatch` on a matchable event field from `/contract`. Catch-all
+events and overlapping numeric ranges are rejected by editor, API, MCP, and
+runtime.
+
 Open `https://realtime.digitalisierungsplanung.de/console.html?room=<room-id>` for a browser test emitter. The console loads connector sources, event names, and detail fields from `/events`, then POSTs to `/emit` with the Bearer secret. The emit secret is stored only in this browser's localStorage for convenience; it is not rendered by the server or stored server-side.
 
 ## Event Catalog

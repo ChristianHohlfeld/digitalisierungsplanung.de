@@ -89,19 +89,21 @@ das Modell ungültig.
 Ein Aktionsslot darf alternativ eine URL enthalten. Eine nicht leere
 Transition-ID und eine URL im selben Slot sind ungültig.
 
-Der Trigger wird ausschließlich an der Transition modelliert. Bezogen auf die
-effektive Quelle (`from`, bei Parent-Ausgängen `groupExitId`) darf dieselbe
-Triggeridentität nur einmal vorkommen. Conditions gehören nicht zur Identität;
-mehrere Ausgänge auf denselben Event sind daher ungültig. Ein Timer ist höchstens
-einmal erlaubt, `auto` ist exklusiv. Interne `flow`-Kanten zählen nicht als
-fachliche Trigger. Die Identität ist für `button` die Transition-ID, für
-`timer` und `auto` jeweils der Typ selbst, und für `change`, `event`,
-`realtime` sowie `api` der vollständige Trigger. Zulässige fachliche Typen sind
-ausschließlich `button`, `change`, `event`, `realtime`, `api`, `timer` und
-`auto`; `flow` ist ausschließlich intern. Andere Werte und
-ungültige Kombinationen werden ohne Alias oder Normalisierung abgelehnt.
-Condition-Pfade unter `events.*`, `realtime.*` und `emitters.*` müssen aus dem
-Product Contract kommen.
+Der Trigger wird ausschliesslich an der Transition modelliert. Bezogen auf die
+effektive Quelle (`from`, bei Parent-Ausgaengen `groupExitId`) darf dieselbe
+Triggeridentitaet nur einmal vorkommen. Conditions gehoeren nicht zur Identitaet;
+sie sind Guards nach einem passenden Trigger. Fuer `realtime` kann die
+Identitaet einen strukturierten `triggerMatch` enthalten. Matches desselben
+Events muessen disjunkt sein: unterschiedliche Werte auf demselben skalaren
+Feld sind erlaubt, Zahlenbereiche duerfen sich nicht schneiden, unterschiedliche
+Felder gelten als potenziell ueberlappend, und ein fehlender Match ist ein
+exklusiver catch-all. Ein Timer ist hoechstens einmal erlaubt, `auto` ist
+exklusiv. Interne `flow`-Kanten zaehlen nicht als fachliche Trigger.
+Zulaessige fachliche Typen sind ausschliesslich `button`, `change`, `event`,
+`realtime`, `api`, `timer` und `auto`; `flow` ist ausschliesslich intern.
+Andere Werte und ungueltige Kombinationen werden ohne Alias oder Normalisierung
+abgelehnt. Condition-Pfade unter `events.*`, `realtime.*` und `emitters.*`
+muessen aus dem Product Contract kommen.
 
 Nutze `state_blueprint_apply_commands`, wenn ein externe Anwendung die App wie ein
 Nutzer steuern soll, aber ohne DOM-Klicks. Befehle laufen über dieselben
@@ -277,15 +279,16 @@ Fields:
 
 | Feld | Typ | Erforderlich | Hinweise |
 | --- | --- | --- | --- |
-| `id` | string | nein | Stabile Übergangsidentität. |
+| `id` | string | nein | Stabile Uebergangsidentitaet. |
 | `from` | Zustands-ID | ja | Quellzustand. |
 | `to` | Zustands-ID | ja | Zielzustand. |
-| `label` | string | nein | Nutzereigene Beschriftung für Schaltfläche oder Kante. Ohne Angabe exakt `Weiter`; Quelle und Ziel bleiben davon getrennte `from`-/`to`-Referenzen. |
+| `label` | string | nein | Nutzereigene Beschriftung fuer Schaltflaeche oder Kante. Ohne Angabe exakt `Weiter`; Quelle und Ziel bleiben davon getrennte `from`-/`to`-Referenzen. |
 | `triggerType` | `button`, `change`, `event`, `realtime`, `api`, `timer`, `auto` | nein | Standard ist `button`. |
-| `triggerEvent` | string | nein | Konkreter Ereignisname. Wird nur für Schaltfläche/Timer/Auto erzeugt. Change, Event, Realtime und API verlangen eine konkrete Referenz. |
-| `timerMs` | number | nein | Dauer für Timer-Übergänge. |
-| `condition` | string | nein | Bedingung über Bus-Pfade. |
-| `set` | object | nein | Patch, der beim Übergang in den globalen Bus geschrieben wird. |
+| `triggerEvent` | string | nein | Konkreter Ereignisname. Wird nur fuer Schaltflaeche/Timer/Auto erzeugt. Change, Event, Realtime und API verlangen eine konkrete Referenz. |
+| `triggerMatch` | object | nein | Nur fuer `realtime`: `{ field, operator, value }` gegen Product-Contract-Felder. Skalare Felder erlauben `equals`; Zahlen erlauben `equals`, `gt`, `gte`, `lt`, `lte`, `between`. Matches desselben Events muessen disjunkt sein. |
+| `timerMs` | number | nein | Dauer fuer Timer-Uebergaenge. |
+| `condition` | string | nein | Bedingung ueber Bus-Pfade. |
+| `set` | object | nein | Patch, der beim Uebergang in den globalen Bus geschrieben wird. |
 | `groupEntryId`, `groupExitId` | Zustands-ID | nein | Editor-Projektionshinweise, kein Runtime-Zustand. |
 
 Das Label wird bei einer Zustandsumbenennung oder beim Umverdrahten nicht
@@ -337,11 +340,11 @@ Bus-Änderungs-Übergang:
 }
 ```
 
-Relative Runtime-Pfade wie `accepted` sind ungültig. Bedingungen, Wirkungen,
-Datenverbindungen und Render-Bindungen verwenden immer den vollständigen
+Relative Runtime-Pfade wie `accepted` sind ungueltig. Bedingungen, Wirkungen,
+Datenverbindungen und Render-Bindungen verwenden immer den vollstaendigen
 Buspfad.
 
-Realtime-Übergang:
+Realtime-Uebergang mit formalem Match:
 
 ```json
 {
@@ -352,12 +355,12 @@ Realtime-Übergang:
   "label": "Eingehender Anruf",
   "triggerType": "realtime",
   "triggerEvent": "realtime.sip.call.incoming",
+  "triggerMatch": { "field": "caller", "operator": "equals", "value": "+491234" },
   "condition": "events.realtime.sip.call.incoming.count > 0"
 }
 ```
 
-Realtime event definitions stay on the Realtime API (`/events`). The model stores
-no `model.realtime` contract copy.
+Realtime event definitions and matchable fields stay on the Realtime API (`/events`) and Product Contract (`/contract`). The model stores no `model.realtime` contract copy.
 
 API-Antwort:
 
@@ -372,11 +375,12 @@ API-Antwort:
   "triggerEvent": "fetch.states.products.fetch.success"
 }
 ```
-
 Der Fehlerpfad verwendet entsprechend `fetch.states.products.fetch.error`.
-`api` ist ein eigener Trigger und kein Alias für `change` oder `event`.
-Conditions gehören nicht zur Triggeridentität; derselbe konkrete Trigger darf
-pro effektiver Quelle nur einmal vorkommen.
+`api` ist ein eigener Trigger und kein Alias fuer `change` oder `event`.
+Conditions gehoeren nicht zur Triggeridentitaet; derselbe konkrete Trigger darf
+pro effektiver Quelle nur einmal vorkommen. Fuer `realtime` entscheidet ein
+optionaler, typisierter `triggerMatch` ueber die konkrete Teilmenge des Events;
+ueberlappende Teilmengen sind ungueltig.
 
 Conditions erlauben ausschließlich `&&`, `||`, `!`, die Operatoren `==`, `!=`,
 `>`, `>=`, `<`, `<=` sowie boolesche, endliche numerische oder gequotete

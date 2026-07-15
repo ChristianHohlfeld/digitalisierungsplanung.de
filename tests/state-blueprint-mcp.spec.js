@@ -271,11 +271,11 @@ test.describe("State Blueprint MCP", () => {
     expect(validateModel(parallelRoute).ok).toBe(true);
     expect(normalizeModel(parallelRoute).transitions.map(transition => transition.id)).toEqual(["click_a", "event_a"]);
 
-    const guarded = base();
-    guarded.states[0].data.route = "b";
-    guarded.states[0].dataTypes = { route: "text" };
-    guarded.transitions[1].condition = 'states.start.route == "b"';
-    guarded.transitions.push({
+    const guardedCondition = base();
+    guardedCondition.states[0].data.route = "b";
+    guardedCondition.states[0].dataTypes = { route: "text" };
+    guardedCondition.transitions[1].condition = 'states.start.route == "b"';
+    guardedCondition.transitions.push({
       id: "event_c",
       from: "start",
       to: "c",
@@ -285,9 +285,43 @@ test.describe("State Blueprint MCP", () => {
       condition: 'states.start.route == "c"',
       set: {}
     });
-    expect(validateModel(guarded).issues).toContainEqual(expect.objectContaining({
+    expect(validateModel(guardedCondition).issues).toContainEqual(expect.objectContaining({
       code: "duplicate_transition_trigger",
-      triggerKey: "realtime:realtime.sip.call.incoming"
+      triggerKey: "realtime:realtime.sip.call.incoming|match:*"
+    }));
+
+    const matchedDistinct = base();
+    matchedDistinct.transitions = [
+      { id: "event_b", from: "start", to: "b", label: "B event", triggerType: "realtime", triggerEvent: "realtime.sip.call.incoming", triggerMatch: { field: "caller", operator: "equals", value: "Heinz" }, set: {} },
+      { id: "event_c", from: "start", to: "c", label: "C event", triggerType: "realtime", triggerEvent: "realtime.sip.call.incoming", triggerMatch: { field: "caller", operator: "equals", value: "Mueller" }, set: {} }
+    ];
+    expect(validateModel(matchedDistinct).ok).toBe(true);
+
+    const matchedDuplicate = base();
+    matchedDuplicate.transitions = [
+      { id: "event_b", from: "start", to: "b", label: "B event", triggerType: "realtime", triggerEvent: "realtime.sip.call.incoming", triggerMatch: { field: "caller", operator: "equals", value: "Heinz" }, set: {} },
+      { id: "event_c", from: "start", to: "c", label: "C event", triggerType: "realtime", triggerEvent: "realtime.sip.call.incoming", triggerMatch: { field: "caller", operator: "equals", value: "Heinz" }, set: {} }
+    ];
+    expect(validateModel(matchedDuplicate).issues).toContainEqual(expect.objectContaining({
+      code: "duplicate_transition_trigger",
+      triggerKey: "realtime:realtime.sip.call.incoming|match:caller:equals:\"Heinz\""
+    }));
+
+    const matchedRanges = base();
+    matchedRanges.transitions = [
+      { id: "short_call", from: "start", to: "b", label: "Short call", triggerType: "realtime", triggerEvent: "realtime.sip.call.ended", triggerMatch: { field: "duration", operator: "lte", value: 30 }, set: {} },
+      { id: "long_call", from: "start", to: "c", label: "Long call", triggerType: "realtime", triggerEvent: "realtime.sip.call.ended", triggerMatch: { field: "duration", operator: "gt", value: 30 }, set: {} }
+    ];
+    expect(validateModel(matchedRanges).ok).toBe(true);
+
+    const overlappingRanges = base();
+    overlappingRanges.transitions = [
+      { id: "medium_call", from: "start", to: "b", label: "Medium call", triggerType: "realtime", triggerEvent: "realtime.sip.call.ended", triggerMatch: { field: "duration", operator: "gt", value: 30 }, set: {} },
+      { id: "review_call", from: "start", to: "c", label: "Review call", triggerType: "realtime", triggerEvent: "realtime.sip.call.ended", triggerMatch: { field: "duration", operator: "lte", value: 50 }, set: {} }
+    ];
+    expect(validateModel(overlappingRanges).issues).toContainEqual(expect.objectContaining({
+      code: "ambiguous_transition_trigger_match",
+      triggerKey: "realtime:realtime.sip.call.ended"
     }));
 
     const duplicateChange = base();
@@ -295,7 +329,7 @@ test.describe("State Blueprint MCP", () => {
       { id: "change_a", from: "start", to: "a", label: "A", triggerType: "change", triggerEvent: "change.states.start.value", set: {} },
       { id: "change_b", from: "start", to: "b", label: "B", triggerType: "change", triggerEvent: "change.states.start.value", set: {} }
     ];
-    expect(validateModel(duplicateChange).issues).toContainEqual(expect.objectContaining({ code: "duplicate_transition_trigger", triggerKey: "change:change.states.start.value" }));
+    expect(validateModel(duplicateChange).issues).toContainEqual(expect.objectContaining({ code: "duplicate_transition_trigger", triggerKey: "change:change.states.start.value|match:*" }));
 
     const duplicateWildcardChange = base();
     duplicateWildcardChange.transitions = [
@@ -309,7 +343,7 @@ test.describe("State Blueprint MCP", () => {
       { id: "event_a", from: "start", to: "a", label: "A", triggerType: "event", triggerEvent: "event.route", set: {} },
       { id: "event_b", from: "start", to: "b", label: "B", triggerType: "event", triggerEvent: "event.route", set: {} }
     ];
-    expect(validateModel(duplicateEvent).issues).toContainEqual(expect.objectContaining({ code: "duplicate_transition_trigger", triggerKey: "event:event.route" }));
+    expect(validateModel(duplicateEvent).issues).toContainEqual(expect.objectContaining({ code: "duplicate_transition_trigger", triggerKey: "event:event.route|match:*" }));
 
     const duplicateRealtime = base();
     duplicateRealtime.transitions.push({ id: "event_c", from: "start", to: "c", label: "C event", triggerType: "realtime", triggerEvent: "realtime.sip.call.incoming", set: {} });

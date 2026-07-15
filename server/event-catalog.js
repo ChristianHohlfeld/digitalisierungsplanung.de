@@ -219,6 +219,30 @@ function normalizeBindings(value, detail, eventName) {
   });
 }
 
+function defaultMatchFields(detail) {
+  return Object.entries(detail || {})
+    .filter(([, type]) => !["object", "list", "password"].includes(type))
+    .map(([path]) => path);
+}
+
+function normalizeMatchFields(value, detail, eventName) {
+  const source = value === undefined ? defaultMatchFields(detail) : value;
+  if (!Array.isArray(source)) throw contractError("invalid_match_fields", `${eventName}.matchFields must be an array`);
+  const seen = new Set();
+  return source.map((rawPath, index) => {
+    const pathValue = sanitizeStatePath(rawPath);
+    if (!pathValue) throw contractError("invalid_match_field", `${eventName}.matchFields[${index}] is invalid`);
+    if (!Object.hasOwn(detail, pathValue)) throw contractError("unknown_match_field", `${eventName}.matchFields[${index}] is not declared in detail`);
+    const type = detail[pathValue];
+    if (["object", "list", "password"].includes(type)) {
+      throw contractError("unsupported_match_field", `${eventName}.matchFields[${index}] cannot use ${type}`);
+    }
+    if (seen.has(pathValue)) throw contractError("duplicate_match_field", `${eventName}.matchFields contains ${pathValue} more than once`);
+    seen.add(pathValue);
+    return pathValue;
+  });
+}
+
 function validateEventCatalog(value) {
   if (!isPlainObject(value)) throw contractError("invalid_catalog", "Event catalog must be an object");
   assertAllowedKeys(value, ["provider", "state", "events", "emitters"], "catalog");
@@ -246,7 +270,7 @@ function validateEventCatalog(value) {
   const seen = new Set();
   const events = value.events.map((event, index) => {
     if (!isPlainObject(event)) throw contractError("invalid_event", `catalog.events[${index}] must be an object`);
-    assertAllowedKeys(event, ["name", "label", "description", "detail", "bindings"], `catalog.events[${index}]`);
+    assertAllowedKeys(event, ["name", "label", "description", "detail", "bindings", "matchFields"], `catalog.events[${index}]`);
     const name = sanitizeEventName(event.name);
     if (!name || !name.startsWith("realtime.")) throw contractError("invalid_event_name", `catalog.events[${index}].name must start with realtime.`);
     if (seen.has(name)) throw contractError("duplicate_event", `${name} is duplicated`);
@@ -259,6 +283,7 @@ function validateEventCatalog(value) {
       label,
       description: String(event.description || "").trim(),
       detail,
+      matchFields: normalizeMatchFields(event.matchFields, detail, name),
       bindings: normalizeBindings(event.bindings || [], detail, name)
     };
   });
@@ -401,6 +426,10 @@ function eventCatalogResponse(catalog) {
       return {
         ...event,
         detailSchemas: fieldSchemasForTypes(event.detail || {}),
+        matchFields: event.matchFields,
+        matchFieldSchemas: fieldSchemasForTypes(
+          Object.fromEntries((event.matchFields || []).map(path => [path, event.detail[path]]))
+        ),
         contributes: {
           root: eventStateRoot(event.name),
           fields: [

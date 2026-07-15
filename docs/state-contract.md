@@ -123,11 +123,16 @@ formalen Definition vor.
 
 Jede Transition besitzt exakt einen Trigger. Ein State darf mehrere ausgehende
 Transitionen besitzen, wenn ihre Triggeridentitäten verschieden sind.
-Conditions gehören nicht zur Triggeridentität. Zwei Transitionen desselben
-wirksamen States dürfen deshalb niemals dasselbe Realtime-, API-, Event- oder
-Change-Ereignis beanspruchen. Der Editor deaktiviert bereits belegte Optionen;
-Import, API und MCP lehnen Konflikte ab; die Runtime arbeitet bei einem
-Fremdmodell fail-closed.
+Conditions gehoeren nicht zur Triggeridentitaet. Bei Realtime darf die
+Identitaet zusaetzlich einen formalen `triggerMatch` auf einem vom Product
+Contract freigegebenen Event-Feld enthalten. Skalare Felder erlauben
+`equals`; Zahlen erlauben zusaetzlich `gt`, `gte`, `lt`, `lte` und
+`between`. Alle Realtime-Matches desselben Events und derselben effektiven
+Quelle muessen mathematisch disjunkt sein. Unterschiedliche Felder gelten als
+potenziell ueberlappend. Ein Event ohne `triggerMatch` ist catch-all und darf
+keine spezifischen Matches daneben haben. Der Editor deaktiviert bereits
+belegte oder ueberlappende Optionen; Import, API und MCP lehnen Konflikte ab;
+die Runtime arbeitet bei einem Fremdmodell fail-closed.
 
 ## 6. Conditions
 

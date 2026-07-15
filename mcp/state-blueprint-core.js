@@ -2,6 +2,7 @@
 
 const eventCatalog = require("../server/event-catalog");
 const productContract = require("../server/product-contract");
+const valueTypes = require("../server/value-types");
 
 const ROOT_LAYER_ID = "__root__";
 const GRID_SIZE = 24;
@@ -28,6 +29,12 @@ const CONTRACT_REALTIME_EVENTS = new Set(
   (REPOSITORY_PRODUCT_CONTRACT.triggerTypes.find(type => type.id === "realtime")?.events || [])
     .map(event => event.name)
 );
+const CONTRACT_REALTIME_EVENTS_BY_NAME = new Map(
+  (REPOSITORY_PRODUCT_CONTRACT.triggerTypes.find(type => type.id === "realtime")?.events || [])
+    .map(event => [event.name, event])
+);
+const TRIGGER_MATCH_TYPES = new Set(["realtime"]);
+const TRIGGER_MATCH_OPERATORS = new Set(["equals", "gt", "gte", "lt", "lte", "between"]);
 
 function isPlainObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -196,6 +203,152 @@ function runtimeReferenceContractIssuesForState(state) {
   return issues;
 }
 
+function normalizeTriggerMatch(value) {
+  if (!isPlainObject(value)) return {};
+  const field = normalizeBindingPath(value.field || "", "");
+  const operator = String(value.operator || "").trim();
+  if (!field || !TRIGGER_MATCH_OPERATORS.has(operator)) return {};
+  const out = { field, operator };
+  if (operator === "between") {
+    const range = normalizeTriggerMatchRange(value.value);
+    if (!range) return {};
+    out.value = range;
+  } else if (Object.hasOwn(value, "value")) out.value = clone(value.value);
+  else out.value = "";
+  return out;
+}
+
+function triggerMatchIsEmpty(match) {
+  return !isPlainObject(match) || !normalizeBindingPath(match.field || "", "") || !TRIGGER_MATCH_OPERATORS.has(String(match.operator || ""));
+}
+
+function canonicalTriggerMatchValue(value) {
+  if (typeof value === "number") return Number.isFinite(value) ? JSON.stringify(value) : "";
+  if (typeof value === "boolean" || typeof value === "string") return JSON.stringify(value);
+  if (isPlainObject(value) && Number.isFinite(value.min) && Number.isFinite(value.max)) {
+    return JSON.stringify({
+      min: value.min,
+      minInclusive: value.minInclusive !== false,
+      max: value.max,
+      maxInclusive: value.maxInclusive !== false
+    });
+  }
+  return "";
+}
+
+function canonicalTriggerMatchKey(match) {
+  const normalized = normalizeTriggerMatch(match);
+  if (triggerMatchIsEmpty(normalized)) return "*";
+  const value = canonicalTriggerMatchValue(normalized.value);
+  if (!value) return "";
+  return `${normalized.field}:${normalized.operator}:${value}`;
+}
+
+function triggerMatchOperatorsForSchema(schema) {
+  const type = String(schema?.type || "").trim();
+  if (type === "number") return new Set(["equals", "gt", "gte", "lt", "lte", "between"]);
+  if (["boolean", "text", "email", "url", "image"].includes(type)) return new Set(["equals"]);
+  return new Set();
+}
+
+function normalizeTriggerMatchRange(value) {
+  if (!isPlainObject(value)) return null;
+  const min = Number(value.min);
+  const max = Number(value.max);
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+  const minInclusive = value.minInclusive !== false;
+  const maxInclusive = value.maxInclusive !== false;
+  if (min > max) return null;
+  if (min === max && (!minInclusive || !maxInclusive)) return null;
+  return { min, minInclusive, max, maxInclusive };
+}
+
+function triggerMatchInterval(match, schema) {
+  const normalized = normalizeTriggerMatch(match);
+  if (triggerMatchIsEmpty(normalized) || String(schema?.type || "") !== "number") return null;
+  if (normalized.operator === "equals") {
+    if (!valueTypes.validateValueAgainstSchema(normalized.value, schema).ok) return null;
+    return { min: normalized.value, minInclusive: true, max: normalized.value, maxInclusive: true };
+  }
+  if (normalized.operator === "gt" || normalized.operator === "gte") {
+    if (!valueTypes.validateValueAgainstSchema(normalized.value, schema).ok) return null;
+    return { min: normalized.value, minInclusive: normalized.operator === "gte", max: Infinity, maxInclusive: false };
+  }
+  if (normalized.operator === "lt" || normalized.operator === "lte") {
+    if (!valueTypes.validateValueAgainstSchema(normalized.value, schema).ok) return null;
+    return { min: -Infinity, minInclusive: false, max: normalized.value, maxInclusive: normalized.operator === "lte" };
+  }
+  if (normalized.operator === "between") {
+    const range = normalizeTriggerMatchRange(normalized.value);
+    if (!range) return null;
+    if (!valueTypes.validateValueAgainstSchema(range.min, schema).ok || !valueTypes.validateValueAgainstSchema(range.max, schema).ok) return null;
+    return range;
+  }
+  return null;
+}
+
+function triggerMatchIntervalsOverlap(left, right) {
+  if (!left || !right) return true;
+  if (left.max < right.min) return false;
+  if (right.max < left.min) return false;
+  if (left.max === right.min && !(left.maxInclusive && right.minInclusive)) return false;
+  if (right.max === left.min && !(right.maxInclusive && left.minInclusive)) return false;
+  return true;
+}
+
+function transitionTriggerMatchesCanOverlap(left, right) {
+  const leftMatch = normalizeTriggerMatch(left?.triggerMatch);
+  const rightMatch = normalizeTriggerMatch(right?.triggerMatch);
+  if (triggerMatchIsEmpty(leftMatch) || triggerMatchIsEmpty(rightMatch)) return true;
+  if (leftMatch.field !== rightMatch.field) return true;
+  const event = CONTRACT_REALTIME_EVENTS_BY_NAME.get(normalizeTransitionEvent(left?.triggerEvent || ""));
+  const schema = event?.matchFieldSchemas?.[leftMatch.field] || event?.detailSchemas?.[leftMatch.field] || valueTypes.fieldSchemaForType(event?.detail?.[leftMatch.field] || "text");
+  if (String(schema?.type || "") === "number") {
+    return triggerMatchIntervalsOverlap(triggerMatchInterval(leftMatch, schema), triggerMatchInterval(rightMatch, schema));
+  }
+  return canonicalTriggerMatchValue(leftMatch.value) === canonicalTriggerMatchValue(rightMatch.value);
+}
+
+function triggerMatchContractIssues(transition) {
+  const match = normalizeTriggerMatch(transition?.triggerMatch);
+  if (triggerMatchIsEmpty(match)) return [];
+  const transitionId = String(transition?.id || "");
+  const triggerType = String(transition?.triggerType || "button");
+  const eventName = normalizeTransitionEvent(transition?.triggerEvent || "");
+  const issues = [];
+  const add = (code, message) => issues.push({ code, transitionId, path: match.field, message });
+  if (!TRIGGER_MATCH_TYPES.has(triggerType)) {
+    add("invalid_trigger_match_type", "triggerMatch is only supported for Product Contract realtime events.");
+    return issues;
+  }
+  const event = CONTRACT_REALTIME_EVENTS_BY_NAME.get(eventName);
+  if (!event) {
+    add("invalid_trigger_match_event", "triggerMatch must reference an event declared by the Product Contract.");
+    return issues;
+  }
+  const allowedFields = new Set(event.matchFields || Object.keys(event.detail || {}));
+  if (!allowedFields.has(match.field)) {
+    add("invalid_trigger_match_field", "triggerMatch.field must be declared as a matchable Product Contract event field.");
+    return issues;
+  }
+  const schema = event.matchFieldSchemas?.[match.field] || event.detailSchemas?.[match.field] || valueTypes.fieldSchemaForType(event.detail?.[match.field]);
+  const operators = triggerMatchOperatorsForSchema(schema);
+  if (!operators.has(match.operator)) {
+    add("invalid_trigger_match_operator", "triggerMatch.operator is not allowed for this field type.");
+    return issues;
+  }
+  const validation = String(schema?.type || "") === "number" && match.operator === "between"
+    ? (() => {
+        const interval = triggerMatchInterval(match, schema);
+        return interval && Number.isFinite(interval.min) && Number.isFinite(interval.max) ? { ok: true } : { ok: false };
+      })()
+    : valueTypes.validateValueAgainstSchema(match.value, schema);
+  if (!validation.ok) {
+    add("invalid_trigger_match_value", "triggerMatch.value must match the Product Contract field type and constraints.");
+  }
+  return issues;
+}
+
 function runtimeReferenceContractIssuesForTransition(transition) {
   const transitionId = String(transition?.id || "");
   const issues = [];
@@ -228,6 +381,7 @@ function runtimeReferenceContractIssuesForTransition(transition) {
   if (triggerType === "realtime" && !CONTRACT_REALTIME_EVENTS.has(triggerEvent)) {
     issues.push({ code: "invalid_realtime_trigger_event", transitionId, path: triggerEvent, message: "Realtime triggers must reference an event declared by the Product Contract." });
   }
+  issues.push(...triggerMatchContractIssues(transition));
   return issues;
 }
 
@@ -848,7 +1002,7 @@ function normalizeModel(input) {
       usedTransitionIds.add(id);
       const triggerType = normalizeTransitionTriggerType(transition);
       const rawTriggerEvent = normalizeTransitionEvent(transition.triggerEvent || "");
-      return {
+      const normalized = {
         ...transition,
         id,
         label: normalizeTransitionLabel(transition),
@@ -860,6 +1014,10 @@ function normalizeModel(input) {
         groupEntryId: typeof transition.groupEntryId === "string" ? transition.groupEntryId : "",
         groupExitId: typeof transition.groupExitId === "string" ? transition.groupExitId : ""
       };
+      const triggerMatch = normalizeTriggerMatch(transition.triggerMatch);
+      if (!triggerMatchIsEmpty(triggerMatch)) normalized.triggerMatch = triggerMatch;
+      else delete normalized.triggerMatch;
+      return normalized;
     });
 
   delete m.editorGroups;
@@ -936,16 +1094,24 @@ function effectiveTransitionTriggerStateId(transition) {
   return String(transition?.groupExitId || transition?.from || "");
 }
 
-function transitionTriggerContractKey(transition) {
+function transitionTriggerBaseKey(transition) {
   const triggerType = normalizeTransitionTriggerType(transition);
   if (triggerType === "flow") return "";
   if (triggerType === "button") return `button:${transition.id}`;
   if (triggerType === "auto" || triggerType === "timer") return triggerType;
   const eventName = normalizeTransitionEvent(transition?.triggerEvent || "");
-  const baseKey = triggerType === "change"
+  return triggerType === "change"
     ? eventName ? `change:${eventName}` : ""
     : eventName ? `${triggerType}:${eventName}` : "";
-  return baseKey;
+}
+
+function transitionTriggerContractKey(transition) {
+  const baseKey = transitionTriggerBaseKey(transition);
+  if (!baseKey) return "";
+  const triggerType = normalizeTransitionTriggerType(transition);
+  if (!["change", "event", "realtime", "api"].includes(triggerType)) return baseKey;
+  const matchKey = canonicalTriggerMatchKey(transition?.triggerMatch);
+  return matchKey ? `${baseKey}|match:${matchKey}` : "";
 }
 
 function transitionTriggerContractIssues(transitions) {
@@ -992,12 +1158,20 @@ function transitionTriggerContractIssues(transitions) {
       continue;
     }
     const claims = new Map();
+    const eventClaims = new Map();
     for (const transition of outgoing) {
+      const matchIssues = triggerMatchContractIssues(transition);
+      if (matchIssues.length) {
+        issues.push(...matchIssues.map(issue => ({ ...issue, stateId })));
+        continue;
+      }
       const triggerKey = transitionTriggerContractKey(transition);
+      const triggerBaseKey = transitionTriggerBaseKey(transition);
       if (!triggerKey) {
         issues.push({ code: "missing_transition_trigger", stateId, transitionId: transition.id, message: "Each transition must define one concrete trigger." });
         continue;
       }
+      const matchKey = canonicalTriggerMatchKey(transition?.triggerMatch);
       if (claims.has(triggerKey)) {
         issues.push({
           code: "duplicate_transition_trigger",
@@ -1009,6 +1183,33 @@ function transitionTriggerContractIssues(transitions) {
         continue;
       }
       claims.set(triggerKey, transition.id);
+      if (triggerBaseKey && ["change", "event", "realtime", "api"].includes(normalizeTransitionTriggerType(transition))) {
+        const existing = eventClaims.get(triggerBaseKey) || [];
+        const hasCatchAll = existing.some(item => item.matchKey === "*");
+        if ((matchKey === "*" && existing.length) || (matchKey !== "*" && hasCatchAll)) {
+          issues.push({
+            code: "ambiguous_transition_trigger_match",
+            stateId,
+            triggerKey: triggerBaseKey,
+            transitionIds: [...existing.map(item => item.id), transition.id],
+            message: "A catch-all trigger may not share one event with specific triggerMatch rules."
+          });
+          continue;
+        }
+        const overlapping = matchKey !== "*" ? existing.find(item => transitionTriggerMatchesCanOverlap(item.transition, transition)) : null;
+        if (overlapping) {
+          issues.push({
+            code: "ambiguous_transition_trigger_match",
+            stateId,
+            triggerKey: triggerBaseKey,
+            transitionIds: [overlapping.id, transition.id],
+            message: "Trigger match rules for one event must be mathematically disjoint."
+          });
+          continue;
+        }
+        existing.push({ id: transition.id, matchKey, transition });
+        eventClaims.set(triggerBaseKey, existing);
+      }
     }
   }
   return issues;
@@ -1615,6 +1816,9 @@ function upsertTransition(model, args) {
   }
   target.triggerType = triggerType;
   target.triggerEvent = normalizeTransitionEventName(args.triggerEvent || (target.triggerType === "change" ? "" : defaultTransitionEvent(target)));
+  const triggerMatch = normalizeTriggerMatch(args.triggerMatch);
+  if (!triggerMatchIsEmpty(triggerMatch)) target.triggerMatch = triggerMatch;
+  else delete target.triggerMatch;
   target.timerMs = normalizeTransitionTimerMs(args.timerMs);
   target.groupEntryId = String(args.groupEntryId || "");
   target.groupExitId = String(args.groupExitId || "");

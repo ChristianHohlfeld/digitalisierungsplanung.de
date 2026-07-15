@@ -1357,14 +1357,58 @@ test.describe("Core source contracts", () => {
         transition("click_a", "a", "button", "button.click_a.clicked"),
         transition("event_a", "a", "realtime", "realtime.sip.call.incoming")
       ];
-      const guarded = definition();
-      guarded.model.states[0].data.route = "b";
-      guarded.model.states[0].dataTypes.route = "text";
-      guarded.model.transitions[1].condition = 'states.start.route == "b"';
-      guarded.model.transitions.push({
+      const guardedCondition = definition();
+      guardedCondition.model.states[0].data.route = "b";
+      guardedCondition.model.states[0].dataTypes.route = "text";
+      guardedCondition.model.transitions[1].condition = 'states.start.route == "b"';
+      guardedCondition.model.transitions.push({
         ...transition("event_c", "c", "realtime", "realtime.sip.call.incoming"),
         condition: 'states.start.route == "c"'
       });
+      const matchedDistinct = definition();
+      matchedDistinct.model.transitions = [
+        {
+          ...transition("event_b", "b", "realtime", "realtime.sip.call.incoming"),
+          triggerMatch: { field: "caller", operator: "equals", value: "Heinz" }
+        },
+        {
+          ...transition("event_c", "c", "realtime", "realtime.sip.call.incoming"),
+          triggerMatch: { field: "caller", operator: "equals", value: "Mueller" }
+        }
+      ];
+      const matchedDuplicate = definition();
+      matchedDuplicate.model.transitions = [
+        {
+          ...transition("event_b", "b", "realtime", "realtime.sip.call.incoming"),
+          triggerMatch: { field: "caller", operator: "equals", value: "Heinz" }
+        },
+        {
+          ...transition("event_c", "c", "realtime", "realtime.sip.call.incoming"),
+          triggerMatch: { field: "caller", operator: "equals", value: "Heinz" }
+        }
+      ];
+      const matchedRanges = definition();
+      matchedRanges.model.transitions = [
+        {
+          ...transition("short_call", "b", "realtime", "realtime.sip.call.ended"),
+          triggerMatch: { field: "duration", operator: "lte", value: 30 }
+        },
+        {
+          ...transition("long_call", "c", "realtime", "realtime.sip.call.ended"),
+          triggerMatch: { field: "duration", operator: "gt", value: 30 }
+        }
+      ];
+      const overlappingRanges = definition();
+      overlappingRanges.model.transitions = [
+        {
+          ...transition("medium_call", "b", "realtime", "realtime.sip.call.ended"),
+          triggerMatch: { field: "duration", operator: "gt", value: 30 }
+        },
+        {
+          ...transition("review_call", "c", "realtime", "realtime.sip.call.ended"),
+          triggerMatch: { field: "duration", operator: "lte", value: 50 }
+        }
+      ];
       const duplicateChange = definition();
       duplicateChange.model.transitions = [
         transition("change_a", "a", "change", "change.states.start.value"),
@@ -1409,7 +1453,11 @@ test.describe("Core source contracts", () => {
         valid,
         distinctButtons,
         parallelRoute,
-        guarded,
+        guardedCondition,
+        matchedDistinct,
+        matchedDuplicate,
+        matchedRanges,
+        overlappingRanges,
         duplicateChange,
         duplicateWildcardChange,
         duplicateEvent,
@@ -1427,16 +1475,20 @@ test.describe("Core source contracts", () => {
       "",
       "",
       "",
-      expect.stringContaining("duplicates trigger realtime:realtime.sip.call.incoming"),
+      expect.stringContaining("duplicates trigger realtime:realtime.sip.call.incoming|match:*"),
+      "",
+      expect.stringContaining("duplicates trigger realtime:realtime.sip.call.incoming|match:caller:equals:\"Heinz\""),
+      "",
+      expect.stringContaining("overlaps trigger match realtime:realtime.sip.call.ended"),
       expect.stringContaining("duplicates trigger change:change.states.start.value"),
       expect.stringContaining("must reference one concrete change bus path"),
       expect.stringContaining("duplicates trigger event:event.route"),
-      expect.stringContaining("duplicates trigger realtime:realtime.sip.call.incoming"),
+      expect.stringContaining("duplicates trigger realtime:realtime.sip.call.incoming|match:*"),
       expect.stringContaining("duplicates trigger timer"),
       expect.stringContaining("must contain only one auto transition"),
       expect.stringContaining("triggerType must be one of button, change, event, realtime, api, timer, auto"),
       expect.stringContaining("must reference a realtime event declared by the Product Contract"),
-      expect.stringContaining("duplicates trigger realtime:realtime.sip.call.incoming"),
+      expect.stringContaining("duplicates trigger realtime:realtime.sip.call.incoming|match:*"),
       expect.stringContaining("triggerType must be one of button, change, event, realtime, api, timer, auto")
     ]);
   });
@@ -1796,7 +1848,8 @@ test.describe("Core source contracts", () => {
     expect(appHtml).toContain("function declaredBusVariables");
     expect(appHtml).toContain("visit(state, normalizeStateDataObject(state.data))");
     expect(appHtml).toContain("function transitionMatchesRuntimeEvent");
-    expect(appHtml).toContain('if (type === "button" || type === "event" || type === "realtime" || type === "api" || type === "timer" || type === "auto" || type === "flow") return configured === eventName;');
+    expect(appHtml).toContain("function runtimeTransitionMatchOk");
+    expect(appHtml).toContain('if (type === "button" || type === "event" || type === "realtime" || type === "api" || type === "timer" || type === "auto" || type === "flow") return configured === eventName && runtimeTransitionMatchOk(transition, detail);');
   });
 
   test("data wires drive rendered content through global state @smoke", () => {

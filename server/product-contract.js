@@ -99,6 +99,8 @@ function triggerTypesForCatalog(catalog) {
         description: event.description,
         detail: event.detail,
         detailSchemas: event.detailSchemas,
+        matchFields: event.matchFields,
+        matchFieldSchemas: event.matchFieldSchemas,
         contributes: event.contributes
       }))
     };
@@ -115,6 +117,8 @@ function datasetsForCatalog(catalog) {
     description: event.description,
     fields: event.detail,
     fieldSchemas: event.detailSchemas,
+    matchFields: event.matchFields,
+    matchFieldSchemas: event.matchFieldSchemas,
     contributes: event.contributes
   }));
 }
