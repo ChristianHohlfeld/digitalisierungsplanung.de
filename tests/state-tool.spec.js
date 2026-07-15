@@ -5515,12 +5515,25 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator(".workspace")).not.toHaveClass(/preview-collapsed/);
     const beforeModel = await savedModel(page);
 
+    await expect.poll(() => page.locator("#workspace").evaluate(() => {
+      const inspectorHandle = document.getElementById("inspectorResizeHandle").getBoundingClientRect();
+      const previewHandle = document.getElementById("previewResizeHandle").getBoundingClientRect();
+      const inspectorBoundary = document.querySelector(".inspector").getBoundingClientRect().right;
+      const previewBoundary = document.querySelector(".preview").getBoundingClientRect().left;
+      return {
+        inspector: Math.round(inspectorHandle.left + inspectorHandle.width / 2 - inspectorBoundary),
+        preview: Math.round(previewHandle.left + previewHandle.width / 2 - previewBoundary)
+      };
+    })).toEqual({ inspector: 0, preview: 0 });
     const handleMetrics = await page.locator("#workspace").evaluate(() => {
       const metric = id => {
         const handle = document.getElementById(id);
         const rect = handle.getBoundingClientRect();
         const tile = getComputedStyle(handle, "::before");
         const anchor = getComputedStyle(handle, "::after");
+        const boundary = id === "inspectorResizeHandle"
+          ? document.querySelector(".inspector").getBoundingClientRect().right
+          : document.querySelector(".preview").getBoundingClientRect().left;
         const hitX = id === "inspectorResizeHandle" ? rect.right - 4 : rect.left + 4;
         const hitY = rect.top + rect.height / 2;
         return {
@@ -5529,6 +5542,7 @@ test.describe("State Blueprint tool", () => {
           tileHeight: Math.round(parseFloat(tile.height)),
           anchorWidth: Math.round(parseFloat(anchor.width)),
           anchorHeight: Math.round(parseFloat(anchor.height)),
+          boundaryOffset: Math.round(rect.left + rect.width / 2 - boundary),
           edgeHit: document.elementFromPoint(hitX, hitY) === handle
         };
       };
@@ -5538,8 +5552,8 @@ test.describe("State Blueprint tool", () => {
       };
     });
     expect(handleMetrics).toEqual({
-      inspector: { width: 34, tileWidth: 24, tileHeight: 104, anchorWidth: 5, anchorHeight: 64, edgeHit: true },
-      preview: { width: 34, tileWidth: 24, tileHeight: 104, anchorWidth: 5, anchorHeight: 64, edgeHit: true }
+      inspector: { width: 28, tileWidth: 18, tileHeight: 104, anchorWidth: 4, anchorHeight: 64, boundaryOffset: 0, edgeHit: true },
+      preview: { width: 28, tileWidth: 18, tileHeight: 104, anchorWidth: 4, anchorHeight: 64, boundaryOffset: 0, edgeHit: true }
     });
 
     const inspectorHandle = await visibleBox(page.locator("#inspectorResizeHandle"));
