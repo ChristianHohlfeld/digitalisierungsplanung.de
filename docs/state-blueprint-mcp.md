@@ -68,10 +68,13 @@ nicht über DOM-Klicks.
   Prioritäts- oder Eindeutigkeitsregel; derselbe Event darf deshalb nicht von
   mehreren Ausgängen beansprucht werden. Ein Timer ist einmal zulässig und
   `auto` ist exklusiv. MCP-Aktionen mit einem Konflikt werden nicht angewendet.
-- Zulässige fachliche `triggerType`-Werte sind ausschließlich `button`,
-  `change`, `event`, `realtime`, `api`, `timer` und `auto`; internes `flow` ist nur
-  strukturelle Child-Führung. Andere Werte werden weder als Alias akzeptiert
-  noch zu `button` normalisiert.
+- Der Editor zeigt fachliche Trigger-Typen aus dem serverseitigen Product
+  Contract. Leere generische Bus-Events werden nicht angeboten; `event` wird nur
+  produktiv auswählbar, wenn der Contract konkrete `event.*`-Ereignisse
+  deklariert. Engine-seitig bleiben `button`, `change`, `event`, `realtime`,
+  `api`, `timer` und `auto` gültig; internes `flow` ist nur strukturelle
+  Child-Führung. Andere Werte werden weder als Alias akzeptiert noch zu `button`
+  normalisiert.
 - `transition.set` ist Wirkung nach einem Ereignis, nicht die Quelle einer
   Schaltflächen-Bindung.
 - Realtime-Übergänge speichern `triggerType: "realtime"` plus konkrete

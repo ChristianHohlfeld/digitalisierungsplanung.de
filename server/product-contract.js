@@ -31,15 +31,6 @@ const BUILTIN_TRIGGER_TYPES = Object.freeze([
     events: []
   },
   {
-    id: "event",
-    label: "Bus-Ereignis",
-    description: "A named runtime event is emitted inside the global bus.",
-    settings: {
-      name: { type: "text", required: true }
-    },
-    events: []
-  },
-  {
     id: "realtime",
     label: "Realtime-Ereignis",
     description: "A catalogued server realtime event arrives in the room.",

@@ -3909,6 +3909,72 @@ test.describe("State Blueprint tool", () => {
     });
   });
 
+  test("undoes and redoes selected boundary flow deletion with layer and selection intact @smoke", async ({ page }) => {
+    await openTool(page);
+    await openStateLayer(page, "login");
+    const childId = await addChildByDoubleClick(page, "login");
+    const inputFlowId = "boundary-flow:login:input";
+
+    const snapshot = () => page.evaluate(() => {
+      const parent = byId("login");
+      const boundary = parent?.boundary || {};
+      const inputFlow = model.transitions.find(transition => transition.id === "boundary-flow:login:input");
+      const outputFlow = model.transitions.find(transition => transition.id === "boundary-flow:login:output");
+      return {
+        layerId: currentLayerId || "",
+        selectedNodes: selected?.nodes || [],
+        selectedEdges: selected?.edges || [],
+        entryId: boundary.entryId || "",
+        exitId: boundary.exitId || "",
+        inputFlowTo: inputFlow?.to || "",
+        outputFlowFrom: outputFlow?.from || ""
+      };
+    });
+
+    const deleted = await page.evaluate(({ childId, inputFlowId }) => {
+      const parent = byId("login");
+      setBoundaryEndpoint(parent, "input", childId);
+      setBoundaryEndpoint(parent, "output", childId);
+      ensureDefaultBoundaryTransitions(parent, statesInLayer("login"));
+      selected = selectionFromParts([], [inputFlowId]);
+      saveSelection("test:boundary-select-input");
+      return deleteSelectedItems();
+    }, { childId, inputFlowId });
+    expect(deleted).toBe(true);
+
+    await expect.poll(snapshot).toEqual({
+      layerId: "login",
+      selectedNodes: [],
+      selectedEdges: [],
+      entryId: "",
+      exitId: childId,
+      inputFlowTo: "",
+      outputFlowFrom: childId
+    });
+
+    await page.evaluate(() => undoModel());
+    await expect.poll(snapshot).toEqual({
+      layerId: "login",
+      selectedNodes: [],
+      selectedEdges: [inputFlowId],
+      entryId: childId,
+      exitId: childId,
+      inputFlowTo: childId,
+      outputFlowFrom: childId
+    });
+
+    await page.evaluate(() => redoModel());
+    await expect.poll(snapshot).toEqual({
+      layerId: "login",
+      selectedNodes: [],
+      selectedEdges: [],
+      entryId: "",
+      exitId: childId,
+      inputFlowTo: "",
+      outputFlowFrom: childId
+    });
+  });
+
   test("selects output proxy references without creating new transitions @smoke", async ({ page }) => {
     await openTool(page);
     await openStateLayer(page, "login");
@@ -7886,22 +7952,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#pDataCard")).toHaveJSProperty("open", true);
     await expect(page.locator("#pFetchCard")).toHaveJSProperty("open", true);
 
-    await triggerType.selectOption("event");
-    await expect.poll(async () => {
-      const model = await savedModel(page);
-      const transition = model.transitions.find(item => item.id === "t_auth_login");
-      return {
-        triggerType: transition?.triggerType,
-        triggerEvent: transition?.triggerEvent,
-        condition: transition?.condition
-      };
-    }).toEqual({
-      triggerType: "api",
-      triggerEvent: "fetch.states.auth_start.fetch.success",
-      condition: ""
-    });
-    await expect(triggerEvent).toBeVisible();
-    await expect(triggerEvent).toHaveJSProperty("length", 0);
+    await expect(triggerType.locator('option[value="event"]')).toHaveCount(0);
     await expect(appFrame(page).locator('button[data-transition-id="t_auth_login"]')).toHaveCount(0);
     await expect(appFrame(page).locator('button[data-transition-id="t_auth_register"]')).toBeVisible();
 
@@ -8004,7 +8055,6 @@ test.describe("State Blueprint tool", () => {
         { id: "timer", label: "Timer", settings: { timerMs: { type: "number", min: 100, max: 300000 } }, events: [] },
         { id: "api", label: "API", settings: {}, events: [{ name: "fetch.ok" }, { name: "fetch.error" }] },
         { id: "change", label: "Change", settings: {}, events: [] },
-        { id: "event", label: "Event", settings: {}, events: [] },
         { id: "realtime", label: "Realtime", settings: {}, events: eventsPayload() },
         { id: "auto", label: "Auto", settings: {}, events: [] }
       ],

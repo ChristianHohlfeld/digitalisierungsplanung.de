@@ -6890,12 +6890,12 @@
 
     function applyPersistedEditorState(data) {
       if (!data || typeof data !== "object" || !data.model) return;
-      if (modelTransitionTriggerContractIssue(data.model)) {
+      if (modelTransitionTriggerContractIssue(data.model, { allowOpenBoundaryDraft: true })) {
         try { localStorage.removeItem(EDITOR_STORAGE_KEY); } catch (_) {}
         return false;
       }
       const nextModel = normalizeModel(JSON.parse(JSON.stringify(data.model)));
-      if (modelTransitionTriggerContractIssue(nextModel)) {
+      if (modelTransitionTriggerContractIssue(nextModel, { allowOpenBoundaryDraft: true })) {
         try { localStorage.removeItem(EDITOR_STORAGE_KEY); } catch (_) {}
         return false;
       }
@@ -7409,9 +7409,9 @@
       saveUiState();
     }
 
-    function modelSnapshot() {
+    function modelSnapshot(options = {}) {
       normalizeModel(model);
-      const issue = modelTransitionTriggerContractIssue(model);
+      const issue = modelTransitionTriggerContractIssue(model, options);
       if (issue) throw new Error(issue.message);
       return JSON.stringify(model);
     }
@@ -7445,22 +7445,22 @@
       return null;
     }
 
-    function editorSnapshotPayload() {
+    function editorSnapshotPayload(options = {}) {
       return {
-        model: JSON.parse(modelSnapshot()),
+        model: JSON.parse(modelSnapshot(options)),
         selected: normalizeSelection(),
         currentLayerId
       };
     }
 
-    function editorSnapshot() {
-      return JSON.stringify(editorSnapshotPayload());
+    function editorSnapshot(options = {}) {
+      return JSON.stringify(editorSnapshotPayload(options));
     }
 
-    function editorStorageSnapshot() {
+    function editorStorageSnapshot(options = {}) {
       return JSON.stringify({
         savedAt: new Date().toISOString(),
-        ...editorSnapshotPayload()
+        ...editorSnapshotPayload(options)
       });
     }
 
@@ -7475,9 +7475,9 @@
     }
 
     function persistModel(sync = true) {
-      if (modelTransitionTriggerContractIssue(model)) return false;
+      if (modelTransitionTriggerContractIssue(model, { allowOpenBoundaryDraft: true })) return false;
       try {
-        localStorage.setItem(EDITOR_STORAGE_KEY, editorStorageSnapshot());
+        localStorage.setItem(EDITOR_STORAGE_KEY, editorStorageSnapshot({ allowOpenBoundaryDraft: true }));
       } catch (_) {}
       if (sync) scheduleSync(false);
       return true;
@@ -7524,7 +7524,7 @@
     document.addEventListener("drop", beginHistoryAction, { capture: true });
 
     function initHistory() {
-      historyCurrent = editorSnapshot();
+      historyCurrent = editorSnapshot({ allowOpenBoundaryDraft: true });
       undoStack = [];
       redoStack = [];
       beginHistoryAction();
@@ -7535,7 +7535,7 @@
       if (!historyCurrent) throw new Error("A valid editor history snapshot is required before changing the model.");
       const restored = parseEditorSnapshot(historyCurrent);
       const restoredModel = normalizeModel(JSON.parse(JSON.stringify(restored.model)));
-      const issue = modelTransitionTriggerContractIssue(restoredModel);
+      const issue = modelTransitionTriggerContractIssue(restoredModel, { allowOpenBoundaryDraft: true });
       if (issue) throw new Error(issue.message);
       model = restoredModel;
       currentLayerId = restored.currentLayerId && byId(restored.currentLayerId) ? restored.currentLayerId : null;
@@ -7551,12 +7551,12 @@
     }
 
     function saveEditorState(historyKey = null, sync = true) {
-      if (modelTransitionTriggerContractIssue(model)) {
+      if (modelTransitionTriggerContractIssue(model, { allowOpenBoundaryDraft: true })) {
         restoreRejectedEditorMutation();
         return false;
       }
       selected = normalizeSelection();
-      const next = editorSnapshot();
+      const next = editorSnapshot({ allowOpenBoundaryDraft: true });
       if (next === historyCurrent) {
         persistModel(sync);
         return true;
@@ -7589,12 +7589,12 @@
     function restoreHistorySnapshot(snapshot) {
       const restored = parseEditorSnapshot(snapshot);
       const restoredModel = normalizeModel(JSON.parse(JSON.stringify(restored.model)));
-      const issue = modelTransitionTriggerContractIssue(restoredModel);
+      const issue = modelTransitionTriggerContractIssue(restoredModel, { allowOpenBoundaryDraft: true });
       if (issue) throw new Error(issue.message);
       model = restoredModel;
       currentLayerId = byId(restored.currentLayerId) ? restored.currentLayerId : null;
       selected = normalizeSelection(restored.selected);
-      historyCurrent = editorSnapshot();
+      historyCurrent = editorSnapshot({ allowOpenBoundaryDraft: true });
       runtimeLayerFollowEnabled = false;
       suppressRuntimeLayerFollowUntil = 0;
       pendingAppStartStateId = null;
@@ -7618,7 +7618,7 @@
 
     function undoModel() {
       if (!undoStack.length) return;
-      const current = editorSnapshot();
+      const current = editorSnapshot({ allowOpenBoundaryDraft: true });
       const previous = undoStack.pop();
       redoStack.push(current);
       beginHistoryAction();
@@ -7627,7 +7627,7 @@
 
     function redoModel() {
       if (!redoStack.length) return;
-      const current = editorSnapshot();
+      const current = editorSnapshot({ allowOpenBoundaryDraft: true });
       const next = redoStack.pop();
       undoStack.push(current);
       beginHistoryAction();
@@ -8378,6 +8378,10 @@
         if (state.boundary.exitId) {
           const exit = states.find(item => item.id === state.boundary.exitId);
           if (!exit || exit.parentId !== state.id) throw new Error(`definition.model.states.${state.id}.boundary.exitId must reference a child state.`);
+        }
+        const childCount = states.filter(item => item.parentId === state.id).length;
+        if (childCount && !state.boundary.entryDisabled && !state.boundary.entryId) {
+          throw new Error(`definition.model.states.${state.id}.boundary.entryId must reference a child state or entryDisabled must be true.`);
         }
       }
 
@@ -10066,7 +10070,8 @@
       return siblings.some(transition => transitionTriggerContractKey(transition) === triggerKey);
     }
 
-    function modelTransitionTriggerContractIssue(sourceModel = model) {
+    function modelTransitionTriggerContractIssue(sourceModel = model, options = {}) {
+      const allowOpenBoundaryDraft = options.allowOpenBoundaryDraft === true;
       const byState = new Map();
       const forbiddenBoundaryKeys = ["layerTitle", "comment", "entryTriggerType", "entryTriggerEvent"];
       const stateIds = new Set();
@@ -10096,12 +10101,48 @@
           current = stateById.get(nextParentId);
         }
       }
+      const childrenByParent = new Map();
+      for (const state of sourceModel?.states || []) {
+        const parentId = state?.parentId == null || state.parentId === "" ? null : String(state.parentId);
+        if (!parentId) continue;
+        if (!childrenByParent.has(parentId)) childrenByParent.set(parentId, []);
+        childrenByParent.get(parentId).push(state);
+      }
+      const validateBoundaryEndpoint = (boundary, parentId, side) => {
+        const endpointKey = side === "entry" ? "entryId" : "exitId";
+        const endpointId = String(boundary?.[endpointKey] || "");
+        if (!endpointId) return false;
+        const endpoint = stateById.get(endpointId);
+        if (!endpoint || (endpoint.parentId || null) !== (parentId || null)) {
+          return {
+            code: `invalid_boundary_${side}`,
+            stateId: parentId || "",
+            message: `${side === "entry" ? "Entry" : "Exit"} boundary must reference a direct child of its layer.`
+          };
+        }
+        return true;
+      };
+      const rootEntryIssue = validateBoundaryEndpoint(sourceModel?.boundary, null, "entry");
+      if (rootEntryIssue !== true && rootEntryIssue) return rootEntryIssue;
+      const rootExitIssue = validateBoundaryEndpoint(sourceModel?.boundary, null, "exit");
+      if (rootExitIssue !== true && rootExitIssue) return rootExitIssue;
       for (const state of sourceModel?.states || []) {
         if (Object.prototype.hasOwnProperty.call(state, "renderMode")) {
           return { code: "invalid_state_render_mode", stateId: state.id, message: `State ${state.id} contains forbidden renderMode.` };
         }
         if (forbiddenBoundaryKeys.some(key => Object.prototype.hasOwnProperty.call(state?.boundary || {}, key))) {
           return { code: "invalid_boundary_field", stateId: state.id, message: `State ${state.id} contains a non-contract boundary field.` };
+        }
+        const entryIssue = validateBoundaryEndpoint(state?.boundary, state.id, "entry");
+        if (entryIssue !== true && entryIssue) return entryIssue;
+        const exitIssue = validateBoundaryEndpoint(state?.boundary, state.id, "exit");
+        if (exitIssue !== true && exitIssue) return exitIssue;
+        if ((childrenByParent.get(state.id) || []).length && !state?.boundary?.entryDisabled && !entryIssue && !allowOpenBoundaryDraft) {
+          return {
+            code: "missing_boundary_entry",
+            stateId: state.id,
+            message: `Parent ${state.id} must define boundary.entryId or explicitly disable automatic entry.`
+          };
         }
         if (Object.prototype.hasOwnProperty.call(state, "data")) {
           try {

@@ -1000,7 +1000,7 @@ test.describe("Core source contracts", () => {
     expect(message).toContain("must not collide with a state id");
   });
 
-  test("formal definitions allow open composite boundary proxies @smoke", async ({ page }) => {
+  test("formal definitions reject open composite boundary proxies @smoke", async ({ page }) => {
     await page.goto("/state.html");
 
     const messages = await page.evaluate(() => {
@@ -1054,7 +1054,9 @@ test.describe("Core source contracts", () => {
       return [validate(missing), validate(explicit), validate(disabled)];
     });
 
-    expect(messages).toEqual(["", "", ""]);
+    expect(messages[0]).toContain("boundary.entryId");
+    expect(messages[0]).toContain("entryDisabled");
+    expect(messages.slice(1)).toEqual(["", ""]);
   });
 
   test("formal definitions reject dotted state data keys and qualified data type keys @smoke", async ({ page }) => {
@@ -1720,6 +1722,7 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("toggleRenderPath");
     expect(html).toContain("pTransitionKeyGrid");
     expect(productContract.triggerTypes.some(type => type.id === "change" && type.label === "Daten ändern sich")).toBe(true);
+    expect(productContract.triggerTypes.some(type => type.id === "event")).toBe(false);
     expect(productContract.triggerTypes.some(type =>
       type.id === "flow" &&
       type.internal === true &&
