@@ -35,7 +35,7 @@
     "@playwright/test": "^1.52.0"
   },
   "dependencies": {
-    "parse5": "6.0.1",
-    "ws": "^8.21.0"
+    "parse5": "8.0.1",
+    "ws": "^8.21.1"
   }
 }
