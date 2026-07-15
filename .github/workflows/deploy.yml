@@ -146,4 +146,4 @@ jobs:
     steps:
       - name: Publish GitHub Pages artifact
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
