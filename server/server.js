@@ -7,6 +7,7 @@ const fs = require("node:fs");
 const http = require("node:http");
 const https = require("node:https");
 const net = require("node:net");
+const os = require("node:os");
 const path = require("node:path");
 const { URL } = require("node:url");
 const { WebSocketServer, WebSocket } = require("ws");
@@ -14,7 +15,8 @@ const eventCatalog = require("./event-catalog");
 const presetLibrary = require("./preset-library");
 const adminTools = require("./admin-tools");
 const productContract = require("./product-contract");
-const { loadReleaseInfo, parseReleaseSource } = require("./release");
+const { createPilotApi } = require("./pilot-api");
+const { loadReleaseInfo } = require("./release");
 
 const DEFAULT_ALLOWED_ORIGINS = ["https://digitalisierungsplanung.de"];
 const DEFAULT_PATH = "/ws";
@@ -33,6 +35,8 @@ const DEFAULT_PRESETS_ADMIN_PARSE_PATH = "/presets-admin/parse";
 const DEFAULT_PRESETS_ADMIN_IMPORT_PATH = "/presets-admin/import";
 const DEFAULT_IMAGE_INLINE_PATH = "/assets/inline-image";
 const DEFAULT_VERSION_PATH = "/version";
+const DEFAULT_PILOT_ADMIN_PATH = "/pilot-admin.html";
+const DEFAULT_PILOT_STUDIO_PATH = "/studio.html";
 const DEFAULT_ADMIN_COMMIT_MESSAGE = "Update realtime event catalog";
 const DEFAULT_PRESET_ADMIN_COMMIT_MESSAGE = "Update preset library";
 const DEFAULT_HOST = "127.0.0.1";
@@ -86,7 +90,7 @@ const CONSOLE_HTML = `<!doctype html>
         <h1>Realtime Event Console</h1>
         <div class="status" id="status">Loading event catalog...</div>
       </div>
-      <a id="stateLink" href="https://digitalisierungsplanung.de/state.html?room=smoke" target="_blank" rel="noreferrer">Open state room</a>
+      <a href="/pilot-admin.html">Open pilot console</a>
     </header>
     <form id="emitForm">
       <div class="grid">
@@ -115,7 +119,6 @@ const CONSOLE_HTML = `<!doctype html>
     const clientEl = document.getElementById("clientId");
     const secretEl = document.getElementById("secret");
     const sendEl = document.getElementById("send");
-    const stateLinkEl = document.getElementById("stateLink");
     const EMIT_SECRET_STORAGE_KEY = "digitalisierungsplanung.realtime.emitSecret";
     let catalog = null;
 
@@ -168,11 +171,6 @@ const CONSOLE_HTML = `<!doctype html>
       detailEl.value = JSON.stringify(detailForEvent(selectedEvent()), null, 2);
     }
 
-    function syncStateLink() {
-      const roomId = encodeURIComponent(roomEl.value.trim() || "smoke");
-      stateLinkEl.href = "https://digitalisierungsplanung.de/state.html?room=" + roomId;
-    }
-
     async function loadCatalog() {
       statusEl.textContent = "Loading event catalog...";
       eventSelect.innerHTML = "";
@@ -197,7 +195,6 @@ const CONSOLE_HTML = `<!doctype html>
       syncEventsForEmitter();
       statusEl.textContent = "Loaded " + eventSelect.options.length + " event(s).";
       syncDetail();
-      syncStateLink();
     }
 
     function syncEventsForEmitter() {
@@ -256,7 +253,6 @@ const CONSOLE_HTML = `<!doctype html>
       if (key === "room") roomEl.value = value;
       if (key === "client") clientEl.value = value;
     });
-    roomEl.addEventListener("input", syncStateLink);
     emitterSelect.addEventListener("change", () => {
       syncEventsForEmitter();
       syncDetail();
@@ -530,6 +526,12 @@ function loadConfig(options = {}) {
   const allowUnsignedRooms = options.allowUnsignedRooms ?? (
     String(env.REALTIME_ALLOW_UNSIGNED_ROOMS || "").toLowerCase() === "true"
   );
+  const pilotEnabled = options.pilotEnabled ?? String(env.PILOT_ENABLED ?? "true").toLowerCase() !== "false";
+  const pilotDataDir = path.resolve(options.pilotDataDir || env.PILOT_DATA_DIR || path.join(repoDir, ".pilot-data"));
+  const pilotBackupDir = path.resolve(options.pilotBackupDir || env.PILOT_BACKUP_DIR || path.join(path.dirname(pilotDataDir), `${path.basename(pilotDataDir)}-backups`));
+  const pilotRequireExternalBackup = options.pilotRequireExternalBackup ?? (
+    String(env.PILOT_REQUIRE_EXTERNAL_BACKUP ?? (nodeEnv === "production" ? "true" : "false")).toLowerCase() === "true"
+  );
 
   return {
     host: options.host || env.REALTIME_HOST || DEFAULT_HOST,
@@ -578,7 +580,26 @@ function loadConfig(options = {}) {
     eventCatalog: loadEventCatalog(options, env),
     presetLibrary: options.presetLibrary || presetLibrary.loadPresetLibraryFile(presetLibraryPath),
     allowUnsignedRooms: Boolean(allowUnsignedRooms),
-    requireRoomSecret: options.requireRoomSecret ?? (nodeEnv === "production" && !allowUnsignedRooms)
+    requireRoomSecret: options.requireRoomSecret ?? (nodeEnv === "production" && !allowUnsignedRooms),
+    pilotEnabled: Boolean(pilotEnabled),
+    pilotApiPrefix: options.pilotApiPrefix || env.PILOT_API_PREFIX || "/api/v1",
+    pilotAdminPath: options.pilotAdminPath || env.PILOT_ADMIN_PATH || DEFAULT_PILOT_ADMIN_PATH,
+    pilotStudioPath: options.pilotStudioPath || env.PILOT_STUDIO_PATH || DEFAULT_PILOT_STUDIO_PATH,
+    pilotAdminHtmlPath: path.resolve(options.pilotAdminHtmlPath || env.PILOT_ADMIN_HTML_PATH || path.join(__dirname, "pilot-admin.html")),
+    pilotStudioHtmlPath: path.resolve(options.pilotStudioHtmlPath || env.PILOT_STUDIO_HTML_PATH || path.join(repoDir, "state.html")),
+    pilotDataDir,
+    pilotBackupDir,
+    pilotRequireExternalBackup: Boolean(pilotRequireExternalBackup),
+    pilotBackupSigningKey: options.pilotBackupSigningKey ?? env.PILOT_BACKUP_SIGNING_KEY ?? "",
+    pilotBootstrapToken: options.pilotBootstrapToken ?? env.PILOT_BOOTSTRAP_TOKEN ?? "",
+    pilotSessionTtlMs: parseInteger(options.pilotSessionTtlMs ?? env.PILOT_SESSION_TTL_MS, 12 * 60 * 60 * 1000, 60 * 1000),
+    pilotMaxJsonBytes: parseInteger(options.pilotMaxJsonBytes ?? env.PILOT_MAX_JSON_BYTES, 1024 * 1024, 1024, 8 * 1024 * 1024),
+    pilotRateLimitWindowMs: parseInteger(options.pilotRateLimitWindowMs ?? env.PILOT_RATE_WINDOW_MS, 60 * 1000, 1000),
+    pilotRateLimitMax: parseInteger(options.pilotRateLimitMax ?? env.PILOT_RATE_LIMIT, 240, 1),
+    pilotLoginRateLimitMax: parseInteger(options.pilotLoginRateLimitMax ?? env.PILOT_LOGIN_RATE_LIMIT, 12, 1),
+    pilotMaxProjectsPerOrganization: parseInteger(options.pilotMaxProjectsPerOrganization ?? env.PILOT_MAX_PROJECTS_PER_ORGANIZATION, 100, 1, 10000),
+    pilotMaxVersionsPerProject: parseInteger(options.pilotMaxVersionsPerProject ?? env.PILOT_MAX_VERSIONS_PER_PROJECT, 200, 1, 100000),
+    pilotMaxTenantBytes: parseInteger(options.pilotMaxTenantBytes ?? env.PILOT_MAX_TENANT_BYTES, 100 * 1024 * 1024, 1024 * 1024, 10 * 1024 * 1024 * 1024)
   };
 }
 
@@ -683,6 +704,19 @@ function writeHtml(response, statusCode, body, headers = {}) {
   response.end(body);
 }
 
+function writeStudioHtml(response, body) {
+  response.writeHead(200, {
+    "content-type": "text/html; charset=utf-8",
+    "cache-control": "no-store",
+    "content-security-policy": "default-src 'self' data: blob: https:; connect-src 'self' https: wss:; script-src 'self' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; frame-src blob:; worker-src blob:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+    "cross-origin-opener-policy": "same-origin",
+    "x-content-type-options": "nosniff",
+    "referrer-policy": "no-referrer",
+    "content-length": Buffer.byteLength(body)
+  });
+  response.end(body);
+}
+
 function bearerToken(request) {
   const header = String(request.headers.authorization || "");
   const match = header.match(/^Bearer\s+(.+)$/i);
@@ -746,35 +780,6 @@ function cleanCommitMessage(value, fallback = DEFAULT_ADMIN_COMMIT_MESSAGE) {
   return (text || fallback).slice(0, 120);
 }
 
-function serializeReleaseInfo(release) {
-  return `globalThis.ZUSTAND_RELEASE_SEQUENCE = ${Math.max(0, release.sequence || 0)};\n` +
-    `globalThis.ZUSTAND_RELEASE_ID = ${JSON.stringify(release.id || "dev-local")};\n` +
-    `globalThis.ZUSTAND_RELEASE_BUILT_AT = ${JSON.stringify(release.builtAt || "")};\n` +
-    `globalThis.ZUSTAND_RELEASE_SOURCE = ${JSON.stringify(release.sourceCommit || "")};\n`;
-}
-
-function readFileRelease(config) {
-  try {
-    return parseReleaseSource(fs.readFileSync(config.releaseFile, "utf8"));
-  } catch (_) {
-    return config.release;
-  }
-}
-
-function nextReleaseInfo(config) {
-  const current = readFileRelease(config);
-  const currentSequence = Number.isSafeInteger(current.sequence) && current.sequence > 0
-    ? current.sequence
-    : Number.isSafeInteger(config.release.sequence) ? config.release.sequence : 0;
-  return {
-    id: `release-${currentSequence + 1}`,
-    sequence: currentSequence + 1,
-    builtAt: new Date().toISOString(),
-    sourceCommit: currentShortCommit(config),
-    deployedCommit: ""
-  };
-}
-
 function gitFailure(code, result, status = 500) {
   const error = new Error(code);
   error.code = code;
@@ -783,9 +788,9 @@ function gitFailure(code, result, status = 500) {
   return error;
 }
 
-function runGit(config, args, code) {
+function runGit(config, args, code, cwd = config.repoDir) {
   const result = config.gitRunner(args, {
-    cwd: config.repoDir,
+    cwd,
     env: process.env
   });
   if (!result || result.status !== 0) throw gitFailure(code, result);
@@ -803,87 +808,97 @@ function repoRelativePath(repoDir, absolutePath) {
   return relative;
 }
 
-function pushCurrentHead(config) {
-  const pushArgs = config.gitPushToken
-    ? [
-        "-c",
-        `http.https://github.com/.extraheader=AUTHORIZATION: basic ${Buffer.from(`x-access-token:${config.gitPushToken}`).toString("base64")}`,
-        "push",
-        "origin",
-        "HEAD:main"
-      ]
-    : ["push", "origin", "HEAD:main"];
-  runGit(config, pushArgs, "git_push_failed");
+function gitAuthenticatedArgs(config, args) {
+  if (!config.gitPushToken) return args;
+  return [
+    "-c",
+    `http.https://github.com/.extraheader=AUTHORIZATION: basic ${Buffer.from(`x-access-token:${config.gitPushToken}`).toString("base64")}`,
+    ...args
+  ];
 }
 
-function currentShortCommit(config) {
-  const rev = runGit(config, ["rev-parse", "--short", "HEAD"], "git_rev_parse_failed");
+function pushReviewBranch(config, worktreeDir, branchKind, commit) {
+  const safeKind = String(branchKind || "catalog").toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "") || "catalog";
+  const safeCommit = String(commit || "change").replace(/[^a-zA-Z0-9]+/g, "").slice(0, 16) || "change";
+  const branch = `admin/${safeKind}-${Date.now()}-${safeCommit}`;
+  const pushArgs = gitAuthenticatedArgs(config, ["push", "origin", `HEAD:refs/heads/${branch}`]);
+  runGit(config, pushArgs, "git_push_failed", worktreeDir);
+  return branch;
+}
+
+function currentShortCommit(config, cwd = config.repoDir) {
+  const rev = runGit(config, ["rev-parse", "--short", "HEAD"], "git_rev_parse_failed", cwd);
   return String(rev.stdout || "").trim();
-}
-
-function localAheadCount(config) {
-  const result = config.gitRunner(["rev-list", "--count", "@{u}..HEAD"], {
-    cwd: config.repoDir,
-    env: process.env
-  });
-  if (!result || result.status !== 0) return 0;
-  const count = Number.parseInt(String(result.stdout || "").trim(), 10);
-  return Number.isFinite(count) && count > 0 ? count : 0;
 }
 
 function writeManagedCatalogCommitAndPush(config, options) {
   const relativeCatalogPath = repoRelativePath(config.repoDir, options.catalogPath);
-  const relativeReleasePath = repoRelativePath(config.repoDir, config.releaseFile);
-  fs.writeFileSync(options.catalogPath, options.serialized, { encoding: "utf8", mode: 0o644 });
+  const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), "realtime-admin-review-"));
+  const worktreeDir = path.join(temporaryRoot, "worktree");
+  let worktreeAdded = false;
+  let operationFailed = false;
 
-  const unstaged = config.gitRunner(["diff", "--quiet", "--", relativeCatalogPath], {
-    cwd: config.repoDir,
-    env: process.env
-  });
-  if (!unstaged) throw gitFailure("git_diff_failed", unstaged);
-  const staged = config.gitRunner(["diff", "--cached", "--quiet", "--", relativeCatalogPath], {
-    cwd: config.repoDir,
-    env: process.env
-  });
-  if (!staged) throw gitFailure("git_diff_failed", staged);
-  if (![0, 1].includes(unstaged.status) || ![0, 1].includes(staged.status)) throw gitFailure("git_diff_failed", unstaged.status !== 0 ? unstaged : staged);
-  if (unstaged.status === 0 && staged.status === 0) {
-    if (localAheadCount(config) > 0) {
-      pushCurrentHead(config);
-      return { ok: true, changed: true, commit: currentShortCommit(config) };
+  try {
+    runGit(
+      config,
+      gitAuthenticatedArgs(config, ["fetch", "--no-tags", "origin", "+refs/heads/main:refs/remotes/origin/main"]),
+      "git_fetch_main_failed"
+    );
+    runGit(config, ["worktree", "add", "--detach", worktreeDir, "origin/main"], "git_worktree_add_failed");
+    worktreeAdded = true;
+
+    const worktreeCatalogPath = path.join(worktreeDir, ...relativeCatalogPath.split("/"));
+    fs.mkdirSync(path.dirname(worktreeCatalogPath), { recursive: true });
+    fs.writeFileSync(worktreeCatalogPath, options.serialized, { encoding: "utf8", mode: 0o644 });
+
+    const diff = config.gitRunner(["diff", "--quiet", "--", relativeCatalogPath], {
+      cwd: worktreeDir,
+      env: process.env
+    });
+    if (!diff || ![0, 1].includes(diff.status)) throw gitFailure("git_diff_failed", diff);
+    if (diff.status === 0) return { ok: true, changed: false };
+
+    runGit(config, ["add", "--", relativeCatalogPath], "git_add_failed", worktreeDir);
+    const commitMessage = cleanCommitMessage(options.message, options.defaultMessage);
+    runGit(config, [
+      "-c",
+      `user.name=${options.authorName}`,
+      "-c",
+      `user.email=${options.authorEmail}`,
+      "commit",
+      "-m",
+      commitMessage,
+      "--",
+      relativeCatalogPath
+    ], "git_commit_failed", worktreeDir);
+
+    const commit = currentShortCommit(config, worktreeDir);
+    const branch = pushReviewBranch(config, worktreeDir, options.branchKind, commit);
+    return {
+      ok: true,
+      changed: true,
+      commit,
+      branch,
+      reviewRequired: true
+    };
+  } catch (error) {
+    operationFailed = true;
+    throw error;
+  } finally {
+    let cleanupFailure = null;
+    if (worktreeAdded) {
+      const cleanup = config.gitRunner(["worktree", "remove", "--force", worktreeDir], {
+        cwd: config.repoDir,
+        env: process.env
+      });
+      if (!cleanup || cleanup.status !== 0) cleanupFailure = gitFailure("git_worktree_cleanup_failed", cleanup);
     }
-    return { ok: true, changed: false };
+    fs.rmSync(temporaryRoot, { recursive: true, force: true });
+    if (cleanupFailure) {
+      config.gitRunner(["worktree", "prune"], { cwd: config.repoDir, env: process.env });
+      if (!operationFailed) throw cleanupFailure;
+    }
   }
-
-  const release = nextReleaseInfo(config);
-  fs.writeFileSync(config.releaseFile, serializeReleaseInfo(release), { encoding: "utf8", mode: 0o644 });
-
-  runGit(config, ["add", "--", relativeCatalogPath, relativeReleasePath], "git_add_failed");
-  const baseMessage = cleanCommitMessage(options.message, options.defaultMessage);
-  const commitMessage = baseMessage.includes(release.id) ? baseMessage : `${baseMessage} (${release.id})`;
-  runGit(config, [
-    "-c",
-    `user.name=${options.authorName}`,
-    "-c",
-    `user.email=${options.authorEmail}`,
-    "commit",
-    "-m",
-    commitMessage,
-    "--",
-    relativeCatalogPath,
-    relativeReleasePath
-  ], "git_commit_failed");
-
-  pushCurrentHead(config);
-  const commit = currentShortCommit(config);
-  return {
-    ok: true,
-    changed: true,
-    commit,
-    releaseId: release.id,
-    releaseSequence: release.sequence,
-    release: { ...release, deployedCommit: commit }
-  };
 }
 
 function writeCatalogCommitAndPush(config, catalog, message) {
@@ -892,6 +907,7 @@ function writeCatalogCommitAndPush(config, catalog, message) {
     serialized: eventCatalog.serializeEventCatalog(catalog),
     message,
     defaultMessage: DEFAULT_ADMIN_COMMIT_MESSAGE,
+    branchKind: "events",
     authorName: "Realtime Event Designer",
     authorEmail: "realtime-events@digitalisierungsplanung.de"
   });
@@ -903,6 +919,7 @@ function writePresetLibraryCommitAndPush(config, library, message) {
     serialized: presetLibrary.serializePresetLibrary(library),
     message,
     defaultMessage: DEFAULT_PRESET_ADMIN_COMMIT_MESSAGE,
+    branchKind: "presets",
     authorName: "Preset Designer",
     authorEmail: "presets@digitalisierungsplanung.de"
   });
@@ -1067,12 +1084,38 @@ function createRealtimeServer(options = {}) {
     }
     return { done: false, headers };
   };
+  const pilotApi = config.pilotEnabled ? (options.pilotApi || createPilotApi({
+    prefix: config.pilotApiPrefix,
+    dataDir: config.pilotDataDir,
+    backupDir: config.pilotBackupDir,
+    requireExternalBackup: config.pilotRequireExternalBackup,
+    backupSigningKey: config.pilotBackupSigningKey,
+    bootstrapToken: config.pilotBootstrapToken,
+    sessionTtlMs: config.pilotSessionTtlMs,
+    maxJsonBytes: config.pilotMaxJsonBytes,
+    rateLimitWindowMs: config.pilotRateLimitWindowMs,
+    rateLimitMax: config.pilotRateLimitMax,
+    loginRateLimitMax: config.pilotLoginRateLimitMax,
+    maxProjectsPerOrganization: config.pilotMaxProjectsPerOrganization,
+    maxVersionsPerProject: config.pilotMaxVersionsPerProject,
+    maxTenantBytes: config.pilotMaxTenantBytes,
+    allowedOrigins: config.allowedOrigins,
+    store: options.pilotStore
+  })) : null;
 
   const server = options.server || http.createServer((request, response) => {
     const url = new URL(request.url || "/", "http://localhost");
     if (request.method === "GET" && url.pathname === "/healthz") {
       const clients = [...rooms.values()].reduce((sum, room) => sum + room.clients.size, 0);
       writeJson(response, 200, { ...releaseResponse(config), rooms: rooms.size, clients });
+      return;
+    }
+    if (config.pilotEnabled && request.method === "GET" && url.pathname === config.pilotAdminPath) {
+      writeHtml(response, 200, fs.readFileSync(config.pilotAdminHtmlPath, "utf8"));
+      return;
+    }
+    if (config.pilotEnabled && request.method === "GET" && url.pathname === config.pilotStudioPath) {
+      writeStudioHtml(response, fs.readFileSync(config.pilotStudioHtmlPath, "utf8"));
       return;
     }
     if (request.method === "GET" && (url.pathname === "/" || url.pathname === config.adminPath)) {
@@ -1179,6 +1222,10 @@ function createRealtimeServer(options = {}) {
       }, headers);
       return;
     }
+    if (pilotApi?.matches(url.pathname)) {
+      void pilotApi.handle(request, response);
+      return;
+    }
     writeJson(response, 404, { error: "not_found" });
   });
 
@@ -1268,8 +1315,6 @@ function createRealtimeServer(options = {}) {
         return;
       }
       const result = writeCatalogCommitAndPush(config, catalog, payload.message);
-      setEventCatalog(catalog);
-      if (result.release) config.release = result.release;
       writeJson(response, 200, result, headers);
     } catch (error) {
       writeJson(response, error.status || 500, { error: error.code || "event_catalog_save_failed" }, headers);
@@ -1306,8 +1351,6 @@ function createRealtimeServer(options = {}) {
         return;
       }
       const result = writePresetLibraryCommitAndPush(config, library, payload.message);
-      setPresetLibrary(library);
-      if (result.release) config.release = result.release;
       writeJson(response, 200, result, headers);
     } catch (error) {
       writeJson(response, error.status || 500, { error: error.code || "preset_library_save_failed" }, headers);
@@ -1630,6 +1673,7 @@ function createRealtimeServer(options = {}) {
 
   function close() {
     clearInterval(heartbeat);
+    pilotApi?.close();
     for (const socket of wss.clients) socket.terminate();
     return new Promise(resolve => {
       wss.close(() => {
@@ -1647,6 +1691,7 @@ function createRealtimeServer(options = {}) {
     server,
     wss,
     rooms,
+    pilotApi,
     listen,
     address,
     close

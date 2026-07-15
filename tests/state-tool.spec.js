@@ -1059,11 +1059,9 @@ async function traverseWebsiteDemoShard(page, shardIndex, shardCount) {
   };
   const prepare = async transition => {
     const shortId = String(transition.from || "").replace(/^site_/, "");
-    if (transition.id === "site_login_submit") {
-      await typeInto('input[type="email"]', "mira@example.test");
-      await typeInto('input[type="password"]', "demo-password");
-    } else if (transition.id === "site_checkout_complete") {
+    if (transition.id === "site_checkout_complete") {
       await typeInto("input", `${shortId}@example.test`);
+      await typeInto("textarea", "Auftragsfreigabe mit zwei beteiligten Teams.");
     } else if (transition.id === "site_contact_send") {
       await typeInto("input", "Mira Keller", 0);
       await typeInto("input", "mira@example.test", 1);
@@ -2325,7 +2323,7 @@ test.describe("State Blueprint tool", () => {
     });
   });
 
-  test("opens the demo Anfrage auto parent as its exclusive child on every real click @smoke", async ({ page }) => {
+  test("opens the demo Qualifizierung auto parent as its exclusive child on every real click @smoke", async ({ page }) => {
     await page.addInitScript(key => {
       if (sessionStorage.getItem("demo-parent-test-ready")) return;
       for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
@@ -2364,7 +2362,7 @@ test.describe("State Blueprint tool", () => {
         layerId: "site_checkout_flow",
         selectedNodes: ["site_checkout"]
       });
-      await expect(page.locator("#pTitle")).toHaveValue("Anfrage");
+      await expect(page.locator("#pTitle")).toHaveValue("Qualifizierung");
     };
     const expectAutoEntryBackPulse = async count => {
       const back = page.locator("#layerBack");
@@ -2387,15 +2385,15 @@ test.describe("State Blueprint tool", () => {
         runtimeStateId: "site_checkout"
       });
       await expect(page.locator('[data-id="site_checkout"]')).toHaveClass(/selected/);
-      await expect(page.locator("#pTitle")).toHaveValue("Anfrage");
-      await expect(app.getByRole("heading", { name: "Anfrage", exact: true })).toHaveCount(1);
+      await expect(page.locator("#pTitle")).toHaveValue("Qualifizierung");
+      await expect(app.getByRole("heading", { name: "Qualifizierung", exact: true })).toHaveCount(1);
       await expect(app.locator(".navbar")).toHaveCount(1);
       await expect(app.locator(".navbar")).toContainText("Digitalisierungsplanung");
       await expect(app.locator(".navbar")).toContainText("Start");
       await expect(app.locator(".navbar")).not.toContainText("Kopf-Navigation");
-      await expect(app.getByText("Starter")).toBeVisible();
-      await expect(app.getByText("249 EUR")).toBeVisible();
-      await expect(app.getByRole("button", { name: "Anfrage senden", exact: true })).toHaveCount(1);
+      await expect(app.getByText("Managed Pilot", { exact: true })).toBeVisible();
+      await expect(app.locator(".card").filter({ hasText: "Managed Pilot" })).toContainText("2.500–7.500 €");
+      await expect(app.getByRole("button", { name: "Qualifizierung vorbereiten", exact: true })).toHaveCount(1);
     };
 
     await parent.click();
@@ -2421,7 +2419,7 @@ test.describe("State Blueprint tool", () => {
     await expectExclusiveChild();
   });
 
-  test("keeps mobile demo Anfrage auto-entry camera modest @smoke", async ({ browser }) => {
+  test("keeps mobile demo Qualifizierung auto-entry camera modest @smoke", async ({ browser }) => {
     const context = await browser.newContext({
       baseURL: "http://localhost:8124",
       viewport: { width: 390, height: 820 },
@@ -2564,7 +2562,7 @@ test.describe("State Blueprint tool", () => {
         "site_profile",
         "site_thanks"
       ],
-      userTransitions: 54,
+      userTransitions: 48,
       loginHeroTransitionId: "site_login_submit",
       boundary: { entryId: "site_home", exitId: "site_thanks" },
       scopedDataOnly: true,
@@ -2607,16 +2605,16 @@ test.describe("State Blueprint tool", () => {
     expect(layerRouteViolations).toEqual([]);
 
     const app = appFrame(page);
-    const expectedNavLabels = ["Digitalisierungsplanung", "Start", "Nutzen", "Pakete", "Kontakt", "Konto"];
+    const expectedNavLabels = ["Digitalisierungsplanung", "Start", "Nutzen", "Pilot", "Vorgehen", "Kontakt"];
     const expectedTitles = {
       site_home: "Start",
       site_features: "Nutzen",
-      site_pricing: "Pakete",
-      site_checkout: "Anfrage",
+      site_pricing: "Pilot",
+      site_checkout: "Qualifizierung",
       site_contact: "Kontakt",
-      site_thanks: "Danke",
-      site_login: "Konto",
-      site_profile: "Profil"
+      site_thanks: "Vorbereitet",
+      site_login: "Vorgehen",
+      site_profile: "Abnahme"
     };
     const expectDemoShell = async stateId => {
       await expect.poll(async () => app.locator("body").evaluate(() => {
@@ -2651,17 +2649,10 @@ test.describe("State Blueprint tool", () => {
 
     await expectDemoShell("site_home");
     await expect(app.getByRole("heading", { name: "Aus Erfahrungswissen wird Software.", exact: true })).toBeVisible();
-    await expect(app.locator('.hero[style*="photo-1556761175-b413da4baf72"]')).toBeVisible();
+    await expect(app.locator('.hero[style*="assets/share-card.png"]')).toBeVisible();
     await expect(app.locator(".daisy-feature-grid")).toHaveCount(1);
     await expect(app.locator(".daisy-feature-cards > .card")).toHaveCount(3);
-    await expect(app.locator(".daisy-feature-image")).toHaveCount(3);
-    await expect.poll(async () => app.locator(".daisy-feature-image").evaluateAll(images =>
-      images.map(image => image.getAttribute("src") || "")
-    )).toEqual([
-      expect.stringContaining("images.unsplash.com"),
-      expect.stringContaining("images.unsplash.com"),
-      expect.stringContaining("images.unsplash.com")
-    ]);
+    await expect(app.locator(".daisy-feature-image")).toHaveCount(0);
     await expect(app.locator(".daisy-feature-grid button[data-transition-id]")).toHaveCount(3);
     await expectNoHorizontalOverflow();
 
@@ -2683,7 +2674,7 @@ test.describe("State Blueprint tool", () => {
     await expect(app.getByText("Direkt nutzbar statt nur dokumentiert")).toBeVisible();
     await expect(app.locator(".daisy-feature-grid")).toHaveCount(1);
     await expect(app.locator(".daisy-feature-cards > .card")).toHaveCount(3);
-    await expect(app.locator(".daisy-feature-image")).toHaveCount(3);
+    await expect(app.locator(".daisy-feature-image")).toHaveCount(0);
     await expect(app.locator(".daisy-feature-grid button[data-transition-id]")).toHaveCount(3);
     await expect(app.locator(".steps button[data-transition-id] .daisy-step-label")).toHaveText([
       "Aufnehmen",
@@ -2715,90 +2706,92 @@ test.describe("State Blueprint tool", () => {
     await expect(navButton("Nutzen")).toHaveCount(1);
     await expectNoHorizontalOverflow();
 
-    await expect(navButton("Pakete")).toHaveCount(1);
-    await navButton("Pakete").click();
+    await expect(navButton("Pilot")).toHaveCount(1);
+    await navButton("Pilot").click();
     await expectDemoShell("site_pricing");
-    await expect(app.getByText("Wählen Sie ein Abo")).toBeVisible();
+    await expect(app.getByText("Kommerzieller Rahmen")).toBeVisible();
     await expect(app.locator(".daisy-pricing")).toHaveCount(1);
-    await expect(app.locator(".daisy-pricing > .card")).toHaveCount(3);
-    await expect(app.locator(".daisy-pricing .card .card-title")).toContainText(["Starter", "Business", "Scale"]);
-    await expect(app.locator(".daisy-pricing .daisy-card-price")).toContainText(["249 EUR", "749 EUR", "1.990 EUR"]);
-    await expect(app.locator(".daisy-pricing button[data-transition-id]")).toHaveCount(3);
+    await expect(app.locator(".daisy-pricing > .card")).toHaveCount(1);
+    await expect(app.locator(".daisy-pricing .card .card-title")).toContainText(["Managed Pilot"]);
+    await expect(app.locator(".daisy-pricing .daisy-card-price")).toContainText(["2.500–7.500 €"]);
+    await expect(app.locator(".daisy-pricing button[data-transition-id]")).toHaveCount(1);
     await expect(app.locator('[data-default-action="true"]')).toHaveCount(0);
-    await expect(app.locator(".daisy-feature-grid").filter({ hasText: "Zubuchbare Pakete" })).toHaveCount(1);
-    await expect(app.locator(".daisy-feature-grid").filter({ hasText: "Zubuchbare Pakete" }).locator(".daisy-feature-cards > .card")).toHaveCount(4);
-    await expect(app.locator(".daisy-feature-grid").filter({ hasText: "Zubuchbare Pakete" }).locator("button[data-transition-id]")).toHaveCount(4);
+    await expect(app.locator(".daisy-feature-grid").filter({ hasText: "Qualifizierung vor Beauftragung" })).toHaveCount(1);
+    await expect(app.locator(".daisy-feature-grid").filter({ hasText: "Qualifizierung vor Beauftragung" }).locator(".daisy-feature-cards > .card")).toHaveCount(3);
+    await expect(app.locator(".daisy-feature-grid").filter({ hasText: "Qualifizierung vor Beauftragung" }).locator("button[data-transition-id]")).toHaveCount(0);
     await expect(app.locator(".actions [data-transition-id]")).toHaveCount(0);
-    await expect(app.getByRole("button", { name: "Starter anfragen", exact: true })).toHaveCount(1);
-    await expect(app.getByRole("button", { name: "Business anfragen", exact: true })).toHaveCount(1);
-    await expect(app.getByRole("button", { name: "Scale anfragen", exact: true })).toHaveCount(1);
-    await expect(app.getByRole("button", { name: "BI zubuchen", exact: true })).toHaveCount(1);
+    await expect(app.getByRole("button", { name: "Pilot qualifizieren", exact: true })).toHaveCount(1);
     await expectNoHorizontalOverflow();
     await expect.poll(async () => app.locator("body").evaluate(() => {
       window.scrollTo(0, document.body.scrollHeight);
       return Math.round(window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0);
     })).toBeGreaterThan(0);
-    await app.getByRole("button", { name: "Business anfragen", exact: true }).click();
+    await app.getByRole("button", { name: "Pilot qualifizieren", exact: true }).click();
     await expectDemoShell("site_checkout");
     await expect.poll(async () => app.locator("body").evaluate(() =>
       Math.round(window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0)
     )).toBe(0);
-    await expect(app.getByText("Business")).toBeVisible();
-    await expect(app.getByText("749 EUR")).toBeVisible();
+    await expect(app.getByText("Managed Pilot", { exact: true })).toBeVisible();
+    await expect(app.locator(".card").filter({ hasText: "Managed Pilot" })).toContainText("2.500–7.500 €");
     await expect.poll(async () => {
       const context = await runtimeContext(page);
       return {
         current: context.state?.current,
         lastTransition: context.state?.lastTransition,
         selectedPlan: context.states?.site_pricing?.plans?.selectedPlan,
-        plan: context.states?.site_checkout?.order?.plan,
-        price: context.states?.site_checkout?.order?.price
+        offer: context.states?.site_checkout?.qualification?.offer,
+        priceRange: context.states?.site_checkout?.qualification?.priceRange,
+        duration: context.states?.site_checkout?.qualification?.duration
       };
     }).toEqual({
       current: "site_checkout",
-      lastTransition: "site_pricing_buy_business",
-      selectedPlan: "Business",
-      plan: "Business",
-      price: "749 EUR"
+      lastTransition: "site_pricing_buy_pilot",
+      selectedPlan: "Managed Pilot",
+      offer: "Managed Pilot",
+      priceRange: "2.500–7.500 €",
+      duration: "6–12 Wochen"
     });
-    await app.locator('input').fill("billing@example.test");
-    await expect(app.getByRole("button", { name: "Anfrage senden", exact: true })).toHaveCount(1);
-    await app.getByRole("button", { name: "Anfrage senden", exact: true }).click();
+    await app.locator('input').fill("pilot@example.test");
+    await app.locator('textarea').fill("Auftragsfreigabe mit zwei beteiligten Teams.");
+    await expect(app.getByRole("button", { name: "Qualifizierung vorbereiten", exact: true })).toHaveCount(1);
+    await app.getByRole("button", { name: "Qualifizierung vorbereiten", exact: true }).click();
     await expectDemoShell("site_thanks");
-    await expect.poll(async () => (await runtimeContext(page)).states?.site_thanks?.order).toMatchObject({
-      plan: "Business",
-      price: "749 EUR",
-      completed: true
+    await expect.poll(async () => (await runtimeContext(page)).states?.site_thanks?.qualification).toMatchObject({
+      offer: "Managed Pilot",
+      priceRange: "2.500–7.500 €",
+      duration: "6–12 Wochen",
+      prepared: true
     });
 
     await navButton("Kontakt").click();
     await expectDemoShell("site_contact");
-    await expect(app.getByText("Nennen Sie uns den Ablauf")).toBeVisible();
+    await expect(app.getByText("Nennen Sie den Ablauf")).toBeVisible();
 
-    await expect(app.getByRole("button", { name: "Anfrage senden", exact: true })).toHaveCount(1);
-    await app.getByRole("button", { name: "Anfrage senden", exact: true }).click();
+    await expect(app.getByRole("button", { name: "Qualifizierung vorbereiten", exact: true })).toHaveCount(1);
+    await app.getByRole("button", { name: "Qualifizierung vorbereiten", exact: true }).click();
     await expectDemoShell("site_thanks");
-    await expect(app.getByText("Anfrage erhalten")).toBeVisible();
+    await expect(app.getByText("Diese Demo versendet keine Daten")).toBeVisible();
 
-    await expect(navButton("Konto")).toHaveCount(1);
-    await navButton("Konto").click();
+    await expect(navButton("Vorgehen")).toHaveCount(1);
+    await navButton("Vorgehen").click();
     await expectDemoShell("site_login");
-    await expect(app.getByText("Kundenbereich")).toBeVisible();
-    await app.locator('input[type="email"]').fill("mira@example.test");
-    await app.locator('input[type="password"]').fill("demo-password");
+    await expect(app.getByText("So läuft der Managed Pilot")).toBeVisible();
+    await expect(app.locator('input[type="email"]')).toHaveCount(0);
+    await expect(app.locator('input[type="password"]')).toHaveCount(0);
 
-    const signInButton = app.locator('.hero button[data-transition-id="site_login_submit"]').filter({ hasText: "Anmelden" });
-    await expect(signInButton).toHaveCount(1);
-    await signInButton.click();
+    const reviewButton = app.locator('.hero button[data-transition-id="site_login_submit"]').filter({ hasText: "Abnahme ansehen" });
+    await expect(reviewButton).toHaveCount(1);
+    await reviewButton.click();
     await expectDemoShell("site_profile");
-    await expect(app.getByText("Willkommen zurück")).toBeVisible();
-    await expect(app.locator('.avatar img[alt="Mira Keller"]')).toBeVisible();
+    await expect(app.getByText("Abnahme bedeutet")).toBeVisible();
+    await expect(app.getByText("Abnahmefähig", { exact: true })).toBeVisible();
+    await expect(app.locator(".avatar")).toHaveCount(0);
     await expect(app.getByText("Parent")).toHaveCount(0);
 
-    await expect(app.getByRole("button", { name: "Abmelden", exact: true })).toHaveCount(1);
-    await app.getByRole("button", { name: "Abmelden", exact: true }).click();
-    await expectDemoShell("site_login");
-    await expect(app.getByText("Kundenbereich")).toBeVisible();
+    await expect(app.getByRole("button", { name: "Pilot qualifizieren", exact: true })).toHaveCount(1);
+    await app.getByRole("button", { name: "Pilot qualifizieren", exact: true }).click();
+    await expectDemoShell("site_contact");
+    await expect(app.getByText("Diese Demo hält Eingaben nur lokal")).toBeVisible();
   });
 
   test("website demo graph reaches every state and binds every transition by contract id @smoke", async ({ page }) => {
@@ -2809,7 +2802,7 @@ test.describe("State Blueprint tool", () => {
     const allEntityIds = [...stateIds, ...transitionIds];
     expect(new Set(allEntityIds).size).toBe(allEntityIds.length);
     expect(stateIds).toHaveLength(9);
-    expect(transitionIds).toHaveLength(54);
+    expect(transitionIds).toHaveLength(48);
 
     const stateIdSet = new Set(stateIds);
     for (const transition of transitions) {
@@ -2893,13 +2886,13 @@ test.describe("State Blueprint tool", () => {
     }).toEqual({
       componentLabel: "Site Header",
       brand: "Site Header",
-      labels: ["Start", "Plans", "Nutzen", "Kontakt", "Konto"],
+      labels: ["Start", "Plans", "Nutzen", "Vorgehen", "Kontakt"],
       transitionIds: [
         "site_home_nav_home",
         "site_home_nav_pricing",
         "site_home_nav_features",
-        "site_home_nav_contact",
-        "site_home_nav_login"
+        "site_home_nav_login",
+        "site_home_nav_contact"
       ],
       pricingLabel: "Plans"
     });
@@ -2907,7 +2900,7 @@ test.describe("State Blueprint tool", () => {
     await page.getByRole("button", { name: "App zurücksetzen", exact: true }).click();
     await expect.poll(async () => appFrame(page).locator(".navbar button,.navbar a").evaluateAll(items =>
       items.map(item => item.textContent.trim()).filter(Boolean)
-    )).toEqual(["Site Header", "Start", "Plans", "Nutzen", "Kontakt", "Konto"]);
+    )).toEqual(["Site Header", "Start", "Plans", "Nutzen", "Vorgehen", "Kontakt"]);
 
     await appFrame(page).locator(".navbar").getByRole("button", { name: "Plans", exact: true }).click();
     await expect(appFrame(page).locator("#statePill")).toHaveText("site_pricing");
@@ -3196,13 +3189,13 @@ test.describe("State Blueprint tool", () => {
       )).toBeLessThanOrEqual(2);
     };
     const openPricing = async () => {
-      await navButton("Pakete").click();
-      await expectStandaloneShell("site_pricing", "Pakete");
-      await expect(standalone.locator(".daisy-pricing > .card")).toHaveCount(3);
-      await expect(standalone.locator(".daisy-pricing .card .card-title")).toContainText(["Starter", "Business", "Scale"]);
-      await expect(standalone.locator(".daisy-pricing button[data-transition-id]")).toHaveCount(3);
-      await expect(standalone.locator(".daisy-feature-grid").filter({ hasText: "Zubuchbare Pakete" }).locator(".daisy-feature-cards > .card")).toHaveCount(4);
-      await expect(standalone.locator(".daisy-feature-grid").filter({ hasText: "Zubuchbare Pakete" }).locator("button[data-transition-id]")).toHaveCount(4);
+      await navButton("Pilot").click();
+      await expectStandaloneShell("site_pricing", "Pilot");
+      await expect(standalone.locator(".daisy-pricing > .card")).toHaveCount(1);
+      await expect(standalone.locator(".daisy-pricing .card .card-title")).toContainText(["Managed Pilot"]);
+      await expect(standalone.locator(".daisy-pricing button[data-transition-id]")).toHaveCount(1);
+      await expect(standalone.locator(".daisy-feature-grid").filter({ hasText: "Qualifizierung vor Beauftragung" }).locator(".daisy-feature-cards > .card")).toHaveCount(3);
+      await expect(standalone.locator(".daisy-feature-grid").filter({ hasText: "Qualifizierung vor Beauftragung" }).locator("button[data-transition-id]")).toHaveCount(0);
       await expect(standalone.locator(".actions [data-transition-id]")).toHaveCount(0);
       await expectStandaloneNoHorizontalOverflow();
     };
@@ -3235,48 +3228,41 @@ test.describe("State Blueprint tool", () => {
     await navButton("Start").click();
     await expectStandaloneShell("site_home", "Start");
 
-    await footerButton("Pakete").click();
-    await expectStandaloneShell("site_pricing", "Pakete");
+    await footerButton("Pilot").click();
+    await expectStandaloneShell("site_pricing", "Pilot");
     await openPricing();
-    for (const plan of [
-      { label: "Starter", action: "Starter anfragen", stateId: "site_checkout", title: "Anfrage", price: "249 EUR" },
-      { label: "Business", action: "Business anfragen", stateId: "site_checkout", title: "Anfrage", price: "749 EUR" },
-      { label: "Scale", action: "Scale anfragen", stateId: "site_checkout", title: "Anfrage", price: "1.990 EUR" },
-      { label: "BI & Analyse", action: "BI zubuchen", stateId: "site_checkout", title: "Anfrage", price: "+249 EUR" }
-    ]) {
-      await expect(standalone.getByRole("button", { name: plan.action, exact: true })).toBeVisible();
-      await standalone.getByRole("button", { name: plan.action, exact: true }).click();
-      await expectStandaloneShell(plan.stateId, plan.title);
-      await expect(standalone.getByText(plan.label)).toBeVisible();
-      await expect(standalone.getByText(plan.price)).toBeVisible();
-      await standalone.locator('input').fill(`${plan.label.toLowerCase()}@example.test`);
-      await standalone.getByRole("button", { name: "Anfrage senden", exact: true }).click();
-      await expectStandaloneShell("site_thanks", "Danke");
-      await expect(standalone.getByText("Anfrage erhalten")).toBeVisible();
-      await openPricing();
-    }
+    await expect(standalone.getByRole("button", { name: "Pilot qualifizieren", exact: true })).toBeVisible();
+    await standalone.getByRole("button", { name: "Pilot qualifizieren", exact: true }).click();
+    await expectStandaloneShell("site_checkout", "Qualifizierung");
+    await expect(standalone.getByText("Managed Pilot", { exact: true })).toBeVisible();
+    await expect(standalone.locator(".card").filter({ hasText: "Managed Pilot" })).toContainText("2.500–7.500 €");
+    await standalone.locator('input').fill("pilot@example.test");
+    await standalone.locator('textarea').fill("Auftragsfreigabe mit zwei beteiligten Teams.");
+    await standalone.getByRole("button", { name: "Qualifizierung vorbereiten", exact: true }).click();
+    await expectStandaloneShell("site_thanks", "Vorbereitet");
+    await expect(standalone.getByText("Diese Demo versendet keine Daten")).toBeVisible();
+    await openPricing();
 
     await navButton("Kontakt").click();
     await expectStandaloneShell("site_contact", "Kontakt");
-    await expect(standalone.getByText("Nennen Sie uns den Ablauf")).toBeVisible();
-    await standalone.getByRole("button", { name: "Anfrage senden", exact: true }).click();
-    await expectStandaloneShell("site_thanks", "Danke");
-    await expect(standalone.getByText("Anfrage erhalten")).toBeVisible();
+    await expect(standalone.getByText("Nennen Sie den Ablauf")).toBeVisible();
+    await standalone.getByRole("button", { name: "Qualifizierung vorbereiten", exact: true }).click();
+    await expectStandaloneShell("site_thanks", "Vorbereitet");
+    await expect(standalone.getByText("Diese Demo versendet keine Daten")).toBeVisible();
 
-    await footerButton("Konto").click();
-    await expectStandaloneShell("site_login", "Konto");
-    await expect(standalone.getByText("Kundenbereich")).toBeVisible();
-    await standalone.locator('input[type="email"]').fill("mira@example.test");
-    await standalone.locator('input[type="password"]').fill("demo-password");
-    const standaloneSignInButton = standalone.locator('.hero button[data-transition-id="site_login_submit"]').filter({ hasText: "Anmelden" });
-    await expect(standaloneSignInButton).toHaveCount(1);
-    await standaloneSignInButton.click();
-    await expectStandaloneShell("site_profile", "Profil");
-    await expect(standalone.getByText("Willkommen zurück")).toBeVisible();
-    await expect(standalone.locator('.avatar img[alt="Mira Keller"]')).toBeVisible();
-    await standalone.getByRole("button", { name: "Abmelden", exact: true }).click();
-    await expectStandaloneShell("site_login", "Konto");
-    await expect(standalone.getByText("Kundenbereich")).toBeVisible();
+    await footerButton("Vorgehen").click();
+    await expectStandaloneShell("site_login", "Vorgehen");
+    await expect(standalone.getByText("So läuft der Managed Pilot")).toBeVisible();
+    await expect(standalone.locator('input[type="email"]')).toHaveCount(0);
+    await expect(standalone.locator('input[type="password"]')).toHaveCount(0);
+    const standaloneReviewButton = standalone.locator('.hero button[data-transition-id="site_login_submit"]').filter({ hasText: "Abnahme ansehen" });
+    await expect(standaloneReviewButton).toHaveCount(1);
+    await standaloneReviewButton.click();
+    await expectStandaloneShell("site_profile", "Abnahme");
+    await expect(standalone.getByText("Abnahme bedeutet")).toBeVisible();
+    await expect(standalone.locator('.avatar')).toHaveCount(0);
+    await standalone.getByRole("button", { name: "Pilot qualifizieren", exact: true }).click();
+    await expectStandaloneShell("site_contact", "Kontakt");
 
     await footerButton("Start").click();
     await expectStandaloneShell("site_home", "Start");
@@ -7314,11 +7300,9 @@ test.describe("State Blueprint tool", () => {
         }
         if (item.variant === "feature-grid") {
           expect(item.featureTransitionIds, item.title).toEqual(item.transitions.map(t => t.id));
-          expect(item.featureImages, item.title).toEqual([
-            expect.stringContaining("images.unsplash.com"),
-            expect.stringContaining("images.unsplash.com"),
-            expect.stringContaining("images.unsplash.com")
-          ]);
+          expect(item.featureImages, item.title).toHaveLength(3);
+          expect(item.featureImages.every(image => image.startsWith("data:image/svg+xml")), item.title).toBe(true);
+          expect(new Set(item.featureImages).size, item.title).toBe(3);
           expect(transition.set, item.title).toEqual({ [`${item.scopePath}.selected`]: transition.label });
         }
         if (item.variant === "card") {
@@ -8438,25 +8422,21 @@ test.describe("State Blueprint tool", () => {
       variant: "carousel",
       dataPath: scopePath
     });
-    expect(carouselState.data).toMatchObject({
-      index: 0,
-      images: [
-        "https://picsum.photos/seed/state-1/640/360",
-        "https://picsum.photos/seed/state-2/640/360",
-        "https://picsum.photos/seed/state-3/640/360"
-      ]
-    });
+    expect(carouselState.data.index).toBe(0);
+    expect(carouselState.data.images).toHaveLength(3);
+    expect(carouselState.data.images.every(image => image.startsWith("data:image/svg+xml"))).toBe(true);
+    expect(new Set(carouselState.data.images).size).toBe(3);
     expect(model.transitions.filter(transition => transition.from === carouselState.id)).toHaveLength(0);
 
     const app = appFrame(page);
-    await expect(app.locator(".daisy-carousel-image")).toHaveAttribute("src", /state-1/);
+    await expect(app.locator(".daisy-carousel-image")).toHaveAttribute("src", carouselState.data.images[0]);
     await app.getByRole("button", { name: "Weiter" }).click();
     await expect.poll(async () => (await runtimeContext(page)).states?.[carouselState.id]?.index).toBe(1);
-    await expect(app.locator(".daisy-carousel-image")).toHaveAttribute("src", /state-2/);
+    await expect(app.locator(".daisy-carousel-image")).toHaveAttribute("src", carouselState.data.images[1]);
 
     await app.getByRole("button", { name: "Zurück" }).click();
     await expect.poll(async () => (await runtimeContext(page)).states?.[carouselState.id]?.index).toBe(0);
-    await expect(app.locator(".daisy-carousel-image")).toHaveAttribute("src", /state-1/);
+    await expect(app.locator(".daisy-carousel-image")).toHaveAttribute("src", carouselState.data.images[0]);
   });
 
   test("renders daisy steps as transition-bound actions without hidden local state @smoke", async ({ page }) => {
@@ -10602,14 +10582,14 @@ test.describe("State Blueprint tool", () => {
     }).toBe("error");
   });
 
-  test("reroutes demo logout onto an existing home edge without losing its event @smoke", async ({ page }) => {
+  test("reroutes demo pilot qualification onto an existing home edge without losing its event @smoke", async ({ page }) => {
     await openTool(page);
     await page.locator("#topbarMore summary").click();
     await page.getByRole("button", { name: "Beispielablauf laden" }).click();
     await page.getByRole("button", { name: "Mit Beispiel neu starten" }).click();
 
-    const logoutEdgeId = "site_profile_logout";
-    const arrowTip = page.locator(`circle.edge-tip-hit[data-edge-id="${logoutEdgeId}"]`);
+    const qualificationEdgeId = "site_profile_logout";
+    const arrowTip = page.locator(`circle.edge-tip-hit[data-edge-id="${qualificationEdgeId}"]`);
     await expect(arrowTip).toBeVisible();
     const start = await centerOf(arrowTip);
     const homeInput = await centerOf(statePort(page, "site_home", "in"));
@@ -10621,38 +10601,36 @@ test.describe("State Blueprint tool", () => {
 
     await expect.poll(async () => {
       const model = await savedModel(page);
-      const logout = model.transitions.find(transition => transition.id === logoutEdgeId);
+      const qualification = model.transitions.find(transition => transition.id === qualificationEdgeId);
       return {
-        logoutTo: logout?.to || "",
-        logoutSet: logout?.set || {},
+        qualificationTo: qualification?.to || "",
+        qualificationSet: qualification?.set || {},
         profileHomeEdges: model.transitions
           .filter(transition => transition.from === "site_profile" && transition.to === "site_home")
           .map(transition => transition.id)
           .sort()
       };
     }).toEqual({
-      logoutTo: "site_home",
-      logoutSet: {
-        "states.site_profile.account.loggedIn": false,
-        "states.site_profile.logout.clicked": true
+      qualificationTo: "site_home",
+      qualificationSet: {
+        "states.site_profile.nextStep.clicked": true,
+        "states.site_profile.review.nextStepSelected": true
       },
       profileHomeEdges: ["site_profile_logout", "site_profile_nav_home"]
     });
 
     const app = appFrame(page);
     await expect(app.locator("#statePill")).toHaveText("site_home");
-    await app.locator(".navbar").getByRole("button", { name: "Konto", exact: true }).click();
+    await app.locator(".navbar").getByRole("button", { name: "Vorgehen", exact: true }).click();
     await expect(app.locator("#statePill")).toHaveText("site_login");
-    await app.locator('input[type="email"]').fill("mira@example.test");
-    await app.locator('input[type="password"]').fill("demo-password");
-    await app.getByRole("button", { name: "Anmelden", exact: true }).click();
+    await app.getByRole("button", { name: "Abnahme ansehen", exact: true }).click();
     await expect(app.locator("#statePill")).toHaveText("site_profile");
 
-    await expect(app.getByRole("button", { name: "Abmelden", exact: true })).toHaveCount(1);
-    await app.getByRole("button", { name: "Abmelden", exact: true }).click();
+    await expect(app.getByRole("button", { name: "Pilot qualifizieren", exact: true })).toHaveCount(1);
+    await app.getByRole("button", { name: "Pilot qualifizieren", exact: true }).click();
     await expect(app.locator("#statePill")).toHaveText("site_home");
-    await expect.poll(async () => (await runtimeContext(page)).states?.site_profile?.account?.loggedIn).toBe(false);
-    await expect.poll(async () => (await runtimeContext(page)).states?.site_profile?.logout?.clicked).toBe(true);
+    await expect.poll(async () => (await runtimeContext(page)).states?.site_profile?.review?.nextStepSelected).toBe(true);
+    await expect.poll(async () => (await runtimeContext(page)).states?.site_profile?.nextStep?.clicked).toBe(true);
   });
 
   test("reroutes an existing transition into a self-loop from the arrowhead", async ({ page }) => {

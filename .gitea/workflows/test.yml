@@ -21,6 +21,10 @@ jobs:
             npm install
           fi
       - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
-      - name: Run full contract tests
+        run: npx playwright install --with-deps chromium webkit
+      - name: Verify generated and operating contracts
+        run: npm run check
+      - name: Run full Chromium contracts
         run: npm run test:full
+      - name: Run WebKit product smoke
+        run: npm run test:webkit

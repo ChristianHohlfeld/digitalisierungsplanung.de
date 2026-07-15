@@ -1,0 +1,76 @@
+name: Continuous integration
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_call:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  repository-contracts:
+    name: Repository, server, and generated artifacts
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.60.0-noble
+      options: --ipc=host
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Reject vulnerable production dependencies
+        run: npm audit --omit=dev --audit-level=high
+      - name: Check embedded workspace core
+        run: npm run check:workspace-core
+      - name: Check repository operating contracts
+        run: npm run check:repository
+      - name: Check deterministic generated root page
+        run: npm run check:index
+      - name: Run server contracts
+        run: npm run test:server
+
+  browser-contracts:
+    name: Chromium contracts (${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.60.0-noble
+      options: --ipc=host
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ["1/4", "2/4", "3/4", "4/4"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run test:browser -- --shard=${{ matrix.shard }} --reporter=line,github
+
+  webkit-smoke:
+    name: WebKit product smoke
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.60.0-noble
+      options: --ipc=host
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run test:webkit

@@ -16,6 +16,7 @@ module.exports = defineConfig({
     timeout: 5000
   },
   fullyParallel: true,
+  forbidOnly: Boolean(process.env.CI),
   workers: configuredWorkers(),
   reporter: [["list"], ["html", { open: "never" }]],
   use: {

@@ -278,6 +278,79 @@ async function openLayer(page, parentId, visibleChildId) {
 }
 
 test.describe("Core source contracts", () => {
+  test("render paths cannot normalize or materialize the persisted model @smoke", () => {
+    const source = editorHostSource();
+    const drawSource = source.slice(source.indexOf("function draw()"), source.indexOf("function scheduleDraw()"));
+    const proxySource = source.slice(source.indexOf("function syncBoundaryProxies"), source.indexOf("function layerFrameBox()"));
+    const appSource = runtimeScript(generatedAppHtml());
+    const runtimeRenderSource = appSource.slice(appSource.indexOf("function render()"), appSource.indexOf("function updateActionButtons()"));
+
+    expect(drawSource).not.toContain("normalizeModel(model)");
+    expect(proxySource).not.toContain("ensureDefaultBoundaryTransitions");
+    expect(runtimeRenderSource).not.toContain("normalizeModel(model)");
+    expect(appSource).not.toContain('if (!m.states.length) m.states.push({ id: "start"');
+    expect(appSource).toContain('m.states[0]?.id || ""');
+    expect(appSource).toContain("if (!hasHostWindow()) model = normalizeModel(model);");
+  });
+
+  test("canvas interactions have one explicit owner and one end branch @smoke", () => {
+    const source = editorHostSource();
+    const moveSource = source.slice(source.indexOf("function handleCanvasMove"), source.indexOf("function handleCanvasEnd"));
+    const endSource = source.slice(source.indexOf("function handleCanvasEnd"), source.indexOf("document.addEventListener(\"contextmenu\""));
+
+    expect(source).toContain("const CANVAS_GESTURE_TRANSITIONS = WORKSPACE_CORE.GESTURE_TRANSITIONS");
+    expect(source).toContain("function transitionCanvasGesture");
+    expect(source).toContain("function scheduleCanvasLongPress");
+    expect(source).toContain('policy === "rollback"');
+    expect(source).toContain('reason: "second-touch-pinch"');
+    expect(source).toContain("generation !== canvasMoveGeneration");
+    expect(moveSource).toContain("const gestureMode = activeCanvasGestureMode(evt)");
+    expect(endSource).toContain('gestureMode === "boxSelect"');
+    expect(endSource).toContain('gestureMode === "pan"');
+    expect(endSource).toContain('gestureMode === "nodeDrag"');
+    expect(endSource).toContain('gestureMode === "connect" || gestureMode === "edgeRewire"');
+    expect(endSource).toMatch(/gestureMode === "pan"[\s\S]*?endCanvasGesture\("pan"\)[\s\S]*?return;/);
+  });
+
+  test("managed studio keeps credentials out of URLs and saves optimistic immutable versions @smoke", () => {
+    const source = editorHostSource();
+
+    expect(source).toContain('const MANAGED_PILOT_SESSION_KEY = "zustand.pilot.session.v1"');
+    expect(source).toContain('/\\/studio\\.html$/i.test(location.pathname)');
+    expect(source).toContain('missingProject: true');
+    expect(source).toContain('apiUrl.origin !== location.origin');
+    expect(source).toContain('authorization: `Bearer ${context.token}`');
+    expect(source).toContain('expectedCurrentVersionId: context.currentVersionId');
+    expect(source).toContain('error.status === 409');
+    expect(source).toContain('localStorage.getItem(activeEditorStorageKey())');
+    expect(source).not.toMatch(/searchParams\.set\([^,]+,\s*context\.token/);
+  });
+
+  test("destructive editor mutations cross one atomic command gate @smoke", () => {
+    const source = editorHostSource();
+    const collapse = source.slice(source.indexOf("function collapseSelectedStatesToParentMutation"), source.indexOf("function childBoundaryState"));
+    const degroup = source.slice(source.indexOf("function degroupCompositeStateMutation"), source.indexOf("function groupOrDegroupSelected"));
+    const deletion = source.slice(source.indexOf("function deleteSelectedItemsMutation"), source.indexOf("function deleteBoundaryFlowById"));
+
+    expect(source).toContain("function runEditorCommand");
+    expect(source).toContain('runEditorCommand("group:collapse"');
+    expect(source).toContain('runEditorCommand("group:degroup"');
+    expect(source).toContain('runEditorCommand("selection:delete"');
+    expect(source).toContain('runEditorCommand("boundary:delete"');
+    expect(collapse).not.toContain("saveModel(");
+    expect(degroup).not.toContain("saveModel(");
+    expect(deletion).not.toContain("saveModel(");
+  });
+
+  test("editor host script stays syntactically valid @smoke", () => {
+    const source = editorHostSource();
+    const scripts = [...source.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(match => match[1]);
+    const host = scripts.find(script => script.includes("function bootEditor"));
+
+    expect(host, "editor host script exists").toBeTruthy();
+    expect(() => new Function(host)).not.toThrow();
+  });
+
   test("APP_HTML string keeps nested script end tags escaped @smoke", () => {
     const html = stateHtml();
     const marker = 'const APP_HTML = "';
@@ -2676,16 +2749,37 @@ test.describe("Core source contracts", () => {
     expect(hostHtml).not.toContain("window.__stateBlueprintRealtime");
   });
 
-  test("host consumes product contract without local contract caches or fallback catalogs @smoke", () => {
+  test("host boots from a verified product contract cache without conflating capabilities and entitlements @smoke", () => {
     const html = stateHtml();
     const hostHtml = html.replace(/const APP_HTML = "((?:\\.|[^"\\])*)";/, 'const APP_HTML = "";');
 
     expect(hostHtml).toContain('fetch(PRODUCT_CONTRACT_URL, { method: "GET", cache: "no-store", credentials: "omit" })');
-    expect(hostHtml).toContain("let contract = await ensureProductContractLoaded({ notify: false });");
-    expect(hostHtml).toContain("while (!contract) {");
-    expect(hostHtml).toContain("const retry = await showProductContractUnavailable();");
-    expect(hostHtml).toContain("if (!retry) return;");
-    expect(hostHtml).not.toContain("Product Contract nicht erreichbar");
+    expect(hostHtml).toContain("const contract = await ensureProductContractLoaded({ notify: false });");
+    expect(hostHtml).not.toContain("while (!contract) {");
+    expect(hostHtml).toContain("readVerifiedProductContractCache");
+    expect(hostHtml).toContain("cacheVerifiedProductContract");
+    expect(hostHtml).toContain("PRODUCT_CONTRACT_CACHE_SCHEMA_VERSION");
+    expect(hostHtml).toContain("PRODUCT_CONTRACT_CACHE_TTL_MS");
+    expect(hostHtml).toContain("PRODUCT_CONTRACT_RELEASE_FLOOR_KEY");
+    expect(hostHtml).toContain("productContractCoreIssues");
+    expect(hostHtml).toContain("productContractReleaseIssues");
+    expect(hostHtml).toContain("function productContractRequiresVerifiedRelease()");
+    expect(hostHtml).toContain("productionHost || managedProject");
+    expect(hostHtml).toContain("function productContractReleaseRollbackIssues(payload)");
+    expect(hostHtml).toContain('productReadinessIssue("release.rollback"');
+    expect(hostHtml).toContain("error.productContractReleaseIssues = rollbackIssues");
+    expect(hostHtml).toContain("if (Array.isArray(error?.productContractReleaseIssues))");
+    expect(hostHtml).toContain("optionalIssues: error.productContractReleaseIssues");
+    expect(hostHtml).toContain("cacheAgeMs > PRODUCT_CONTRACT_CACHE_TTL_MS");
+    expect(hostHtml).not.toContain("ALLOW_PRODUCT_CONTRACT_ROLLBACK");
+    expect(hostHtml).toContain('mode: "degraded"');
+    expect(hostHtml).toContain("Offline-Modus: letzter verifizierter Product Contract");
+    expect(hostHtml).toContain("let productPublicCapabilities = Object.freeze({});");
+    expect(hostHtml).toContain("let userEntitlements = null;");
+    expect(hostHtml).toContain("function productContractPublicCapabilitiesFor(value)");
+    const capabilityFunction = hostHtml.match(/function productContractPublicCapabilitiesFor\(value\) \{[\s\S]*?\n    \}/)?.[0] || "";
+    expect(capabilityFunction).not.toContain("subscriptionPlans");
+    expect(hostHtml).toContain("userEntitlements = null;");
     expect(hostHtml).not.toContain("productContractPromise");
     expect(hostHtml).not.toContain("DEFAULT_STATE_VARIABLE_TYPES");
     expect(hostHtml).not.toContain("types.length ? types : [");
@@ -2798,6 +2892,607 @@ test.describe("Core source contracts", () => {
 });
 
 test.describe("Core browser contracts", () => {
+  test("managed studio loads a project and creates one conflict-safe version @smoke", async ({ page }) => {
+    const projectId = "prj_00000000-0000-4000-8000-000000000001";
+    const versionOneId = "ver_00000000-0000-4000-8000-000000000001";
+    const versionTwoId = "ver_00000000-0000-4000-8000-000000000002";
+    const projectModel = {
+      version: 2,
+      name: "Pilot Project",
+      initial: "start",
+      states: [{ id: "start", title: "Start", components: [], data: {}, x: 120, y: 160 }],
+      transitions: []
+    };
+    let postedBody = null;
+    let postCount = 0;
+    let releaseSave;
+    const saveGate = new Promise(resolve => { releaseSave = resolve; });
+
+    await page.addInitScript(({ sessionKey }) => {
+      sessionStorage.setItem(sessionKey, JSON.stringify({
+        token: "ps_test-session-token",
+        user: { id: "usr_00000000-0000-4000-8000-000000000001", role: "editor", name: "Pilot Editor" },
+        organization: { id: "org_00000000-0000-4000-8000-000000000001", name: "Pilot" }
+      }));
+    }, { sessionKey: "zustand.pilot.session.v1" });
+    await page.route(`**/api/v1/projects/${projectId}`, route => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: projectId,
+        name: "Verwaltungsprozess Pilot",
+        currentVersionId: versionOneId,
+        currentVersionNumber: 1,
+        currentVersion: { id: versionOneId, number: 1, model: projectModel }
+      })
+    }));
+    await page.route(`**/api/v1/projects/${projectId}/versions`, async route => {
+      postCount += 1;
+      postedBody = route.request().postDataJSON();
+      await saveGate;
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({ id: versionTwoId, number: 2 })
+      });
+    });
+
+    await page.goto(`/state.html?project=${projectId}&api=/api/v1`);
+    await expect(page.locator('[data-id="start"]')).toBeVisible();
+    await expect(page.locator("#managedProjectStatus")).toContainText("Verwaltungsprozess Pilot · v1 · gespeichert");
+
+    await page.evaluate(() => {
+      model.name = "Pilot Project Revised";
+      saveModel("test:managed-name");
+    });
+    await expect(page.locator("#managedProjectStatus")).toContainText("ungespeichert");
+    await page.keyboard.press("Control+S");
+    await expect(page.locator("#managedProjectStatus")).toContainText("wird gespeichert");
+    await page.keyboard.press("Control+S");
+    expect(postCount).toBe(1);
+    releaseSave();
+    await expect(page.locator("#managedProjectStatus")).toContainText("v2 · gespeichert");
+
+    expect(postedBody.expectedCurrentVersionId).toBe(versionOneId);
+    expect(postedBody.message).toBe("Im Studio gespeichert");
+    expect(postedBody.model.name).toBe("Pilot Project Revised");
+    expect(postCount).toBe(1);
+    expect(page.url()).not.toContain("ps_test-session-token");
+  });
+
+  test("managed save shortcuts use the tenant version path in host and runtime", () => {
+    const html = stateHtml();
+    expect(html).toContain('if (mod && (key === "s" || evt.code === "KeyS"))');
+    expect(html).toContain('if (data.action === "save") saveCurrentWorkspace();');
+    expect(html).not.toContain('if (data.action === "save") saveDefinitionFile();');
+  });
+
+  test("managed save keeps edits made during the request dirty and reload-safe @smoke", async ({ page }) => {
+    const projectId = "prj_00000000-0000-4000-8000-000000000011";
+    const versionOneId = "ver_00000000-0000-4000-8000-000000000011";
+    const versionTwoId = "ver_00000000-0000-4000-8000-000000000012";
+    let remoteModel = {
+      version: 2,
+      name: "Pilot Initial",
+      initial: "start",
+      states: [{ id: "start", title: "Start", components: [], data: {}, x: 120, y: 160 }],
+      transitions: []
+    };
+    let remoteVersionId = versionOneId;
+    let remoteVersionNumber = 1;
+    let releaseSave;
+    const saveGate = new Promise(resolve => { releaseSave = resolve; });
+
+    await page.addInitScript(sessionKey => {
+      sessionStorage.setItem(sessionKey, JSON.stringify({
+        token: "ps_save-race-token",
+        user: { id: "usr_00000000-0000-4000-8000-000000000011", role: "editor" },
+        organization: { id: "org_00000000-0000-4000-8000-000000000011", name: "Pilot" }
+      }));
+    }, "zustand.pilot.session.v1");
+    await page.route(`**/api/v1/projects/${projectId}`, route => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: projectId,
+        name: "Save Race",
+        currentVersionId: remoteVersionId,
+        currentVersionNumber: remoteVersionNumber,
+        currentVersion: { id: remoteVersionId, number: remoteVersionNumber, model: remoteModel }
+      })
+    }));
+    await page.route(`**/api/v1/projects/${projectId}/versions`, async route => {
+      const body = route.request().postDataJSON();
+      await saveGate;
+      remoteModel = body.model;
+      remoteVersionId = versionTwoId;
+      remoteVersionNumber = 2;
+      await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ id: versionTwoId, number: 2 }) });
+    });
+
+    await page.goto(`/state.html?project=${projectId}&api=/api/v1`);
+    await expect(page.locator('[data-id="start"]')).toBeVisible();
+    await page.evaluate(() => { model.name = "Snapshot A"; saveModel("test:snapshot-a"); });
+    await page.locator("#btnSave").click();
+    await expect(page.locator("#managedProjectStatus")).toContainText("wird gespeichert");
+    await page.evaluate(() => { model.name = "Concurrent B"; saveModel("test:concurrent-b"); });
+    releaseSave();
+    await expect(page.locator("#managedProjectStatus")).toContainText("v2 · ungespeichert");
+
+    await page.reload();
+    await expect(page.locator('[data-id="start"]')).toBeVisible();
+    expect(await page.evaluate(() => eval("model.name"))).toBe("Concurrent B");
+    await expect(page.locator("#managedProjectStatus")).toContainText("v2 · ungespeichert");
+  });
+
+  test("managed offline cache is scoped to its organization and never used after an authorization error @smoke", async ({ page }) => {
+    const projectId = "prj_00000000-0000-4000-8000-000000000021";
+    await page.addInitScript(({ projectId, sessionKey, storageKey }) => {
+      const secretModel = {
+        version: 2,
+        name: "Tenant A Secret",
+        initial: "tenant_secret",
+        states: [{ id: "tenant_secret", title: "Tenant A Secret", components: [], data: {}, x: 120, y: 160 }],
+        transitions: []
+      };
+      sessionStorage.setItem(sessionKey, JSON.stringify({
+        token: "ps_tenant-b-token",
+        user: { id: "usr_00000000-0000-4000-8000-000000000022", role: "editor" },
+        organization: { id: "org_00000000-0000-4000-8000-000000000022", name: "Tenant B" }
+      }));
+      localStorage.setItem(`${storageKey}.editor.project.${projectId}`, JSON.stringify({ model: secretModel }));
+      localStorage.setItem(`${storageKey}.managed-project.${projectId}`, JSON.stringify({
+        projectId,
+        currentVersionId: "ver_00000000-0000-4000-8000-000000000021",
+        currentVersionNumber: 1,
+        savedFingerprint: "legacy"
+      }));
+    }, { projectId, sessionKey: "zustand.pilot.session.v1", storageKey: STORAGE_KEY });
+    await page.route(`**/api/v1/projects/${projectId}`, route => route.fulfill({
+      status: 404,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "project_not_found" })
+    }));
+
+    await page.goto(`/state.html?project=${projectId}&api=/api/v1`);
+    await expect(page.locator('[data-id="tenant_secret"]')).toHaveCount(0);
+    await expect(page.getByText("project_not_found", { exact: true })).toBeVisible();
+    expect(await page.evaluate(() => eval("managedProjectContext.offline"))).toBe(false);
+  });
+
+  test("draw and camera updates leave the persisted model byte-identical @smoke", async ({ page }) => {
+    await openWithModel(page, {
+      version: 2,
+      name: "Pure render contract",
+      initial: "start",
+      boundary: { entryId: "start", exitId: "done", entryDisabled: false, exitDisabled: false },
+      states: [
+        { id: "start", title: "Start", components: [], data: {}, x: 96, y: 120 },
+        { id: "done", title: "Done", components: [], data: {}, x: 360, y: 120 }
+      ],
+      transitions: [
+        { id: "finish", from: "start", to: "done", label: "Finish", condition: "", triggerType: "button", triggerEvent: "", set: {} }
+      ]
+    });
+
+    const result = await page.evaluate(() => {
+      model.transitions = model.transitions.filter(transition => !transition.boundaryFlow);
+      const before = JSON.stringify(model);
+      draw();
+      applyCamera({ persist: false });
+      draw();
+      return {
+        before,
+        after: JSON.stringify(model),
+        boundaryFlows: model.transitions.filter(transition => transition.boundaryFlow).length
+      };
+    });
+
+    expect(result.after).toBe(result.before);
+    expect(result.boundaryFlows).toBe(0);
+  });
+
+  test("generated runtime render keeps malformed IDs and an empty model byte-identical @smoke", async ({ page }) => {
+    await openWithModel(page, {
+      version: 2,
+      name: "Pure runtime render",
+      initial: "start",
+      states: [
+        { id: "start", title: "Start", components: [], data: {}, x: 96, y: 120 },
+        { id: "done", title: "Done", components: [], data: {}, x: 360, y: 120 }
+      ],
+      transitions: [
+        { id: "finish", from: "start", to: "done", label: "Finish", condition: "", triggerType: "button", triggerEvent: "button.finish.clicked", set: {} }
+      ]
+    });
+
+    const result = await appFrame(page).locator("html").evaluate(() => {
+      const runtimeModel = eval("model");
+      runtimeModel.transitions[0].id = "";
+      const beforeMalformed = JSON.stringify(runtimeModel);
+      eval("render")();
+      eval("render")();
+      const afterMalformed = JSON.stringify(runtimeModel);
+
+      runtimeModel.initial = "";
+      runtimeModel.states = [];
+      runtimeModel.transitions = [];
+      const beforeEmpty = JSON.stringify(runtimeModel);
+      eval("render")();
+      const afterEmpty = JSON.stringify(runtimeModel);
+      return {
+        beforeMalformed,
+        afterMalformed,
+        beforeEmpty,
+        afterEmpty,
+        screenChildren: document.getElementById("screen")?.childElementCount || 0
+      };
+    });
+
+    expect(result.afterMalformed).toBe(result.beforeMalformed);
+    expect(result.afterEmpty).toBe(result.beforeEmpty);
+    expect(result.screenChildren).toBe(0);
+  });
+
+  test("product contract rejects duplicate identities and dangling catalog references @smoke", async ({ page }) => {
+    await openTool(page);
+
+    const failures = await page.evaluate(() => {
+      const normalize = eval("normalizeProductContractPayload");
+      const base = JSON.parse(JSON.stringify(eval("productContract")));
+      const cases = [
+        value => value.connectorTypes.push({ ...value.connectorTypes[0] }),
+        value => value.connectors[0].events.push("realtime.unknown.event"),
+        value => value.presets[0].packageIds.push("unknown.package"),
+        value => value.subscriptionPlans.push({
+          id: "invalid-plan",
+          includedPackageIds: ["unknown.package"],
+          recommendedAddOnPackageIds: []
+        }),
+        value => { value.presets[0].primaryPackageId = value.presets[1].primaryPackageId; }
+      ];
+      return cases.map(mutate => {
+        const value = JSON.parse(JSON.stringify(base));
+        mutate(value);
+        try {
+          normalize(value);
+          return "accepted";
+        } catch (error) {
+          return String(error?.message || error);
+        }
+      });
+    });
+
+    expect(failures).toHaveLength(5);
+    expect(failures.every(message => message !== "accepted" && message.includes("Product Contract"))).toBe(true);
+  });
+
+  test("verified contract cache enables offline degraded boot but never masks an incompatible core @smoke", async ({ page }) => {
+    const { DEFAULT_EVENT_CATALOG } = require("../server/event-catalog");
+    const { productContractResponse } = require("../server/product-contract");
+    const verifiedContract = {
+      ...productContractResponse(DEFAULT_EVENT_CATALOG),
+      release: {
+        ok: true,
+        releaseId: "release-42",
+        releaseSequence: 42,
+        builtAt: "2026-07-15T10:00:00.000Z",
+        sourceCommit: "0123456789abcdef0123456789abcdef01234567",
+        deployedCommit: "89abcdef0123456789abcdef0123456789abcdef"
+      }
+    };
+    let contractMode = "verified";
+    await page.route("**/contract", route => {
+      if (contractMode === "offline") return route.abort("internetdisconnected");
+      const payload = contractMode === "incompatible"
+        ? { ...verifiedContract, schemaVersion: 999 }
+        : contractMode === "missing-release"
+          ? { ...verifiedContract, release: undefined }
+        : contractMode === "rollback"
+          ? {
+              ...verifiedContract,
+              release: {
+                ...verifiedContract.release,
+                releaseId: "release-41",
+                releaseSequence: 41,
+                builtAt: "2026-07-14T10:00:00.000Z"
+              }
+            }
+          : contractMode === "identity-conflict"
+            ? {
+                ...verifiedContract,
+                release: {
+                  ...verifiedContract.release,
+                  deployedCommit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                }
+              }
+          : verifiedContract;
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers: { "Cache-Control": "no-store" },
+        body: JSON.stringify(payload)
+      });
+    });
+    await page.addInitScript(({ key, model }) => {
+      window.ZUSTAND_REQUIRE_VERIFIED_PRODUCT_CONTRACT = true;
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(`${key}.editor`, JSON.stringify({ model }));
+    }, { key: STORAGE_KEY, model: defaultTestModel() });
+
+    await page.goto("/state.html");
+    await expect(page.locator('[data-id="auth_start"]')).toBeVisible();
+    const online = await page.evaluate(key => ({
+      readiness: eval("productReadiness"),
+      capabilities: eval("productPublicCapabilities"),
+      entitlements: eval("userEntitlements"),
+      cache: JSON.parse(localStorage.getItem(`${key}.productContract.v1`) || "null")
+    }), STORAGE_KEY);
+    expect(online.readiness).toMatchObject({ mode: "ready", source: "network", coreIssues: [], optionalIssues: [] });
+    expect(online.capabilities.triggerTypes).toContain("button");
+    expect(online.entitlements).toBeNull();
+    expect(online.cache).toMatchObject({
+      cacheSchemaVersion: 1,
+      identity: {
+        schemaVersion: 2,
+        providerId: "digitalisierungsplanung.realtime",
+        releaseId: "release-42",
+        releaseSequence: 42
+      }
+    });
+
+    contractMode = "offline";
+    await page.reload();
+    await expect(page.locator('[data-id="auth_start"]')).toBeVisible();
+    await expect(page.locator("#productReadinessBanner")).toBeVisible();
+    await expect(page.locator("#productReadinessBanner")).toContainText("Offline-Modus");
+    expect(await page.evaluate(() => eval("productReadiness"))).toMatchObject({ mode: "degraded", source: "cache", coreIssues: [] });
+
+    await page.evaluate(({ key, ttl }) => {
+      const cacheKey = `${key}.productContract.v1`;
+      const record = JSON.parse(localStorage.getItem(cacheKey));
+      record.verifiedAt = new Date(Date.now() - ttl - 1).toISOString();
+      localStorage.setItem(cacheKey, JSON.stringify(record));
+    }, { key: STORAGE_KEY, ttl: 24 * 60 * 60 * 1000 });
+    await page.reload();
+    await expect.poll(() => page.evaluate(() => eval("productReadiness.mode"))).toBe("blocked");
+    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(0);
+
+    contractMode = "verified";
+    await page.reload();
+    await expect(page.locator('[data-id="auth_start"]')).toBeVisible();
+
+    contractMode = "identity-conflict";
+    await page.reload();
+    await expect(page.locator('[data-id="auth_start"]')).toBeVisible();
+    expect(await page.evaluate(() => eval("productReadiness"))).toMatchObject({
+      mode: "degraded",
+      source: "cache",
+      coreIssues: [],
+      optionalIssues: [{ code: "release.identity-conflict" }]
+    });
+
+    contractMode = "rollback";
+    await page.reload();
+    await expect(page.locator('[data-id="auth_start"]')).toBeVisible();
+    await expect.poll(() => page.evaluate(() => eval("productReadiness.mode"))).toBe("degraded");
+    await expect(page.locator("#productReadinessBanner")).toContainText("unter dem verifizierten Stand 42");
+    expect(await page.evaluate(() => eval("productReadiness.optionalIssues[0].code"))).toBe("release.rollback");
+
+    contractMode = "missing-release";
+    await page.reload();
+    await expect(page.locator('[data-id="auth_start"]')).toBeVisible();
+    await expect(page.locator("#productReadinessBanner")).toContainText("Live-Release abgelehnt");
+    expect(await page.evaluate(() => eval("productReadiness.optionalIssues[0].code"))).toBe("release.missing");
+
+    contractMode = "incompatible";
+    await page.reload();
+    await expect.poll(() => page.evaluate(() => eval("productReadiness.mode"))).toBe("blocked");
+    await expect(page.locator("#productReadinessBanner")).toHaveAttribute("data-mode", "blocked");
+    await expect(page.locator("#productReadinessBanner")).toContainText("schemaVersion 2");
+    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(0);
+    expect(await page.evaluate(() => eval("productReadiness.source"))).toBe("network");
+  });
+
+  test("managed and production boot reject missing release metadata @smoke", async ({ page }) => {
+    const { DEFAULT_EVENT_CATALOG } = require("../server/event-catalog");
+    const { productContractResponse } = require("../server/product-contract");
+    await page.route("**/contract", route => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(productContractResponse(DEFAULT_EVENT_CATALOG))
+    }));
+    await page.addInitScript(({ key, model }) => {
+      localStorage.setItem(`${key}.editor`, JSON.stringify({ model }));
+    }, { key: STORAGE_KEY, model: defaultTestModel() });
+
+    await page.goto("/state.html?project=prj_00000000-0000-4000-8000-000000000099&api=/api/v1");
+    await expect.poll(() => page.evaluate(() => eval("productReadiness.mode"))).toBe("blocked");
+    await expect(page.locator("#productReadinessBanner")).toContainText("Release-Metadaten fehlen");
+    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(0);
+    expect(await page.evaluate(() => eval("productReadiness.coreIssues[0].code"))).toBe("release.missing");
+  });
+
+  test("gesture ownership rejects overlapping pointer modes @smoke", async ({ page }) => {
+    await openTool(page);
+
+    const result = await page.evaluate(() => {
+      endCanvasGesture();
+      const mouse = { pointerType: "mouse" };
+      const touchOne = { pointerType: "touch", pointerId: 1 };
+      const touchTwo = { pointerType: "touch", pointerId: 2 };
+      const transitions = [
+        transitionCanvasGesture("pendingCanvas", mouse),
+        transitionCanvasGesture("pan", mouse),
+        transitionCanvasGesture("pendingEdge", mouse),
+        endCanvasGesture("pan"),
+        transitionCanvasGesture("pendingNode", touchOne),
+        transitionCanvasGesture("nodeDrag", touchTwo),
+        transitionCanvasGesture("nodeDrag", touchOne),
+        endCanvasGesture("nodeDrag")
+      ];
+      return { transitions, final: canvasGesture };
+    });
+
+    expect(result.transitions).toEqual([true, true, false, true, true, false, true, true]);
+    expect(result.final).toEqual({ mode: "idle", pointerId: null, pointerType: "", startedAt: 0 });
+  });
+
+  test("second touch rolls back an in-flight node drag before pinch ownership @smoke", async ({ page }) => {
+    await openTool(page);
+
+    const result = await page.evaluate(() => {
+      endCanvasGesture();
+      selected = selectionFromParts(["login"], []);
+      historyCurrent = editorSnapshot({ allowOpenBoundaryDraft: true });
+      const state = byId("auth_start");
+      const original = { x: state.x, y: state.y };
+      const rect = nodeElement(state.id).getBoundingClientRect();
+      const start = {
+        clientX: rect.left + rect.width / 2,
+        clientY: rect.top + rect.height / 2,
+        pointerType: "touch",
+        pointerId: 11,
+        shiftKey: false,
+        preventDefault() {},
+        stopPropagation() {}
+      };
+      const undoBefore = undoStack.length;
+      startNodeDrag(start, state);
+      handleCanvasMove({ ...start, clientX: start.clientX + 120, clientY: start.clientY + 72 });
+      const moved = { x: state.x, y: state.y };
+      touchPointers = new Map([
+        [11, { x: start.clientX + 120, y: start.clientY + 72 }],
+        [12, { x: start.clientX + 180, y: start.clientY + 72 }]
+      ]);
+      beginPinchZoom();
+      const value = {
+        original,
+        moved,
+        after: { x: state.x, y: state.y },
+        selected: normalizeSelection(),
+        undoBefore,
+        undoAfter: undoStack.length,
+        gesture: canvasGesture
+      };
+      touchPointers.clear();
+      pinchZoom = null;
+      endCanvasGesture("pinch");
+      return value;
+    });
+
+    expect(result.moved).not.toEqual(result.original);
+    expect(result.after).toEqual(result.original);
+    expect(result.selected).toEqual({ nodes: ["login"], edges: [] });
+    expect(result.undoAfter).toBe(result.undoBefore);
+    expect(result.gesture).toEqual({ mode: "pinch", pointerId: null, pointerType: "touch", startedAt: expect.any(Number) });
+  });
+
+  test("editor commands commit once and rejected contracts roll back the full editor state @smoke", async ({ page }) => {
+    await openTool(page);
+
+    const rejected = await page.evaluate(() => {
+      selected = selectionFromParts(["login"], []);
+      currentLayerId = null;
+      historyCurrent = editorSnapshot({ allowOpenBoundaryDraft: true });
+      const before = {
+        model: JSON.stringify(model),
+        selected: JSON.stringify(normalizeSelection()),
+        layer: currentLayerId,
+        undo: undoStack.length,
+        syncSequence: runtimeModelSyncSequence
+      };
+      const ok = runEditorCommand("test:reject-duplicate", () => {
+        model.states.push({ ...WORKSPACE_CORE.clone(model.states[0]), title: "Duplicate" });
+        selected = null;
+        currentLayerId = "login";
+        return true;
+      });
+      return {
+        ok,
+        before,
+        after: {
+          model: JSON.stringify(model),
+          selected: JSON.stringify(normalizeSelection()),
+          layer: currentLayerId,
+          undo: undoStack.length,
+          syncSequence: runtimeModelSyncSequence
+        }
+      };
+    });
+
+    expect(rejected.ok).toBe(false);
+    expect(rejected.after).toEqual(rejected.before);
+
+    const renderFailure = await page.evaluate(() => {
+      clearTimeout(syncTimer);
+      syncTimer = null;
+      persistModel(false);
+      const key = activeEditorStorageKey();
+      const before = {
+        model: JSON.stringify(model),
+        selected: JSON.stringify(normalizeSelection()),
+        layer: currentLayerId,
+        undo: JSON.stringify(undoStack),
+        redo: JSON.stringify(redoStack),
+        historyCurrent,
+        historyActionId,
+        lastHistoryGroup,
+        persisted: localStorage.getItem(key),
+        syncSequence: runtimeModelSyncSequence,
+        pendingSync: pendingRuntimeModelSyncId,
+        pendingPayloads: JSON.stringify(pendingFramePayloads)
+      };
+      const originalDraw = draw;
+      draw = () => { throw new Error("injected projection failure"); };
+      const ok = runEditorCommand("test:render-failure", () => {
+        model.name = "Must roll back";
+        selected = null;
+        return true;
+      });
+      draw = originalDraw;
+      draw();
+      const after = {
+        model: JSON.stringify(model),
+        selected: JSON.stringify(normalizeSelection()),
+        layer: currentLayerId,
+        undo: JSON.stringify(undoStack),
+        redo: JSON.stringify(redoStack),
+        historyCurrent,
+        historyActionId,
+        lastHistoryGroup,
+        persisted: localStorage.getItem(key),
+        syncSequence: runtimeModelSyncSequence,
+        pendingSync: pendingRuntimeModelSyncId,
+        pendingPayloads: JSON.stringify(pendingFramePayloads)
+      };
+      return { ok, before, after };
+    });
+
+    expect(renderFailure.ok).toBe(false);
+    expect(renderFailure.after).toEqual(renderFailure.before);
+
+    expect(await page.evaluate(() => runEditorCommand("test:async-rejected", () => Promise.resolve(true)))).toBe(false);
+
+    const committed = await page.evaluate(() => {
+      const originalName = model.name;
+      const undoBefore = undoStack.length;
+      const ok = runEditorCommand("test:rename", () => {
+        model.name = "Atomic rename";
+        return true;
+      });
+      const afterCommit = { name: model.name, undo: undoStack.length };
+      undoModel();
+      return { ok, originalName, undoBefore, afterCommit, afterUndo: model.name };
+    });
+
+    expect(committed.ok).toBe(true);
+    expect(committed.afterCommit).toEqual({ name: "Atomic rename", undo: committed.undoBefore + 1 });
+    expect(committed.afterUndo).toBe(committed.originalName);
+  });
+
   test("only the current app frame owns host and runtime messaging @smoke", async ({ page }) => {
     const model = {
       version: 2,

@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Zustand Pilot-Konsole</title>
+  <style>
+    :root { color-scheme: dark; --bg:#050b14; --panel:#0a1725; --panel2:#0d2032; --line:#23445f; --text:#edf6ff; --muted:#9db2c5; --brand:#43c7f4; --ok:#39d399; --warn:#fbbf24; --bad:#fb7185; }
+    * { box-sizing: border-box; }
+    body { margin:0; min-height:100vh; background:radial-gradient(circle at 12% -5%,#123653 0,transparent 34%),linear-gradient(180deg,#07111d,var(--bg)); color:var(--text); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+    button,input,textarea { font:inherit; }
+    button,.button { min-height:40px; border:1px solid #2e6689; border-radius:9px; padding:8px 13px; background:#0d3b57; color:#e8f8ff; font-weight:800; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; }
+    button:hover,.button:hover { border-color:#55c7ee; }
+    button.secondary,.button.secondary { background:#0b1825; border-color:var(--line); }
+    button.danger { background:#381424; border-color:#80334d; }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    input,textarea { width:100%; border:1px solid var(--line); border-radius:9px; background:#06111c; color:var(--text); padding:10px 11px; }
+    textarea { min-height:220px; resize:vertical; font:13px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace; }
+    label { display:grid; gap:6px; color:var(--muted); font-size:13px; font-weight:750; }
+    header { position:sticky; top:0; z-index:5; border-bottom:1px solid rgba(67,199,244,.2); background:rgba(5,11,20,.91); backdrop-filter:blur(16px); }
+    .header-inner,main { width:min(1120px,calc(100% - 28px)); margin:auto; }
+    .header-inner { min-height:66px; display:flex; gap:16px; align-items:center; justify-content:space-between; }
+    .brand { display:flex; align-items:center; gap:11px; min-width:0; }
+    .mark { width:34px; height:34px; display:grid; place-items:center; border-radius:10px; background:linear-gradient(135deg,#0ea5e9,#34d399); color:#03101b; font-weight:1000; }
+    .brand strong { display:block; font-size:16px; }
+    .brand small,.muted { color:var(--muted); }
+    .session { display:flex; align-items:center; gap:10px; min-width:0; }
+    .session-copy { text-align:right; min-width:0; }
+    .session-copy strong,.session-copy small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:300px; }
+    main { padding:28px 0 56px; }
+    .panel { border:1px solid var(--line); border-radius:14px; background:linear-gradient(145deg,rgba(13,32,50,.96),rgba(7,18,30,.96)); box-shadow:0 18px 60px rgba(0,0,0,.26); }
+    .login { width:min(440px,100%); margin:7vh auto 0; padding:24px; }
+    h1,h2,h3,p { margin-top:0; }
+    h1 { margin-bottom:8px; font-size:25px; }
+    h2 { margin-bottom:4px; font-size:21px; }
+    h3 { margin-bottom:5px; font-size:17px; }
+    .stack { display:grid; gap:15px; }
+    .toolbar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:13px; margin-bottom:20px; }
+    .actions { display:flex; flex-wrap:wrap; gap:9px; }
+    .summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-bottom:18px; }
+    .metric { padding:15px; }
+    .metric strong { display:block; font-size:23px; }
+    .metric span { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.06em; font-weight:850; }
+    .projects { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+    .project { padding:18px; min-width:0; }
+    .project-head { display:flex; gap:12px; justify-content:space-between; align-items:start; }
+    .project h3,.project p { overflow-wrap:anywhere; }
+    .project p { color:var(--muted); min-height:24px; }
+    .meta { display:flex; flex-wrap:wrap; gap:7px 12px; color:var(--muted); font-size:12px; margin:11px 0 14px; }
+    .badge { border:1px solid var(--line); border-radius:999px; padding:3px 8px; color:#bfeaff; background:#0a1c2c; }
+    .versions { margin-top:14px; padding-top:13px; border-top:1px solid var(--line); display:grid; gap:8px; }
+    .version { display:grid; grid-template-columns:auto 1fr auto; gap:9px; align-items:center; padding:9px; border-radius:9px; background:#071521; }
+    .version code { color:#8eddf8; font-size:11px; }
+    .version small { color:var(--muted); }
+    .empty { grid-column:1/-1; padding:36px; text-align:center; color:var(--muted); }
+    .status { min-height:22px; margin:0 0 14px; color:var(--muted); }
+    .status.ok { color:var(--ok); } .status.bad { color:var(--bad); } .status.warn { color:var(--warn); }
+    .overlay { position:fixed; z-index:20; inset:0; display:grid; place-items:center; padding:16px; background:rgba(2,6,12,.78); }
+    .overlay[hidden],[hidden] { display:none !important; }
+    .modal { width:min(680px,100%); max-height:calc(100vh - 32px); overflow:auto; padding:21px; }
+    .modal-head { display:flex; justify-content:space-between; gap:12px; align-items:start; }
+    .icon-button { width:40px; padding:0; }
+    .health { display:inline-flex; align-items:center; gap:7px; color:var(--muted); font-size:12px; }
+    .dot { width:8px; height:8px; border-radius:50%; background:var(--warn); box-shadow:0 0 0 4px rgba(251,191,36,.1); }
+    .dot.ok { background:var(--ok); box-shadow:0 0 0 4px rgba(57,211,153,.1); }
+    @media (max-width:760px) { .projects{grid-template-columns:1fr}.summary{grid-template-columns:1fr 1fr}.session-copy{display:none}.header-inner,main{width:min(100% - 20px,1120px)} }
+    @media (max-width:460px) { .summary{grid-template-columns:1fr}.toolbar,.project-head{display:grid}.actions{display:grid;grid-template-columns:1fr 1fr}.actions>*{width:100%} }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <div class="brand"><div class="mark">Z</div><div><strong>Pilot-Konsole</strong><small>Digitalisierungsplanung</small></div></div>
+      <div class="health"><span class="dot" id="healthDot"></span><span id="healthText">Status wird geprüft</span></div>
+      <div class="session" id="sessionBox" hidden>
+        <div class="session-copy"><strong id="sessionName"></strong><small id="sessionOrg"></small></div>
+        <button class="secondary" id="logout" type="button">Abmelden</button>
+      </div>
+    </div>
+  </header>
+  <main>
+    <section class="panel login" id="loginPanel">
+      <h1>Verwalteter Pilot</h1>
+      <p class="muted">Melde dich mit deinem Organisationskonto an.</p>
+      <form class="stack" id="loginForm">
+        <label>E-Mail-Adresse<input id="email" name="email" type="email" autocomplete="username" required maxlength="320"></label>
+        <label>Passwort<input id="password" name="password" type="password" autocomplete="current-password" required maxlength="1024"></label>
+        <button id="loginButton" type="submit">Anmelden</button>
+      </form>
+      <p class="status" id="loginStatus" role="status"></p>
+    </section>
+
+    <section id="workspace" hidden>
+      <div class="toolbar">
+        <div><h2 id="organizationTitle">Projekte</h2><div class="muted" id="roleText"></div></div>
+        <div class="actions">
+          <button class="secondary" id="refresh" type="button">Aktualisieren</button>
+          <button class="secondary" id="backup" type="button">Backup erstellen</button>
+          <button id="newProject" type="button">Neues Projekt</button>
+        </div>
+      </div>
+      <p class="status" id="workspaceStatus" role="status"></p>
+      <div class="summary">
+        <div class="panel metric"><strong id="projectCount">0</strong><span>Projekte</span></div>
+        <div class="panel metric"><strong id="versionCount">0</strong><span>Aktuelle Versionen</span></div>
+        <div class="panel metric"><strong id="roleMetric">–</strong><span>Rolle</span></div>
+      </div>
+      <div class="projects" id="projects"></div>
+    </section>
+  </main>
+
+  <div class="overlay" id="createOverlay" hidden>
+    <section class="panel modal" role="dialog" aria-modal="true" aria-labelledby="createTitle">
+      <div class="modal-head"><div><h2 id="createTitle">Projekt erstellen</h2><p class="muted">Die erste Version wird unveränderlich gespeichert.</p></div><button class="secondary icon-button" id="closeCreate" type="button" aria-label="Schließen">×</button></div>
+      <form class="stack" id="createForm">
+        <label>Name<input id="projectName" required maxlength="200"></label>
+        <label>Beschreibung<input id="projectDescription" maxlength="4000"></label>
+        <label>Initiales Zustandsmodell<textarea id="projectModel" required spellcheck="false"></textarea></label>
+        <label>Versionsnotiz<input id="projectMessage" maxlength="500" value="Initial version"></label>
+        <div class="actions"><button type="submit">Projekt anlegen</button><button class="secondary" id="cancelCreate" type="button">Abbrechen</button></div>
+      </form>
+      <p class="status" id="createStatus" role="status"></p>
+    </section>
+  </div>
+
+  <script>
+    "use strict";
+    const SESSION_KEY = "zustand.pilot.session.v1";
+    const API_BASE = "/api/v1";
+    const el = id => document.getElementById(id);
+    let session = null;
+    let projects = [];
+
+    const initialModel = {
+      version: 2,
+      initial: "start",
+      states: [{ id: "start", title: "Start", data: {} }],
+      transitions: []
+    };
+    el("projectModel").value = JSON.stringify(initialModel, null, 2);
+
+    function setStatus(target, message = "", tone = "") {
+      target.textContent = message;
+      target.className = `status${tone ? ` ${tone}` : ""}`;
+    }
+
+    function restoreSession() {
+      try {
+        const parsed = JSON.parse(sessionStorage.getItem(SESSION_KEY) || "null");
+        if (parsed?.token && parsed?.user?.id && parsed?.organization?.id) session = parsed;
+      } catch (_) {
+        sessionStorage.removeItem(SESSION_KEY);
+      }
+    }
+
+    function saveSession(value) {
+      session = value ? { token: value.token, user: value.user, organization: value.organization } : null;
+      if (session) sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+      else sessionStorage.removeItem(SESSION_KEY);
+    }
+
+    async function api(path, options = {}) {
+      const headers = { accept: "application/json", ...(options.headers || {}) };
+      if (session?.token) headers.authorization = `Bearer ${session.token}`;
+      if (options.body !== undefined) headers["content-type"] = "application/json";
+      const response = await fetch(`${API_BASE}${path}`, {
+        method: options.method || "GET",
+        headers,
+        body: options.body === undefined ? undefined : JSON.stringify(options.body),
+        cache: "no-store"
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (response.status === 401 && !options.keepSession) {
+        saveSession(null);
+        showLogin("Sitzung abgelaufen. Bitte erneut anmelden.", "warn");
+      }
+      if (!response.ok) {
+        const error = new Error(payload.error || `HTTP ${response.status}`);
+        error.payload = payload;
+        error.status = response.status;
+        throw error;
+      }
+      return payload;
+    }
+
+    function humanError(error) {
+      const issues = error?.payload?.details?.issues;
+      if (Array.isArray(issues) && issues.length) return `${error.message}: ${issues.map(issue => `${issue.code} (${issue.path})`).join(", ")}`;
+      return error?.message || "Unbekannter Fehler";
+    }
+
+    function showLogin(message = "", tone = "") {
+      el("loginPanel").hidden = false;
+      el("workspace").hidden = true;
+      el("sessionBox").hidden = true;
+      setStatus(el("loginStatus"), message, tone);
+    }
+
+    function showWorkspace() {
+      el("loginPanel").hidden = true;
+      el("workspace").hidden = false;
+      el("sessionBox").hidden = false;
+      el("sessionName").textContent = session.user.name || session.user.email;
+      el("sessionOrg").textContent = session.organization.name;
+      el("organizationTitle").textContent = session.organization.name;
+      el("roleText").textContent = `Angemeldet als ${session.user.email}`;
+      el("roleMetric").textContent = session.user.role;
+      el("backup").hidden = session.user.role !== "owner";
+      el("newProject").hidden = session.user.role === "viewer";
+    }
+
+    async function checkHealth() {
+      try {
+        const response = await fetch(`${API_BASE}/health`, { cache: "no-store" });
+        const payload = await response.json();
+        el("healthDot").classList.toggle("ok", response.ok && payload.ok);
+        el("healthText").textContent = response.ok && payload.ok ? "Bereit" : "Nicht bereit";
+      } catch (_) {
+        el("healthText").textContent = "Nicht erreichbar";
+      }
+    }
+
+    function dateText(value) {
+      try { return new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)); }
+      catch (_) { return String(value || ""); }
+    }
+
+    function button(label, className, handler) {
+      const node = document.createElement("button");
+      node.type = "button";
+      node.textContent = label;
+      if (className) node.className = className;
+      node.addEventListener("click", handler);
+      return node;
+    }
+
+    async function showVersions(project, container, trigger) {
+      trigger.disabled = true;
+      try {
+        const payload = await api(`/projects/${encodeURIComponent(project.id)}/versions`);
+        container.textContent = "";
+        container.hidden = false;
+        if (!payload.versions.length) {
+          const empty = document.createElement("small");
+          empty.textContent = "Keine Versionen vorhanden.";
+          container.appendChild(empty);
+          return;
+        }
+        for (const version of payload.versions) {
+          const row = document.createElement("div");
+          row.className = "version";
+          const number = document.createElement("strong"); number.textContent = `v${version.number}`;
+          const copy = document.createElement("div");
+          const message = document.createElement("div"); message.textContent = version.message || "Ohne Notiz";
+          const time = document.createElement("small"); time.textContent = dateText(version.createdAt);
+          copy.append(message, time);
+          const digest = document.createElement("code"); digest.textContent = version.digest.slice(0, 10);
+          row.append(number, copy, digest);
+          container.appendChild(row);
+        }
+        el("versionCount").textContent = String(payload.versions.length);
+      } catch (error) {
+        setStatus(el("workspaceStatus"), humanError(error), "bad");
+      } finally {
+        trigger.disabled = false;
+      }
+    }
+
+    async function exportProject(project, trigger) {
+      trigger.setAttribute("aria-disabled", "true");
+      try {
+        const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(project.id)}/export`, {
+          headers: { authorization: `Bearer ${session.token}`, accept: "application/json" },
+          cache: "no-store"
+        });
+        if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || `HTTP ${response.status}`);
+        const blobUrl = URL.createObjectURL(await response.blob());
+        const download = document.createElement("a");
+        download.href = blobUrl;
+        download.download = `project-${project.id}.json`;
+        document.body.appendChild(download);
+        download.click();
+        download.remove();
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+      } catch (error) {
+        setStatus(el("workspaceStatus"), humanError(error), "bad");
+      } finally {
+        trigger.removeAttribute("aria-disabled");
+      }
+    }
+
+    function renderProjects() {
+      const root = el("projects");
+      root.textContent = "";
+      el("projectCount").textContent = String(projects.length);
+      el("versionCount").textContent = String(projects.filter(project => project.currentVersionId).length);
+      if (!projects.length) {
+        const empty = document.createElement("div");
+        empty.className = "panel empty";
+        empty.textContent = "Noch keine Projekte. Lege den ersten Prozess an.";
+        root.appendChild(empty);
+        return;
+      }
+      for (const project of projects) {
+        const card = document.createElement("article"); card.className = "panel project";
+        const head = document.createElement("div"); head.className = "project-head";
+        const titleWrap = document.createElement("div");
+        const title = document.createElement("h3"); title.textContent = project.name;
+        const description = document.createElement("p"); description.textContent = project.description || "Keine Beschreibung";
+        titleWrap.append(title, description);
+        const badge = document.createElement("span"); badge.className = "badge"; badge.textContent = `v${project.currentVersionNumber || 0}`;
+        head.append(titleWrap, badge);
+        const meta = document.createElement("div"); meta.className = "meta";
+        const updated = document.createElement("span"); updated.textContent = `Aktualisiert ${dateText(project.updatedAt)}`;
+        const idCopy = document.createElement("span"); idCopy.textContent = project.id;
+        meta.append(updated, idCopy);
+        const actions = document.createElement("div"); actions.className = "actions";
+        let edit = null;
+        if (session.user.role !== "viewer") {
+          edit = document.createElement("a");
+          edit.className = "button";
+          edit.textContent = "Bearbeiten";
+          edit.href = `/studio.html?project=${encodeURIComponent(project.id)}&api=/api/v1`;
+        }
+        const versions = document.createElement("div"); versions.className = "versions"; versions.hidden = true;
+        const versionButton = button("Versionen", "secondary", () => showVersions(project, versions, versionButton));
+        const exportLink = document.createElement("a");
+        exportLink.href = `${API_BASE}/projects/${encodeURIComponent(project.id)}/export`;
+        exportLink.className = "button secondary";
+        exportLink.textContent = "Export JSON";
+        exportLink.addEventListener("click", event => { event.preventDefault(); void exportProject(project, exportLink); });
+        if (edit) actions.appendChild(edit);
+        actions.append(versionButton, exportLink);
+        card.append(head, meta, actions, versions);
+        root.appendChild(card);
+      }
+    }
+
+    async function loadProjects() {
+      setStatus(el("workspaceStatus"), "Projekte werden geladen …");
+      try {
+        projects = (await api("/projects")).projects || [];
+        renderProjects();
+        setStatus(el("workspaceStatus"), `${projects.length} Projekt${projects.length === 1 ? "" : "e"} geladen.`, "ok");
+      } catch (error) {
+        if (error.status !== 401) setStatus(el("workspaceStatus"), humanError(error), "bad");
+      }
+    }
+
+    el("loginForm").addEventListener("submit", async event => {
+      event.preventDefault();
+      el("loginButton").disabled = true;
+      setStatus(el("loginStatus"), "Anmeldung läuft …");
+      try {
+        const authenticated = await api("/auth/login", {
+          method: "POST",
+          keepSession: true,
+          body: { email: el("email").value.trim(), password: el("password").value }
+        });
+        saveSession(authenticated);
+        el("password").value = "";
+        showWorkspace();
+        await loadProjects();
+      } catch (error) {
+        setStatus(el("loginStatus"), error.status === 401 ? "E-Mail-Adresse oder Passwort ist falsch." : humanError(error), "bad");
+      } finally {
+        el("loginButton").disabled = false;
+      }
+    });
+
+    el("logout").addEventListener("click", async () => {
+      try { await api("/auth/logout", { method: "POST" }); } catch (_) {}
+      saveSession(null);
+      projects = [];
+      showLogin("Erfolgreich abgemeldet.", "ok");
+    });
+
+    el("refresh").addEventListener("click", loadProjects);
+    el("newProject").addEventListener("click", () => {
+      el("createOverlay").hidden = false;
+      el("projectName").focus();
+    });
+    function closeCreate() { el("createOverlay").hidden = true; setStatus(el("createStatus")); }
+    el("closeCreate").addEventListener("click", closeCreate);
+    el("cancelCreate").addEventListener("click", closeCreate);
+    el("createOverlay").addEventListener("click", event => { if (event.target === el("createOverlay")) closeCreate(); });
+    document.addEventListener("keydown", event => { if (event.key === "Escape" && !el("createOverlay").hidden) closeCreate(); });
+
+    el("createForm").addEventListener("submit", async event => {
+      event.preventDefault();
+      let model;
+      try { model = JSON.parse(el("projectModel").value); }
+      catch (error) { setStatus(el("createStatus"), `Ungültiges JSON: ${error.message}`, "bad"); return; }
+      const submit = event.submitter;
+      submit.disabled = true;
+      setStatus(el("createStatus"), "Projekt wird angelegt …");
+      try {
+        await api("/projects", {
+          method: "POST",
+          body: {
+            name: el("projectName").value.trim(),
+            description: el("projectDescription").value.trim(),
+            message: el("projectMessage").value.trim(),
+            model
+          }
+        });
+        el("createForm").reset();
+        el("projectModel").value = JSON.stringify(initialModel, null, 2);
+        el("projectMessage").value = "Initial version";
+        closeCreate();
+        await loadProjects();
+      } catch (error) {
+        setStatus(el("createStatus"), humanError(error), "bad");
+      } finally {
+        submit.disabled = false;
+      }
+    });
+
+    el("backup").addEventListener("click", async () => {
+      el("backup").disabled = true;
+      setStatus(el("workspaceStatus"), "Backup wird erstellt …");
+      try {
+        const backup = await api("/backups", { method: "POST" });
+        setStatus(el("workspaceStatus"), `Backup ${backup.id} erstellt.`, "ok");
+      } catch (error) {
+        setStatus(el("workspaceStatus"), humanError(error), "bad");
+      } finally {
+        el("backup").disabled = false;
+      }
+    });
+
+    async function start() {
+      restoreSession();
+      void checkHealth();
+      if (!session) { showLogin(); return; }
+      try {
+        const current = await api("/auth/me");
+        saveSession({ token: session.token, user: current.user, organization: current.organization });
+        showWorkspace();
+        await loadProjects();
+      } catch (error) {
+        if (error.status !== 401) showLogin(humanError(error), "bad");
+      }
+    }
+    void start();
+  </script>
+</body>
+</html>

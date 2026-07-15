@@ -1,6 +1,8 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const { spawnSync } = require("node:child_process");
+const { randomBytes } = require("node:crypto");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -17,7 +19,9 @@ const {
 } = require("./server");
 
 const ORIGIN = "https://digitalisierungsplanung.de";
-const SECRET = "test-room-secret";
+const ROOM_SECRET = randomBytes(32).toString("base64url");
+const ADMIN_SECRET = randomBytes(32).toString("base64url");
+const EMIT_SECRET = randomBytes(32).toString("base64url");
 const NGINX_CONFIG_PATH = `${__dirname}/nginx/realtime.digitalisierungsplanung.de.conf`;
 
 function socketUrl(realtime) {
@@ -44,6 +48,38 @@ async function withRealtimeServer(options, fn) {
   } finally {
     await realtime.close();
   }
+}
+
+function runTestGit(cwd, args) {
+  const result = spawnSync("git", args, { cwd, encoding: "utf8" });
+  assert.equal(
+    result.status,
+    0,
+    `git ${args.join(" ")} failed in ${cwd}: ${String(result.stderr || result.stdout || "unknown error").trim()}`
+  );
+  return String(result.stdout || "").trim();
+}
+
+function createReviewRepository(prefix, files) {
+  const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  const repoDir = path.join(temporaryRoot, "production");
+  const remoteDir = path.join(temporaryRoot, "origin.git");
+  fs.mkdirSync(repoDir, { recursive: true });
+  fs.mkdirSync(remoteDir, { recursive: true });
+  runTestGit(repoDir, ["init", "--initial-branch=main"]);
+  runTestGit(remoteDir, ["init", "--bare", "--initial-branch=main"]);
+  runTestGit(repoDir, ["config", "user.name", "Realtime Test"]);
+  runTestGit(repoDir, ["config", "user.email", "realtime-test@example.test"]);
+  for (const [relativePath, contents] of Object.entries(files)) {
+    const destination = path.join(repoDir, ...relativePath.split("/"));
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    fs.writeFileSync(destination, contents);
+  }
+  runTestGit(repoDir, ["add", "."]);
+  runTestGit(repoDir, ["commit", "-m", "Initial production state"]);
+  runTestGit(repoDir, ["remote", "add", "origin", remoteDir]);
+  runTestGit(repoDir, ["push", "--set-upstream", "origin", "main"]);
+  return { temporaryRoot, repoDir, remoteDir };
 }
 
 function connectRaw(realtime, origin = ORIGIN) {
@@ -112,7 +148,7 @@ async function connectClient(realtime, { roomId = "room", clientId, token = null
     type: "join",
     roomId,
     clientId,
-    token: token || createRoomToken({ roomId, clientId, secret: SECRET, ttlMs: 60000 })
+    token: token || createRoomToken({ roomId, clientId, secret: ROOM_SECRET, ttlMs: 60000 })
   }));
   const joined = await nextMessage(socket, message => message.type === "joined");
   assert.equal(joined.roomId, roomId);
@@ -121,7 +157,7 @@ async function connectClient(realtime, { roomId = "room", clientId, token = null
 }
 
 test("rejects WebSocket upgrades from disallowed origins", async () => {
-  await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
+  await withRealtimeServer({ roomSecret: ROOM_SECRET }, async realtime => {
     const socket = connectRaw(realtime, "https://evil.example");
     const error = await waitForError(socket);
     assert.match(error.message, /403/);
@@ -129,7 +165,7 @@ test("rejects WebSocket upgrades from disallowed origins", async () => {
 });
 
 test("requires a signed room token when unsigned rooms are disabled", async () => {
-  await withRealtimeServer({ roomSecret: SECRET, allowUnsignedRooms: false }, async realtime => {
+  await withRealtimeServer({ roomSecret: ROOM_SECRET, allowUnsignedRooms: false }, async realtime => {
     const socket = connectRaw(realtime);
     await waitForOpen(socket);
     socket.send(JSON.stringify({
@@ -143,7 +179,7 @@ test("requires a signed room token when unsigned rooms are disabled", async () =
 });
 
 test("issues signed room tokens only to allowed origins", async () => {
-  await withRealtimeServer({ roomSecret: SECRET, tokenTtlMs: 60000 }, async realtime => {
+  await withRealtimeServer({ roomSecret: ROOM_SECRET, tokenTtlMs: 60000 }, async realtime => {
     const response = await fetch(httpUrl(realtime, "/token?roomId=room&clientId=alice"), {
       headers: { Origin: ORIGIN }
     });
@@ -157,7 +193,7 @@ test("issues signed room tokens only to allowed origins", async () => {
     assert.equal(verifyRoomToken(payload.token, {
       roomId: "room",
       clientId: "alice",
-      secret: SECRET
+      secret: ROOM_SECRET
     }).ok, true);
 
     const rejected = await fetch(httpUrl(realtime, "/token?roomId=room&clientId=alice"), {
@@ -178,7 +214,7 @@ test("does not issue room tokens without a server secret", async () => {
 });
 
 test("serves the event and connector catalog only to allowed origins", async () => {
-  await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
+  await withRealtimeServer({ roomSecret: ROOM_SECRET }, async realtime => {
     const response = await fetch(httpUrl(realtime, "/events"), {
       headers: { Origin: ORIGIN }
     });
@@ -221,11 +257,18 @@ test("serves the event and connector catalog only to allowed origins", async () 
     assert.deepEqual(apiTrigger.events.map(event => event.name), ["fetch.*.success", "fetch.*.error"]);
     assert.deepEqual(
       productContractPayload.subscriptionPlans.map(plan => plan.id),
-      ["starter", "business", "scale"]
+      []
     );
+    assert.deepEqual(
+      productContractPayload.pilotOffers.map(offer => offer.id),
+      ["managed-pilot-v1"]
+    );
+    assert.equal(productContractPayload.pilotOffers[0].price, "2.500–7.500 €");
+    assert.equal(productContractPayload.pilotOffers[0].duration, "6–12 Wochen");
+    assert.equal(productContractPayload.pilotOffers[0].billing, "one-time");
     assert.ok(productContractPayload.presetPackages.some(pack =>
       pack.id === "website.builder" &&
-      pack.includedInPlanIds.includes("business") &&
+      pack.includedInPlanIds.length === 0 &&
       pack.presetCount > 0
     ));
     assert.ok(productContractPayload.presetPackages.some(pack =>
@@ -312,7 +355,7 @@ test("serves the event and connector catalog only to allowed origins", async () 
 test("inlines public image URLs as Data URIs without storing assets", async () => {
   const fetched = [];
   await withRealtimeServer({
-    roomSecret: SECRET,
+    roomSecret: ROOM_SECRET,
     imageInlineFetcher: async (url, options) => {
       fetched.push({ url, maxBytes: options.maxBytes });
       return {
@@ -407,7 +450,7 @@ test("exposes one shared frontend and backend release without caching it", async
     sourceCommit: "1234567890abcdef",
     deployedCommit: "abcdef1234567890"
   };
-  await withRealtimeServer({ roomSecret: SECRET, release }, async realtime => {
+  await withRealtimeServer({ roomSecret: ROOM_SECRET, release }, async realtime => {
     const versionResponse = await fetch(httpUrl(realtime, "/version"), {
       headers: { Origin: ORIGIN }
     });
@@ -439,7 +482,7 @@ test("exposes one shared frontend and backend release without caching it", async
 });
 
 test("returns not_found for non-core realtime routes", async () => {
-  await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
+  await withRealtimeServer({ roomSecret: ROOM_SECRET }, async realtime => {
     for (const path of ["/admin", "/catalog", "/schema", "/api", "/process/contract", "/process/analyze"]) {
       const response = await fetch(httpUrl(realtime, path), { headers: { Origin: ORIGIN } });
       assert.equal(response.status, 404, `${path} should stay out of the lean realtime API`);
@@ -463,7 +506,7 @@ test("serves one central admin hub from the server route index", async () => {
     sourceCommit: "abcdef1",
     deployedCommit: "abcdef1"
   };
-  await withRealtimeServer({ roomSecret: SECRET, release }, async realtime => {
+  await withRealtimeServer({ roomSecret: ROOM_SECRET, release }, async realtime => {
     for (const path of ["/", "/admin.html"]) {
       const response = await fetch(httpUrl(realtime, path));
       assert.equal(response.status, 200);
@@ -471,7 +514,10 @@ test("serves one central admin hub from the server route index", async () => {
       assert.match(html, /Realtime Admin/);
       assert.match(html, /Ein Einstieg für Events/);
       assert.match(html, /fetch\("\/admin\/routes"/);
-      assert.doesNotMatch(html, /REALTIME_ADMIN_SECRET|admin-secret|emit-secret/);
+      assert.doesNotMatch(html, /REALTIME_ADMIN_SECRET/);
+      assert.ok(!html.includes(ROOM_SECRET));
+      assert.ok(!html.includes(ADMIN_SECRET));
+      assert.ok(!html.includes(EMIT_SECRET));
       assert.doesNotMatch(html, /events-admin\.html.*presets-admin\.html.*console\.html/s);
     }
 
@@ -531,33 +577,30 @@ test("nginx proxies only lean public realtime routes", () => {
   assert.match(nginx, /proxy_pass\s+http:\/\/127\.0\.0\.1:8788;/);
 });
 
-test("serves an admin event designer that validates, commits, and pushes the catalog", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "realtime-catalog-"));
-  const catalogPath = path.join(tempDir, "server", "event-catalog.json");
-  const calls = [];
-  fs.mkdirSync(path.dirname(catalogPath), { recursive: true });
-  fs.writeFileSync(catalogPath, eventCatalog.serializeEventCatalog(eventCatalog.DEFAULT_EVENT_CATALOG));
-
-  const gitRunner = (args) => {
-    calls.push(args);
-    if (args[0] === "diff") return { status: 1, stdout: "", stderr: "" };
-    if (args[0] === "rev-parse") return { status: 0, stdout: "abc123\n", stderr: "" };
-    return { status: 0, stdout: "", stderr: "" };
-  };
+test("serves an admin event designer that commits catalog changes to a review branch", async () => {
+  const repository = createReviewRepository("realtime-catalog-", {
+    "README.md": "production\n",
+    "server/event-catalog.json": eventCatalog.serializeEventCatalog(eventCatalog.DEFAULT_EVENT_CATALOG)
+  });
+  const { temporaryRoot, repoDir, remoteDir } = repository;
+  const catalogPath = path.join(repoDir, "server", "event-catalog.json");
+  fs.appendFileSync(path.join(repoDir, "README.md"), "local operator note\n");
+  const productionHead = runTestGit(repoDir, ["rev-parse", "HEAD"]);
+  const productionStatus = runTestGit(repoDir, ["status", "--porcelain=v1", "--untracked-files=all"]);
+  const productionCatalog = fs.readFileSync(catalogPath, "utf8");
 
   try {
     await withRealtimeServer({
-      roomSecret: SECRET,
-      adminSecret: "admin-secret",
+      roomSecret: ROOM_SECRET,
+      adminSecret: ADMIN_SECRET,
       eventCatalogPath: catalogPath,
-      repoDir: tempDir,
-      gitRunner
+      repoDir
     }, async realtime => {
       const htmlResponse = await fetch(httpUrl(realtime, "/events-admin.html"));
       assert.equal(htmlResponse.status, 200);
       const html = await htmlResponse.text();
       assert.match(html, /Realtime Event Designer/);
-      assert.match(html, /Save to GitHub/);
+      assert.match(html, /Save review branch/);
       assert.match(html, /fetch\("\/events"/);
       assert.match(html, /fetch\("\/contract"/);
       assert.match(html, /localStorage\.setItem\(ADMIN_SECRET_STORAGE_KEY/);
@@ -571,13 +614,13 @@ test("serves an admin event designer that validates, commits, and pushes the cat
       assert.match(html, /Add field/);
       assert.doesNotMatch(html, /placeholder="sip\.call\.incoming"/);
       assert.doesNotMatch(html, /detail: \{ value: "text" \}/);
-      assert.doesNotMatch(html, /admin-secret/);
+      assert.ok(!html.includes(ADMIN_SECRET));
 
       const unauthorized = await fetch(httpUrl(realtime, "/events-admin/catalog"));
       assert.equal(unauthorized.status, 401);
 
       const load = await fetch(httpUrl(realtime, "/events-admin/catalog"), {
-        headers: { authorization: "Bearer admin-secret" }
+        headers: { authorization: `Bearer ${ADMIN_SECRET}` }
       });
       assert.equal(load.status, 200);
       const loaded = await load.json();
@@ -586,7 +629,7 @@ test("serves an admin event designer that validates, commits, and pushes the cat
       const invalid = await fetch(httpUrl(realtime, "/events-admin/catalog"), {
         method: "POST",
         headers: {
-          authorization: "Bearer admin-secret",
+          authorization: `Bearer ${ADMIN_SECRET}`,
           "content-type": "application/json"
         },
         body: JSON.stringify({ catalog: { ...loaded.catalog, unknown: true } })
@@ -607,7 +650,7 @@ test("serves an admin event designer that validates, commits, and pushes the cat
       const validateOnly = await fetch(httpUrl(realtime, "/events-admin/catalog?validate=1"), {
         method: "POST",
         headers: {
-          authorization: "Bearer admin-secret",
+          authorization: `Bearer ${ADMIN_SECRET}`,
           "content-type": "application/json"
         },
         body: JSON.stringify({ catalog: loaded.catalog, validateOnly: true })
@@ -618,7 +661,7 @@ test("serves an admin event designer that validates, commits, and pushes the cat
       const saved = await fetch(httpUrl(realtime, "/events-admin/catalog"), {
         method: "POST",
         headers: {
-          authorization: "Bearer admin-secret",
+          authorization: `Bearer ${ADMIN_SECRET}`,
           "content-type": "application/json"
         },
         body: JSON.stringify({
@@ -630,51 +673,57 @@ test("serves an admin event designer that validates, commits, and pushes the cat
       const savedPayload = await saved.json();
       assert.equal(savedPayload.ok, true);
       assert.equal(savedPayload.changed, true);
-      assert.equal(savedPayload.commit, "abc123");
-      assert.equal(savedPayload.releaseId, "release-1");
-      assert.equal(savedPayload.releaseSequence, 1);
-      assert.match(fs.readFileSync(catalogPath, "utf8"), /realtime\.sip\.call\.missed/);
-      assert.match(fs.readFileSync(path.join(tempDir, "release-version.js"), "utf8"), /ZUSTAND_RELEASE_ID = "release-1"/);
+      assert.match(savedPayload.commit, /^[0-9a-f]+$/);
+      assert.equal(savedPayload.reviewRequired, true);
+      assert.match(savedPayload.branch, new RegExp(`^admin/events-[0-9]+-${savedPayload.commit}$`));
+      assert.equal(savedPayload.releaseId, undefined);
+      assert.equal(fs.readFileSync(catalogPath, "utf8"), productionCatalog);
+      assert.equal(runTestGit(repoDir, ["rev-parse", "HEAD"]), productionHead);
+      assert.equal(runTestGit(repoDir, ["status", "--porcelain=v1", "--untracked-files=all"]), productionStatus);
+      assert.equal((runTestGit(repoDir, ["worktree", "list", "--porcelain"]).match(/^worktree /gm) || []).length, 1);
+      assert.equal(fs.existsSync(path.join(repoDir, "release-version.js")), false);
+
+      const reviewCatalog = runTestGit(repoDir, ["--git-dir", remoteDir, "show", `${savedPayload.branch}:server/event-catalog.json`]);
+      assert.match(reviewCatalog, /realtime\.sip\.call\.missed/);
+      const reviewParent = runTestGit(repoDir, ["--git-dir", remoteDir, "rev-parse", `${savedPayload.branch}^`]);
+      const remoteMain = runTestGit(repoDir, ["--git-dir", remoteDir, "rev-parse", "main"]);
+      assert.equal(reviewParent, remoteMain);
+
       const refreshed = await fetch(httpUrl(realtime, "/events"));
       assert.equal(refreshed.status, 200);
       const refreshedCatalog = await refreshed.json();
-      assert.ok(refreshedCatalog.events.some(event => event.name === "realtime.sip.call.missed"));
-      assert.equal(refreshedCatalog.release.releaseId, "release-1");
-      const refreshedContract = await fetch(httpUrl(realtime, "/events"));
-      assert.equal(refreshedContract.status, 200);
-      const refreshedContractPayload = await refreshedContract.json();
-      assert.ok(refreshedContractPayload.events.some(event => event.name === "realtime.sip.call.missed"));
-      assert.ok(calls.some(args => args[0] === "add" && args.includes("server/event-catalog.json") && args.includes("release-version.js")));
-      assert.ok(calls.some(args => args[0] === "commit" || args.includes("commit")));
-      assert.ok(calls.some(args => args[0] === "push" || args.includes("push")));
+      assert.ok(!refreshedCatalog.events.some(event => event.name === "realtime.sip.call.missed"));
+      assert.equal(refreshedCatalog.release.releaseId, "dev-local");
+      const reloaded = await fetch(httpUrl(realtime, "/events-admin/catalog"), {
+        headers: { authorization: `Bearer ${ADMIN_SECRET}` }
+      });
+      assert.equal(reloaded.status, 200);
+      assert.ok(!(await reloaded.json()).catalog.events.some(event => event.name === "realtime.sip.call.missed"));
     });
   } finally {
-    fs.rmSync(tempDir, { recursive: true, force: true });
+    fs.rmSync(temporaryRoot, { recursive: true, force: true });
   }
 });
 
-test("converts official Daisy snippets into managed contract presets and pushes them", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "preset-library-"));
-  const libraryPath = path.join(tempDir, "server", "preset-library.json");
-  const calls = [];
+test("converts official Daisy snippets and commits presets to a review branch", async () => {
+  const repository = createReviewRepository("preset-library-", {
+    "README.md": "production\n",
+    "server/preset-library.json": fs.readFileSync(presetLibrary.DEFAULT_PRESET_LIBRARY_PATH, "utf8")
+  });
+  const { temporaryRoot, repoDir, remoteDir } = repository;
+  const libraryPath = path.join(repoDir, "server", "preset-library.json");
   const importedUrls = [];
-  fs.mkdirSync(path.dirname(libraryPath), { recursive: true });
-  fs.copyFileSync(presetLibrary.DEFAULT_PRESET_LIBRARY_PATH, libraryPath);
-
-  const gitRunner = args => {
-    calls.push(args);
-    if (args[0] === "diff") return { status: 1, stdout: "", stderr: "" };
-    if (args[0] === "rev-parse") return { status: 0, stdout: "def456\n", stderr: "" };
-    return { status: 0, stdout: "", stderr: "" };
-  };
+  fs.appendFileSync(path.join(repoDir, "README.md"), "local operator note\n");
+  const productionHead = runTestGit(repoDir, ["rev-parse", "HEAD"]);
+  const productionStatus = runTestGit(repoDir, ["status", "--porcelain=v1", "--untracked-files=all"]);
+  const productionLibrary = fs.readFileSync(libraryPath, "utf8");
 
   try {
     await withRealtimeServer({
-      roomSecret: SECRET,
-      adminSecret: "admin-secret",
+      roomSecret: ROOM_SECRET,
+      adminSecret: ADMIN_SECRET,
       presetLibraryPath: libraryPath,
-      repoDir: tempDir,
-      gitRunner,
+      repoDir,
       presetApiFetcher: async url => {
         importedUrls.push(url);
         return {
@@ -698,13 +747,13 @@ test("converts official Daisy snippets into managed contract presets and pushes 
       assert.match(html, /In Contract speichern/);
       assert.match(html, /\+ Neue Kategorie/);
       assert.match(html, /\+ Neues Paket/);
-      assert.doesNotMatch(html, /admin-secret/);
+      assert.ok(!html.includes(ADMIN_SECRET));
 
       const unauthorized = await fetch(httpUrl(realtime, "/presets-admin/catalog"));
       assert.equal(unauthorized.status, 401);
 
       const load = await fetch(httpUrl(realtime, "/presets-admin/catalog"), {
-        headers: { authorization: "Bearer admin-secret" }
+        headers: { authorization: `Bearer ${ADMIN_SECRET}` }
       });
       assert.equal(load.status, 200);
       const loaded = await load.json();
@@ -713,7 +762,7 @@ test("converts official Daisy snippets into managed contract presets and pushes 
 
       const privateImport = await fetch(httpUrl(realtime, "/presets-admin/import"), {
         method: "POST",
-        headers: { authorization: "Bearer admin-secret", "content-type": "application/json" },
+        headers: { authorization: `Bearer ${ADMIN_SECRET}`, "content-type": "application/json" },
         body: JSON.stringify({ url: "https://127.0.0.1/preset", library: loaded.library })
       });
       assert.equal(privateImport.status, 400);
@@ -721,7 +770,7 @@ test("converts official Daisy snippets into managed contract presets and pushes 
 
       const importedResponse = await fetch(httpUrl(realtime, "/presets-admin/import"), {
         method: "POST",
-        headers: { authorization: "Bearer admin-secret", "content-type": "application/json" },
+        headers: { authorization: `Bearer ${ADMIN_SECRET}`, "content-type": "application/json" },
         body: JSON.stringify({ url: "https://preset.example.test/card", library: loaded.library })
       });
       assert.equal(importedResponse.status, 200);
@@ -734,7 +783,7 @@ test("converts official Daisy snippets into managed contract presets and pushes 
       const snippet = '<footer class="footer sm:footer-horizontal bg-base-200 text-base-content p-10"><aside><p class="footer-title">ACME</p><p>Aus Erfahrung wird Software.</p></aside><nav><h6 class="footer-title">Produkt</h6><a class="link link-hover">Start</a><a class="link link-hover">Kontakt</a></nav></footer>';
       const parsedResponse = await fetch(httpUrl(realtime, "/presets-admin/parse"), {
         method: "POST",
-        headers: { authorization: "Bearer admin-secret", "content-type": "application/json" },
+        headers: { authorization: `Bearer ${ADMIN_SECRET}`, "content-type": "application/json" },
         body: JSON.stringify({
           snippet,
           title: "ACME Footer",
@@ -755,7 +804,7 @@ test("converts official Daisy snippets into managed contract presets and pushes 
 
       const accordionResponse = await fetch(httpUrl(realtime, "/presets-admin/parse"), {
         method: "POST",
-        headers: { authorization: "Bearer admin-secret", "content-type": "application/json" },
+        headers: { authorization: `Bearer ${ADMIN_SECRET}`, "content-type": "application/json" },
         body: JSON.stringify({
           snippet: '<div class="collapse collapse-arrow bg-base-100 border border-base-300"><input type="radio" name="faq" checked><div class="collapse-title">Versand</div><div class="collapse-content">Zwei Werktage.</div></div><div class="collapse collapse-arrow bg-base-100 border border-base-300"><input type="radio" name="faq"><div class="collapse-title">Rückgabe</div><div class="collapse-content">Dreißig Tage.</div></div>',
           title: "FAQ",
@@ -773,7 +822,7 @@ test("converts official Daisy snippets into managed contract presets and pushes 
 
       const unsafeResponse = await fetch(httpUrl(realtime, "/presets-admin/parse"), {
         method: "POST",
-        headers: { authorization: "Bearer admin-secret", "content-type": "application/json" },
+        headers: { authorization: `Bearer ${ADMIN_SECRET}`, "content-type": "application/json" },
         body: JSON.stringify({ snippet: '<div class="card"><script>alert(1)</script></div>' })
       });
       assert.equal(unsafeResponse.status, 400);
@@ -781,7 +830,7 @@ test("converts official Daisy snippets into managed contract presets and pushes 
 
       const unsafeAttributeResponse = await fetch(httpUrl(realtime, "/presets-admin/parse"), {
         method: "POST",
-        headers: { authorization: "Bearer admin-secret", "content-type": "application/json" },
+        headers: { authorization: `Bearer ${ADMIN_SECRET}`, "content-type": "application/json" },
         body: JSON.stringify({ snippet: '<button class="btn" onclick="alert(1)">Weiter</button>' })
       });
       assert.equal(unsafeAttributeResponse.status, 400);
@@ -794,7 +843,7 @@ test("converts official Daisy snippets into managed contract presets and pushes 
 
       const validateOnly = await fetch(httpUrl(realtime, "/presets-admin/catalog?validate=1"), {
         method: "POST",
-        headers: { authorization: "Bearer admin-secret", "content-type": "application/json" },
+        headers: { authorization: `Bearer ${ADMIN_SECRET}`, "content-type": "application/json" },
         body: JSON.stringify({ library: loaded.library, validateOnly: true })
       });
       assert.equal(validateOnly.status, 200);
@@ -802,43 +851,53 @@ test("converts official Daisy snippets into managed contract presets and pushes 
 
       const saved = await fetch(httpUrl(realtime, "/presets-admin/catalog"), {
         method: "POST",
-        headers: { authorization: "Bearer admin-secret", "content-type": "application/json" },
+        headers: { authorization: `Bearer ${ADMIN_SECRET}`, "content-type": "application/json" },
         body: JSON.stringify({ library: loaded.library, message: "Add portal footer preset" })
       });
       assert.equal(saved.status, 200);
       const savedPayload = await saved.json();
       assert.equal(savedPayload.ok, true);
       assert.equal(savedPayload.changed, true);
-      assert.equal(savedPayload.commit, "def456");
-      assert.equal(savedPayload.releaseId, "release-1");
+      assert.match(savedPayload.commit, /^[0-9a-f]+$/);
+      assert.equal(savedPayload.reviewRequired, true);
+      assert.match(savedPayload.branch, new RegExp(`^admin/presets-[0-9]+-${savedPayload.commit}$`));
+      assert.equal(savedPayload.releaseId, undefined);
 
       const persisted = fs.readFileSync(libraryPath, "utf8");
-      assert.match(persisted, /custom_acme_footer/);
-      assert.match(persisted, /custom_api_card/);
-      assert.doesNotMatch(persisted, /preset\.example\.test/);
-      assert.doesNotMatch(persisted, /<footer|<script/);
+      assert.equal(persisted, productionLibrary);
+      assert.equal(runTestGit(repoDir, ["rev-parse", "HEAD"]), productionHead);
+      assert.equal(runTestGit(repoDir, ["status", "--porcelain=v1", "--untracked-files=all"]), productionStatus);
+      assert.equal((runTestGit(repoDir, ["worktree", "list", "--porcelain"]).match(/^worktree /gm) || []).length, 1);
+
+      const reviewLibrary = runTestGit(repoDir, ["--git-dir", remoteDir, "show", `${savedPayload.branch}:server/preset-library.json`]);
+      assert.match(reviewLibrary, /custom_acme_footer/);
+      assert.match(reviewLibrary, /custom_api_card/);
+      assert.doesNotMatch(reviewLibrary, /preset\.example\.test/);
+      assert.doesNotMatch(reviewLibrary, /<footer|<script/);
+      const reviewParent = runTestGit(repoDir, ["--git-dir", remoteDir, "rev-parse", `${savedPayload.branch}^`]);
+      const remoteMain = runTestGit(repoDir, ["--git-dir", remoteDir, "rev-parse", "main"]);
+      assert.equal(reviewParent, remoteMain);
 
       const contractResponse = await fetch(httpUrl(realtime, "/contract"));
       assert.equal(contractResponse.status, 200);
       const contract = await contractResponse.json();
-      assert.ok(contract.presetCategories.some(category => category.id === "portal"));
-      assert.ok(contract.presetPackages.some(pack => pack.id === "portal.pro"));
-      const preset = contract.presets.find(item => item.id === "custom_acme_footer");
-      assert.equal(preset.builtIn, false);
-      assert.equal(preset.categoryId, "portal");
-      assert.equal(preset.components[0].variant, "footer");
-      assert.equal(preset.components[0].dataPath, "states.custom_acme_footer");
-      assert.ok(calls.some(args => args[0] === "add" && args.includes("server/preset-library.json") && args.includes("release-version.js")));
-      assert.ok(calls.some(args => args[0] === "commit" || args.includes("commit")));
-      assert.ok(calls.some(args => args[0] === "push" || args.includes("push")));
+      assert.ok(!contract.presetCategories.some(category => category.id === "portal"));
+      assert.ok(!contract.presetPackages.some(pack => pack.id === "portal.pro"));
+      assert.ok(!contract.presets.some(item => item.id === "custom_acme_footer"));
+
+      const reloaded = await fetch(httpUrl(realtime, "/presets-admin/catalog"), {
+        headers: { authorization: `Bearer ${ADMIN_SECRET}` }
+      });
+      assert.equal(reloaded.status, 200);
+      assert.ok(!(await reloaded.json()).library.presets.some(item => item.id === "custom_acme_footer"));
     });
   } finally {
-    fs.rmSync(tempDir, { recursive: true, force: true });
+    fs.rmSync(temporaryRoot, { recursive: true, force: true });
   }
 });
 
 test("serves a stateless event console for catalogued test emits", async () => {
-  await withRealtimeServer({ roomSecret: SECRET, emitSecret: "emit-secret" }, async realtime => {
+  await withRealtimeServer({ roomSecret: ROOM_SECRET, emitSecret: EMIT_SECRET }, async realtime => {
     const consoleResponse = await fetch(httpUrl(realtime, "/console.html"));
     assert.equal(consoleResponse.status, 200);
     assert.match(consoleResponse.headers.get("content-type") || "", /text\/html/);
@@ -847,7 +906,7 @@ test("serves a stateless event console for catalogued test emits", async () => {
     assert.match(html, /fetch\("\/events"/);
     assert.match(html, /fetch\("\/emit"/);
     assert.match(html, /localStorage\.setItem\(EMIT_SECRET_STORAGE_KEY/);
-    assert.doesNotMatch(html, /emit-secret/);
+    assert.ok(!html.includes(EMIT_SECRET));
 
     const socket = await connectClient(realtime, { clientId: "alice" });
     const runtimeEvent = nextMessage(socket, message => message.type === "runtime.event");
@@ -855,7 +914,7 @@ test("serves a stateless event console for catalogued test emits", async () => {
     const response = await fetch(httpUrl(realtime, "/emit"), {
       method: "POST",
       headers: {
-        authorization: "Bearer emit-secret",
+        authorization: `Bearer ${EMIT_SECRET}`,
         "content-type": "application/json",
         origin
       },
@@ -881,7 +940,7 @@ test("serves a stateless event console for catalogued test emits", async () => {
 });
 
 test("relays runtime events to peers without echoing them to the sender", async () => {
-  await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
+  await withRealtimeServer({ roomSecret: ROOM_SECRET }, async realtime => {
     const alice = await connectClient(realtime, { clientId: "alice" });
     const bob = await connectClient(realtime, { clientId: "bob" });
 
@@ -902,7 +961,7 @@ test("relays runtime events to peers without echoing them to the sender", async 
 });
 
 test("rejects uncatalogued runtime events over WebSocket", async () => {
-  await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
+  await withRealtimeServer({ roomSecret: ROOM_SECRET }, async realtime => {
     const alice = await connectClient(realtime, { clientId: "alice" });
     const bob = await connectClient(realtime, { clientId: "bob" });
     const errorMessage = nextMessage(alice, message => message.type === "error");
@@ -921,7 +980,7 @@ test("rejects uncatalogued runtime events over WebSocket", async () => {
 });
 
 test("emits catalogued server events into a room without server-side state", async () => {
-  await withRealtimeServer({ roomSecret: SECRET, emitSecret: "emit-secret" }, async realtime => {
+  await withRealtimeServer({ roomSecret: ROOM_SECRET, emitSecret: EMIT_SECRET }, async realtime => {
     const alice = await connectClient(realtime, { clientId: "alice" });
     const bob = await connectClient(realtime, { clientId: "bob" });
     const aliceRuntimeEvent = nextMessage(alice, message => message.type === "runtime.event");
@@ -930,7 +989,7 @@ test("emits catalogued server events into a room without server-side state", asy
     const response = await fetch(httpUrl(realtime, "/emit"), {
       method: "POST",
       headers: {
-        authorization: "Bearer emit-secret",
+        authorization: `Bearer ${EMIT_SECRET}`,
         "content-type": "application/json"
       },
       body: JSON.stringify({
@@ -967,7 +1026,7 @@ test("emits catalogued server events into a room without server-side state", asy
     const unknown = await fetch(httpUrl(realtime, "/emit"), {
       method: "POST",
       headers: {
-        authorization: "Bearer emit-secret",
+        authorization: `Bearer ${EMIT_SECRET}`,
         "content-type": "application/json"
       },
       body: JSON.stringify({ roomId: "room", emitterId: "sip.threecx", name: "realtime.unknown.event" })
@@ -978,7 +1037,7 @@ test("emits catalogued server events into a room without server-side state", asy
     const missingDetail = await fetch(httpUrl(realtime, "/emit"), {
       method: "POST",
       headers: {
-        authorization: "Bearer emit-secret",
+        authorization: `Bearer ${EMIT_SECRET}`,
         "content-type": "application/json"
       },
       body: JSON.stringify({ roomId: "room", emitterId: "sip.threecx", name: "realtime.sip.call.incoming", detail: { callId: "abc-123" } })
@@ -989,7 +1048,7 @@ test("emits catalogued server events into a room without server-side state", asy
     const unknownDetail = await fetch(httpUrl(realtime, "/emit"), {
       method: "POST",
       headers: {
-        authorization: "Bearer emit-secret",
+        authorization: `Bearer ${EMIT_SECRET}`,
         "content-type": "application/json"
       },
       body: JSON.stringify({
@@ -1005,7 +1064,7 @@ test("emits catalogued server events into a room without server-side state", asy
     const invalidEmail = await fetch(httpUrl(realtime, "/emit"), {
       method: "POST",
       headers: {
-        authorization: "Bearer emit-secret",
+        authorization: `Bearer ${EMIT_SECRET}`,
         "content-type": "application/json"
       },
       body: JSON.stringify({
@@ -1021,7 +1080,7 @@ test("emits catalogued server events into a room without server-side state", asy
     const wrongEmitter = await fetch(httpUrl(realtime, "/emit"), {
       method: "POST",
       headers: {
-        authorization: "Bearer emit-secret",
+        authorization: `Bearer ${EMIT_SECRET}`,
         "content-type": "application/json"
       },
       body: JSON.stringify({
@@ -1037,7 +1096,7 @@ test("emits catalogued server events into a room without server-side state", asy
 });
 
 test("drops duplicate runtime event client sequences", async () => {
-  await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
+  await withRealtimeServer({ roomSecret: ROOM_SECRET }, async realtime => {
     const alice = await connectClient(realtime, { clientId: "alice" });
     const bob = await connectClient(realtime, { clientId: "bob" });
 
@@ -1059,7 +1118,7 @@ test("drops duplicate runtime event client sequences", async () => {
 });
 
 test("rejects graph patches and snapshots because model writes stay in the canonical API", async () => {
-  await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
+  await withRealtimeServer({ roomSecret: ROOM_SECRET }, async realtime => {
     const socket = await connectClient(realtime, { clientId: "alice" });
 
     socket.send(JSON.stringify({
@@ -1082,7 +1141,7 @@ test("rejects graph patches and snapshots because model writes stay in the canon
 
 test("rate limits noisy realtime clients", async () => {
   await withRealtimeServer({
-    roomSecret: SECRET,
+    roomSecret: ROOM_SECRET,
     rateLimitMax: 2,
     rateLimitWindowMs: 1000
   }, async realtime => {
@@ -1098,7 +1157,7 @@ test("rate limits noisy realtime clients", async () => {
 });
 
 test("rejects runtime events whose detail does not match the catalog", async () => {
-  await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
+  await withRealtimeServer({ roomSecret: ROOM_SECRET }, async realtime => {
     const alice = await connectClient(realtime, { clientId: "alice" });
     const bob = await connectClient(realtime, { clientId: "bob" });
 
@@ -1115,7 +1174,7 @@ test("rejects runtime events whose detail does not match the catalog", async () 
 });
 
 test("rejects removed presence and never broadcasts peer lifecycle messages", async () => {
-  await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
+  await withRealtimeServer({ roomSecret: ROOM_SECRET }, async realtime => {
     const alice = await connectClient(realtime, { clientId: "alice" });
     const bob = await connectClient(realtime, { clientId: "bob" });
 
