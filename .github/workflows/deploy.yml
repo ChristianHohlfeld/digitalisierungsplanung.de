@@ -87,7 +87,7 @@ jobs:
           fi
       - name: Stage allowlisted static site
         run: npm run build:site
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
       - name: Upload the verified static release
         uses: actions/upload-pages-artifact@v3
         with:
