@@ -8,6 +8,9 @@ BRANCH="${BRANCH:-main}"
 DOMAIN="${REALTIME_DOMAIN:-realtime.digitalisierungsplanung.de}"
 REPO_URL="${REPO_URL:-https://github.com/ChristianHohlfeld/digitalisierungsplanung.de.git}"
 ENV_FILE="${ENV_FILE:-/etc/digitalisierungsplanung-realtime.env}"
+PILOT_DATA_DIR="${PILOT_DATA_DIR:-/var/lib/digitalisierungsplanung-pilot}"
+PILOT_BACKUP_DIR="${PILOT_BACKUP_DIR:-/mnt/digitalisierungsplanung-pilot-backups}"
+PILOT_BACKUP_SIGNING_KEY="${PILOT_BACKUP_SIGNING_KEY:-}"
 PM2_APP="${PM2_APP:-digitalisierungsplanung-realtime}"
 DEPLOY_SKIP_GIT_SYNC="${DEPLOY_SKIP_GIT_SYNC:-0}"
 DEPLOY_SKIP_AUTO_DEPLOY="${DEPLOY_SKIP_AUTO_DEPLOY:-0}"
@@ -18,7 +21,7 @@ NGINX_AVAILABLE="/etc/nginx/sites-available/${DOMAIN}"
 NGINX_ENABLED="/etc/nginx/sites-enabled/${DOMAIN}"
 NGINX_BOOTSTRAP_AVAILABLE="/etc/nginx/sites-available/${DOMAIN}.bootstrap"
 
-export APP_DIR ENV_FILE PM2_APP
+export APP_DIR ENV_FILE PM2_APP PILOT_DATA_DIR PILOT_BACKUP_DIR PILOT_BACKUP_SIGNING_KEY
 
 log() {
   printf '[deploy] %s\n' "$*"
@@ -120,6 +123,70 @@ fi
 if ! grep -q '^REALTIME_ADMIN_SECRET=' "$ENV_FILE"; then
   printf 'REALTIME_ADMIN_SECRET=%s\n' "$(openssl rand -base64 48)" >> "$ENV_FILE"
 fi
+if ! grep -q '^PILOT_ENABLED=' "$ENV_FILE"; then
+  printf 'PILOT_ENABLED=true\n' >> "$ENV_FILE"
+fi
+if ! grep -q '^PILOT_DATA_DIR=' "$ENV_FILE"; then
+  printf 'PILOT_DATA_DIR=%s\n' "$PILOT_DATA_DIR" >> "$ENV_FILE"
+fi
+if ! grep -q '^PILOT_BACKUP_DIR=' "$ENV_FILE"; then
+  printf 'PILOT_BACKUP_DIR=%s\n' "$PILOT_BACKUP_DIR" >> "$ENV_FILE"
+fi
+if ! grep -q '^PILOT_BACKUP_SIGNING_KEY=' "$ENV_FILE"; then
+  if (( ${#PILOT_BACKUP_SIGNING_KEY} < 32 )); then
+    printf 'PILOT_BACKUP_SIGNING_KEY must be supplied from an external, recoverable secret store before deployment.\n' >&2
+    exit 1
+  fi
+  printf 'PILOT_BACKUP_SIGNING_KEY=%s\n' "$PILOT_BACKUP_SIGNING_KEY" >> "$ENV_FILE"
+fi
+if ! grep -q '^PILOT_REQUIRE_EXTERNAL_BACKUP=' "$ENV_FILE"; then
+  printf 'PILOT_REQUIRE_EXTERNAL_BACKUP=true\n' >> "$ENV_FILE"
+fi
+if ! grep -q '^PILOT_BOOTSTRAP_TOKEN=' "$ENV_FILE"; then
+  printf 'PILOT_BOOTSTRAP_TOKEN=%s\n' "$(openssl rand -base64 48)" >> "$ENV_FILE"
+fi
+configured_pilot_data_dir="$(sed -n 's/^PILOT_DATA_DIR=//p' "$ENV_FILE" | tail -n 1)"
+configured_pilot_backup_dir="$(sed -n 's/^PILOT_BACKUP_DIR=//p' "$ENV_FILE" | tail -n 1)"
+configured_pilot_backup_signing_key="$(sed -n 's/^PILOT_BACKUP_SIGNING_KEY=//p' "$ENV_FILE" | tail -n 1)"
+if [[ "$configured_pilot_data_dir" != /* || "$configured_pilot_data_dir" == *$'\n'* ]]; then
+  printf 'PILOT_DATA_DIR must be an absolute path without newlines.\n' >&2
+  exit 1
+fi
+if [[ "$configured_pilot_backup_dir" != /* || "$configured_pilot_backup_dir" == *$'\n'* ]]; then
+  printf 'PILOT_BACKUP_DIR must be an absolute path without newlines.\n' >&2
+  exit 1
+fi
+if (( ${#configured_pilot_backup_signing_key} < 32 )); then
+  printf 'PILOT_BACKUP_SIGNING_KEY must contain at least 32 characters.\n' >&2
+  exit 1
+fi
+PILOT_DATA_DIR="$configured_pilot_data_dir"
+PILOT_BACKUP_DIR="$configured_pilot_backup_dir"
+if ! PILOT_DATA_DIR="$PILOT_DATA_DIR" PILOT_BACKUP_DIR="$PILOT_BACKUP_DIR" node - <<'NODE'
+const path = require("node:path");
+const data = path.resolve(process.env.PILOT_DATA_DIR);
+const backup = path.resolve(process.env.PILOT_BACKUP_DIR);
+const contains = (parent, child) => {
+  const relative = path.relative(parent, child);
+  return relative === "" || (relative !== ".." && !relative.startsWith(`..${path.sep}`));
+};
+if (contains(data, backup) || contains(backup, data)) process.exit(1);
+NODE
+then
+  printf 'PILOT_DATA_DIR and PILOT_BACKUP_DIR must be separate, non-nested paths.\n' >&2
+  exit 1
+fi
+chmod 600 "$ENV_FILE"
+install -d -m 700 "$PILOT_DATA_DIR"
+if [[ ! -d "$PILOT_BACKUP_DIR" ]]; then
+  printf 'PILOT_BACKUP_DIR must already exist on a mounted external filesystem; deployment will not create it on the root disk.\n' >&2
+  exit 1
+fi
+if [[ "$(stat -c '%d' "$PILOT_DATA_DIR")" == "$(stat -c '%d' "$PILOT_BACKUP_DIR")" ]]; then
+  printf 'PILOT_BACKUP_DIR must use a different filesystem device than PILOT_DATA_DIR.\n' >&2
+  exit 1
+fi
+chmod 700 "$PILOT_BACKUP_DIR"
 
 pm2 startOrReload server/ecosystem.config.cjs --update-env
 pm2 save
@@ -162,6 +229,10 @@ for _ in $(seq 1 "$HEALTH_ATTEMPTS"); do
 done
 if [[ "$health_ok" != "1" ]]; then
   printf 'Health check did not report release %s.\n' "$ZUSTAND_RELEASE_ID" >&2
+  exit 1
+fi
+if ! curl -fsS --max-time 5 http://127.0.0.1:8788/readyz >/dev/null; then
+  printf 'Managed pilot readiness check failed.\n' >&2
   exit 1
 fi
 

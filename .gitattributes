@@ -1,1 +1,8 @@
 *.sh text eol=lf
+*.html text eol=lf
+*.js text eol=lf
+*.mjs text eol=lf
+*.md text eol=lf
+index.html text eol=lf linguist-generated=true
+assets/*.png linguist-generated=true
+tests/state-tool.spec.js -text

@@ -1,79 +1,149 @@
-name: Deploy
+name: Publish managed release
 
 on:
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - release-version.js
   workflow_dispatch:
+    inputs:
+      release_sequence:
+        description: "Next release number (must be exactly current + 1)"
+        required: true
+        type: string
+      release_notes:
+        description: "Short operator-facing release note"
+        required: true
+        type: string
+
+# Releases used to run on every main push with:
+# paths-ignore:
+#   - release-version.js
+# That mode is intentionally retired: main is continuously verified, while
+# publication is a separate, deliberate promotion after the same full checks.
 
 concurrency:
-  group: deploy
-  cancel-in-progress: true
+  group: production-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
 
 jobs:
   contract-tests:
-    name: Contracts (${{ matrix.shard }})
+    name: Full release verification
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    name: Stamp and publish release
+    needs: contract-tests
     runs-on: ubuntu-latest
-    container:
-      image: mcr.microsoft.com/playwright:v1.60.0-noble
-      options: --ipc=host
-    timeout-minutes: 25
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: ["1/4", "2/4", "3/4", "4/4"]
+    timeout-minutes: 10
+    environment: production
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
-      - name: Install dependencies
-        run: |
-          if [ -f package-lock.json ]; then
-            npm ci
-          else
-            npm install
-          fi
-      - name: Run server contract tests
-        if: matrix.shard == '1/4'
-        run: npm run test:server
-      - name: Run browser contract shard
-        run: npm run test:browser -- --shard=${{ matrix.shard }} --reporter=line,github
-
-  deploy:
-    needs: contract-tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-      - name: Advance shared frontend/backend release
-        if: github.ref == 'refs/heads/main'
+      - name: Plan a new or resumable release
         env:
-          RELEASE_INCREMENT: "1"
-          RELEASE_SOURCE_COMMIT: ${{ github.sha }}
+          REQUESTED_SEQUENCE: ${{ inputs.release_sequence }}
+          VERIFIED_SOURCE_COMMIT: ${{ github.sha }}
         run: |
-          git fetch origin main
-          REMOTE_HEAD="$(git rev-parse origin/main)"
-          if [ "$REMOTE_HEAD" != "${GITHUB_SHA}" ]; then
-            echo "Stale deploy run for ${GITHUB_SHA}; origin/main is ${REMOTE_HEAD}. Skipping release stamp."
-            exit 0
-          fi
-          RELEASE_BUILT_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")" node scripts/write-release-version.mjs
-          if git diff --quiet -- release-version.js; then
-            echo "Release stamp is current."
-            exit 0
-          fi
+          set -euo pipefail
+          git fetch --tags --prune origin main
+          node scripts/plan-managed-release.mjs
+      - name: Materialize the single release commit and tag
+        env:
+          RELEASE_NOTES: ${{ inputs.release_notes }}
+        run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add release-version.js
-          RELEASE_ID="$(sed -n 's/^globalThis\.ZUSTAND_RELEASE_ID = "\([^"]*\)";$/\1/p' release-version.js)"
-          git commit -m "Advance shared release to ${RELEASE_ID}"
-          git push origin HEAD:main
+          if [[ "$RELEASE_MODE" == "create" ]]; then
+            RELEASE_BUILT_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")" node scripts/write-release-version.mjs
+            git diff --exit-code -- . ':(exclude)release-version.js'
+            git diff --check
+            git add release-version.js
+            git commit -m "Release $RELEASE_ID" -m "$RELEASE_NOTES"
+            RELEASE_COMMIT="$(git rev-parse HEAD)"
+            echo "RELEASE_COMMIT=$RELEASE_COMMIT" >> "$GITHUB_ENV"
+          else
+            git checkout --detach "$RELEASE_COMMIT"
+          fi
+          git diff --exit-code -- . ':(exclude)release-version.js'
+          git diff --check
+          grep -F "globalThis.ZUSTAND_RELEASE_ID = \"$RELEASE_ID\";" release-version.js
+          grep -F "globalThis.ZUSTAND_RELEASE_SOURCE = \"$RELEASE_SOURCE_COMMIT\";" release-version.js
+          if git rev-parse --verify --quiet "refs/tags/$RELEASE_ID" >/dev/null; then
+            [[ "$(git cat-file -t "refs/tags/$RELEASE_ID")" == "tag" ]]
+            [[ "$(git rev-parse "refs/tags/$RELEASE_ID^{commit}")" == "$RELEASE_COMMIT" ]]
+          else
+            git tag -a "$RELEASE_ID" -m "$RELEASE_NOTES" "$RELEASE_COMMIT"
+          fi
+      - name: Stage allowlisted static site
+        run: npm run build:site
+      - uses: actions/configure-pages@v5
+      - name: Upload the verified static release
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - name: Publish or complete the release refs atomically
+        run: |
+          set -euo pipefail
+          git fetch --tags --prune origin main
+          remote_main="$(git rev-parse origin/main)"
+          if [[ "$remote_main" == "$RELEASE_COMMIT" ]]; then
+            lease_commit="$RELEASE_COMMIT"
+          elif [[ "$remote_main" == "$EXPECTED_REMOTE_MAIN" ]]; then
+            lease_commit="$EXPECTED_REMOTE_MAIN"
+          else
+            echo "main diverged before release publication: expected=$EXPECTED_REMOTE_MAIN release=$RELEASE_COMMIT remote=$remote_main" >&2
+            exit 1
+          fi
+          remote_tag="$(git ls-remote --tags origin "refs/tags/$RELEASE_ID^{}" | awk '{print $1}')"
+          if [[ -n "$remote_tag" && "$remote_tag" != "$RELEASE_COMMIT" ]]; then
+            echo "$RELEASE_ID already points at $remote_tag instead of $RELEASE_COMMIT" >&2
+            exit 1
+          fi
+          if [[ "$remote_main" != "$RELEASE_COMMIT" || -z "$remote_tag" ]]; then
+            git push --atomic --force-with-lease="refs/heads/main:$lease_commit" origin \
+              "$RELEASE_COMMIT:refs/heads/main" \
+              "refs/tags/$RELEASE_ID:refs/tags/$RELEASE_ID"
+          else
+            echo "$RELEASE_ID refs already published at $RELEASE_COMMIT; continuing."
+          fi
+      - name: Create or verify the versioned GitHub release record
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_NOTES: ${{ inputs.release_notes }}
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_ID" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            existing_tag="$(gh release view "$RELEASE_ID" --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)"
+            [[ "$existing_tag" == "$RELEASE_ID" ]]
+            echo "GitHub release $RELEASE_ID already exists; continuing."
+          else
+            gh release create "$RELEASE_ID" --verify-tag --repo "$GITHUB_REPOSITORY" --title "$RELEASE_ID" --notes "$RELEASE_NOTES"
+          fi
+
+  pages:
+    name: Deploy verified static release
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publish GitHub Pages artifact
+        id: deployment
+        uses: actions/deploy-pages@v4

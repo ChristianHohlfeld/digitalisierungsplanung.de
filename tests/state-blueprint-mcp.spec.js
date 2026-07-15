@@ -108,6 +108,36 @@ test.describe("State Blueprint MCP", () => {
     }], { allowInvalid: true })).toThrow("State and transition IDs must share one global namespace");
   });
 
+  test("rejects the same reserved runtime IDs as the studio @smoke", () => {
+    const reservedState = validateModel({
+      version: 2,
+      name: "Reserved state",
+      initial: "__runtime_state",
+      states: [{ id: "__runtime_state", title: "Reserved", components: [], data: {}, x: 96, y: 120 }],
+      transitions: []
+    });
+    expect(reservedState.ok).toBe(false);
+    expect(reservedState.issues.some(issue => issue.code === "reserved_state_id")).toBe(true);
+
+    const reservedTransition = validateModel({
+      version: 2,
+      name: "Reserved transition",
+      initial: "start",
+      states: [{ id: "start", title: "Start", components: [], data: {}, x: 96, y: 120 }],
+      transitions: [{
+        id: "__runtime:transition",
+        from: "start",
+        to: "start",
+        label: "Loop",
+        triggerType: "button",
+        triggerEvent: "button.loop.clicked",
+        set: {}
+      }]
+    });
+    expect(reservedTransition.ok).toBe(false);
+    expect(reservedTransition.issues.some(issue => issue.code === "reserved_transition_id")).toBe(true);
+  });
+
   test("uses Weiter only for empty labels and treats every explicit name as opaque @smoke", () => {
     const normalized = normalizeModel({
       version: 2,
@@ -656,6 +686,24 @@ test.describe("State Blueprint MCP", () => {
       expect.objectContaining({ id: "start_done", from: "start", to: "review" }),
       expect.objectContaining({ from: "review", to: "done" })
     ]));
+  });
+
+  test("applies command batches atomically and never mutates rejected input @smoke", () => {
+    const original = applyCommands({}, [
+      { command: "scene.new", title: "Atomic command input" },
+      { command: "state.create", id: "start", title: "Start" },
+      { command: "state.create", id: "done", title: "Done" },
+      { command: "transition.create", id: "finish", from: "start", to: "done" }
+    ]).workspace;
+    const before = JSON.stringify(original);
+
+    expect(() => applyCommands(original, [
+      { command: "state.create", id: "review", title: "Review" },
+      { command: "transition.create", id: "broken", from: "review", to: "missing" }
+    ])).toThrow(/existing states/i);
+
+    expect(JSON.stringify(original)).toBe(before);
+    expect(original.model.states.map(state => state.id)).toEqual(["start", "done"]);
   });
 
   test("groups through real parent states instead of editorGroups metadata @smoke", () => {

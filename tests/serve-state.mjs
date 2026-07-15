@@ -1,4 +1,5 @@
 import { createReadStream, existsSync, statSync } from "node:fs";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import { extname, join, normalize, resolve } from "node:path";
@@ -10,6 +11,7 @@ const eventCatalog = require("../server/event-catalog.js");
 const presetLibrary = require("../server/preset-library.js");
 const productContract = require("../server/product-contract.js");
 let adminPresetLibrary = presetLibrary.loadPresetLibraryFile();
+const adminPresetToken = randomBytes(32).toString("base64url");
 
 const types = {
   ".html": "text/html; charset=utf-8",
@@ -36,9 +38,19 @@ async function readJson(req) {
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
 
+function hasAdminAuthorization(req) {
+  const actual = Buffer.from(String(req.headers.authorization || ""));
+  const expected = Buffer.from(`Bearer ${adminPresetToken}`);
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
 createServer(async (req, res) => {
   const url = new URL(req.url || "/", `http://127.0.0.1:${port}`);
-  if (url.pathname.startsWith("/presets-admin/") && req.headers.authorization !== "Bearer admin-secret") {
+  if (url.pathname === "/__test/presets-admin-token" && req.method === "GET") {
+    writeJson(res, 200, { token: adminPresetToken });
+    return;
+  }
+  if (url.pathname.startsWith("/presets-admin/") && !hasAdminAuthorization(req)) {
     writeJson(res, 401, { error: "unauthorized" });
     return;
   }
@@ -56,7 +68,13 @@ createServer(async (req, res) => {
           return;
         }
         adminPresetLibrary = library;
-        writeJson(res, 200, { ok: true, changed: true, commit: "browser-test" });
+        writeJson(res, 200, {
+          ok: true,
+          changed: true,
+          commit: "browser-test",
+          branch: "admin/presets-browser-test",
+          reviewRequired: true
+        });
       } catch (error) {
         writeJson(res, error.status || 400, { error: error.code || "invalid_json" });
       }
@@ -96,7 +114,17 @@ createServer(async (req, res) => {
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store"
     });
-    res.end(JSON.stringify(productContract.productContractResponse(eventCatalog.DEFAULT_EVENT_CATALOG)));
+    res.end(JSON.stringify({
+      ...productContract.productContractResponse(eventCatalog.DEFAULT_EVENT_CATALOG),
+      release: {
+        ok: true,
+        releaseId: "release-1",
+        releaseSequence: 1,
+        builtAt: "2026-07-15T00:00:00.000Z",
+        sourceCommit: "0123456789abcdef0123456789abcdef01234567",
+        deployedCommit: "0123456789abcdef0123456789abcdef01234567"
+      }
+    }));
     return;
   }
   const pathname = url.pathname === "/"

@@ -232,6 +232,7 @@ function productContractResponse(configOrCatalog) {
     presetTypes: presetLibrary.presetTypesResponse(),
     presetCategories: presetCatalog.presetCategoriesResponse(library),
     presetPackages: presetCatalog.presetPackagesResponse(library),
+    pilotOffers: presetCatalog.pilotOffersResponse(),
     subscriptionPlans: presetCatalog.subscriptionPlansResponse(library),
     presets: presetCatalog.presetCatalogResponse(library),
     stateContributions: stateContributionsForCatalog(catalog)

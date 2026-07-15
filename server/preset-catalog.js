@@ -3,7 +3,17 @@
 const valueTypes = require("./value-types");
 const presetLibrary = require("./preset-library");
 
+function embeddedIllustration(label, startColor, endColor, accentColor) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360" role="img" aria-label="${label}"><defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop stop-color="${startColor}"/><stop offset="1" stop-color="${endColor}"/></linearGradient></defs><rect width="640" height="360" rx="32" fill="url(#g)"/><circle cx="472" cy="112" r="52" fill="${accentColor}" opacity=".42"/><path d="M72 286l122-122 78 78 48-48 176 92z" fill="#fff" opacity=".48"/><text x="48" y="70" font-family="Arial, sans-serif" font-size="34" font-weight="700" fill="#fff">${label}</text></svg>`;
+  return `data:image/svg+xml;base64,${Buffer.from(svg, "utf8").toString("base64")}`;
+}
+
 const DEFAULT_IMAGE_COMPONENT_URL = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iMzYwIiB2aWV3Qm94PSIwIDAgNjQwIDM2MCI+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCIgeDI9IjEiIHkxPSIwIiB5Mj0iMSI+PHN0b3Agc3RvcC1jb2xvcj0iIzBlYTVlOSIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2Y1OWUwYiIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSI2NDAiIGhlaWdodD0iMzYwIiByeD0iMzIiIGZpbGw9InVybCgjZykiLz48Y2lyY2xlIGN4PSI0NzIiIGN5PSIxMTIiIHI9IjUyIiBmaWxsPSIjZmZmZmZmIiBvcGFjaXR5PSIuMzIiLz48cGF0aCBkPSJNNzIgMjg2bDEyMi0xMjIgNzggNzggNDgtNDggMTc2IDkyeiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iLjQ4Ii8+PHRleHQgeD0iNDgiIHk9IjcwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMzQiIGZvbnQtd2VpZ2h0PSI3MDAiIGZpbGw9IiNmZmZmZmYiPkltYWdlIGJsb2NrPC90ZXh0Pjwvc3ZnPg==";
+const DEFAULT_GALLERY_IMAGE_URLS = Object.freeze([
+  embeddedIllustration("Ansichten", "#2563eb", "#06b6d4", "#dbeafe"),
+  embeddedIllustration("Datenfluss", "#7c3aed", "#ec4899", "#ede9fe"),
+  embeddedIllustration("Ereignisse", "#059669", "#84cc16", "#d1fae5")
+]);
 
 function isPlainObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -37,42 +47,27 @@ function stateDataScopeForId(id) {
   return clean ? "states." + clean : "";
 }
 
-const SUBSCRIPTION_PLANS = Object.freeze([
+// Compatibility field for existing Product Contract consumers. V1 has no
+// self-service subscriptions; commercial scope is published via pilotOffers.
+const SUBSCRIPTION_PLANS = Object.freeze([]);
+
+const PILOT_OFFERS = Object.freeze([
   {
-    id: "starter",
-    label: "Starter",
-    price: "249 EUR",
-    period: "/Monat",
-    description: "Für einzelne Prozesse, schnelle Prototypen und erste digitale Anwendungen.",
-    includedPackageIds: ["core.process"],
-    recommendedAddOnPackageIds: ["website.builder", "approval.compliance"],
-    cta: "Starter anfragen",
+    id: "managed-pilot-v1",
+    label: "Managed Pilot",
+    status: "active",
+    price: "2.500–7.500 €",
+    currency: "EUR",
+    minPrice: 2500,
+    maxPrice: 7500,
+    billing: "one-time",
+    duration: "6–12 Wochen",
+    minDurationWeeks: 6,
+    maxDurationWeeks: 12,
+    description: "Ein klar abgegrenzter Unternehmensprozess wird als klickbare Prozess-App umgesetzt und gemeinsam abgenommen.",
+    scope: ["1 abgegrenzter Prozess", "Klickbare Prozess-App", "Gemeinsame Abnahme"],
+    cta: "Pilot qualifizieren",
     sort: 10
-  },
-  {
-    id: "business",
-    label: "Business",
-    badge: "Beliebt",
-    price: "749 EUR",
-    period: "/Monat",
-    description: "Für Mittelstandsteams, die Prozesse modellieren, prüfen und als Web-App nutzen.",
-    includedPackageIds: ["core.process", "website.builder", "approval.compliance"],
-    recommendedAddOnPackageIds: ["bi.analytics", "service.operations"],
-    cta: "Business anfragen",
-    highlight: true,
-    sort: 20
-  },
-  {
-    id: "scale",
-    label: "Scale",
-    badge: "Teams",
-    price: "1.990 EUR",
-    period: "/Monat",
-    description: "Für mehrere Bereiche, operative Echtzeit-Prozesse und wiederholbare Rollouts.",
-    includedPackageIds: ["core.process", "website.builder", "approval.compliance", "service.operations"],
-    recommendedAddOnPackageIds: ["bi.analytics", "sales.crm", "integration.automation"],
-    cta: "Scale anfragen",
-    sort: 30
   }
 ]);
 
@@ -183,9 +178,9 @@ function builtinStateTemplates(libraryValue) {
     label
   });
   const featurePresetImages = {
-    screens: "https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=900&q=80",
-    data: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=900&q=80",
-    events: "https://images.unsplash.com/photo-1518005020951-eccb494ad742?auto=format&fit=crop&w=900&q=80"
+    screens: DEFAULT_GALLERY_IMAGE_URLS[0],
+    data: DEFAULT_GALLERY_IMAGE_URLS[1],
+    events: DEFAULT_GALLERY_IMAGE_URLS[2]
   };
   const daisySpecs = [
     { id: "accordion", title: "FAQ-Akkordeon", description: "Aufklappbare FAQ- oder Hilfebereiche aus gemeinsamen Daten.", data: { open: "Versand", items: [{ label: "Versand", body: "Bestellungen werden in der Regel innerhalb von zwei Werktagen versendet." }, { label: "Rückgabe", body: "Kunden können innerhalb von 30 Tagen eine Rückgabe anfragen." }] } },
@@ -195,14 +190,14 @@ function builtinStateTemplates(libraryValue) {
     { id: "bottom-navigation", title: "Mobile Fußnavigation", description: "Touchfreundliche mobile Navigation aus gemeinsamen Daten.", data: { selected: "Start", items: ["Start", "Suche", "Profil"] } },
     { id: "breadcrumbs", title: "Breadcrumb-Pfad", description: "Aktueller Seitenpfad aus strukturierten Einträgen.", data: { items: [{ label: "Start", transitionId: "" }, { label: "Projekte", transitionId: "" }, { label: "Aktuell", transitionId: "" }] } },
     { id: "button", title: "Aktionsbutton", description: "Primäre Schaltfläche, die Klickzustand schreibt oder echte ausgehende Übergänge feuert.", data: { label: "Weiter", clicked: false, clickedAt: 0 } },
-    { id: "card", title: "Produktkarte", description: "Bildkarte mit Titel, Kurztext und Aktionsfeld.", data: { title: "Premium-Sneaker", body: "Leichte Schuhe für Alltag, Arbeit und Reisen.", image: "https://img.daisyui.com/images/stock/photo-1606107557195-0e29a4b5b4aa.webp", imageAlt: "Schuhe", actionLabel: "Jetzt kaufen" } },
-    { id: "export-image-asset", variant: "card", title: "Exportierbares Bild", description: "Bild-URL im globalen State. Beim HTML-Export wird sie als Data-URI eingebettet, wenn sie erreichbar ist.", packageIds: ["website.builder"], data: { title: "Exportierbares Bild", body: "URL eintragen, Export laden, Bild bleibt in der eigenständigen HTML enthalten.", image: "https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=900&q=80", imageAlt: "Bild für self-contained HTML-Export", actionLabel: "" } },
+    { id: "card", title: "Produktkarte", description: "Bildkarte mit Titel, Kurztext und Aktionsfeld.", data: { title: "Premium-Sneaker", body: "Leichte Schuhe für Alltag, Arbeit und Reisen.", image: DEFAULT_IMAGE_COMPONENT_URL, imageAlt: "Schuhe", actionLabel: "Jetzt kaufen" } },
+    { id: "export-image-asset", variant: "card", title: "Exportierbares Bild", description: "Bild-URL im globalen State. Beim HTML-Export wird sie als Data-URI eingebettet, wenn sie erreichbar ist.", packageIds: ["website.builder"], data: { title: "Exportierbares Bild", body: "URL eintragen, Export laden, Bild bleibt in der eigenständigen HTML enthalten.", image: DEFAULT_IMAGE_COMPONENT_URL, imageAlt: "Bild für self-contained HTML-Export", actionLabel: "" } },
     { id: "feature-grid", title: "Feature-Raster", description: "Responsive Feature-Karten, deren Aktionen echte FSM-Zustände ansteuern.", data: { eyebrow: "Vorteile", heading: "Alles für einen sauberen Ablauf", body: "Nutze diese Vorlage für Produktvorteile, App-Bereiche oder Navigationsteaser.", selected: "", items: [{ title: "Wiederverwendbare Ansichten", body: "Seiten aus Bausteinen zusammensetzen, ohne Verhalten im HTML zu verstecken.", image: featurePresetImages.screens, imageAlt: "Wiederverwendbare Bildschirmbereiche in einem Arbeitsbereich", features: ["Gescopte Zustandsdaten", "Explizite Übergangsaktion"], actionLabel: "Ansichten ansehen", transitionId: "" }, { title: "Datengebundene UI", body: "Felder und Labels lesen aus dem globalen JSON-Bus.", image: featurePresetImages.data, imageAlt: "Dashboard-Daten als Grundlage für UI-Karten", features: ["eine Wahrheit", "In Eigenschaften editierbar"], actionLabel: "Datenfluss ansehen", transitionId: "" }, { title: "FSM-sichere Ereignisse", body: "Schaltflächen feuern nur Übergänge, die wirklich existieren.", image: featurePresetImages.events, imageAlt: "Strukturierte Ereignisverbindungen", features: ["Keine lokale Navigation", "Kein Label-Raten"], actionLabel: "Ereignisse prüfen", transitionId: "" }] } },
-    { id: "pricing", title: "Preiskarten", description: "Drei Abo-Karten, deren Schaltflächen auf echte Zustände verdrahtet sind.", data: { selectedPlan: "", plans: [{ title: "Starter", price: "249 EUR", period: "/Monat", body: "Für einzelne Prozesse, schnelle Prototypen und erste digitale Anwendungen.", features: ["Process Core", "1 Prozess-App", "HTML-Export"], actionLabel: "Starter anfragen", transitionId: "" }, { title: "Business", badge: "Beliebt", price: "749 EUR", period: "/Monat", body: "Für Teams, die Abläufe modellieren, prüfen und als Web-App nutzen.", features: ["Website Builder", "Freigaben", "Team-Nutzung"], highlight: true, actionLabel: "Business anfragen", transitionId: "" }, { title: "Scale", badge: "Teams", price: "1.990 EUR", period: "/Monat", body: "Für mehrere Bereiche, operative Ereignisse und wiederholbare Rollouts.", features: ["Service & Operations", "Mehrere Räume", "Add-ons zubuchbar"], actionLabel: "Scale anfragen", transitionId: "" }] } },
+    { id: "pricing", title: "Preiskarten", description: "Managed-Pilot-Karte mit qualifizierendem nächsten Schritt statt Self-Service-Checkout.", data: { selectedPlan: "", plans: [{ title: "Managed Pilot", badge: "Begrenzter Einstieg", price: "2.500–7.500 €", period: "einmalig · 6–12 Wochen", body: "Für einen klar abgegrenzten Unternehmensprozess mit gemeinsam vereinbartem Ziel und Abnahmekriterien.", features: ["1 abgegrenzter Prozess", "Klickbare Prozess-App", "Gemeinsame Abnahme"], highlight: true, actionLabel: "Pilot qualifizieren", transitionId: "" }] } },
     { id: "bi-kpi-board", variant: "chart", title: "BI-KPI-Board", description: "KPI-Karten und Balkenvergleich für Management- und Bereichskennzahlen.", packageIds: ["bi.analytics"], data: { title: "Umsatz & Marge", subtitle: "Monatliche Sicht für Geschäftsführung und Bereichsleitung.", unit: "Tsd. EUR", metrics: [{ label: "Umsatz", value: "428 Tsd. EUR", delta: "+12%" }, { label: "Marge", value: "31%", delta: "+4%" }, { label: "Offene Chancen", value: "86", delta: "-7" }], items: [{ label: "Service", value: 128 }, { label: "Projekt", value: 96 }, { label: "Lizenz", value: 74 }, { label: "Beratung", value: 52 }] } },
     { id: "bi-bar-chart", variant: "chart", title: "Balkendiagramm", description: "Einfaches Chart für Umsatz, Mengen, SLA, Pipeline oder Prozesskennzahlen.", packageIds: ["bi.analytics"], data: { title: "Aufträge nach Status", subtitle: "Aktueller Stand aus dem globalen State.", unit: "Fälle", metrics: [{ label: "Gesamt", value: "184", delta: "+18" }, { label: "Durchlaufzeit", value: "3,2 Tage", delta: "-0,6" }], items: [{ label: "Neu", value: 42 }, { label: "Prüfung", value: 68 }, { label: "Freigabe", value: 31 }, { label: "Erledigt", value: 43 }] } },
     { id: "bi-pipeline-analysis", variant: "chart", title: "Pipeline-Analyse", description: "Sales- und Angebotsübersicht mit Kennzahlen und Fortschrittsbalken.", packageIds: ["bi.analytics", "sales.crm"], data: { title: "Pipeline", subtitle: "Chancen nach Phase und nächstem Schritt.", unit: "Tsd. EUR", metrics: [{ label: "Pipeline", value: "1,28 Mio. EUR", delta: "+9%" }, { label: "Abschlussquote", value: "27%", delta: "+3%" }, { label: "Nächste Aktionen", value: "14", delta: "heute" }], items: [{ label: "Lead", value: 220 }, { label: "Qualifiziert", value: 180 }, { label: "Angebot", value: 310 }, { label: "Verhandlung", value: 145 }] } },
-    { id: "carousel", title: "Bildkarussell", description: "Bildindex und Bilder liegen in gemeinsamen Daten.", data: { index: 0, images: ["https://picsum.photos/seed/state-1/640/360", "https://picsum.photos/seed/state-2/640/360", "https://picsum.photos/seed/state-3/640/360"] } },
+    { id: "carousel", title: "Bildkarussell", description: "Bildindex und Bilder liegen in gemeinsamen Daten.", data: { index: 0, images: [...DEFAULT_GALLERY_IMAGE_URLS] } },
     { id: "checkbox", title: "Checkbox-Feld", description: "Checkbox-Auswahlen werden gespeichert und können Übergänge steuern.", data: { legend: "Einstellungen", items: [{ label: "Angemeldet bleiben", checked: false }], checked: false } },
     { id: "countdown", title: "Countdown-Timer", description: "Timerwerte laufen in gemeinsamen Daten herunter und können den nächsten Zustand auslösen.", data: { duration: 20, value: 20, label: "Sekunden übrig", running: true, finished: false, startedAt: 0, endsAt: 0 } },
     { id: "drawer", title: "Seitenmenü", description: "Offen- und Auswahlwerte sind gemeinsame Felder.", data: { open: false, title: "Menü", selected: "Posteingang", items: ["Posteingang", "Einstellungen", "Hilfe"] } },
@@ -210,20 +205,20 @@ function builtinStateTemplates(libraryValue) {
     { id: "file-input", title: "Datei-Upload", description: "Der ausgewählte Dateiname wird in gemeinsame Daten geschrieben.", data: { label: "Datei hochladen", filename: "" } },
     { id: "footer", title: "Fußzeile", description: "Fußzeilen-Spalten, deren Einträge auf echte Zustände verdrahtet werden können.", data: { brand: "Zustand GmbH", note: "Wiederverwendbare Fußzeile aus gescopten Zustandsdaten.", columns: [{ title: "Produkt", items: [{ label: "Vorteile", transitionId: "" }, { label: "Angebot", transitionId: "" }] }, { title: "Unternehmen", items: [{ label: "Kontakt", transitionId: "" }] }] } },
     { id: "hero", title: "Titelbereich", description: "Zentrierter Titelbereich aus Zustandsdaten.", data: { layout: "centered", title: "Mach dein Angebot sichtbar", body: officialHeroBody, actionLabel: "Loslegen" } },
-    { id: "hero-figure", variant: "hero", title: "Titelbereich mit Bild", description: "Titelbereich mit Text und Bild.", data: { layout: "figure", title: "Produkt-Update", body: officialHeroBody, actionLabel: "Mehr erfahren", image: "https://img.daisyui.com/images/stock/photo-1635805737707-575885ab0820.webp" } },
-    { id: "hero-figure-reverse", variant: "hero", title: "Titelbereich mit Bild rechts", description: "Titelbereich mit Bild und Text in umgekehrter offizieller Zeilenanordnung.", data: { layout: "figure-reverse", title: "Kampagnenstart", body: officialHeroBody, actionLabel: "Plan prüfen", image: "https://img.daisyui.com/images/stock/photo-1635805737707-575885ab0820.webp" } },
+    { id: "hero-figure", variant: "hero", title: "Titelbereich mit Bild", description: "Titelbereich mit Text und Bild.", data: { layout: "figure", title: "Produkt-Update", body: officialHeroBody, actionLabel: "Mehr erfahren", image: DEFAULT_IMAGE_COMPONENT_URL } },
+    { id: "hero-figure-reverse", variant: "hero", title: "Titelbereich mit Bild rechts", description: "Titelbereich mit Text und Bild in umgekehrter offizieller Zeilenanordnung.", data: { layout: "figure-reverse", title: "Kampagnenstart", body: officialHeroBody, actionLabel: "Plan prüfen", image: DEFAULT_IMAGE_COMPONENT_URL } },
     { id: "hero-form", variant: "hero", title: "Titelbereich mit Anmeldeformular", description: "Titelbereich mit E-Mail- und Passwortfeldern aus gemeinsamen Daten.", data: { layout: "form", title: "Im Arbeitsbereich anmelden", body: "E-Mail und Passwort eingeben, um zum Konto zu wechseln.", actionLabel: "Anmelden", emailLabel: "E-Mail", passwordLabel: "Passwort", forgotLabel: "Passwort vergessen?", email: "", password: "" } },
-    { id: "hero-overlay", variant: "hero", title: "Titelbereich mit Bildüberlagerung", description: "Inhalt liegt über einem Bild.", data: { layout: "overlay", title: "Plane deine nächste Kampagne", body: officialHeroBody, actionLabel: "Planung starten", image: "https://img.daisyui.com/images/stock/photo-1507358522600-9f71e620c44e.webp" } },
+    { id: "hero-overlay", variant: "hero", title: "Titelbereich mit Bildüberlagerung", description: "Inhalt liegt über einem Bild.", data: { layout: "overlay", title: "Plane deine nächste Kampagne", body: officialHeroBody, actionLabel: "Planung starten", image: DEFAULT_IMAGE_COMPONENT_URL } },
     { id: "indicator", title: "Benachrichtigungs-Badge", description: "Zähler und Label kommen aus gemeinsamen Daten.", data: { label: "Posteingang", count: 3 } },
     { id: "input", title: "Textfeld", description: "Textfeld schreibt den Wert in gemeinsame Daten.", data: { label: "Name", value: "" } },
     { id: "loading", title: "Ladezustand", description: "Ladeanzeige, die über einen echten FSM-Timer-Übergang weiterläuft.", data: { label: "Lädt...", active: true, durationMs: 2000, nextLabel: "Weiter" } },
-    { id: "mask", title: "Bildmaske", description: "Bild wird über gemeinsame Daten in eine wiederverwendbare Form geschnitten.", data: { image: "https://img.daisyui.com/images/stock/photo-1635805737707-575885ab0820.webp", alt: "Maskiertes Bild", shape: "squircle" } },
+    { id: "mask", title: "Bildmaske", description: "Bild wird über gemeinsame Daten in eine wiederverwendbare Form geschnitten.", data: { image: DEFAULT_IMAGE_COMPONENT_URL, alt: "Maskiertes Bild", shape: "squircle" } },
     { id: "menu", title: "Navigationsmenü", description: "Menüauswahl wird in gemeinsamen Daten gespeichert.", data: { selected: "Dashboard", items: ["Dashboard", "Aufgaben", "Einstellungen"] } },
     { id: "modal", title: "Bestätigungsdialog", description: "Öffnungszustand und Bestätigung sind gemeinsame Felder.", data: { open: false, confirmed: false, openLabel: "Dialog öffnen", title: "Aktion bestätigen", body: "Prüfe die Details, bevor du fortfährst.", actionLabel: "Bestätigen", closeLabel: "Schließen" } },
     { id: "navbar-title", variant: "navbar", title: "Kopfleiste einfach", description: "Einfache Marken-Navigationsleiste.", data: { layout: "title-only", brand: "Zustand GmbH" } },
     { id: "navbar-menu-submenu", variant: "navbar", title: "Kopfleiste mit Menü", description: "Navigationsleiste mit Seitenlinks und optionalem Untermenü.", data: { layout: "menu-submenu", brand: "Zustand GmbH", selected: "Dashboard", items: ["Dashboard", "Projekte", "Einstellungen"], parent: "Mehr", submenu: [], submenuOpen: true } },
-    { id: "navbar-search-dropdown", variant: "navbar", title: "Kopfleiste Suche/Profil", description: "Navigationsleiste mit Sucheingabe und Profilmenü.", data: { layout: "search-dropdown", brand: "Zustand GmbH", search: "", profileOpen: false, avatar: "https://img.daisyui.com/images/stock/photo-1534528741775-53994a69daeb.webp", menuItems: ["Profil", "Einstellungen", "Abmelden"], badge: "Neu" } },
-    { id: "navbar-cart-profile", variant: "navbar", title: "Kopfleiste Shop/Warenkorb", description: "Shop-Navigation mit Warenkorb-Badge und Profilmenü.", data: { layout: "cart-profile", brand: "Zustand Shop", cartOpen: false, profileOpen: false, cartCount: 8, cartLabel: "Artikel", subtotal: "248 EUR", actionLabel: "Warenkorb ansehen", avatar: "https://img.daisyui.com/images/stock/photo-1534528741775-53994a69daeb.webp", menuItems: ["Profil", "Einstellungen", "Abmelden"], badge: "Neu" } },
+    { id: "navbar-search-dropdown", variant: "navbar", title: "Kopfleiste Suche/Profil", description: "Navigationsleiste mit Sucheingabe und Profilmenü.", data: { layout: "search-dropdown", brand: "Zustand GmbH", search: "", profileOpen: false, avatar: DEFAULT_IMAGE_COMPONENT_URL, menuItems: ["Profil", "Einstellungen", "Abmelden"], badge: "Neu" } },
+    { id: "navbar-cart-profile", variant: "navbar", title: "Kopfleiste Shop/Warenkorb", description: "Shop-Navigation mit Warenkorb-Badge und Profilmenü.", data: { layout: "cart-profile", brand: "Zustand Shop", cartOpen: false, profileOpen: false, cartCount: 8, cartLabel: "Artikel", subtotal: "248 EUR", actionLabel: "Warenkorb ansehen", avatar: DEFAULT_IMAGE_COMPONENT_URL, menuItems: ["Profil", "Einstellungen", "Abmelden"], badge: "Neu" } },
     { id: "progress", title: "Fortschrittsbalken", description: "Linearer Fortschritt aus Wert- und Max-Feldern.", data: { value: 45, max: 100, label: "Fortschritt" } },
     { id: "radial-progress", title: "Fortschrittsring", description: "Kreisförmiger Fortschritt aus Wert- und Max-Feldern.", data: { value: 66, max: 100, label: "Abgeschlossen" } },
     { id: "radio", title: "Radio-Gruppe", description: "Radio-Auswahl wird in gemeinsamen Daten gespeichert.", data: { label: "Tarif", value: "Team", options: ["Gratis", "Team", "Enterprise"] } },
@@ -473,11 +468,16 @@ function subscriptionPlansResponse(libraryValue) {
     .sort((a, b) => a.sort - b.sort);
 }
 
+function pilotOffersResponse() {
+  return PILOT_OFFERS.map(cloneJson).sort((a, b) => a.sort - b.sort);
+}
+
 module.exports = {
   builtinStateTemplates,
   collectLocalFieldTypes,
   presetCatalogResponse,
   presetCategoriesResponse,
   presetPackagesResponse,
+  pilotOffersResponse,
   subscriptionPlansResponse
 };

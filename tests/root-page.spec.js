@@ -29,7 +29,7 @@ test.describe("Root demo export", () => {
     expect(html).toContain('"name":"Digitalisierungsplanung"');
     expect(html).toContain('"initial":"site_home"');
     expect(html).toContain('"site_checkout"');
-    expect(html).toContain("state.html?demo=zustand");
+    expect(html).not.toContain("state.html?demo=zustand");
     expect(html).toContain("/manifest.webmanifest");
     expect(html).toContain("/assets/share-card.png");
     expect(html).not.toContain('id="appFrame"');
@@ -45,6 +45,11 @@ test.describe("Root demo export", () => {
     expect(html).not.toContain("Array.isArray(cursor) && /^d+$/.test(part)");
     expect(html).toContain("DaisyUI v5.6.18 / Tailwind preflight parity");
     expect(html).not.toMatch(/(?:cdn\.jsdelivr\.net|unpkg\.com)\/.*daisyui/i);
+    expect(html).toContain("Managed Pilot");
+    expect(html).toContain("2.500–7.500 €");
+    expect(html).toContain("6–12 Wochen");
+    expect(html).not.toMatch(/(?:249|749|1\.990) EUR/);
+    expect(html).not.toContain("/Monat");
 
     await page.addInitScript(() => {
       const key = "safari-refresh-probe";
@@ -67,9 +72,9 @@ test.describe("Root demo export", () => {
     await expect(page.locator("#flowDebug")).toHaveCount(0);
     await expect(page.locator("#statePill")).toHaveText("site_home");
     await expect(page.getByRole("heading", { name: "Aus Erfahrungswissen wird Software.", exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Erstgespräch anfragen" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Pilot ansehen" })).toBeVisible();
     await expect(page.locator(".hero .card-actions.justify-center")).toHaveCSS("justify-content", "center");
-    await expect(page.locator(".navbar").getByRole("button", { name: "Pakete", exact: true })).toBeVisible();
+    await expect(page.locator(".navbar").getByRole("button", { name: "Pilot", exact: true })).toBeVisible();
 
     const footerGeometry = () => page.locator(".footer").evaluate(footer => {
       const style = getComputedStyle(footer);
@@ -129,20 +134,22 @@ test.describe("Root demo export", () => {
     await expect(page.locator("#statePill")).toHaveText("site_features");
     await expect(page.getByRole("heading", { name: "Was Ihr Unternehmen gewinnt" })).toBeVisible();
 
-    await page.locator(".navbar").getByRole("button", { name: "Pakete", exact: true }).click();
+    await page.locator(".navbar").getByRole("button", { name: "Pilot", exact: true }).click();
     await expect(page.locator("#statePill")).toHaveText("site_pricing");
-    await expect(page.getByRole("heading", { name: "Pakete", exact: true })).toBeVisible();
-    await expect(page.locator(".daisy-pricing .card-title")).toContainText(["Starter", "Business", "Scale"]);
-    await expect(page.getByRole("button", { name: "BI zubuchen", exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "Business anfragen" }).click();
+    await expect(page.getByRole("heading", { name: "Pilot", exact: true })).toBeVisible();
+    await expect(page.locator(".daisy-pricing .card-title")).toContainText(["Managed Pilot"]);
+    await expect(page.locator(".daisy-pricing .daisy-card-price")).toContainText("2.500–7.500 €");
+    await expect(page.getByText("6–12 Wochen", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Pilot qualifizieren" }).click();
     await expect(page.locator("#statePill")).toHaveText("site_checkout");
-    await expect(page.getByRole("heading", { name: "Anfrage" })).toBeVisible();
-    await expect(page.getByText("749 EUR")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Qualifizierung" })).toBeVisible();
+    await expect(page.getByText("Managed Pilot", { exact: true })).toBeVisible();
 
     await page.locator(".navbar").getByRole("button", { name: "Kontakt", exact: true }).click();
     await expect(page.locator("#statePill")).toHaveText("site_contact");
-    await page.getByRole("button", { name: "Anfrage senden" }).click();
+    await page.getByRole("button", { name: "Qualifizierung vorbereiten" }).click();
     await expect(page.locator("#statePill")).toHaveText("site_thanks");
+    await expect(page.getByText("Diese Demo versendet keine Daten", { exact: false })).toBeVisible();
 
     await page.reload({ waitUntil: "load" });
     await expect.poll(() => page.evaluate(() => window.__safariLateRestoreApplied === true)).toBe(true);
@@ -159,10 +166,14 @@ test.describe("Root demo export", () => {
 });
 
 test.describe("Preset designer", () => {
-  test("turns an official Daisy snippet into a managed category preset @smoke", async ({ page }) => {
-    await page.addInitScript(() => {
-      localStorage.setItem("digitalisierungsplanung.realtime.adminSecret", "admin-secret");
-    });
+  test("turns an official Daisy snippet into a managed category preset @smoke", async ({ page, request }) => {
+    const tokenResponse = await request.get("/__test/presets-admin-token");
+    expect(tokenResponse.ok()).toBe(true);
+    const { token } = await tokenResponse.json();
+    expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    await page.addInitScript(adminToken => {
+      localStorage.setItem("digitalisierungsplanung.realtime.adminSecret", adminToken);
+    }, token);
     await page.goto("/presets-admin.html");
 
     await expect(page.getByRole("heading", { name: /Preset Designer/ })).toBeVisible();
@@ -191,7 +202,7 @@ test.describe("Preset designer", () => {
     expect(JSON.stringify(definition)).not.toContain("<footer");
 
     await page.getByRole("button", { name: "In Contract speichern" }).click();
-    await expect(page.locator("#status")).toContainText("Gespeichert und gepusht: browser-test");
+    await expect(page.locator("#status")).toContainText("Commit browser-test auf Review-Branch admin/presets-browser-test");
     await expect(page.locator("#existingPreset")).toContainText("ACME Footer");
     await expect(page.locator("#managedCategory")).toContainText("Portal");
     await expect(page.locator("#managedPackage")).toContainText("Portal Pro");

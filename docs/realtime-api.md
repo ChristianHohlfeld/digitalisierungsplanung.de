@@ -159,16 +159,21 @@ Secret-geschützte Admin-API für den Designer.
 
 - Auth: `Authorization: Bearer <REALTIME_ADMIN_SECRET>`
 - `GET`: lädt den Katalog aus `server/event-catalog.json`
-- `POST`: validiert, schreibt, committet und pusht den Katalog zusammen mit `release-version.js`
+- `POST`: validiert und committet ausschließlich den Katalog; der Commit wird
+  auf einen eindeutigen `admin/events-*`-Review-Branch gepusht. Die Antwort
+  enthält `reviewRequired: true` und `branch`.
 - `POST ?validate=1` oder Body `{ "validateOnly": true }`: validiert ohne Git-Schreibvorgang
 
-Die UI braucht diese Admin-API nur für sicheren Load und Save. Lesen kann sie
+Die UI braucht diese Admin-API nur für sicheren Load und einen Review-Entwurf. Lesen kann sie
 den Product Contract über `/contract` und den Live-Katalog über `/events`.
 Es gibt kein Pinning alter Contract-Versionen; die Release-ID ist
 Nachvollziehbarkeit, nicht Laufzeit-Auswahl.
 
-Der Save-Pfad nutzt Git. Falls der Server-Checkout nicht mit seinen vorhandenen
-Remote-Credentials pushen kann, muss `REALTIME_GIT_PUSH_TOKEN` gesetzt sein.
+Der Save-Pfad nutzt Git, verändert aber weder `release-version.js` noch
+`origin/main`. Der Review-Branch muss als PR geprüft, durch die vollständige CI
+geführt und danach über den manuellen Release veröffentlicht werden. Falls der
+Server-Checkout nicht mit seinen vorhandenen Remote-Credentials pushen kann,
+muss `REALTIME_GIT_PUSH_TOKEN` gesetzt sein.
 
 ### `GET /presets-admin.html`
 
@@ -216,15 +221,18 @@ Secret-geschützte API für die vollständige `server/preset-library.json`.
 
 - Auth: `Authorization: Bearer <REALTIME_ADMIN_SECRET>`
 - `GET`: lädt Kategorien, Pakete und verwaltete Presets.
-- `POST`: validiert die gesamte Library, schreibt sie zusammen mit
-  `release-version.js`, committet und pusht nach `main`.
+- `POST`: validiert die gesamte Library, committet ausschließlich
+  `server/preset-library.json` und pusht einen eindeutigen
+  `admin/presets-*`-Review-Branch. Die Antwort enthält `reviewRequired: true`
+  und `branch`.
 - `POST ?validate=1` oder Body `{ "validateOnly": true }`: validiert ohne
   Schreib- oder Git-Vorgang.
 
 `websuite-builder` und die acht Produktpakete sind erforderliche geschützte
 Einträge. Weitere Kategorien und Pakete dürfen ergänzt werden. Parsen allein
-ändert weder Library noch Product Contract; erst ein erfolgreicher Save wird
-unmittelbar über `/contract` sichtbar.
+ändert weder Library noch Product Contract. Ein Save erzeugt einen
+Review-Branch; dauerhaft produktiv wird der Stand erst nach Review, Merge,
+vollständiger CI und manuellem Release.
 
 ### `POST /assets/inline-image`
 
@@ -247,7 +255,7 @@ Zentraler Product Contract für `state.html` und den Event Designer. Dieser
 Endpoint ist die frische Server-Wahrheit für vordefinierte Contract-Teile:
 Trigger-Typen, Value-Types mit Constraints, Realtime-Datasets, Connector-Quellen,
 Match-Operatoren, Preset-Typen mit Varianten, Preset-Kategorien, Presets,
-Preset-Pakete, Abo-Pläne und State-Contribution-Pfade. Jedes Feld, das vom Contract in den
+Preset-Pakete, das Managed-Pilot-Angebot und State-Contribution-Pfade. Jedes Feld, das vom Contract in den
 globalen JSON-State geschrieben werden kann, hat neben dem kompakten Typstring
 ein `fieldSchemas`-Objekt mit `type`, `jsonType`, `default` und harten
 `constraints`.
@@ -265,12 +273,14 @@ keine Contract-Kopie in den Canvas schreiben.
 `state.html` darf daraus UI-Optionen ableiten, aber keine eigene Variantenliste
 als Produktwahrheit führen. `presetCategories` steuert ausschließlich die sichtbaren Gruppen im Editor.
 Initial enthält sie nur `websuite-builder`; alle mitgelieferten Presets gehören
-zu dieser Kategorie. `presetPackages` und `subscriptionPlans` sind davon
-getrennte Verkaufs- und Anzeige-Metadaten.
-Sie entscheiden nicht lokal im Canvas über Verhalten. Ein Preset bleibt
+zu dieser Kategorie. `presetPackages` gruppiert technische Fähigkeiten;
+`pilotOffers` beschreibt den kommerziellen Managed-Pilot-Rahmen.
+`subscriptionPlans` bleibt in V1 als leeres Kompatibilitätsfeld erhalten.
+Keine dieser Metadaten entscheidet lokal im Canvas über Verhalten oder
+Benutzerrechte. Ein Preset bleibt
 contract-konform, weil sein fachlicher Beitrag ausschließlich über
-`stateContribution` im globalen State landet. Add-on-Pakete können auch dann
-separat verkauft werden, wenn ein Kunde bereits das größte Standard-Abo nutzt.
+`stateContribution` im globalen State landet. Berechtigungen kommen
+ausschließlich aus einer authentifizierten Mandanten- und Rollenquelle.
 
 Antwort, gekürzt:
 
@@ -378,7 +388,7 @@ Antwort, gekürzt:
       "id": "website.builder",
       "label": "Website Builder",
       "category": "package",
-      "includedInPlanIds": ["business", "scale"],
+      "includedInPlanIds": [],
       "presetIds": ["builtin_daisy_hero", "builtin_daisy_pricing", "builtin_daisy_export_image_asset"],
       "presetCount": 3
     },
@@ -392,16 +402,17 @@ Antwort, gekürzt:
       "presetCount": 1
     }
   ],
-  "subscriptionPlans": [
+  "pilotOffers": [
     {
-      "id": "business",
-      "label": "Business",
-      "price": "749 EUR",
-      "period": "/Monat",
-      "includedPackageIds": ["core.process", "website.builder", "approval.compliance"],
-      "recommendedAddOnPackageIds": ["bi.analytics", "service.operations"]
+      "id": "managed-pilot-v1",
+      "label": "Managed Pilot",
+      "price": "2.500–7.500 €",
+      "billing": "one-time",
+      "duration": "6–12 Wochen",
+      "scope": ["1 abgegrenzter Prozess", "Klickbare Prozess-App", "Gemeinsame Abnahme"]
     }
   ],
+  "subscriptionPlans": [],
   "presets": [
     {
       "id": "builtin_daisy_button",
@@ -635,13 +646,20 @@ client_replaced
 
 Einige Fehler schließen die Verbindung mit Policy-Code `1008` oder internem Code `4008` bei `client_replaced`.
 
-## Integration in `state.html`
+## Integration in Studio und Standalone-Runtime
 
-Aktivierung:
+Der Editor wird nicht als öffentliche Pages-Datei ausgeliefert. Ein Owner oder
+Bearbeiter öffnet den serverseitigen Studio-Einstieg aus der Pilot-Konsole:
 
 ```text
-https://digitalisierungsplanung.de/state.html?room=<room-id>
+https://realtime.digitalisierungsplanung.de/studio.html?project=<project-id>
 ```
+
+Ohne gültige Pilot-Sitzung und Projektberechtigung muss die Route zur
+Pilot-Konsole zurückführen. Session- oder Realtime-Tokens gehören niemals in
+die URL. Eine veröffentlichte Standalone-Prozess-App erhält einen Raum nur aus
+der kontrollierten Deployment-Konfiguration, nicht aus einem öffentlichen
+Editor-Link.
 
 Ablauf:
 
@@ -649,7 +667,7 @@ Ablauf:
 generierte Runtime in Preview oder Standalone
   -> GET /token
   -> WSS /ws
-  -> join(roomId, clientId, token)
+  -> join(configured roomId, clientId, short-lived token)
   -> runtime.event
   -> globaler JSON-Bus
   -> Übergänge prüfen triggerType=realtime + triggerEvent=<name>
@@ -733,7 +751,8 @@ REALTIME_MAX_PAYLOAD_BYTES=65536
 
 1. SIP-Anlage erkennt eingehenden Anruf.
 2. SIP-Bridge ruft `/emit` auf.
-3. Eine geöffnete Arbeitsfläche in `state.html?room=sales-floor` empfängt das Ereignis.
+3. Eine autorisierte Studio- oder veröffentlichte Standalone-Runtime mit dem
+   konfigurierten Raum `sales-floor` empfängt das Ereignis.
 4. Die Runtime schreibt:
 
 ```text

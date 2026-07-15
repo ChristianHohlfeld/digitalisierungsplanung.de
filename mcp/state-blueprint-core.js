@@ -3,6 +3,7 @@
 const eventCatalog = require("../server/event-catalog");
 const productContract = require("../server/product-contract");
 const valueTypes = require("../server/value-types");
+const { isReservedRuntimeId, runAtomicTransaction } = require("../shared/workspace-core");
 
 const ROOT_LAYER_ID = "__root__";
 const GRID_SIZE = 24;
@@ -1050,6 +1051,12 @@ function normalizeModel(input) {
   return m;
 }
 
+function replaceModelContents(target, source) {
+  for (const key of Object.keys(target)) delete target[key];
+  Object.assign(target, source);
+  return target;
+}
+
 function blankModel(name = "State App") {
   return normalizeModel({ version: 2, name, initial: "", states: [], transitions: [], boundary: normalizeBoundaryConfig(null) });
 }
@@ -1277,6 +1284,9 @@ function validateModel(model) {
       rawContractIssues.push({ code: "missing_state_id", message: "Every state must define an ID." });
       continue;
     }
+    if (isReservedRuntimeId(id)) {
+      rawContractIssues.push({ code: "reserved_state_id", stateId: id, message: `State ID ${id} uses the reserved runtime namespace.` });
+    }
     if (rawStateIds.has(id)) {
       rawContractIssues.push({ code: "duplicate_state_id", stateId: id, message: `State ID ${id} must be unique.` });
       continue;
@@ -1337,6 +1347,8 @@ function validateModel(model) {
     const id = String(transition?.id || "").trim();
     if (!id) {
       rawContractIssues.push({ code: "missing_transition_id", message: "Every transition must define an ID." });
+    } else if (isReservedRuntimeId(id)) {
+      rawContractIssues.push({ code: "reserved_transition_id", transitionId: id, message: `Transition ID ${id} uses the reserved runtime namespace.` });
     } else if (rawTransitionIds.has(id)) {
       rawContractIssues.push({ code: "duplicate_transition_id", transitionId: id, message: `Transition ID ${id} must be unique.` });
     } else {
@@ -1761,7 +1773,7 @@ function collapseStatesToParent(model, args = {}) {
   if (selectedSet.has(model.initial)) model.initial = group.id;
   ensureDefaultBoundaryTransitions(model, layerId);
   ensureDefaultBoundaryTransitions(model, group.id);
-  normalizeModel(model);
+  replaceModelContents(model, normalizeModel(model));
   return byModelId(model, group.id);
 }
 
@@ -1814,7 +1826,7 @@ function degroupParentState(model, args = {}) {
   model.states = model.states.filter(state => state.id !== parent.id);
   model.transitions = model.transitions.filter(transition => transition.from !== parent.id && transition.to !== parent.id);
   ensureDefaultBoundaryTransitions(model, outerParentId);
-  normalizeModel(model);
+  replaceModelContents(model, normalizeModel(model));
   return { parentId: parent.id, childIds: [...childIds] };
 }
 
@@ -2051,7 +2063,7 @@ function orderedActions(actions) {
     .map(item => item.action);
 }
 
-function applyActions(inputModel, actions, options = {}) {
+function applyActionsDraft(inputModel, actions, options = {}) {
   if (!Array.isArray(actions)) throw new Error("actions must be an array.");
   const input = isPlainObject(inputModel) && !Object.keys(inputModel).length ? blankModel() : inputModel || blankModel();
   const inputValidation = validateModel(input);
@@ -2064,7 +2076,7 @@ function applyActions(inputModel, actions, options = {}) {
   const results = [];
   for (const action of orderedActions(actions)) {
     results.push(applyAction(model, action));
-    normalizeModel(model);
+    replaceModelContents(model, normalizeModel(model));
   }
   const validation = validateModel(model);
   if (!validation.ok && !options.allowInvalid) {
@@ -2074,6 +2086,10 @@ function applyActions(inputModel, actions, options = {}) {
     throw error;
   }
   return { model: validation.model, results, validation };
+}
+
+function applyActions(inputModel, actions, options = {}) {
+  return runAtomicTransaction(inputModel ?? {}, draft => applyActionsDraft(draft, actions, options)).result;
 }
 
 function normalizeCamera(value) {
@@ -2483,7 +2499,7 @@ function applyCommand(workspace, command = {}) {
   }
 }
 
-function applyCommands(inputWorkspace, commands, options = {}) {
+function applyCommandsDraft(inputWorkspace, commands, options = {}) {
   if (!Array.isArray(commands)) throw new Error("commands must be an array.");
   const workspace = normalizeWorkspace(inputWorkspace);
   const results = [];
@@ -2508,6 +2524,10 @@ function applyCommands(inputWorkspace, commands, options = {}) {
   workspace.model = validation.model;
   workspace.editor = normalizeEditorSession(workspace.editor, workspace.model);
   return { workspace, results, validation };
+}
+
+function applyCommands(inputWorkspace, commands, options = {}) {
+  return runAtomicTransaction(inputWorkspace ?? {}, draft => applyCommandsDraft(draft, commands, options)).result;
 }
 
 const commandCatalog = [

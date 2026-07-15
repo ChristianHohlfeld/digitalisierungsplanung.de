@@ -284,7 +284,9 @@
         setStatus("Library ist vertragskonform.", "ok");
         return;
       }
-      const message = payload.changed ? `Gespeichert und gepusht: ${payload.commit}` : "Keine Änderung.";
+      const message = payload.changed
+        ? `Commit ${payload.commit} auf Review-Branch ${payload.branch}. Vor einem Release prüfen und mergen.`
+        : "Keine Änderung.";
       await loadCatalog();
       setStatus(message, "ok");
     }

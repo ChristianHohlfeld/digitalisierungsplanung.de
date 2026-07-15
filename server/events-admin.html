@@ -81,7 +81,7 @@
     <section class="panel topbar">
       <label>Admin secret<input id="secret" type="password" autocomplete="off" placeholder="REALTIME_ADMIN_SECRET"></label>
       <button id="load" class="secondary" type="button">Reload</button>
-      <button id="save" type="button">Save to GitHub</button>
+      <button id="save" type="button">Save review branch</button>
       <div id="status" class="status">Loading public catalog...</div>
     </section>
 
@@ -777,7 +777,7 @@
         setStatus("Admin secret is required for saving.", "bad");
         return;
       }
-      setStatus("Validating and pushing...");
+      setStatus("Validating and creating review branch...");
       const response = await fetch("/events-admin/catalog", {
         method: "POST",
         headers: authHeaders(),
@@ -788,8 +788,9 @@
         setStatus(payload.error || "Save failed", "bad");
         return;
       }
-      const releaseText = payload.releaseId ? ` ${payload.releaseId}.` : "";
-      setStatus(payload.changed ? `Saved${releaseText} Commit ${payload.commit || "created"} pushed.` : "No changes.", payload.changed ? "ok" : "warn");
+      setStatus(payload.changed
+        ? `Saved commit ${payload.commit || "created"} to ${payload.branch || "a review branch"}. Review and merge it before a release.`
+        : "No changes.", payload.changed ? "ok" : "warn");
     }
 
     function createEventFromDatasetKey(datasetKey) {
