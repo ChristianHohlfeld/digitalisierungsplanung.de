@@ -1,5 +1,8 @@
 "use strict";
 
+const eventCatalog = require("../server/event-catalog");
+const productContract = require("../server/product-contract");
+
 const ROOT_LAYER_ID = "__root__";
 const GRID_SIZE = 24;
 const NODE_W = 192;
@@ -10,17 +13,28 @@ const WORLD_MAX_X = 20000;
 const WORLD_MAX_Y = 16000;
 const STATE_VARIABLE_TYPES = ["text", "email", "password", "number", "boolean", "url", "image", "object", "list"];
 const COMPONENT_TYPES = ["heading", "text", "image", "list", "link", "note", "divider", "daisy", "transitionButton", "dataWire"];
-const TRANSITION_TRIGGER_TYPES = ["button", "change", "event", "realtime", "timer", "auto"];
+const TRANSITION_TRIGGER_TYPES = ["button", "change", "event", "realtime", "api", "timer", "auto"];
 const TRANSITION_TRIGGER_CONTRACT_TYPES = new Set([...TRANSITION_TRIGGER_TYPES, "flow"]);
 const DATA_WIRE_ROLES = ["image", "title", "price", "description", "field", "link", "note"];
 const FORBIDDEN_COMPONENT_STATE_KEYS = ["localState", "stateStore", "store", "html"];
+const REPOSITORY_PRODUCT_CONTRACT = productContract.productContractResponse(eventCatalog.loadEventCatalogFile());
+const CONTRACT_READABLE_PATHS = new Set(
+  REPOSITORY_PRODUCT_CONTRACT.stateContributions.flatMap(contribution => [
+    contribution.root,
+    ...(Array.isArray(contribution.fields) ? contribution.fields : [])
+  ])
+);
+const CONTRACT_REALTIME_EVENTS = new Set(
+  (REPOSITORY_PRODUCT_CONTRACT.triggerTypes.find(type => type.id === "realtime")?.events || [])
+    .map(event => event.name)
+);
 
 function isPlainObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function clone(value) {
-  return JSON.parse(JSON.stringify(value ?? null));
+  return structuredClone(value);
 }
 
 function clamp(value, min, max) {
@@ -108,8 +122,7 @@ function runtimeBusPathIsReadable(value) {
   return /^states\.[a-zA-Z_][a-zA-Z0-9_]*\./.test(path)
     || path === "state.current"
     || path === "runtime.paused"
-    || /^events\./.test(path)
-    || /^realtime\./.test(path);
+    || CONTRACT_READABLE_PATHS.has(path);
 }
 
 function runtimeBusPathIsWritable(value) {
@@ -121,6 +134,38 @@ function conditionRuntimePaths(condition) {
   return withoutStrings.match(/[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*/g) || [];
 }
 
+function conditionContractIssue(condition) {
+  const text = String(condition || "").trim();
+  if (!text) return "";
+  const pathPattern = "[a-zA-Z_][a-zA-Z0-9_]*(?:\\.(?:[a-zA-Z_][a-zA-Z0-9_]*|\\d+))*";
+  const pathOnly = new RegExp(`^${pathPattern}$`);
+  const comparison = new RegExp(`^(${pathPattern})\\s*(==|!=|>=|<=|>|<)\\s*(.+)$`);
+  const literal = /^(?:true|false|-?\d+(?:\.\d+)?|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')$/;
+  for (const orPart of text.split("||")) {
+    if (!orPart.trim()) return "Condition contains an empty OR branch.";
+    for (let atom of orPart.split("&&")) {
+      atom = atom.trim();
+      if (!atom) return "Condition contains an empty AND branch.";
+      if (atom === "true" || atom === "false") continue;
+      if (atom.startsWith("!")) {
+        const path = atom.slice(1).trim();
+        if (!pathOnly.test(path) || !runtimeBusPathIsReadable(path)) return `Invalid condition atom: ${atom}`;
+        continue;
+      }
+      const match = atom.match(comparison);
+      if (match) {
+        if (!runtimeBusPathIsReadable(match[1]) || !literal.test(match[3].trim())) return `Invalid condition comparison: ${atom}`;
+        if ([">", ">=", "<", "<="].includes(match[2]) && !/^-?\d+(?:\.\d+)?$/.test(match[3].trim())) {
+          return `Numeric comparison requires a numeric literal: ${atom}`;
+        }
+        continue;
+      }
+      if (!pathOnly.test(atom) || !runtimeBusPathIsReadable(atom)) return `Invalid condition atom: ${atom}`;
+    }
+  }
+  return "";
+}
+
 function runtimeReferenceContractIssuesForState(state) {
   const stateId = String(state?.id || "");
   const issues = [];
@@ -130,11 +175,8 @@ function runtimeReferenceContractIssuesForState(state) {
       add("invalid_component_data_path", String(component.dataPath), "Component dataPath must use states.<id>.<field>.");
     }
     for (const value of [component?.text, component?.url, ...(Array.isArray(component?.items) ? component.items.flatMap(item => [item?.text, item?.url]) : [])]) {
-      for (const match of String(value || "").matchAll(/\{\{\s*([^{}]+?)\s*\}\}/g)) {
-        const path = normalizeBindingPath(match[1], "");
-        if (!runtimeBusPathIsReadable(path) && !/^item(?:\.|$)/.test(path) && path !== "i") {
-          add("invalid_component_template_path", String(match[1]), "Component template references must use a fully qualified runtime bus path or the repeat aliases item/i.");
-        }
+      if (/\{\{[\s\S]*?\}\}/.test(String(value || ""))) {
+        add("invalid_component_template", String(value || ""), "Component text must be literal; bind runtime data through dataPath or dataWires.");
       }
     }
   }
@@ -157,20 +199,34 @@ function runtimeReferenceContractIssuesForState(state) {
 function runtimeReferenceContractIssuesForTransition(transition) {
   const transitionId = String(transition?.id || "");
   const issues = [];
+  const conditionIssue = conditionContractIssue(transition?.condition);
+  if (conditionIssue) issues.push({ code: "invalid_transition_condition", transitionId, message: conditionIssue });
   for (const path of Object.keys(isPlainObject(transition?.set) ? transition.set : {})) {
     if (!runtimeBusPathIsWritable(path)) issues.push({ code: "invalid_transition_set_path", transitionId, path, message: "Transition set paths must use states.<id>.<field>." });
   }
-  const literals = new Set(["true", "false", "null", "undefined"]);
+  const literals = new Set(["true", "false"]);
   for (const path of conditionRuntimePaths(transition?.condition)) {
     if (!literals.has(path) && !runtimeBusPathIsReadable(path)) {
       issues.push({ code: "invalid_transition_condition_path", transitionId, path, message: "Transition condition references must use fully qualified runtime bus paths." });
     }
   }
-  const triggerType = String(transition?.triggerType || "button").toLowerCase();
+  const triggerType = String(transition?.triggerType || "button");
   const triggerEvent = String(transition?.triggerEvent || "");
-  if (triggerType === "change" && triggerEvent) {
+  if (triggerEvent && normalizeTransitionEvent(triggerEvent) !== triggerEvent) {
+    issues.push({ code: "invalid_transition_event_name", transitionId, path: triggerEvent, message: "Transition event names must already be canonical." });
+  }
+  if (triggerType === "change") {
     const path = triggerEvent.startsWith("change.") ? triggerEvent.slice("change.".length) : triggerEvent;
-    if (!runtimeBusPathIsReadable(path)) issues.push({ code: "invalid_change_trigger_path", transitionId, path, message: "Change triggers must reference a fully qualified runtime bus path." });
+    if (!path || !runtimeBusPathIsReadable(path)) issues.push({ code: "invalid_change_trigger_path", transitionId, path, message: "Change triggers must reference one concrete fully qualified runtime bus path." });
+  }
+  if (triggerType === "api" && !/^fetch\.[a-z0-9_.]+\.(success|error)$/.test(triggerEvent)) {
+    issues.push({ code: "invalid_api_trigger_event", transitionId, path: triggerEvent, message: "API triggers must reference fetch.<target>.success or fetch.<target>.error." });
+  }
+  if (triggerType === "event" && triggerEvent.startsWith("fetch.")) {
+    issues.push({ code: "invalid_event_trigger_namespace", transitionId, path: triggerEvent, message: "Fetch result events belong to triggerType api." });
+  }
+  if (triggerType === "realtime" && !CONTRACT_REALTIME_EVENTS.has(triggerEvent)) {
+    issues.push({ code: "invalid_realtime_trigger_event", transitionId, path: triggerEvent, message: "Realtime triggers must reference an event declared by the Product Contract." });
   }
   return issues;
 }
@@ -190,11 +246,11 @@ function normalizeDataObject(value) {
 }
 
 function normalizeStateDataValue(value) {
-  if (Array.isArray(value)) return value.filter(item => item !== undefined).map(normalizeStateDataValue);
+  if (Array.isArray(value)) return value.map(normalizeStateDataValue);
   if (!isPlainObject(value)) return value;
   const out = {};
   for (const [key, child] of Object.entries(value)) {
-    if (child !== undefined && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key)) out[key] = normalizeStateDataValue(child);
+    out[key] = normalizeStateDataValue(child);
   }
   return out;
 }
@@ -214,11 +270,38 @@ function stateDataContractIssues(value, stateId) {
     }];
   }
   const visit = (node, path) => {
-    if (Array.isArray(node)) {
-      node.forEach((item, index) => visit(item, `${path}[${index}]`));
+    if (node === null || node === undefined) {
+      issues.push({
+        code: "invalid_state_data_value",
+        stateId,
+        path,
+        message: `state.data value "${path}" must be defined and must not be null.`
+      });
       return;
     }
-    if (!isPlainObject(node)) return;
+    if (typeof node === "number" && !Number.isFinite(node)) {
+      issues.push({ code: "invalid_state_data_value", stateId, path, message: `state.data value "${path}" must be a finite JSON number.` });
+      return;
+    }
+    if (!["boolean", "number", "object", "string"].includes(typeof node)) {
+      issues.push({ code: "invalid_state_data_value", stateId, path, message: `state.data value "${path}" must be a JSON value.` });
+      return;
+    }
+    if (Array.isArray(node)) {
+      for (let index = 0; index < node.length; index += 1) {
+        if (!Object.prototype.hasOwnProperty.call(node, index)) {
+          issues.push({ code: "invalid_state_data_value", stateId, path: `${path}[${index}]`, message: `state.data value "${path}[${index}]" must not be an array hole.` });
+          continue;
+        }
+        visit(node[index], `${path}[${index}]`);
+      }
+      return;
+    }
+    if (typeof node !== "object") return;
+    if (!isPlainObject(node)) {
+      issues.push({ code: "invalid_state_data_value", stateId, path, message: `state.data value "${path}" must be a plain JSON object.` });
+      return;
+    }
     for (const [key, child] of Object.entries(node)) {
       const childPath = path ? `${path}.${key}` : key;
       if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key)) {
@@ -370,6 +453,9 @@ function validateTransitionCondition(condition) {
 }
 
 function normalizeTransitionPatch(patch) {
+  if (patch === undefined) return {};
+  const invalidValuePath = firstInvalidJsonValuePath(patch, "transition.set");
+  if (invalidValuePath) throw new Error(`${invalidValuePath} must be a fully defined JSON value.`);
   const out = {};
   for (const [key, value] of Object.entries(normalizeDataObject(patch))) {
     if (!runtimeBusPathIsWritable(key)) throw new Error("Transition set paths must use states.<id>.<field>.");
@@ -546,26 +632,35 @@ function normalizeRepeatConfig(value) {
 
 function normalizeBoundaryConfig(value) {
   const source = isPlainObject(value) ? value : {};
-  const boundary = {
+  return {
     entryId: String(source.entryId || ""),
     exitId: String(source.exitId || ""),
     entryDisabled: Boolean(source.entryDisabled),
     exitDisabled: Boolean(source.exitDisabled),
-    title: String(source.title || source.layerTitle || ""),
-    note: String(source.note || source.comment || "")
+    title: String(source.title || ""),
+    note: String(source.note || "")
   };
-  if (source.entryTriggerType !== undefined) {
-    const entryTriggerType = normalizeTransitionTriggerType({ triggerType: source.entryTriggerType });
-    boundary.entryTriggerType = entryTriggerType;
-    boundary.entryTriggerEvent = normalizeTransitionEvent(
-      source.entryTriggerEvent || (entryTriggerType === "change" ? "" : defaultTransitionEvent({
-        id: "runtime.enter.child." + eventSegment(source.entryId || "entry"),
-        label: source.entryId || "entry",
-        triggerType: entryTriggerType
-      }))
-    );
+}
+
+function firstInvalidJsonValuePath(value, path) {
+  if (value === null || value === undefined) return path;
+  if (typeof value === "number" && !Number.isFinite(value)) return path;
+  if (!["boolean", "number", "object", "string"].includes(typeof value)) return path;
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index += 1) {
+      if (!Object.prototype.hasOwnProperty.call(value, index)) return `${path}[${index}]`;
+      const found = firstInvalidJsonValuePath(value[index], `${path}[${index}]`);
+      if (found) return found;
+    }
+    return "";
   }
-  return boundary;
+  if (typeof value !== "object") return "";
+  if (!isPlainObject(value)) return path;
+  for (const [key, child] of Object.entries(value)) {
+    const found = firstInvalidJsonValuePath(child, `${path}.${key}`);
+    if (found) return found;
+  }
+  return "";
 }
 
 function normalizeSubscriptionPath(value) {
@@ -587,13 +682,8 @@ function normalizeSubscriptions(value) {
   return result.slice(0, 64);
 }
 
-function normalizeStateRenderMode(value) {
-  return String(value || "").trim() === "component" ? "component" : "state";
-}
-
 function normalizeTransitionTriggerType(transition) {
-  const value = String(transition?.triggerType || "button").toLowerCase();
-  return TRANSITION_TRIGGER_CONTRACT_TYPES.has(value) ? value : "button";
+  return transition?.triggerType === undefined ? "button" : String(transition.triggerType);
 }
 
 function transitionTriggerContractType(transition) {
@@ -673,20 +763,10 @@ function endpointParentId(model, id) {
   return state ? stateParentId(state) : boundaryProxyLayerId(id);
 }
 
-function transitionIdentityKey(transition) {
-  if (transition?.boundaryFlow) {
-    return `boundary:${transition.boundaryFlow.parentId || ""}:${transition.boundaryFlow.side || ""}`;
-  }
-  if (isBoundaryProxyId(transition?.from) || isBoundaryProxyId(transition?.to)) {
-    return `proxy:${transition?.from || ""}->${transition?.to || ""}`;
-  }
-  return `normal:${transition?.from || ""}->${transition?.to || ""}`;
-}
-
 function normalizeModel(input) {
   const m = isPlainObject(input) ? clone(input) : {};
   m.version = 2;
-  m.name = String(m.name || "State App");
+  m.name = String(m.name || "Unbenannter Ablauf");
   m.boundary = normalizeBoundaryConfig(m.boundary);
   delete m.realtime;
   m.states = Array.isArray(m.states) ? m.states : [];
@@ -701,9 +781,11 @@ function normalizeModel(input) {
 
   const usedStateIds = new Set();
   for (const state of m.states) {
-    state.id = uniqueId(usedStateIds, state.id || state.title, "state");
+    const explicitId = String(state.id || "").trim();
+    state.id = explicitId || uniqueId(usedStateIds, state.title, "state");
+    usedStateIds.add(state.id);
     state.title = String(state.title || state.id);
-    state.renderMode = normalizeStateRenderMode(state.renderMode);
+    delete state.renderMode;
     state.components = normalizeComponents(state.components);
     delete state.body;
     state.data = normalizeStateDataObject(state.data);
@@ -750,7 +832,6 @@ function normalizeModel(input) {
   }
 
   const isKnownEndpoint = id => ids.has(id) || isBoundaryProxyId(id);
-  const pairs = new Set();
   const usedTransitionIds = new Set(ids);
   m.transitions = m.transitions
     .filter(transition => isPlainObject(transition))
@@ -759,13 +840,12 @@ function normalizeModel(input) {
       if (endpointParentId(m, transition.from) !== endpointParentId(m, transition.to)) return false;
       if (transition.groupEntryId && (!ids.has(transition.groupEntryId) || stateParentId(byModelId(m, transition.groupEntryId)) !== transition.to)) transition.groupEntryId = "";
       if (transition.groupExitId && (!ids.has(transition.groupExitId) || stateParentId(byModelId(m, transition.groupExitId)) !== transition.from)) transition.groupExitId = "";
-      const pair = transitionIdentityKey(transition);
-      if (pairs.has(pair)) return false;
-      pairs.add(pair);
       return true;
     })
     .map(transition => {
-      const id = uniqueRawId(usedTransitionIds, transition.id || uniqueId([], transition.label, "t"), "t");
+      const explicitId = String(transition.id || "").trim();
+      const id = explicitId || uniqueRawId(usedTransitionIds, uniqueId([], transition.label, "t"), "t");
+      usedTransitionIds.add(id);
       const triggerType = normalizeTransitionTriggerType(transition);
       const rawTriggerEvent = normalizeTransitionEvent(transition.triggerEvent || "");
       return {
@@ -856,10 +936,6 @@ function effectiveTransitionTriggerStateId(transition) {
   return String(transition?.groupExitId || transition?.from || "");
 }
 
-function normalizeTransitionConditionKey(condition) {
-  return String(condition || "").trim().replace(/\s+/g, " ");
-}
-
 function transitionTriggerContractKey(transition) {
   const triggerType = normalizeTransitionTriggerType(transition);
   if (triggerType === "flow") return "";
@@ -867,10 +943,9 @@ function transitionTriggerContractKey(transition) {
   if (triggerType === "auto" || triggerType === "timer") return triggerType;
   const eventName = normalizeTransitionEvent(transition?.triggerEvent || "");
   const baseKey = triggerType === "change"
-    ? `change:${eventName || "*"}`
+    ? eventName ? `change:${eventName}` : ""
     : eventName ? `${triggerType}:${eventName}` : "";
-  const conditionKey = normalizeTransitionConditionKey(transition?.condition);
-  return baseKey && conditionKey ? `${baseKey}|condition:${conditionKey}` : baseKey;
+  return baseKey;
 }
 
 function transitionTriggerContractIssues(transitions) {
@@ -883,13 +958,25 @@ function transitionTriggerContractIssues(transitions) {
         code: "invalid_transition_trigger_type",
         transitionId: String(transition?.id || ""),
         triggerType: contractType,
-        message: "Transition triggerType must be one of button, change, event, realtime, timer, auto, flow."
+        message: "Transition triggerType must be one of button, change, event, realtime, api, timer, auto, flow."
       });
       continue;
     }
-    if (transition?.boundaryFlow || isBoundaryProxyId(transition?.from) || isBoundaryProxyId(transition?.to)) continue;
     const triggerType = normalizeTransitionTriggerType(transition);
-    if (triggerType === "flow") continue;
+    const technicalBoundaryFlow = Boolean(
+      transition?.boundaryFlow ||
+      isBoundaryProxyId(transition?.from) ||
+      isBoundaryProxyId(transition?.to)
+    );
+    if (triggerType === "flow" && !technicalBoundaryFlow) {
+      issues.push({
+        code: "invalid_public_flow_trigger",
+        transitionId: String(transition?.id || ""),
+        message: "flow is reserved for derived boundary projections."
+      });
+      continue;
+    }
+    if (technicalBoundaryFlow) continue;
     const stateId = effectiveTransitionTriggerStateId(transition);
     if (!byState.has(stateId)) byState.set(stateId, []);
     byState.get(stateId).push(transition);
@@ -917,7 +1004,7 @@ function transitionTriggerContractIssues(transitions) {
           stateId,
           triggerKey,
           transitionIds: [claims.get(triggerKey), transition.id],
-          message: "Each trigger-condition identity may be claimed only once per effective state."
+          message: "Each trigger identity may be claimed only once per effective state."
         });
         continue;
       }
@@ -929,14 +1016,106 @@ function transitionTriggerContractIssues(transitions) {
 
 function validateModel(model) {
   const rawContractIssues = [];
+  if (!isPlainObject(model)) {
+    return {
+      ok: false,
+      issues: [{ code: "invalid_model", message: "Model must be an object." }],
+      warnings: [],
+      summary: modelSummary(blankModel()),
+      model: blankModel()
+    };
+  }
+  if (model.version !== 2) rawContractIssues.push({ code: "invalid_model_version", message: "Model version must be 2." });
+  if (!Array.isArray(model.states)) rawContractIssues.push({ code: "invalid_states", message: "Model states must be an array." });
+  if (!Array.isArray(model.transitions)) rawContractIssues.push({ code: "invalid_transitions", message: "Model transitions must be an array." });
   rawContractIssues.push(...transitionTriggerContractIssues(Array.isArray(model?.transitions) ? model.transitions : []));
+  const forbiddenBoundaryKeys = ["layerTitle", "comment", "entryTriggerType", "entryTriggerEvent"];
+  const inspectBoundary = (boundary, path) => {
+    if (!isPlainObject(boundary)) return;
+    for (const key of forbiddenBoundaryKeys) {
+      if (Object.prototype.hasOwnProperty.call(boundary, key)) {
+        rawContractIssues.push({
+          code: "invalid_boundary_field",
+          path: `${path}.${key}`,
+          message: `${path}.${key} is not part of the canonical boundary contract.`
+        });
+      }
+    }
+  };
+  inspectBoundary(model?.boundary, "model.boundary");
   const rawStateIds = new Set();
+  const rawStateById = new Map();
   for (const state of Array.isArray(model?.states) ? model.states : []) {
     const id = String(state?.id || "").trim();
-    if (id) rawStateIds.add(id);
+    if (!id) {
+      rawContractIssues.push({ code: "missing_state_id", message: "Every state must define an ID." });
+      continue;
+    }
+    if (rawStateIds.has(id)) {
+      rawContractIssues.push({ code: "duplicate_state_id", stateId: id, message: `State ID ${id} must be unique.` });
+      continue;
+    }
+    rawStateIds.add(id);
+    rawStateById.set(id, state);
   }
+  if (rawStateIds.size && !rawStateIds.has(String(model.initial || ""))) {
+    rawContractIssues.push({ code: "missing_initial", message: "Initial state must reference an existing state." });
+  }
+  for (const [id, state] of rawStateById) {
+    const parentId = state?.parentId == null || state.parentId === "" ? null : String(state.parentId);
+    if (parentId && (!rawStateIds.has(parentId) || parentId === id)) {
+      rawContractIssues.push({ code: "invalid_parent", stateId: id, message: `Parent of ${id} must reference another state.` });
+    }
+    const seen = new Set([id]);
+    let current = state;
+    while (current?.parentId) {
+      const parent = String(current.parentId);
+      if (seen.has(parent)) {
+        rawContractIssues.push({ code: "cyclic_parent", stateId: id, message: `Parent chain of ${id} must not contain a cycle.` });
+        break;
+      }
+      seen.add(parent);
+      current = rawStateById.get(parent);
+    }
+  }
+  const validateBoundaryReference = (boundary, parentId, side) => {
+    const endpointId = String(boundary?.[side === "entry" ? "entryId" : "exitId"] || "");
+    if (!endpointId) return false;
+    const endpoint = rawStateById.get(endpointId);
+    if (!endpoint || (endpoint.parentId || null) !== parentId) {
+      rawContractIssues.push({
+        code: `invalid_boundary_${side}`,
+        stateId: parentId || "",
+        message: `${side === "entry" ? "Entry" : "Exit"} boundary must reference a direct child of its layer.`
+      });
+      return false;
+    }
+    return true;
+  };
+  validateBoundaryReference(model.boundary, null, "entry");
+  validateBoundaryReference(model.boundary, null, "exit");
+  for (const [id, state] of rawStateById) {
+    const children = [...rawStateById.values()].filter(candidate => (candidate.parentId || null) === id);
+    const hasEntry = validateBoundaryReference(state.boundary, id, "entry");
+    validateBoundaryReference(state.boundary, id, "exit");
+    if (children.length && !state?.boundary?.entryDisabled && !hasEntry) {
+      rawContractIssues.push({
+        code: "missing_boundary_entry",
+        stateId: id,
+        message: `Parent ${id} must define boundary.entryId or explicitly disable automatic entry.`
+      });
+    }
+  }
+  const rawTransitionIds = new Set();
   for (const transition of Array.isArray(model?.transitions) ? model.transitions : []) {
     const id = String(transition?.id || "").trim();
+    if (!id) {
+      rawContractIssues.push({ code: "missing_transition_id", message: "Every transition must define an ID." });
+    } else if (rawTransitionIds.has(id)) {
+      rawContractIssues.push({ code: "duplicate_transition_id", transitionId: id, message: `Transition ID ${id} must be unique.` });
+    } else {
+      rawTransitionIds.add(id);
+    }
     if (id && rawStateIds.has(id)) {
       rawContractIssues.push({
         code: "state_transition_id_collision",
@@ -944,8 +1123,28 @@ function validateModel(model) {
         message: "State and transition IDs must share one global namespace."
       });
     }
+    if (transition?.boundaryFlow || isBoundaryProxyId(transition?.from) || isBoundaryProxyId(transition?.to)) continue;
+    const from = String(transition?.from || "");
+    const to = String(transition?.to || "");
+    if (!rawStateIds.has(from) || !rawStateIds.has(to)) {
+      rawContractIssues.push({ code: "missing_transition_endpoint", transitionId: id, message: `Transition ${id || "<unknown>"} must reference existing states.` });
+      continue;
+    }
+    const fromParent = rawStateById.get(from)?.parentId || null;
+    const toParent = rawStateById.get(to)?.parentId || null;
+    if (fromParent !== toParent) {
+      rawContractIssues.push({ code: "cross_layer_transition", transitionId: id, message: `Transition ${id} must stay inside one layer.` });
+    }
   }
   for (const state of Array.isArray(model?.states) ? model.states : []) {
+    if (Object.prototype.hasOwnProperty.call(state || {}, "renderMode")) {
+      rawContractIssues.push({
+        code: "invalid_state_render_mode",
+        stateId: String(state?.id || ""),
+        message: "renderMode is not part of the contract; visible components belong to their state."
+      });
+    }
+    inspectBoundary(state?.boundary, `model.states.${String(state?.id || "")}.boundary`);
     rawContractIssues.push(...stateDataContractIssues(state?.data, String(state?.id || "")));
     rawContractIssues.push(...stateDataTypeContractIssues(state?.dataTypes, state?.data, String(state?.id || "")));
     rawContractIssues.push(...runtimeReferenceContractIssuesForState(state));
@@ -962,6 +1161,17 @@ function validateModel(model) {
   }
   for (const transition of Array.isArray(model?.transitions) ? model.transitions : []) {
     rawContractIssues.push(...runtimeReferenceContractIssuesForTransition(transition));
+    if (isPlainObject(transition?.set)) {
+      const invalidValuePath = firstInvalidJsonValuePath(transition.set, "transition.set");
+      if (invalidValuePath) {
+        rawContractIssues.push({
+          code: "invalid_transition_set_value",
+          transitionId: String(transition?.id || ""),
+          path: invalidValuePath,
+          message: `${invalidValuePath} must be a fully defined JSON value.`
+        });
+      }
+    }
   }
   const normalized = normalizeModel(model);
   const issues = [...rawContractIssues];
@@ -1066,6 +1276,12 @@ function ensureBoundaryFlowTransition(model, parentId, side, stateId) {
 }
 
 function createState(model, args) {
+  if (Object.prototype.hasOwnProperty.call(args || {}, "renderMode")) {
+    throw new Error("renderMode is not part of the contract; visible components belong to their state.");
+  }
+  if (args?.boundary && ["layerTitle", "comment", "entryTriggerType", "entryTriggerEvent"].some(key => Object.prototype.hasOwnProperty.call(args.boundary, key))) {
+    throw new Error("State boundary contains a non-contract field.");
+  }
   assertNoHiddenComponentStateInComponents(args.components);
   const existingIds = new Set(model.states.map(state => state.id));
   const id = uniqueId(existingIds, args.id || args.title, "state");
@@ -1076,7 +1292,6 @@ function createState(model, args) {
   const state = {
     id,
     title: String(args.title || id),
-    renderMode: normalizeStateRenderMode(args.renderMode),
     components: normalizeComponents(args.components),
     data: normalizeStateDataObject(args.data),
     dataTypes: normalizeDataTypes(args.dataTypes, normalizeStateDataObject(args.data)),
@@ -1095,6 +1310,12 @@ function createState(model, args) {
 }
 
 function upsertState(model, args) {
+  if (Object.prototype.hasOwnProperty.call(args || {}, "renderMode")) {
+    throw new Error("renderMode is not part of the contract; visible components belong to their state.");
+  }
+  if (args?.boundary && ["layerTitle", "comment", "entryTriggerType", "entryTriggerEvent"].some(key => Object.prototype.hasOwnProperty.call(args.boundary, key))) {
+    throw new Error("State boundary contains a non-contract field.");
+  }
   if ("components" in args) assertNoHiddenComponentStateInComponents(args.components);
   const id = args.id ? String(args.id) : "";
   const existing = id ? byModelId(model, id) : null;
@@ -1108,7 +1329,6 @@ function upsertState(model, args) {
     );
   }
   if ("title" in args) existing.title = String(args.title || existing.id);
-  if ("renderMode" in args) existing.renderMode = normalizeStateRenderMode(args.renderMode);
   if ("parentId" in args) {
     const parentId = args.parentId ? String(args.parentId) : null;
     if (parentId && !byModelId(model, parentId)) throw new Error(`Parent state not found: ${parentId}`);
@@ -1146,15 +1366,33 @@ function deleteState(model, args) {
   const id = String(args.id || "");
   if (!id) throw new Error("delete_state requires id.");
   const ids = args.deleteDescendants === false ? new Set([id]) : descendantStateIds(model, [id]);
+  if (ids.has(model.initial) && model.states.some(state => !ids.has(state.id))) {
+    throw new Error("Set a surviving initial state before deleting the current initial state.");
+  }
   model.states = model.states.filter(state => !ids.has(state.id));
   model.transitions = model.transitions.filter(transition =>
     !ids.has(transition.from) &&
     !ids.has(transition.to) &&
-    !ids.has(transition.groupEntryId) &&
-    !ids.has(transition.groupExitId) &&
     !ids.has(transition.boundaryFlow?.stateId)
   );
-  if (ids.has(model.initial)) model.initial = model.states[0]?.id || "";
+  const clearBoundaryReference = (boundary, parentId) => {
+    const hasChildren = model.states.some(state => stateParentId(state) === parentId);
+    if (ids.has(boundary.entryId)) {
+      boundary.entryId = "";
+      boundary.entryDisabled = hasChildren;
+    }
+    if (ids.has(boundary.exitId)) {
+      boundary.exitId = "";
+      boundary.exitDisabled = hasChildren;
+    }
+  };
+  clearBoundaryReference(model.boundary, null);
+  for (const state of model.states) clearBoundaryReference(state.boundary, state.id);
+  for (const transition of model.transitions) {
+    if (ids.has(transition.groupEntryId)) transition.groupEntryId = "";
+    if (ids.has(transition.groupExitId)) transition.groupExitId = "";
+  }
+  if (!model.states.length) model.initial = "";
   return { deleted: [...ids] };
 }
 
@@ -1203,9 +1441,8 @@ function collapseEntryStateForModel(model, stateIds) {
     !transition.boundaryFlow
   );
   const incoming = new Set(selectedTransitions.map(transition => transition.to));
-  return states.find(state => !incoming.has(state.id)) ||
-    states.slice().sort((a, b) => a.x - b.x || a.y - b.y || String(a.id).localeCompare(String(b.id)))[0] ||
-    null;
+  const candidates = states.filter(state => !incoming.has(state.id));
+  return candidates.length === 1 ? candidates[0] : null;
 }
 
 function collapseExitStateForModel(model, stateIds) {
@@ -1217,9 +1454,8 @@ function collapseExitStateForModel(model, stateIds) {
     !transition.boundaryFlow
   );
   const outgoing = new Set(selectedTransitions.map(transition => transition.from));
-  return states.find(state => !outgoing.has(state.id)) ||
-    states.slice().sort((a, b) => b.x - a.x || b.y - a.y || String(a.id).localeCompare(String(b.id)))[0] ||
-    null;
+  const candidates = states.filter(state => !outgoing.has(state.id));
+  return candidates.length === 1 ? candidates[0] : null;
 }
 
 function stateBounds(states) {
@@ -1266,8 +1502,8 @@ function collapseStatesToParent(model, args = {}) {
     boundary: {
       entryId: entry.id,
       exitId: exit.id,
-      entryTriggerType: args.entryTriggerType || "auto",
-      entryTriggerEvent: args.entryTriggerEvent || ""
+      entryDisabled: false,
+      exitDisabled: false
     }
   });
 
@@ -1307,10 +1543,7 @@ function childBoundaryState(model, parent, side) {
   const children = statesInLayer(model, parent.id);
   const boundary = normalizeBoundaryConfig(parent.boundary);
   const configuredId = side === "input" ? boundary.entryId : boundary.exitId;
-  const configured = children.find(state => state.id === configuredId);
-  if (configured) return configured;
-  return side === "input" ? children.slice().sort((a, b) => a.x - b.x || a.y - b.y || String(a.id).localeCompare(String(b.id)))[0] || null
-    : children.slice().sort((a, b) => b.x - a.x || b.y - a.y || String(a.id).localeCompare(String(b.id)))[0] || null;
+  return children.find(state => state.id === configuredId) || null;
 }
 
 function removeBoundaryFlowsForParent(model, parentId) {
@@ -1329,8 +1562,8 @@ function degroupParentState(model, args = {}) {
   const childIds = new Set(children.map(child => child.id));
   const outerParentId = stateParentId(parent);
   const outerBoundary = normalizeBoundaryConfig(layerContainerBoundary(model, outerParentId));
-  const entry = childBoundaryState(model, parent, "input") || children[0];
-  const exit = childBoundaryState(model, parent, "output") || children[children.length - 1] || entry;
+  const entry = childBoundaryState(model, parent, "input");
+  const exit = childBoundaryState(model, parent, "output");
   if (!entry || !exit) throw new Error("Cannot degroup without entry and exit children.");
 
   for (const transition of model.transitions) {
@@ -1378,7 +1611,7 @@ function upsertTransition(model, args) {
   target.set = normalizeTransitionPatch(args.set);
   const triggerType = transitionTriggerContractType(args);
   if (!TRANSITION_TRIGGER_CONTRACT_TYPES.has(triggerType) || triggerType === "flow") {
-    throw new Error("upsert_transition triggerType must be one of button, change, event, realtime, timer, auto.");
+    throw new Error("upsert_transition triggerType must be one of button, change, event, realtime, api, timer, auto.");
   }
   target.triggerType = triggerType;
   target.triggerEvent = normalizeTransitionEventName(args.triggerEvent || (target.triggerType === "change" ? "" : defaultTransitionEvent(target)));
@@ -1591,7 +1824,14 @@ function orderedActions(actions) {
 
 function applyActions(inputModel, actions, options = {}) {
   if (!Array.isArray(actions)) throw new Error("actions must be an array.");
-  const model = normalizeModel(inputModel || blankModel());
+  const input = isPlainObject(inputModel) && !Object.keys(inputModel).length ? blankModel() : inputModel || blankModel();
+  const inputValidation = validateModel(input);
+  if (!inputValidation.ok) {
+    const error = new Error(inputValidation.issues.map(issue => issue.message).join("; ") || "Model contract validation failed.");
+    error.validation = inputValidation;
+    throw error;
+  }
+  const model = inputValidation.model;
   const results = [];
   for (const action of orderedActions(actions)) {
     results.push(applyAction(model, action));
@@ -1653,10 +1893,19 @@ function normalizeCommandHistory(value) {
 
 function normalizeWorkspace(value = {}) {
   const source = isPlainObject(value) ? value : {};
-  const model = normalizeModel(source.model || source);
+  if (Array.isArray(source.stateTemplates) && source.stateTemplates.length) {
+    throw new Error("stateTemplates are contract-managed and must not be stored in a workspace.");
+  }
+  const candidate = source.model || (source.version === 2 ? source : blankModel());
+  const validation = validateModel(candidate);
+  if (!validation.ok) {
+    const error = new Error(validation.issues.map(issue => issue.message).join("; ") || "Model contract validation failed.");
+    error.validation = validation;
+    throw error;
+  }
+  const model = validation.model;
   const workspace = {
     model,
-    stateTemplates: Array.isArray(source.stateTemplates) ? clone(source.stateTemplates) : [],
     editor: normalizeEditorSession(source.editor, model),
     clipboard: isPlainObject(source.clipboard) ? clone(source.clipboard) : null,
     history: normalizeCommandHistory(source.history)
@@ -1668,7 +1917,6 @@ function normalizeWorkspace(value = {}) {
 function commandSnapshot(workspace) {
   return {
     model: normalizeModel(workspace.model),
-    stateTemplates: Array.isArray(workspace.stateTemplates) ? clone(workspace.stateTemplates) : [],
     editor: normalizeEditorSession(workspace.editor, workspace.model),
     clipboard: isPlainObject(workspace.clipboard) ? clone(workspace.clipboard) : null
   };
@@ -1677,7 +1925,6 @@ function commandSnapshot(workspace) {
 function restoreCommandSnapshot(workspace, snapshot) {
   const restored = normalizeWorkspace(snapshot);
   workspace.model = restored.model;
-  workspace.stateTemplates = restored.stateTemplates;
   workspace.editor = restored.editor;
   workspace.clipboard = restored.clipboard;
   workspace.history.current = commandSnapshot(workspace);
@@ -2081,16 +2328,35 @@ const commandCatalog = [
   ["history.redo", "Redo the last undone command-level mutation."]
 ].map(([name, description]) => ({ name, description }));
 
+function formalModelDefinition(model) {
+  const validation = validateModel(model);
+  if (!validation.ok) {
+    const error = new Error(validation.issues.map(issue => issue.message).join("; ") || "Model contract validation failed.");
+    error.validation = validation;
+    throw error;
+  }
+  const normalizedModel = validation.model;
+  normalizedModel.transitions = normalizedModel.transitions.filter(transition =>
+    !transition.boundaryFlow &&
+    !isBoundaryProxyId(transition.from) &&
+    !isBoundaryProxyId(transition.to)
+  );
+  return normalizedModel;
+}
+
 function definitionPayload(model, stateTemplates = [], editor = {}) {
-  const normalizedModel = normalizeModel(model);
+  if (Array.isArray(stateTemplates) && stateTemplates.length) {
+    throw new Error("stateTemplates are contract-managed and must not be exported in a definition.");
+  }
+  const normalizedModel = formalModelDefinition(model);
   const session = normalizeEditorSession(editor, normalizedModel);
   return {
     kind: "state-blueprint-definition",
     schemaVersion: 2,
-    app: "State Blueprint",
+    app: "Zustand",
     savedAt: new Date().toISOString(),
     model: normalizedModel,
-    stateTemplates: Array.isArray(stateTemplates) ? clone(stateTemplates) : [],
+    stateTemplates: [],
     camera: session.camera,
     previewCollapsed: session.previewCollapsed
   };

@@ -64,22 +64,31 @@ nicht über DOM-Klicks.
 - Ein Aktionsslot besitzt entweder eine Transition-ID oder eine URL. Beides im
   selben Slot ist ein Contract-Fehler.
 - Trigger bleiben an Transitionen. Pro effektiver Quelle darf jede konkrete
-  Trigger-Condition-Identität nur einmal vorkommen; derselbe Event darf mehrere
-  Ausgänge besitzen, wenn deren Conditions unterschiedlich sind. Ein Timer ist
-  einmal zulässig und `auto` ist exklusiv. MCP-Aktionen mit einem Konflikt
-  werden nicht angewendet.
+  Triggeridentität nur einmal vorkommen. Conditions sind keine
+  Prioritäts- oder Eindeutigkeitsregel; derselbe Event darf deshalb nicht von
+  mehreren Ausgängen beansprucht werden. Ein Timer ist einmal zulässig und
+  `auto` ist exklusiv. MCP-Aktionen mit einem Konflikt werden nicht angewendet.
 - Zulässige fachliche `triggerType`-Werte sind ausschließlich `button`,
-  `change`, `event`, `realtime`, `timer` und `auto`; internes `flow` ist nur
+  `change`, `event`, `realtime`, `api`, `timer` und `auto`; internes `flow` ist nur
   strukturelle Child-Führung. Andere Werte werden weder als Alias akzeptiert
   noch zu `button` normalisiert.
 - `transition.set` ist Wirkung nach einem Ereignis, nicht die Quelle einer
   Schaltflächen-Bindung.
 - Realtime-Übergänge speichern `triggerType: "realtime"` plus konkrete
   `realtime.*`-Ereignisse; Ereigniskataloge werden nicht ins Modell kopiert.
+- API-Übergänge speichern `triggerType: "api"` plus exakt
+  `fetch.<target>.success` oder `fetch.<target>.error`; sie sind kein
+  `change`- oder `event`-Alias.
+- Conditions verwenden nur die kanonische Grammatik aus
+  [`state-contract.md`](./state-contract.md). `null`, `undefined` und freie
+  JavaScript-Ausdrücke werden abgelehnt.
 - Preset-Kategorien, Paketmetadaten und Preset-Definitionen bleiben im
   serverseitigen Product Contract; MCP persistiert sie ebenso wenig im Modell
   wie der Editor.
 - Verschachtelter Ablauf läuft über Boundary-Eingang/-Ausgang und Proxy-Übergänge.
+- Zusammengesetzte Definitionen und Presets deklarieren ihren internen
+  Boundary-Einstieg selbst. Import und MCP wählen niemals das erste, letzte
+  oder geometrisch nächste Child als Ersatz.
 - Exportierte Definitionen enthalten keine Undo-Historie und keinen
   Editor-Zwischenablage.
 - Lokale `state.data`-Pfade deklarieren Defaults; Runtime-Referenzen sind immer

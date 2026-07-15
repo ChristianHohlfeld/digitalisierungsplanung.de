@@ -6,11 +6,13 @@ const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
 const WebSocket = require("ws");
+const adminTools = require("./admin-tools");
 const eventCatalog = require("./event-catalog");
 const presetLibrary = require("./preset-library");
 const {
   createRealtimeServer,
   createRoomToken,
+  loadConfig,
   verifyRoomToken
 } = require("./server");
 
@@ -200,17 +202,6 @@ test("serves the event and connector catalog only to allowed origins", async () 
     });
     assert.equal(rejected.status, 403);
 
-    const contract = await fetch(httpUrl(realtime, "/events/contract"), {
-      headers: { Origin: ORIGIN }
-    });
-    assert.equal(contract.status, 200);
-    const contractPayload = await contract.json();
-    assert.ok(contractPayload.events.some(event => event.name === "realtime.sip.call.incoming"));
-    assert.deepEqual(
-      contractPayload.events.find(event => event.name === "realtime.sip.call.incoming").detail,
-      { caller: "text", callee: "text", callId: "text" }
-    );
-
     const productContract = await fetch(httpUrl(realtime, "/contract"), {
       headers: { Origin: ORIGIN }
     });
@@ -221,6 +212,8 @@ test("serves the event and connector catalog only to allowed origins", async () 
     assert.ok(productContractPayload.triggerTypes.some(type => type.id === "button"));
     assert.ok(productContractPayload.triggerTypes.some(type => type.id === "timer"));
     assert.ok(productContractPayload.triggerTypes.some(type => type.id === "api"));
+    const apiTrigger = productContractPayload.triggerTypes.find(type => type.id === "api");
+    assert.deepEqual(apiTrigger.events.map(event => event.name), ["fetch.*.success", "fetch.*.error"]);
     assert.deepEqual(
       productContractPayload.subscriptionPlans.map(plan => plan.id),
       ["starter", "business", "scale"]
@@ -488,6 +481,15 @@ test("serves one central admin hub from the server route index", async () => {
     assert.ok(index.endpoints.some(endpoint => endpoint.method === "WSS" && endpoint.path === "/ws"));
     assert.ok(index.endpoints.some(endpoint => endpoint.method === "POST" && endpoint.path === "/emit"));
     assert.ok(index.endpoints.some(endpoint => endpoint.method === "POST" && endpoint.path === "/assets/inline-image"));
+    for (const endpoint of index.endpoints.filter(endpoint => endpoint.method !== "WSS")) {
+      const method = endpoint.method.includes("GET") ? "GET" : "POST";
+      const response = await fetch(httpUrl(realtime, endpoint.path), {
+        method,
+        headers: { Origin: ORIGIN, "content-type": "application/json" },
+        body: method === "POST" ? "{}" : undefined
+      });
+      assert.notEqual(response.status, 404, `${endpoint.id} is listed by admin tools but missing on the server`);
+    }
   });
 });
 
@@ -495,28 +497,12 @@ test("nginx proxies only lean public realtime routes", () => {
   const nginx = fs.readFileSync(NGINX_CONFIG_PATH, "utf8");
   const serverSource = fs.readFileSync(path.join(__dirname, "server.js"), "utf8");
   const normalized = nginx.replace(/\\\./g, ".");
-  for (const route of [
-    "location = /",
-    "admin.html",
-    "/admin/routes",
-    "console.html",
-    "events-admin.html",
-    "/events-admin/catalog",
-    "presets-admin.html",
-    "/presets-admin/catalog",
-    "/presets-admin/parse",
-    "/presets-admin/import",
-    "/assets/inline-image",
-    "/contract",
-    "/events/contract",
-    "/healthz",
-    "/version",
-    "/token",
-    "/events",
-    "/emit",
-    "/ws"
-  ]) {
-    assert.ok(normalized.includes(route), `${route} route is missing`);
+  const routeIndex = adminTools.adminRouteIndex(loadConfig({}));
+  for (const endpoint of routeIndex.endpoints) {
+    assert.ok(
+      normalized.includes(`location = ${endpoint.path}`),
+      `${endpoint.id} (${endpoint.path}) is listed by admin tools but missing from nginx`
+    );
   }
   assert.match(normalized, /location = \/ws/);
   assert.doesNotMatch(normalized, /\/process\//);
@@ -632,7 +618,7 @@ test("serves an admin event designer that validates, commits, and pushes the cat
       const refreshedCatalog = await refreshed.json();
       assert.ok(refreshedCatalog.events.some(event => event.name === "realtime.sip.call.missed"));
       assert.equal(refreshedCatalog.release.releaseId, "release-1");
-      const refreshedContract = await fetch(httpUrl(realtime, "/events/contract"));
+      const refreshedContract = await fetch(httpUrl(realtime, "/events"));
       assert.equal(refreshedContract.status, 200);
       const refreshedContractPayload = await refreshedContract.json();
       assert.ok(refreshedContractPayload.events.some(event => event.name === "realtime.sip.call.missed"));

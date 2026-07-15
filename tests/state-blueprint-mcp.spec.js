@@ -97,16 +97,15 @@ test.describe("State Blueprint MCP", () => {
     expect(validation.issues.some(issue => issue.code === "state_transition_id_collision")).toBe(true);
 
     const normalized = normalizeModel(model);
-    expect(normalized.transitions[0].id).not.toBe("start");
+    expect(normalized.transitions[0].id).toBe("start");
 
-    const applied = applyActions(model, [{
+    expect(() => applyActions(model, [{
       type: "upsert_transition",
       id: "start",
       from: "start",
       to: "start",
       label: "Loop"
-    }], { allowInvalid: true });
-    expect(applied.model.transitions[0].id).not.toBe("start");
+    }], { allowInvalid: true })).toThrow("State and transition IDs must share one global namespace");
   });
 
   test("uses Weiter only for empty labels and treats every explicit name as opaque @smoke", () => {
@@ -176,7 +175,7 @@ test.describe("State Blueprint MCP", () => {
     expect(validation.ok).toBe(false);
     expect(validation.issues.map(issue => issue.code)).toEqual(expect.arrayContaining([
       "invalid_component_data_path",
-      "invalid_component_template_path",
+      "invalid_component_template",
       "invalid_data_source_target",
       "invalid_repeat_path",
       "invalid_data_wire_source",
@@ -251,7 +250,7 @@ test.describe("State Blueprint MCP", () => {
       ],
       transitions: [
         { id: "click_a", from: "start", to: "a", label: "A", triggerType: "button", set: {} },
-        { id: "event_b", from: "start", to: "b", label: "B", triggerType: "realtime", triggerEvent: "realtime.route.b", set: {} }
+        { id: "event_b", from: "start", to: "b", label: "B", triggerType: "realtime", triggerEvent: "realtime.sip.call.incoming", set: {} }
       ]
     });
 
@@ -264,6 +263,14 @@ test.describe("State Blueprint MCP", () => {
     ];
     expect(validateModel(distinctButtons).ok).toBe(true);
 
+    const parallelRoute = base();
+    parallelRoute.transitions = [
+      { id: "click_a", from: "start", to: "a", label: "A click", triggerType: "button", set: {} },
+      { id: "event_a", from: "start", to: "a", label: "A event", triggerType: "realtime", triggerEvent: "realtime.sip.call.incoming", set: {} }
+    ];
+    expect(validateModel(parallelRoute).ok).toBe(true);
+    expect(normalizeModel(parallelRoute).transitions.map(transition => transition.id)).toEqual(["click_a", "event_a"]);
+
     const guarded = base();
     guarded.states[0].data.route = "b";
     guarded.states[0].dataTypes = { route: "text" };
@@ -274,11 +281,14 @@ test.describe("State Blueprint MCP", () => {
       to: "c",
       label: "C event",
       triggerType: "realtime",
-      triggerEvent: "realtime.route.b",
+      triggerEvent: "realtime.sip.call.incoming",
       condition: 'states.start.route == "c"',
       set: {}
     });
-    expect(validateModel(guarded).ok).toBe(true);
+    expect(validateModel(guarded).issues).toContainEqual(expect.objectContaining({
+      code: "duplicate_transition_trigger",
+      triggerKey: "realtime:realtime.sip.call.incoming"
+    }));
 
     const duplicateChange = base();
     duplicateChange.transitions = [
@@ -292,7 +302,7 @@ test.describe("State Blueprint MCP", () => {
       { id: "change_a", from: "start", to: "a", label: "A", triggerType: "change", triggerEvent: "", set: {} },
       { id: "change_b", from: "start", to: "b", label: "B", triggerType: "change", triggerEvent: "", set: {} }
     ];
-    expect(validateModel(duplicateWildcardChange).issues).toContainEqual(expect.objectContaining({ code: "duplicate_transition_trigger", triggerKey: "change:*" }));
+    expect(validateModel(duplicateWildcardChange).issues).toContainEqual(expect.objectContaining({ code: "invalid_change_trigger_path", transitionId: "change_a" }));
 
     const duplicateEvent = base();
     duplicateEvent.transitions = [
@@ -302,11 +312,11 @@ test.describe("State Blueprint MCP", () => {
     expect(validateModel(duplicateEvent).issues).toContainEqual(expect.objectContaining({ code: "duplicate_transition_trigger", triggerKey: "event:event.route" }));
 
     const duplicateRealtime = base();
-    duplicateRealtime.transitions.push({ id: "event_c", from: "start", to: "c", label: "C event", triggerType: "realtime", triggerEvent: "realtime.route.b", set: {} });
+    duplicateRealtime.transitions.push({ id: "event_c", from: "start", to: "c", label: "C event", triggerType: "realtime", triggerEvent: "realtime.sip.call.incoming", set: {} });
     expect(validateModel(duplicateRealtime).issues).toContainEqual(expect.objectContaining({ code: "duplicate_transition_trigger", stateId: "start" }));
 
     const duplicateSamePair = base();
-    duplicateSamePair.transitions.push({ id: "event_a", from: "start", to: "a", label: "A event", triggerType: "realtime", triggerEvent: "realtime.route.b", set: {} });
+    duplicateSamePair.transitions.push({ id: "event_a", from: "start", to: "a", label: "A event", triggerType: "realtime", triggerEvent: "realtime.sip.call.incoming", set: {} });
     expect(validateModel(duplicateSamePair).issues).toContainEqual(expect.objectContaining({ code: "duplicate_transition_trigger", stateId: "start" }));
 
     const timers = base();
@@ -324,6 +334,11 @@ test.describe("State Blueprint MCP", () => {
     unknown.transitions[0].triggerType = "click";
     expect(validateModel(unknown).issues).toContainEqual(expect.objectContaining({ code: "invalid_transition_trigger_type", transitionId: "click_a" }));
 
+    const publicFlow = base();
+    publicFlow.transitions[0].triggerType = "flow";
+    publicFlow.transitions[0].triggerEvent = "flow.child.entry";
+    expect(validateModel(publicFlow).issues).toContainEqual(expect.objectContaining({ code: "invalid_public_flow_trigger", transitionId: "click_a" }));
+
     const missing = base();
     missing.transitions[1].triggerEvent = "";
     expect(validateModel(missing).issues).toContainEqual(expect.objectContaining({ code: "missing_transition_trigger", transitionId: "event_b" }));
@@ -335,8 +350,8 @@ test.describe("State Blueprint MCP", () => {
       to: "c",
       label: "C event",
       triggerType: "realtime",
-      triggerEvent: "realtime.route.b"
-    }])).toThrow("Each trigger-condition identity may be claimed only once");
+      triggerEvent: "realtime.sip.call.incoming"
+    }])).toThrow("Each trigger identity may be claimed only once");
 
     expect(() => applyActions(base(), [{
       type: "upsert_transition",
@@ -345,7 +360,57 @@ test.describe("State Blueprint MCP", () => {
       to: "c",
       label: "Invalid",
       triggerType: "click"
-    }])).toThrow("triggerType must be one of button, change, event, realtime, timer, auto");
+    }])).toThrow("triggerType must be one of button, change, event, realtime, api, timer, auto");
+  });
+
+  test("rejects undefined JSON values and keeps API responses as a first-class trigger @smoke", () => {
+    const model = {
+      version: 2,
+      name: "Defined API state",
+      initial: "loading",
+      states: [
+        { id: "loading", title: "Loading", data: { fetch: {} }, components: [] },
+        { id: "done", title: "Done", data: {}, components: [] },
+        { id: "failed", title: "Failed", data: {}, components: [] }
+      ],
+      transitions: [
+        { id: "success", from: "loading", to: "done", label: "Done", triggerType: "api", triggerEvent: "fetch.states.loading.fetch.success", set: {} },
+        { id: "error", from: "loading", to: "failed", label: "Failed", triggerType: "api", triggerEvent: "fetch.states.loading.fetch.error", set: {} }
+      ]
+    };
+
+    expect(validateModel(model).ok).toBe(true);
+
+    const nullData = structuredClone(model);
+    nullData.states[0].data.fetch = null;
+    expect(validateModel(nullData).issues).toContainEqual(expect.objectContaining({ code: "invalid_state_data_value" }));
+
+    const undefinedData = structuredClone(model);
+    undefinedData.states[0].data.fetch = undefined;
+    expect(validateModel(undefinedData).issues).toContainEqual(expect.objectContaining({ code: "invalid_state_data_value" }));
+
+    const nonFiniteData = structuredClone(model);
+    nonFiniteData.states[0].data.fetch = Number.NaN;
+    expect(validateModel(nonFiniteData).issues).toContainEqual(expect.objectContaining({ code: "invalid_state_data_value" }));
+
+    const sparseData = structuredClone(model);
+    sparseData.states[0].data.fetch = [];
+    sparseData.states[0].data.fetch.length = 1;
+    expect(validateModel(sparseData).issues).toContainEqual(expect.objectContaining({ code: "invalid_state_data_value" }));
+
+    const nullSet = structuredClone(model);
+    nullSet.transitions[0].set = { "states.loading.fetch": { value: null } };
+    expect(validateModel(nullSet).issues).toContainEqual(expect.objectContaining({ code: "invalid_transition_set_value" }));
+
+    for (const condition of ["states.loading.fetch == null", "states.loading.fetch != undefined"]) {
+      const invalidCondition = structuredClone(model);
+      invalidCondition.transitions[0].condition = condition;
+      expect(validateModel(invalidCondition).issues).toContainEqual(expect.objectContaining({ code: "invalid_transition_condition" }));
+    }
+
+    const genericFetch = structuredClone(model);
+    genericFetch.transitions[0].triggerType = "event";
+    expect(validateModel(genericFetch).issues).toContainEqual(expect.objectContaining({ code: "invalid_event_trigger_namespace" }));
   });
 
   test("documents the public MCP tools and model actions @smoke", () => {
@@ -554,6 +619,42 @@ test.describe("State Blueprint MCP", () => {
       expect.objectContaining({ id: "start_review", from: "start", to: "review" }),
       expect.objectContaining({ id: "review_done", from: "review", to: "done" })
     ]);
+  });
+
+  test("requires explicit group boundaries when the selected graph has multiple sources or sinks @smoke", () => {
+    const disconnected = applyCommands({}, [
+      { command: "scene.new", title: "Ambiguous Group" },
+      { command: "state.create", id: "left", title: "Left", x: 96, y: 120 },
+      { command: "state.create", id: "right", title: "Right", x: 360, y: 120 }
+    ]).workspace;
+
+    expect(() => applyCommands(disconnected, [{
+      command: "graph.collapse_to_parent",
+      id: "ambiguous",
+      stateIds: ["left", "right"]
+    }])).toThrow(/needs entry and exit states/i);
+
+    expect(() => applyCommands(disconnected, [
+      { command: "state.delete", id: "left" }
+    ])).toThrow(/surviving initial state/i);
+
+    const explicitInitial = applyCommands(disconnected, [
+      { command: "state.set_initial", stateId: "right" },
+      { command: "state.delete", id: "left" }
+    ]);
+    expect(explicitInitial.workspace.model.initial).toBe("right");
+    expect(explicitInitial.workspace.model.states.map(state => state.id)).toEqual(["right"]);
+
+    const explicit = applyCommands(disconnected, [{
+      command: "graph.collapse_to_parent",
+      id: "explicit",
+      stateIds: ["left", "right"],
+      entryId: "left",
+      exitId: "right"
+    }]);
+    expect(explicit.workspace.model.states.find(state => state.id === "explicit")?.boundary).toEqual(
+      expect.objectContaining({ entryId: "left", exitId: "right" })
+    );
   });
 
   test("exposes standard MCP tools and applies dependency-ordered app actions without hidden state @smoke", async ({ page }) => {

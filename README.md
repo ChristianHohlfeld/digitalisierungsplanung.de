@@ -43,12 +43,15 @@ Regeln:
 - Wenn kein echter Ausgang erreichbar ist, stoppt der Ablauf.
 - Externe Ereignisse schreiben zuerst in den Datenbus. Erst danach kann ein Übergang reagieren.
 
-Der ausführliche Vertrag steht in [`statereadme.md`](statereadme.md).
+Der normative Kernvertrag steht in [`docs/state-contract.md`](docs/state-contract.md).
+Der ausführliche Architektur- und Auditkontext steht in
+[`statereadme.md`](statereadme.md).
 
 ## Hauptdateien
 
 - [`index.html`](index.html): veröffentlichte Startseite, aus dem Werkzeug exportiert
 - [`state.html`](state.html): das komplette Werkzeug
+- [`docs/state-contract.md`](docs/state-contract.md): normativer Kernvertrag
 - [`statereadme.md`](statereadme.md): Prinzipien, Architektur und Richtung
 - [`docs/state-blueprint-api.md`](docs/state-blueprint-api.md): Programmierschnittstelle
 - [`docs/state-blueprint-mcp.md`](docs/state-blueprint-mcp.md): MCP-Schnittstelle
@@ -108,8 +111,7 @@ Der Server in [`server/`](server/) ist nur Transport. Er speichert keine fachlic
 | `GET /healthz` | Gesundheitsprüfung |
 | `GET /version` | gemeinsame Frontend-/Backend-Release-ID |
 | `GET /contract` | zentraler Product Contract: Trigger-Typen, Datentypen, Datasets, Quellen, Presets, Preset-Pakete, Abo-Pläne und State-Beiträge |
-| `GET /events` | aktueller Echtzeit-Contract mit Quellen |
-| `GET /events/contract` | niedriger Realtime-Katalog-Contract mit Detail-Typen und State-Beiträgen |
+| `GET /events` | kanonischer Realtime-Katalog mit Ereignissen, Emittern, Datentypen und State-Beiträgen |
 | `GET /token` | signiertes Raum-Token für den Browser |
 | `GET /console.html` | Testoberfläche für Ereignisse |
 | `GET /events-admin.html` | einfacher Designer für Event-Type, Datensatz und Felder |
@@ -160,18 +162,17 @@ Verwaltete Presets enthalten keine fertigen Transition-IDs. Der Canvas erzeugt
 beim Einfügen für jede fachliche Aktion eine eigene ID und bindet sie genau
 einmal. Eine explizite UI-Bindung bleibt beim Wechsel des Trigger-Typs eindeutig,
 rendert aber ausschließlich für `button` ein Control; Timer, Change, Event,
-Realtime und Auto erhalten weder Ersatzbutton noch lokale Fallback-Aktion.
+Realtime, API und Auto erhalten weder Ersatzbutton noch lokale Fallback-Aktion.
 Ein UI-Aktionsslot besitzt entweder genau eine Transition-ID oder genau eine
 URL, niemals beides.
 
 Trigger bleiben Eigentum der Transition. Pro effektiver aktiver Quelle darf
-dieselbe Trigger-Condition-Identität nur einmal vorkommen. Derselbe Event darf
-mehrere Ausgänge besitzen, wenn deren Conditions unterschiedlich sind; beim
-Ereignis muss zur Laufzeit genau eine Condition passen. Ein Timer ist einmal
+dieselbe Triggeridentität nur einmal vorkommen. Conditions gehören nicht zur
+Identität und dürfen keinen mehrfach belegten Event priorisieren. Ein Timer ist einmal
 zulässig, `auto` ist exklusiv. Der Editor speichert keinen Konflikt, Import/API/MCP
 lehnen ihn ab und die gemeinsame Preview-/Export-Runtime bleibt bei Fremdmodellen
 fail-closed. Zulässige fachliche Typen sind ausschließlich `button`, `change`,
-`event`, `realtime`, `timer` und `auto`; internes `flow` dient nur der
+`event`, `realtime`, `api`, `timer` und `auto`; internes `flow` dient nur der
 Child-Führung. Unbekannte Werte werden nicht als Alias akzeptiert oder
 normalisiert. Server-getriebene Condition-Pfade unter `events.*`, `realtime.*`
 und `emitters.*` müssen exakt im Product Contract deklariert sein.

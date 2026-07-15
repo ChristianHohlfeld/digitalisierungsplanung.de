@@ -86,7 +86,7 @@ function buildStandaloneAppHtml(appHtml, payload) {
 
 function loadWorkspace() {
   const stored = readJsonFile(modelPath, null);
-  if (!stored) return normalizeWorkspace({ model: blankModel("State App"), stateTemplates: [] });
+  if (!stored) return normalizeWorkspace({ model: blankModel("State App") });
   const canonicalModel = input => {
     const validation = validateModel(input);
     if (validation.ok) return validation.model;
@@ -97,9 +97,11 @@ function loadWorkspace() {
   if (stored.kind !== "state-blueprint.workspace" || stored.schemaVersion !== 1 || !stored.model) {
     throw new Error("Stored MCP data must use state-blueprint.workspace schemaVersion 1. Import definitions through state_blueprint_import_definition.");
   }
+  if (Array.isArray(stored.stateTemplates) && stored.stateTemplates.length) {
+    throw new Error("Stored MCP data must not contain local stateTemplates.");
+  }
   return normalizeWorkspace({
     model: canonicalModel(stored.model),
-    stateTemplates: Array.isArray(stored.stateTemplates) ? stored.stateTemplates : [],
     editor: stored.editor,
     clipboard: stored.clipboard,
     history: stored.history
@@ -113,7 +115,6 @@ function saveWorkspace(workspace) {
     schemaVersion: 1,
     savedAt: new Date().toISOString(),
     model: normalized.model,
-    stateTemplates: normalized.stateTemplates,
     editor: normalized.editor,
     clipboard: normalized.clipboard,
     history: normalized.history
@@ -357,11 +358,11 @@ function callTool(name, args = {}) {
   }
   if (name === "state_blueprint_export_definition") {
     const workspace = loadWorkspace();
-    return definitionPayload(workspace.model, workspace.stateTemplates, workspace.editor);
+    return definitionPayload(workspace.model, [], workspace.editor);
   }
   if (name === "state_blueprint_export_html") {
     const workspace = loadWorkspace();
-    const payload = definitionPayload(workspace.model, workspace.stateTemplates, workspace.editor);
+    const payload = definitionPayload(workspace.model, [], workspace.editor);
     const html = buildStandaloneAppHtml(extractGeneratedAppHtml(), payload);
     const includeHtml = Object.prototype.hasOwnProperty.call(args, "includeHtml")
       ? Boolean(args.includeHtml)
@@ -385,6 +386,9 @@ function callTool(name, args = {}) {
     if (definition.kind !== "state-blueprint-definition" || definition.schemaVersion !== 2) {
       throw new Error('Import expects kind "state-blueprint-definition" with schemaVersion 2.');
     }
+    if (Array.isArray(definition.stateTemplates) && definition.stateTemplates.length) {
+      throw new Error("Imported definitions must not contain local stateTemplates.");
+    }
     const validation = validateModel(definition.model);
     if (!validation.ok) {
       const error = new Error("Imported definition violates the model contract.");
@@ -393,7 +397,6 @@ function callTool(name, args = {}) {
     }
     const workspace = {
       model: validation.model,
-      stateTemplates: Array.isArray(definition.stateTemplates) ? definition.stateTemplates : [],
       editor: { camera: definition.camera, previewCollapsed: definition.previewCollapsed }
     };
     saveWorkspace(workspace);

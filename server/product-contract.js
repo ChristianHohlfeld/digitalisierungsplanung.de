@@ -81,8 +81,8 @@ const BUILTIN_TRIGGER_TYPES = Object.freeze([
     description: "A state data-source request succeeds or fails.",
     settings: {},
     events: [
-      { name: "fetch.ok", label: "API ok" },
-      { name: "fetch.error", label: "API error" }
+      { name: "fetch.*.success", label: "API erfolgreich" },
+      { name: "fetch.*.error", label: "API fehlgeschlagen" }
     ]
   }
 ]);

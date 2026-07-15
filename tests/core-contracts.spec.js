@@ -969,6 +969,67 @@ test.describe("Core source contracts", () => {
     expect(message).toContain("must not collide with a state id");
   });
 
+  test("formal definitions require an explicit composite entry boundary @smoke", async ({ page }) => {
+    await page.goto("/state.html");
+
+    const messages = await page.evaluate(() => {
+      const emptyBoundary = { entryId: "", exitId: "", entryDisabled: false, exitDisabled: false, title: "", note: "" };
+      const state = (id, parentId = null) => ({
+        id,
+        title: id,
+        components: [],
+        data: {},
+        dataTypes: {},
+        dataSource: { url: "", target: `states.${id}.fetch`, select: "", timeoutMs: 8000, retries: 2 },
+        repeat: { path: "", as: "item", index: "i" },
+        dataWires: [],
+        subscriptions: [],
+        boundary: { ...emptyBoundary },
+        parentId,
+        x: 96,
+        y: 120
+      });
+      const definition = () => ({
+        kind: "state-blueprint-definition",
+        schemaVersion: 2,
+        app: "Zustand",
+        savedAt: new Date().toISOString(),
+        model: {
+          version: 2,
+          name: "Composite boundary",
+          initial: "parent",
+          boundary: { ...emptyBoundary },
+          states: [state("parent"), state("child", "parent")],
+          transitions: []
+        },
+        stateTemplates: [],
+        camera: { x: 32, y: 32, scale: 1 },
+        previewCollapsed: false
+      });
+      const validate = value => {
+        try {
+          validateBlueprintDefinition(value);
+          return "";
+        } catch (error) {
+          return String(error?.message || error);
+        }
+      };
+
+      const missing = definition();
+      const explicit = definition();
+      explicit.model.states[0].boundary.entryId = "child";
+      const disabled = definition();
+      disabled.model.states[0].boundary.entryDisabled = true;
+      return [validate(missing), validate(explicit), validate(disabled)];
+    });
+
+    expect(messages).toEqual([
+      expect.stringContaining("boundary.entryId must reference a child unless automatic entry is explicitly disabled"),
+      "",
+      ""
+    ]);
+  });
+
   test("formal definitions reject dotted state data keys and qualified data type keys @smoke", async ({ page }) => {
     await page.goto("/state.html");
 
@@ -1185,8 +1246,8 @@ test.describe("Core source contracts", () => {
 
       const valid = baseDefinition();
       const nonButton = baseDefinition();
-      nonButton.model.transitions[0].triggerType = "realtime";
-      nonButton.model.transitions[0].triggerEvent = "realtime.sip.call.incoming";
+      nonButton.model.transitions[0].triggerType = "timer";
+      nonButton.model.transitions[0].triggerEvent = "timer.to_done.done";
       const missing = baseDefinition();
       missing.model.states[0].data.widget.transitionId = "missing";
       const foreign = baseDefinition();
@@ -1224,6 +1285,7 @@ test.describe("Core source contracts", () => {
 
   test("formal definitions enforce deterministic effective trigger ownership @smoke", async ({ page }) => {
     await page.goto("/state.html");
+    await page.waitForFunction(() => eval("Boolean(productContract && productContract.triggerTypes && productContract.triggerTypes.length)"));
 
     const messages = await page.evaluate(() => {
       const boundary = { entryId: "", exitId: "", entryDisabled: false, exitDisabled: false, title: "", note: "" };
@@ -1265,10 +1327,10 @@ test.describe("Core source contracts", () => {
           name: "Trigger ownership",
           initial: "start",
           boundary,
-          states: [state("start"), state("a"), state("b")],
+          states: [state("start"), state("a"), state("b"), state("c")],
           transitions: [
             transition("click_a", "a", "button", "button.click_a.clicked"),
-            transition("event_b", "b", "realtime", "realtime.route.b")
+            transition("event_b", "b", "realtime", "realtime.sip.call.incoming")
           ]
         },
         stateTemplates: [],
@@ -1290,12 +1352,17 @@ test.describe("Core source contracts", () => {
         transition("click_a", "a", "button", "button.click_a.clicked"),
         transition("click_b", "b", "button", "button.click_b.clicked")
       ];
+      const parallelRoute = definition();
+      parallelRoute.model.transitions = [
+        transition("click_a", "a", "button", "button.click_a.clicked"),
+        transition("event_a", "a", "realtime", "realtime.sip.call.incoming")
+      ];
       const guarded = definition();
       guarded.model.states[0].data.route = "b";
       guarded.model.states[0].dataTypes.route = "text";
       guarded.model.transitions[1].condition = 'states.start.route == "b"';
       guarded.model.transitions.push({
-        ...transition("event_c", "a", "realtime", "realtime.route.b"),
+        ...transition("event_c", "c", "realtime", "realtime.sip.call.incoming"),
         condition: 'states.start.route == "c"'
       });
       const duplicateChange = definition();
@@ -1314,7 +1381,7 @@ test.describe("Core source contracts", () => {
         transition("event_b", "b", "event", "event.route")
       ];
       const duplicateRealtime = definition();
-      duplicateRealtime.model.transitions.push(transition("event_a", "a", "realtime", "realtime.route.b"));
+      duplicateRealtime.model.transitions.push(transition("event_c", "c", "realtime", "realtime.sip.call.incoming"));
       const timers = definition();
       timers.model.transitions = [transition("timer_a", "a", "timer"), transition("timer_b", "b", "timer")];
       const automatic = definition();
@@ -1326,10 +1393,11 @@ test.describe("Core source contracts", () => {
       missing.model.transitions[1].triggerEvent = "";
       const childBoundary = definition();
       childBoundary.model.states = [state("parent"), state("child", "parent"), state("sibling", "parent"), state("outside")];
+      childBoundary.model.states[0].boundary = { ...boundary, entryId: "child" };
       childBoundary.model.initial = "parent";
       childBoundary.model.transitions = [
-        { ...transition("parent_exit", "outside", "realtime", "realtime.route.b"), from: "parent", groupExitId: "child" },
-        { ...transition("child_route", "sibling", "realtime", "realtime.route.b"), from: "child" }
+        { ...transition("parent_exit", "outside", "realtime", "realtime.sip.call.incoming"), from: "parent", groupExitId: "child" },
+        { ...transition("child_route", "sibling", "realtime", "realtime.sip.call.incoming"), from: "child" }
       ];
       const structuralFlow = definition();
       structuralFlow.model.transitions = [
@@ -1340,6 +1408,7 @@ test.describe("Core source contracts", () => {
       return [
         valid,
         distinctButtons,
+        parallelRoute,
         guarded,
         duplicateChange,
         duplicateWildcardChange,
@@ -1358,16 +1427,17 @@ test.describe("Core source contracts", () => {
       "",
       "",
       "",
+      expect.stringContaining("duplicates trigger realtime:realtime.sip.call.incoming"),
       expect.stringContaining("duplicates trigger change:change.states.start.value"),
-      expect.stringContaining("duplicates trigger change:*"),
+      expect.stringContaining("must reference one concrete change bus path"),
       expect.stringContaining("duplicates trigger event:event.route"),
-      expect.stringContaining("duplicates trigger realtime:realtime.route.b"),
+      expect.stringContaining("duplicates trigger realtime:realtime.sip.call.incoming"),
       expect.stringContaining("duplicates trigger timer"),
       expect.stringContaining("must contain only one auto transition"),
-      expect.stringContaining("triggerType must be one of button, change, event, realtime, timer, auto, flow"),
-      expect.stringContaining("must define one concrete trigger"),
-      expect.stringContaining("duplicates trigger realtime:realtime.route.b"),
-      ""
+      expect.stringContaining("triggerType must be one of button, change, event, realtime, api, timer, auto"),
+      expect.stringContaining("must reference a realtime event declared by the Product Contract"),
+      expect.stringContaining("duplicates trigger realtime:realtime.sip.call.incoming"),
+      expect.stringContaining("triggerType must be one of button, change, event, realtime, api, timer, auto")
     ]);
   });
 
@@ -1444,13 +1514,17 @@ test.describe("Core source contracts", () => {
       };
       return [
         validate(definition('events.realtime.sip.call.incoming.detail.caller == "+491234"')),
-        validate(definition('events.realtime.sip.call.incoming.detail.kunde == "Heinz"'))
+        validate(definition('events.realtime.sip.call.incoming.detail.kunde == "Heinz"')),
+        validate(definition("states.start.value == null")),
+        validate(definition("states.start.value != undefined"))
       ];
     });
 
     expect(messages).toEqual([
       "",
-      expect.stringContaining("must reference a field declared by the Product Contract")
+      expect.stringContaining("must reference a field declared by the Product Contract"),
+      expect.stringContaining("contains an invalid literal"),
+      expect.stringContaining("contains an invalid literal")
     ]);
   });
 
@@ -1525,7 +1599,9 @@ test.describe("Core source contracts", () => {
     expect(appHtml).toContain("function runtimeTransitionLabel");
     expect(appHtml).toContain("button.textContent = runtimeTransitionLabel(t)");
     expect(appHtml).toContain('return String(t?.label || "").trim() || "Weiter";');
-    expect(appHtml).toContain('return transitions[0]?.id || "";');
+    expect(appHtml).toContain('return transitions.length === 1 ? transitions[0].id : "";');
+    expect(appHtml).not.toContain('return transitions[0]?.id || "";');
+    expect(appHtml).not.toContain("firstInternalEntryState");
     expect(appHtml).not.toContain("function isNegativeTransition");
     expect(appHtml).toContain("function runtimeTransitionHue");
     expect(appHtml).toContain("function runtimeTransitionColor");
@@ -1696,7 +1772,7 @@ test.describe("Core source contracts", () => {
     expect(html).not.toContain("applyEditorDataSourceResult");
     expect(html).toContain("sourceChanged = dataSourceSignature(previous) !== dataSourceSignature(next)");
     expect(html).toContain("function renderJsonInspect");
-    expect(appHtml).toContain("data: null");
+    expect(appHtml).toContain("data: {}");
     expect(appHtml).toContain("count: 0");
     expect(appHtml).toContain('error: ""');
     expect(appHtml).toContain("function changedDataSourceTargets");
@@ -1720,7 +1796,7 @@ test.describe("Core source contracts", () => {
     expect(appHtml).toContain("function declaredBusVariables");
     expect(appHtml).toContain("visit(state, normalizeStateDataObject(state.data))");
     expect(appHtml).toContain("function transitionMatchesRuntimeEvent");
-    expect(appHtml).toContain('if (type === "button" || type === "event" || type === "realtime" || type === "timer" || type === "auto" || type === "flow") return configured === eventName;');
+    expect(appHtml).toContain('if (type === "button" || type === "event" || type === "realtime" || type === "api" || type === "timer" || type === "auto" || type === "flow") return configured === eventName;');
   });
 
   test("data wires drive rendered content through global state @smoke", () => {
@@ -1953,6 +2029,43 @@ test.describe("Core source contracts", () => {
       .toBeUndefined();
     await expect.poll(async () => runtimeContext(page).then(context => context.lastEvent))
       .toBe("change.states.start.remote.caller");
+  });
+
+  test("runtime never infers a composite entry from child order @smoke", async ({ page }) => {
+    await openWithModel(page, {
+      version: 2,
+      name: "No inferred child entry",
+      initial: "parent",
+      states: [
+        {
+          id: "parent",
+          title: "Parent",
+          components: [{ id: "parent_text", type: "text", text: "Parent only", url: "" }],
+          data: {},
+          boundary: { entryId: "", exitId: "", entryDisabled: true, exitDisabled: true },
+          x: 120,
+          y: 140
+        },
+        { id: "first", title: "First", parentId: "parent", components: [], data: {}, x: 120, y: 120 },
+        { id: "last", title: "Last", parentId: "parent", components: [], data: {}, x: 420, y: 120 }
+      ],
+      transitions: [
+        { id: "last_to_first", from: "last", to: "first", label: "Back", condition: "", triggerType: "button", set: {} }
+      ]
+    });
+
+    const app = appFrame(page);
+    const current = await app.locator("html").evaluate(() => {
+      findState("parent").boundary = { entryId: "", exitId: "", entryDisabled: false, exitDisabled: true };
+      setRuntimeCurrent("parent", "hostile-model", true);
+      render();
+      return eval("current");
+    });
+    expect(current).toBe("parent");
+    await expect(app.locator("#statePill")).toHaveText("parent");
+    await expect(app.getByText("Parent only", { exact: true })).toBeVisible();
+    await expect(app.locator("#statePill")).not.toHaveText("first");
+    await expect(app.locator("#statePill")).not.toHaveText("last");
   });
 
   test("realtime events cannot bypass a composite parent's child-entry contract @smoke", async ({ page }) => {
@@ -2757,18 +2870,15 @@ test.describe("Core browser contracts", () => {
         { id: "route_a", title: "Route A", components: [], data: {}, dataTypes: {}, x: 420, y: 100 },
         { id: "route_b", title: "Route B", components: [], data: {}, dataTypes: {}, x: 420, y: 280 }
       ],
-      transitions: [
-        { id: "to_a", from: "waiting", to: "route_a", label: "A", condition: "", triggerType: "realtime", triggerEvent: "realtime.route.a", set: {} },
-        { id: "to_b", from: "waiting", to: "route_b", label: "B", condition: "", triggerType: "button", set: {} }
-      ]
+      transitions: []
     });
 
     const result = await page.evaluate(() => {
       const before = modelSnapshot();
-      const candidate = (id, triggerType, triggerEvent = "") => ({
+      const candidate = (id, to, triggerType, triggerEvent = "") => ({
         id,
         from: "waiting",
-        to: "route_b",
+        to,
         label: id,
         condition: "",
         triggerType,
@@ -2777,14 +2887,16 @@ test.describe("Core browser contracts", () => {
         set: {}
       });
       const cases = [
-        { name: "change", transitions: [candidate("change_a", "change", "change.states.waiting.value"), candidate("change_b", "change", "change.states.waiting.value")] },
-        { name: "change-wildcard", transitions: [candidate("change_a", "change"), candidate("change_b", "change")] },
-        { name: "event", transitions: [candidate("event_a", "event", "event.route"), candidate("event_b", "event", "event.route")] },
-        { name: "realtime", transitions: [candidate("realtime_a", "realtime", "realtime.route.a")] },
-        { name: "timer", transitions: [candidate("timer_a", "timer", "timer.a.done"), candidate("timer_b", "timer", "timer.b.done")] },
-        { name: "auto", transitions: [candidate("auto_a", "auto", "auto.a")] },
-        { name: "missing-event", transitions: [candidate("event_missing", "event")] },
-        { name: "invalid-type", transitions: [candidate("invalid", "click", "click.invalid")] }
+        { name: "change", transitions: [candidate("change_a", "route_a", "change", "change.states.waiting.value"), candidate("change_b", "route_b", "change", "change.states.waiting.value")] },
+        { name: "change-wildcard", transitions: [candidate("change_a", "route_a", "change")] },
+        { name: "event", transitions: [candidate("event_a", "route_a", "event", "event.route"), candidate("event_b", "route_b", "event", "event.route")] },
+        { name: "realtime", transitions: [candidate("realtime_a", "route_a", "realtime", "realtime.sip.call.incoming"), candidate("realtime_b", "route_b", "realtime", "realtime.sip.call.incoming")] },
+        { name: "api", transitions: [candidate("api_a", "route_a", "api", "fetch.states.waiting.fetch.success"), candidate("api_b", "route_b", "api", "fetch.states.waiting.fetch.success")] },
+        { name: "api-as-event", transitions: [candidate("event_fetch", "route_a", "event", "fetch.states.waiting.fetch.success")] },
+        { name: "timer", transitions: [candidate("timer_a", "route_a", "timer", "timer.a.done"), candidate("timer_b", "route_b", "timer", "timer.b.done")] },
+        { name: "auto", transitions: [candidate("auto_a", "route_a", "auto", "auto.a"), candidate("button_b", "route_b", "button")] },
+        { name: "missing-event", transitions: [candidate("event_missing", "route_a", "event")] },
+        { name: "invalid-type", transitions: [candidate("invalid", "route_a", "click", "click.invalid")] }
       ];
       return cases.map(testCase => {
         const conflicting = JSON.parse(before);
@@ -2816,6 +2928,8 @@ test.describe("Core browser contracts", () => {
       "change-wildcard",
       "event",
       "realtime",
+      "api",
+      "api-as-event",
       "timer",
       "auto",
       "missing-event",
@@ -2826,9 +2940,9 @@ test.describe("Core browser contracts", () => {
       item.unchangedAfterLoad === true &&
       item.saved === false &&
       item.unchangedAfterMutation === true &&
-      JSON.stringify(item.storedTransitionIds) === JSON.stringify(["to_a", "to_b"])
+      JSON.stringify(item.storedTransitionIds) === JSON.stringify([])
     )).toBe(true);
-    expect(await appFrame(page).locator("html").evaluate(() => eval("model.transitions.map(transition => transition.id)"))).toEqual(["to_a", "to_b"]);
+    expect(await appFrame(page).locator("html").evaluate(() => eval("model.transitions.map(transition => transition.id)"))).toEqual([]);
   });
 
   test("runtime fails closed for every externally injected trigger contract violation @smoke", async ({ page }) => {
@@ -2890,7 +3004,7 @@ test.describe("Core browser contracts", () => {
 
     expect(runtimeResult).toEqual([
       { name: "change", handled: false, current: "waiting", reason: "duplicate-trigger", transitionIds: ["change_a", "change_b"] },
-      { name: "change-wildcard", handled: false, current: "waiting", reason: "duplicate-trigger", transitionIds: ["change_a", "change_b"] },
+      { name: "change-wildcard", handled: false, current: "waiting", reason: "missing-trigger", transitionIds: ["change_a"] },
       { name: "event", handled: false, current: "waiting", reason: "duplicate-trigger", transitionIds: ["event_a", "event_b"] },
       { name: "realtime", handled: false, current: "waiting", reason: "duplicate-trigger", transitionIds: ["realtime_a", "realtime_b"] },
       { name: "timer", handled: false, current: "waiting", reason: "duplicate-trigger", transitionIds: ["timer_a", "timer_b"] },
@@ -2903,46 +3017,46 @@ test.describe("Core browser contracts", () => {
     await expect(appFrame(page).locator("#statePill")).toHaveText("waiting");
   });
 
-  test("runtime routes one shared event through exactly one matching condition @smoke", async ({ page }) => {
+  test("runtime routes fetch results only through the first-class api trigger @smoke", async ({ page }) => {
     await openWithModel(page, {
       version: 2,
-      name: "Runtime conditional trigger variants",
+      name: "Runtime API trigger",
       initial: "waiting",
       states: [
-        { id: "waiting", title: "Waiting", components: [], data: { kunde: "Heinz" }, dataTypes: { kunde: "text" }, x: 120, y: 180 },
-        { id: "heinz", title: "Heinz", components: [], data: {}, dataTypes: {}, x: 420, y: 100 },
-        { id: "mueller", title: "Mueller", components: [], data: {}, dataTypes: {}, x: 420, y: 280 }
+        { id: "waiting", title: "Waiting", components: [], data: {}, dataTypes: {}, x: 120, y: 180 },
+        { id: "done", title: "Done", components: [], data: {}, dataTypes: {}, x: 420, y: 100 },
+        { id: "failed", title: "Failed", components: [], data: {}, dataTypes: {}, x: 420, y: 280 }
       ],
       transitions: [
         {
-          id: "to_heinz",
+          id: "to_done",
           from: "waiting",
-          to: "heinz",
-          label: "Heinz",
-          condition: 'states.waiting.kunde == "Heinz"',
-          triggerType: "event",
-          triggerEvent: "event.route",
+          to: "done",
+          label: "Done",
+          condition: "",
+          triggerType: "api",
+          triggerEvent: "fetch.states.waiting.fetch.success",
           set: {}
         },
         {
-          id: "to_mueller",
+          id: "to_failed",
           from: "waiting",
-          to: "mueller",
-          label: "Mueller",
-          condition: 'states.waiting.kunde == "Mueller"',
-          triggerType: "event",
-          triggerEvent: "event.route",
+          to: "failed",
+          label: "Failed",
+          condition: "",
+          triggerType: "api",
+          triggerEvent: "fetch.states.waiting.fetch.error",
           set: {}
         }
       ]
     });
 
     const runtimeResult = await appFrame(page).locator("html").evaluate(() => {
-      const handled = eval("emitRuntimeEvent")("event.route", { type: "event", source: "event" });
+      const handled = eval("emitRuntimeEvent")("fetch.states.waiting.fetch.success", { type: "api", source: "fetch" });
       return { handled, current: eval("current"), validation: eval("runtimeValidation") };
     });
 
-    expect(runtimeResult).toEqual({ handled: true, current: "heinz", validation: null });
+    expect(runtimeResult).toEqual({ handled: true, current: "done", validation: null });
   });
 
   test("canvas deletion removes the complete enriched state branch from the same runtime bus @smoke", async ({ page }) => {
@@ -3010,6 +3124,10 @@ test.describe("Core browser contracts", () => {
     await appFrame(page).locator("html").evaluate(() => {
       window.__contractRuntimeBus = eval("context");
     });
+
+    await openStateInspector(page, "survivor");
+    await page.locator("#pInitial").click();
+    await expect.poll(async () => page.evaluate(() => model.initial)).toBe("survivor");
 
     await page.locator('[data-id="owner"]').click();
     await page.keyboard.press("Delete");
@@ -3198,7 +3316,7 @@ test.describe("Core browser contracts", () => {
       name: "Inner Button Colors",
       initial: "inner_a",
       states: [
-        { id: "shell", title: "Shell", body: "", components: [], data: {}, x: 120, y: 160 },
+        { id: "shell", title: "Shell", body: "", components: [], data: {}, boundary: { entryId: "inner_a", exitId: "", entryDisabled: false, exitDisabled: true }, x: 120, y: 160 },
         {
           id: "inner_a",
           title: "Inner A",
@@ -3297,7 +3415,7 @@ test.describe("Core browser contracts", () => {
       name: "Output Proxy Child Exit",
       initial: "exit_child",
       states: [
-        { id: "parent", title: "Parent", body: "", components: [], data: {}, boundary: { entryId: "exit_child", exitId: "", entryDisabled: false, exitDisabled: false }, x: 120, y: 160 },
+        { id: "parent", title: "Parent", body: "", components: [], data: {}, boundary: { entryId: "exit_child", exitId: "exit_child", entryDisabled: false, exitDisabled: false }, x: 120, y: 160 },
         { id: "outside", title: "Outside", body: "", components: [], data: {}, x: 460, y: 160 },
         { id: "inner", title: "Inner Detail", body: "", components: [], data: {}, parentId: "parent", x: 360, y: 80 },
         { id: "exit_child", title: "Exit Child", body: "", components: [], data: {}, parentId: "parent", x: 120, y: 120 }
@@ -3356,7 +3474,7 @@ test.describe("Core browser contracts", () => {
       name: "No Implicit Child Exit",
       initial: "child",
       states: [
-        { id: "parent", title: "Parent", body: "", components: [], data: {}, x: 120, y: 160 },
+        { id: "parent", title: "Parent", body: "", components: [], data: {}, boundary: { entryId: "child", exitId: "", entryDisabled: false, exitDisabled: true }, x: 120, y: 160 },
         { id: "outside", title: "Outside", body: "", components: [], data: {}, x: 420, y: 160 },
         { id: "child", title: "Child", body: "", components: [], data: {}, parentId: "parent", x: 120, y: 120 }
       ],
@@ -3378,7 +3496,7 @@ test.describe("Core browser contracts", () => {
       name: "No Sibling Action Leak",
       initial: "navbar_shop_cart",
       states: [
-        { id: "start", title: "Start", body: "", components: [], data: {}, x: 120, y: 180 },
+        { id: "start", title: "Start", body: "", components: [], data: {}, boundary: { entryId: "navbar_shop_cart", exitId: "", entryDisabled: false, exitDisabled: true }, x: 120, y: 180 },
         {
           id: "navbar_shop_cart",
           title: "Kopfleiste Shop/Warenkorb",
@@ -3574,86 +3692,58 @@ test.describe("Core browser contracts", () => {
     await expect(app.locator("#statePill")).toHaveText("state_7");
   });
 
-  test("global json bus never persists undefined contract values @smoke", async ({ page }) => {
-    await openTool(page);
-
-    await page.evaluate(() => {
-      loadEditorModel({
-        version: 2,
-        name: "Undefined Guard",
-        initial: "start",
-        states: [
-          {
-            id: "start",
-            title: "Start",
-            body: "",
-            components: [{ id: "c_start", type: "text", text: "Start", url: "" }],
-            data: {
-              keep: "ok",
-              drop: undefined,
-              nested: { keep: 1, drop: undefined },
-              direct_drop: undefined
-            },
-            dataTypes: { keep: "text", nested: "object", drop: "text" },
-            x: 100,
-            y: 100
-          },
-          { id: "done", title: "Done", body: "", components: [], data: {}, x: 360, y: 100 }
-        ],
-        transitions: [
-          {
-            id: "t_done",
-            from: "start",
-            to: "done",
-            label: "Done",
-            condition: "",
-            triggerType: "button",
-            set: {
-              "states.start.finished": true,
-              "states.start.bad_set": undefined
-            }
-          }
-        ]
-      }, false);
+  test("undefined, null, array holes and non-finite bus values are rejected without mutation @smoke", async ({ page }) => {
+    await openWithModel(page, {
+      version: 2,
+      name: "Defined JSON value contract",
+      initial: "start",
+      states: [
+        { id: "start", title: "Start", components: [], data: { keep: "ok" }, dataTypes: { keep: "text" }, x: 96, y: 120 },
+        { id: "done", title: "Done", components: [], data: {}, dataTypes: {}, x: 360, y: 120 }
+      ],
+      transitions: [
+        { id: "to_done", from: "start", to: "done", label: "Done", condition: "", triggerType: "button", triggerEvent: "", set: {} }
+      ]
     });
 
-    const app = appFrame(page);
-    await expect(app.locator("#statePill")).toHaveText("start");
-    await app.getByRole("button", { name: "Done" }).click();
-    await expect(app.locator("#statePill")).toHaveText("done");
+    const result = await page.evaluate(() => {
+      const before = modelSnapshot();
+      const cases = [
+        ["undefined-state", candidate => { candidate.states[0].data.invalid = undefined; }],
+        ["null-state", candidate => { candidate.states[0].data.invalid = null; }],
+        ["non-finite-state", candidate => { candidate.states[0].data.invalid = Number.NaN; }],
+        ["array-hole-state", candidate => { const sparse = []; sparse.length = 1; candidate.states[0].data.invalid = sparse; }],
+        ["undefined-set", candidate => { candidate.transitions[0].set["states.start.invalid"] = undefined; }],
+        ["null-set", candidate => { candidate.transitions[0].set["states.start.invalid"] = null; }]
+      ];
+      const rejected = cases.map(([name, mutate]) => {
+        const candidate = JSON.parse(before);
+        mutate(candidate);
+        let error = "";
+        try { loadEditorModel(candidate, false); } catch (caught) { error = String(caught?.message || caught); }
+        return { name, error, unchanged: modelSnapshot() === before };
+      });
+      model.states[0].data.invalid = null;
+      const saved = saveModel("test:invalid-json-value");
+      return { rejected, saved, restored: modelSnapshot() === before };
+    });
 
-    const snapshot = await page.evaluate(key => {
-      const paths = [];
-      const walk = (value, root) => {
-        if (typeof value === "undefined") {
-          paths.push(root);
-          return;
-        }
-        if (!value || typeof value !== "object") return;
-        if (Array.isArray(value)) {
-          value.forEach((item, index) => walk(item, `${root}[${index}]`));
-          return;
-        }
-        Object.entries(value).forEach(([entryKey, item]) => walk(item, `${root}.${entryKey}`));
-      };
-      const stored = JSON.parse(localStorage.getItem(`${key}.editor`) || localStorage.getItem(key) || "null");
-      const exportedModel = definitionPayload().model;
-      walk(model, "model");
-      walk(exportedModel, "definition.model");
-      walk(stored, "storage");
-      return { paths, exportedModel, stored };
-    }, STORAGE_KEY);
-
-    expect(snapshot.paths).toEqual([]);
+    expect(result.rejected.map(item => item.name)).toEqual([
+      "undefined-state",
+      "null-state",
+      "non-finite-state",
+      "array-hole-state",
+      "undefined-set",
+      "null-set"
+    ]);
+    expect(result.rejected.every(item => item.error && item.unchanged)).toBe(true);
+    expect(result.saved).toBe(false);
+    expect(result.restored).toBe(true);
+    await expect(appFrame(page).locator("#statePill")).toHaveText("start");
     expect(collectUndefinedPaths(await runtimeContext(page), "runtime")).toEqual([]);
-    expect(collectUndefinedPaths(snapshot.exportedModel)).toEqual([]);
-    expect(collectUndefinedPaths(snapshot.stored)).toEqual([]);
-    const startData = snapshot.exportedModel.states.find(state => state.id === "start").data;
-    expect(startData).toEqual({ keep: "ok", nested: { keep: 1 } });
-    expect(snapshot.exportedModel.transitions.find(transition => transition.id === "t_done").set).toEqual({ "states.start.finished": true });
   });
 
-  test("normalizes transition ids into the global model id space @smoke", async ({ page }) => {
+  test("rejects invalid ids instead of repairing the global model namespace @smoke", async ({ page }) => {
     await openWithModel(page, {
       version: 2,
       name: "Global ID Contract",
@@ -3664,19 +3754,30 @@ test.describe("Core browser contracts", () => {
         { id: "done", title: "Done", components: [], data: {}, x: 624, y: 120 }
       ],
       transitions: [
-        { id: "start", from: "start", to: "next", label: "Go", condition: "", triggerType: "button", triggerEvent: "", set: {} },
-        { id: "start", from: "next", to: "done", label: "Finish", condition: "", triggerType: "button", triggerEvent: "", set: {} },
-        { id: "__runtime_enter_child:done:start", from: "done", to: "start", label: "Restart", condition: "", triggerType: "button", triggerEvent: "", set: {} }
+        { id: "go", from: "start", to: "next", label: "Go", condition: "", triggerType: "button", triggerEvent: "", set: {} },
+        { id: "finish", from: "next", to: "done", label: "Finish", condition: "", triggerType: "button", triggerEvent: "", set: {} }
       ]
     });
 
-    const saved = await page.evaluate(() => definitionPayload().model);
-    const stateIds = saved.states.map(state => state.id);
-    const transitionIds = saved.transitions.filter(transition => !transition.boundaryFlow).map(transition => transition.id);
-    expect(new Set([...stateIds, ...transitionIds]).size).toBe(stateIds.length + transitionIds.length);
-    expect(transitionIds).toHaveLength(3);
-    expect(transitionIds).not.toContain("start");
-    expect(transitionIds).not.toContain("__runtime_enter_child:done:start");
+    const result = await page.evaluate(() => {
+      const before = modelSnapshot();
+      const cases = [
+        ["duplicate-transition", candidate => { candidate.transitions[1].id = "go"; }],
+        ["state-transition-collision", candidate => { candidate.transitions[0].id = "start"; }],
+        ["reserved-transition", candidate => { candidate.transitions[0].id = "__runtime_enter_child:done:start"; }],
+        ["duplicate-state", candidate => { candidate.states[2].id = "next"; }]
+      ];
+      return cases.map(([name, mutate]) => {
+        const candidate = JSON.parse(before);
+        mutate(candidate);
+        let error = "";
+        try { loadEditorModel(candidate, false); } catch (caught) { error = String(caught?.message || caught); }
+        return { name, error, unchanged: modelSnapshot() === before };
+      });
+    });
+
+    expect(result.map(item => item.name)).toEqual(["duplicate-transition", "state-transition-collision", "reserved-transition", "duplicate-state"]);
+    expect(result.every(item => item.error && item.unchanged)).toBe(true);
 
     const app = appFrame(page);
     await expect(app.getByRole("button", { name: "Go", exact: true })).toHaveCount(1);
@@ -3792,8 +3893,8 @@ test.describe("Core browser contracts", () => {
           x: 120,
           y: 160,
           data: { items: [{ title: "One" }] },
-          repeat: { path: "items", as: "item", index: "i" },
-          components: [{ id: "c_item", type: "text", text: "{{item.title}}" }]
+          repeat: { path: "states.start.items", as: "item", index: "i" },
+          components: [{ id: "c_item", type: "text", text: "Eintrag" }]
         }
       ],
       transitions: []
@@ -3801,7 +3902,7 @@ test.describe("Core browser contracts", () => {
 
     await page.locator('[data-id="start"]').click();
 
-    await expect(page.locator("#pRepeatPath")).toHaveValue("items");
+    await expect(page.locator("#pRepeatPath")).toHaveValue("states.start.items");
     await expect(page.locator("#pRepeatPreview")).toContainText("Items");
   });
 });

@@ -20,7 +20,6 @@ const DEFAULT_ALLOWED_ORIGINS = ["https://digitalisierungsplanung.de"];
 const DEFAULT_PATH = "/ws";
 const DEFAULT_TOKEN_PATH = "/token";
 const DEFAULT_EVENTS_PATH = "/events";
-const DEFAULT_EVENTS_CONTRACT_PATH = "/events/contract";
 const DEFAULT_PRODUCT_CONTRACT_PATH = "/contract";
 const DEFAULT_EMIT_PATH = "/emit";
 const DEFAULT_ADMIN_PATH = "/admin.html";
@@ -538,7 +537,6 @@ function loadConfig(options = {}) {
     path: options.path || env.REALTIME_PATH || DEFAULT_PATH,
     tokenPath: options.tokenPath || env.REALTIME_TOKEN_PATH || DEFAULT_TOKEN_PATH,
     eventsPath: options.eventsPath || env.REALTIME_EVENTS_PATH || DEFAULT_EVENTS_PATH,
-    eventsContractPath: options.eventsContractPath || env.REALTIME_EVENTS_CONTRACT_PATH || DEFAULT_EVENTS_CONTRACT_PATH,
     productContractPath: options.productContractPath || env.REALTIME_PRODUCT_CONTRACT_PATH || DEFAULT_PRODUCT_CONTRACT_PATH,
     emitPath: options.emitPath || env.REALTIME_EMIT_PATH || DEFAULT_EMIT_PATH,
     adminPath: options.adminPath || env.REALTIME_ADMIN_PATH || DEFAULT_ADMIN_PATH,
@@ -1129,12 +1127,6 @@ function createRealtimeServer(options = {}) {
       return;
     }
     if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.eventsPath) {
-      const prepared = prepareCatalogResponse(request, response);
-      if (prepared.done) return;
-      writeJson(response, 200, eventCatalogResponse(config), prepared.headers);
-      return;
-    }
-    if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.eventsContractPath) {
       const prepared = prepareCatalogResponse(request, response);
       if (prepared.done) return;
       writeJson(response, 200, eventCatalogResponse(config), prepared.headers);

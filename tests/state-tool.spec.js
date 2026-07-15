@@ -1094,7 +1094,7 @@ async function traverseWebsiteDemoShard(page, shardIndex, shardCount) {
 }
 
 test.describe("State Blueprint tool", () => {
-  test("creates a complete Zustandsdiagramm from the UI with data, templates, conditions, sets, preview, and export", async ({ page }) => {
+  test("creates a complete Zustandsdiagramm from the UI with data, components, conditions, sets, preview, and export", async ({ page }) => {
     await openTool(page);
     await page.locator("#btnNew").click();
     await page.getByRole("button", { name: "Neu starten" }).click();
@@ -1114,15 +1114,15 @@ test.describe("State Blueprint tool", () => {
 
     await openStateLayer(page, "start");
     await addComponentState(page, "Heading");
-    await componentEditor(page, "Heading").locator("input").fill("Welcome {{states.start.userName}}");
+    await componentEditor(page, "Heading").locator("input").fill("Welcome Ada");
     await addComponentState(page, "Text");
-    await componentEditor(page, "Text").locator("textarea").fill("Tier: {{states.start.profile.tier}}");
+    await componentEditor(page, "Text").locator("textarea").fill("Tier: starter");
     await addComponentState(page, "List");
     const listInputs = componentEditor(page, "List").locator(".list-item-editor input");
     await listInputs.nth(0).fill("Confirm email");
     await listInputs.nth(1).fill("Accept terms");
     await addComponentState(page, "Link");
-    await componentEditor(page, "Link").locator("input").nth(0).fill("Example docs for {{states.start.userName}}");
+    await componentEditor(page, "Link").locator("input").nth(0).fill("Example docs for Ada");
     await componentEditor(page, "Link").locator("input").nth(1).fill("https://example.com/docs");
     await expect.poll(async () => {
       const model = await savedModel(page);
@@ -1130,7 +1130,7 @@ test.describe("State Blueprint tool", () => {
       return start?.components.find(component => component.type === "link")?.url;
     }).toBe("https://example.com/docs");
     await addComponentState(page, "Note");
-    await componentEditor(page, "Note").locator("textarea").fill("Stored from state.data: {{states.start.userName}}");
+    await componentEditor(page, "Note").locator("textarea").fill("Stored from state.data: Ada");
     await page.keyboard.press("Alt+ArrowLeft");
 
     const startPort = await centerOf(statePort(page, "start", "out"));
@@ -1171,12 +1171,12 @@ test.describe("State Blueprint tool", () => {
     await page.locator("#pTitle").fill("Lesson ready");
     await openStateLayer(page, createdStateId);
     await addComponentState(page, "Note");
-    const readyNoteTemplate = "Ready for {{states.start.userName}} as {{states.start.role}}";
-    await componentEditor(page, "Note").locator("textarea").fill(readyNoteTemplate);
+    const readyNoteText = "Ready for Grace as member";
+    await componentEditor(page, "Note").locator("textarea").fill(readyNoteText);
     await expect.poll(async () => {
       const model = await savedModel(page);
       return model.states.find(state => state.id === createdStateId)?.components.find(component => component.type === "note")?.text || "";
-    }).toBe(readyNoteTemplate);
+    }).toBe(readyNoteText);
     await page.keyboard.press("Alt+ArrowLeft");
 
     const app = appFrame(page);
@@ -1211,7 +1211,7 @@ test.describe("State Blueprint tool", () => {
     expect(start.data.userName).toBe("Ada");
     expect(start.data.profile.tier).toBe("starter");
     expect(start.components.map(component => component.type)).toEqual(["heading", "text", "list", "link", "note"]);
-    expect(done.components.find(component => component.type === "note").text).toBe(readyNoteTemplate);
+    expect(done.components.find(component => component.type === "note").text).toBe(readyNoteText);
     expect(transition.label).toBe("Submit");
     expect(transition.condition).toBe(submitCondition);
     expect(transition.set).toEqual({ "states.start.userName": "Grace", "states.start.role": "member" });
@@ -1224,7 +1224,7 @@ test.describe("State Blueprint tool", () => {
     expect(definition.model.transitions.find(item => item.label === "Submit").set["states.start.role"]).toBe("member");
   });
 
-  test("renders state data defaults and transition set data in templates", async ({ page }) => {
+  test("renders state data defaults and transition set data through data wires", async ({ page }) => {
     const model = {
       version: 2,
       name: "Data Flow",
@@ -1238,7 +1238,8 @@ test.describe("State Blueprint tool", () => {
           y: 140,
           data: { userName: "Ada", email: "", password: "" },
           dataTypes: { userName: "text", email: "email", password: "password" },
-          components: [{ id: "c_welcome", type: "text", text: "Welcome {{states.login.userName}}", url: "" }]
+          components: [{ id: "c_welcome", type: "dataWire", wireId: "wire_login_user", text: "", url: "" }],
+          dataWires: [{ id: "wire_login_user", sourcePath: "states.login.userName", role: "text", componentType: "text", label: "User" }]
         },
         {
           id: "logged_in",
@@ -1248,7 +1249,14 @@ test.describe("State Blueprint tool", () => {
           y: 140,
           data: { userName: "", role: "" },
           dataTypes: { userName: "text", role: "text" },
-          components: [{ id: "c_done", type: "note", text: "Signed in as {{states.logged_in.userName}} with role {{states.logged_in.role}}", url: "" }]
+          components: [
+            { id: "c_done_user", type: "dataWire", wireId: "wire_done_user", text: "", url: "" },
+            { id: "c_done_role", type: "dataWire", wireId: "wire_done_role", text: "", url: "" }
+          ],
+          dataWires: [
+            { id: "wire_done_user", sourcePath: "states.logged_in.userName", role: "text", componentType: "text", label: "User" },
+            { id: "wire_done_role", sourcePath: "states.logged_in.role", role: "text", componentType: "text", label: "Role" }
+          ]
         }
       ],
       transitions: [
@@ -1277,14 +1285,15 @@ test.describe("State Blueprint tool", () => {
     const app = appFrame(page);
     await expect(page.locator('[data-id="login"]')).toBeVisible();
     await expect(app.locator("#statePill")).toHaveText("login");
-    await expect(app.getByText("Welcome Ada")).toBeVisible();
+    await expect(app.locator("#screen")).toContainText("Ada");
 
     await runtimeTextInput(app, "E-Mail").fill("user@example.com");
     await runtimeTextInput(app, "Passwort").fill("secret123");
     await app.getByRole("button", { name: "Einloggen" }).click();
 
     await expect(app.locator("#statePill")).toHaveText("logged_in");
-    await expect(app.getByText("Signed in as Grace with role admin")).toBeVisible();
+    await expect(app.locator("#screen")).toContainText("Grace");
+    await expect(app.locator("#screen")).toContainText("admin");
 
     const saveDownload = page.waitForEvent("download");
     await page.keyboard.press("Control+S");
@@ -1440,7 +1449,7 @@ test.describe("State Blueprint tool", () => {
           y: 140,
           data: { ready: true },
           subscriptions: ["states.seed.ready"],
-          components: [{ id: "seed_text", type: "text", text: "Waiting for {{states.seed.ready}}", url: "" }]
+          components: [{ id: "seed_text", type: "text", text: "Waiting for ready", url: "" }]
         },
         {
           id: "matched",
@@ -1493,7 +1502,7 @@ test.describe("State Blueprint tool", () => {
           x: 120,
           y: 140,
           data: { startOnly: "start-default", shared: "start-default" },
-          components: [{ id: "c_start", type: "text", text: "Start {{states.start.startOnly}} {{states.start.shared}}", url: "" }]
+          components: [{ id: "c_start", type: "text", text: "Start values", url: "" }]
         },
         {
           id: "next",
@@ -1502,7 +1511,7 @@ test.describe("State Blueprint tool", () => {
           x: 480,
           y: 140,
           data: { nextOnly: "next-default", shared: "next-default" },
-          components: [{ id: "c_next", type: "note", text: "Next {{states.start.startOnly}} {{states.next.nextOnly}} {{states.next.shared}}", url: "" }]
+          components: [{ id: "c_next", type: "note", text: "Next values", url: "" }]
         }
       ],
       transitions: [
@@ -1521,7 +1530,7 @@ test.describe("State Blueprint tool", () => {
     const app = appFrame(page);
     await expect(page.locator('[data-id="start"]')).toBeVisible();
     await expect(app.locator("#statePill")).toHaveText("start");
-    await expect(app.getByText("Start start-default start-default")).toBeVisible();
+    await expect(app.getByText("Start values")).toBeVisible();
     await expect.poll(async () => {
       const context = await runtimeContext(page);
       return {
@@ -1550,7 +1559,7 @@ test.describe("State Blueprint tool", () => {
 
     await app.getByRole("button", { name: "Go" }).click();
     await expect(app.locator("#statePill")).toHaveText("next");
-    await expect(app.getByText("Next start-default next-updated transition-set")).toBeVisible();
+    await expect(app.getByText("Next values")).toBeVisible();
     await expect.poll(async () => {
       const context = await runtimeContext(page);
       return {
@@ -1572,7 +1581,7 @@ test.describe("State Blueprint tool", () => {
         rootStateId: "tpl_runtime_contract",
         title: "Runtime contract preset",
         body: "",
-        components: [{ id: "tpl_contract_text", type: "text", text: "Preset value {{states.tpl_runtime_contract.presetOnly}}", url: "" }],
+        components: [{ id: "tpl_contract_text", type: "text", text: "Preset value from-preset-template", url: "" }],
         data: { presetOnly: "from-preset-template" },
         states: [],
         transitions: []
@@ -1614,7 +1623,8 @@ test.describe("State Blueprint tool", () => {
           x: 120,
           y: 160,
           data: { shellOnly: "shell-default" },
-          components: [{ id: "shell_text", type: "text", text: "Parent shell {{states.shell.shellOnly}}", url: "" }]
+          boundary: { entryId: "inline_component", exitId: "child_step", entryDisabled: false, exitDisabled: false },
+          components: [{ id: "shell_text", type: "text", text: "Parent shell shell-default", url: "" }]
         },
         {
           id: "inline_component",
@@ -1624,7 +1634,7 @@ test.describe("State Blueprint tool", () => {
           x: 120,
           y: 120,
           data: { inlineOnly: "inline-default" },
-          components: [{ id: "inline_text", type: "note", text: "Inline block {{states.inline_component.inlineOnly}}", url: "" }]
+          components: [{ id: "inline_text", type: "note", text: "Inline block inline-default", url: "" }]
         },
         {
           id: "child_step",
@@ -1634,7 +1644,7 @@ test.describe("State Blueprint tool", () => {
           x: 420,
           y: 120,
           data: { childOnly: "child-default" },
-          components: [{ id: "child_text", type: "text", text: "Child step body {{states.child_step.childOnly}}", url: "" }]
+          components: [{ id: "child_text", type: "text", text: "Child step body child-default", url: "" }]
         }
       ],
       transitions: []
@@ -2020,10 +2030,10 @@ test.describe("State Blueprint tool", () => {
     }))).toEqual({ entryDisabled: false, exitDisabled: false, stateIds: ["zustand_1"], entryId: "zustand_1", exitId: "zustand_1", inputFlow: true, outputFlow: true });
   });
 
-  test("repairs stale child boundary endpoints when the first child state is created @smoke", async ({ page }) => {
-    const staleBoundaryModel = {
+  test("assigns exact child boundary endpoints when the first child state is created @smoke", async ({ page }) => {
+    const emptyParentModel = {
       version: 2,
-      name: "Stale Child Boundary",
+      name: "Empty Parent Boundary",
       initial: "parent",
       states: [
         {
@@ -2032,8 +2042,8 @@ test.describe("State Blueprint tool", () => {
           body: "",
           components: [],
           boundary: {
-            entryId: "deleted_child",
-            exitId: "deleted_child",
+            entryId: "",
+            exitId: "",
             entryDisabled: false,
             exitDisabled: false
           },
@@ -2049,7 +2059,7 @@ test.describe("State Blueprint tool", () => {
         localStorage.removeItem(name);
       }
       localStorage.setItem(`${key}.editor`, JSON.stringify({ model }));
-    }, { key: STORAGE_KEY, model: staleBoundaryModel });
+    }, { key: STORAGE_KEY, model: emptyParentModel });
     await page.goto("/state.html");
 
     await openStateLayer(page, "parent");
@@ -2087,6 +2097,33 @@ test.describe("State Blueprint tool", () => {
       exitId: childId,
       inputFlow: true,
       outputFlow: true
+    });
+  });
+
+  test("requires an explicit new initial state before deleting the current one @smoke", async ({ page }) => {
+    await openTool(page);
+
+    const result = await page.evaluate(() => {
+      const initial = model.initial;
+      const count = model.states.length;
+      selected = selectionFromParts([initial], []);
+      return {
+        deleted: deleteSelectedItems(),
+        originalInitial: initial,
+        initial: model.initial,
+        count: model.states.length,
+        stillExists: model.states.some(state => state.id === initial),
+        previousCount: count
+      };
+    });
+
+    expect(result).toEqual({
+      deleted: false,
+      originalInitial: result.originalInitial,
+      initial: result.originalInitial,
+      count: result.previousCount,
+      stillExists: true,
+      previousCount: result.previousCount
     });
   });
 
@@ -2640,6 +2677,7 @@ test.describe("State Blueprint tool", () => {
     await expect(app.locator(".daisy-pricing .card .card-title")).toContainText(["Starter", "Business", "Scale"]);
     await expect(app.locator(".daisy-pricing .daisy-card-price")).toContainText(["249 EUR", "749 EUR", "1.990 EUR"]);
     await expect(app.locator(".daisy-pricing button[data-transition-id]")).toHaveCount(3);
+    await expect(app.locator('[data-default-action="true"]')).toHaveCount(0);
     await expect(app.locator(".daisy-feature-grid").filter({ hasText: "Zubuchbare Pakete" })).toHaveCount(1);
     await expect(app.locator(".daisy-feature-grid").filter({ hasText: "Zubuchbare Pakete" }).locator(".daisy-feature-cards > .card")).toHaveCount(4);
     await expect(app.locator(".daisy-feature-grid").filter({ hasText: "Zubuchbare Pakete" }).locator("button[data-transition-id]")).toHaveCount(4);
@@ -2660,6 +2698,22 @@ test.describe("State Blueprint tool", () => {
     )).toBe(0);
     await expect(app.getByText("Business")).toBeVisible();
     await expect(app.getByText("749 EUR")).toBeVisible();
+    await expect.poll(async () => {
+      const context = await runtimeContext(page);
+      return {
+        current: context.state?.current,
+        lastTransition: context.state?.lastTransition,
+        selectedPlan: context.states?.site_pricing?.plans?.selectedPlan,
+        plan: context.states?.site_checkout?.order?.plan,
+        price: context.states?.site_checkout?.order?.price
+      };
+    }).toEqual({
+      current: "site_checkout",
+      lastTransition: "site_pricing_buy_business",
+      selectedPlan: "Business",
+      plan: "Business",
+      price: "749 EUR"
+    });
     await app.locator('input').fill("billing@example.test");
     await expect(app.getByRole("button", { name: "Anfrage senden", exact: true })).toHaveCount(1);
     await app.getByRole("button", { name: "Anfrage senden", exact: true }).click();
@@ -3389,7 +3443,7 @@ test.describe("State Blueprint tool", () => {
     }).toEqual({ entryId: childId, entryDisabled: false, inputFlow: true });
   });
 
-  test("keeps boundary proxy anchors by reassigning after deleting the anchored child state @smoke", async ({ page }) => {
+  test("disables boundaries instead of guessing a replacement after deleting the anchored child @smoke", async ({ page }) => {
     await openTool(page);
     await openStateLayer(page, "login");
     const firstChildId = await addChildByDoubleClick(page, "login");
@@ -3435,9 +3489,9 @@ test.describe("State Blueprint tool", () => {
 
     await expect(page.locator(`[data-id="${firstChildId}"]`)).toHaveCount(0);
     await expect(page.locator(`[data-id="${secondChildId}"]`)).toBeVisible();
-    await expect(page.locator(".node.boundary-proxy")).toHaveCount(2);
-    await expect(page.locator(`svg#ports .svg-port[data-state-id="${inputProxyId}"][data-port-side="out"]`)).toHaveCount(1);
-    await expect(page.locator(`svg#ports .svg-port[data-state-id="${outputProxyId}"][data-port-side="in"]`)).toHaveCount(1);
+    await expect(page.locator(".node.boundary-proxy")).toHaveCount(0);
+    await expect(page.locator(`svg#ports .svg-port[data-state-id="${inputProxyId}"][data-port-side="out"]`)).toHaveCount(0);
+    await expect(page.locator(`svg#ports .svg-port[data-state-id="${outputProxyId}"][data-port-side="in"]`)).toHaveCount(0);
     await expect(page.locator(`svg#ports .svg-port[data-state-id="${secondChildId}"][data-port-side="in"]`)).toHaveCount(1);
     await expect(page.locator(`svg#ports .svg-port[data-state-id="${secondChildId}"][data-port-side="out"]`)).toHaveCount(1);
     await expect.poll(async () => {
@@ -3461,12 +3515,12 @@ test.describe("State Blueprint tool", () => {
         )
       };
     }).toEqual({
-      entryId: secondChildId,
-      exitId: secondChildId,
-      entryDisabled: false,
-      exitDisabled: false,
-      inputFlow: true,
-      outputFlow: true
+      entryId: "",
+      exitId: "",
+      entryDisabled: true,
+      exitDisabled: true,
+      inputFlow: false,
+      outputFlow: false
     });
   });
 
@@ -4465,6 +4519,12 @@ test.describe("State Blueprint tool", () => {
         components: [],
         data: {},
         dataTypes: {},
+        boundary: {
+          entryId: "tpl_nested_child",
+          exitId: "tpl_nested_child",
+          entryDisabled: false,
+          exitDisabled: false
+        },
         states: [{
           id: "tpl_nested_child",
           title: "Reusable child",
@@ -4551,13 +4611,13 @@ test.describe("State Blueprint tool", () => {
     }).toBe("Ada");
     await openStateLayer(page, "login");
     await addComponentState(page, "Note");
-    await componentEditor(page, "Note").locator("textarea").fill("Manual note for {{states.login.userName}}");
+    await componentEditor(page, "Note").locator("textarea").fill("Manual note for Ada");
 
     await expect.poll(async () => {
       const model = await savedModel(page);
       const note = model.states.find(state => state.id === "login");
       return note?.components.find(component => component.type === "note")?.text || "";
-    }).toBe("Manual note for {{states.login.userName}}");
+    }).toBe("Manual note for Ada");
 
     await page.keyboard.press("Alt+ArrowLeft");
     await page.locator('[data-id="login"]').click();
@@ -4757,29 +4817,29 @@ test.describe("State Blueprint tool", () => {
 
     await openStateLayer(page, "login");
     await addComponentState(page, "Heading");
-    await componentEditor(page, "Heading").locator("input").fill("Account heading {{states.login.userName}}");
+    await componentEditor(page, "Heading").locator("input").fill("Account heading Ada");
 
     await addComponentState(page, "Text");
-    await componentEditor(page, "Text").locator("textarea").fill("Body paragraph for {{states.login.userName}}");
+    await componentEditor(page, "Text").locator("textarea").fill("Body paragraph for Ada");
 
     await addComponentState(page, "Image");
-    await componentEditor(page, "Image").getByLabel("Alt-Text").fill("Chart for {{states.login.userName}}");
+    await componentEditor(page, "Image").getByLabel("Alt-Text").fill("Chart for Ada");
     await componentEditor(page, "Image").getByLabel("Bild-URL").fill(imageUrl);
 
     await addComponentState(page, "List");
     const listEditor = componentEditor(page, "List");
-    await listEditor.locator(".list-item-editor input").nth(0).fill("First step for {{states.login.userName}}");
+    await listEditor.locator(".list-item-editor input").nth(0).fill("First step for Ada");
     await listEditor.locator(".list-item-editor input").nth(1).fill("Second step");
     await listEditor.locator(".component-add-item").click();
     await expect(listEditor.locator(".list-item-editor input")).toHaveCount(5);
     await listEditor.locator(".list-item-editor input").nth(4).fill("Third persisted step");
 
     await addComponentState(page, "Link");
-    await componentEditor(page, "Link").locator("input").nth(0).fill("Docs for {{states.login.userName}}");
-    await componentEditor(page, "Link").locator("input").nth(1).fill("https://example.com/{{states.login.userName}}/docs");
+    await componentEditor(page, "Link").locator("input").nth(0).fill("Docs for Ada");
+    await componentEditor(page, "Link").locator("input").nth(1).fill("https://example.com/Ada/docs");
 
     await addComponentState(page, "Note");
-    await componentEditor(page, "Note").locator("textarea").fill("Note survives for {{states.login.userName}}");
+    await componentEditor(page, "Note").locator("textarea").fill("Note survives for Ada");
 
     await addComponentState(page, "Divider");
 
@@ -4793,12 +4853,12 @@ test.describe("State Blueprint tool", () => {
       }));
     }).toEqual([
       { title: "Text", type: "text", text: "Email and password are entered.", url: "" },
-      { title: "Heading", type: "heading", text: "Account heading {{states.login.userName}}", url: "" },
-      { title: "Text", type: "text", text: "Body paragraph for {{states.login.userName}}", url: "" },
-      { title: "Image", type: "image", text: "Chart for {{states.login.userName}}", url: imageUrl },
-      { title: "List", type: "list", text: "First step for {{states.login.userName}}\nSecond step\nNachweis anhängen\nErledigt markieren\nThird persisted step", url: "" },
-      { title: "Link", type: "link", text: "Docs for {{states.login.userName}}", url: "https://example.com/{{states.login.userName}}/docs" },
-      { title: "Note", type: "note", text: "Note survives for {{states.login.userName}}", url: "" },
+      { title: "Heading", type: "heading", text: "Account heading Ada", url: "" },
+      { title: "Text", type: "text", text: "Body paragraph for Ada", url: "" },
+      { title: "Image", type: "image", text: "Chart for Ada", url: imageUrl },
+      { title: "List", type: "list", text: "First step for Ada\nSecond step\nNachweis anhängen\nErledigt markieren\nThird persisted step", url: "" },
+      { title: "Link", type: "link", text: "Docs for Ada", url: "https://example.com/Ada/docs" },
+      { title: "Note", type: "note", text: "Note survives for Ada", url: "" },
       { title: "Divider", type: "divider", text: "", url: "" }
     ]);
 
@@ -4808,19 +4868,19 @@ test.describe("State Blueprint tool", () => {
     await page.locator("#layerFrameLabel").click();
     await expect(page.locator("#pTitle")).toHaveValue("Login");
 
-    await expect(componentEditor(page, "Heading").locator("input")).toHaveValue("Account heading {{states.login.userName}}");
-    await expect(componentEditor(page, "Text").locator("textarea")).toHaveValue("Body paragraph for {{states.login.userName}}");
-    await expect(componentEditor(page, "Image").getByLabel("Alt-Text")).toHaveValue("Chart for {{states.login.userName}}");
+    await expect(componentEditor(page, "Heading").locator("input")).toHaveValue("Account heading Ada");
+    await expect(componentEditor(page, "Text").locator("textarea")).toHaveValue("Body paragraph for Ada");
+    await expect(componentEditor(page, "Image").getByLabel("Alt-Text")).toHaveValue("Chart for Ada");
     await expect(componentEditor(page, "Image").getByLabel("Bild-URL")).toHaveValue(imageUrl);
     await expect(componentEditor(page, "List").locator(".list-item-editor input")).toHaveCount(5);
-    await expect(componentEditor(page, "List").locator(".list-item-editor input").nth(0)).toHaveValue("First step for {{states.login.userName}}");
+    await expect(componentEditor(page, "List").locator(".list-item-editor input").nth(0)).toHaveValue("First step for Ada");
     await expect(componentEditor(page, "List").locator(".list-item-editor input").nth(1)).toHaveValue("Second step");
     await expect(componentEditor(page, "List").locator(".list-item-editor input").nth(2)).toHaveValue("Nachweis anhängen");
     await expect(componentEditor(page, "List").locator(".list-item-editor input").nth(3)).toHaveValue("Erledigt markieren");
     await expect(componentEditor(page, "List").locator(".list-item-editor input").nth(4)).toHaveValue("Third persisted step");
-    await expect(componentEditor(page, "Link").locator("input").nth(0)).toHaveValue("Docs for {{states.login.userName}}");
-    await expect(componentEditor(page, "Link").locator("input").nth(1)).toHaveValue("https://example.com/{{states.login.userName}}/docs");
-    await expect(componentEditor(page, "Note").locator("textarea")).toHaveValue("Note survives for {{states.login.userName}}");
+    await expect(componentEditor(page, "Link").locator("input").nth(0)).toHaveValue("Docs for Ada");
+    await expect(componentEditor(page, "Link").locator("input").nth(1)).toHaveValue("https://example.com/Ada/docs");
+    await expect(componentEditor(page, "Note").locator("textarea")).toHaveValue("Note survives for Ada");
     await expect(componentEditor(page, "Divider")).toBeVisible();
 
     await page.keyboard.press("Alt+ArrowLeft");
@@ -4922,10 +4982,10 @@ test.describe("State Blueprint tool", () => {
     await page.locator("#pData").fill('{"email":{"label":"E-Mail","value":""},"password":{"label":"Passwort","value":""},"helperText":"Resume safely"}');
     await openStateLayer(page, "login");
     await addComponentState(page, "Note");
-    await componentEditor(page, "Note").locator("textarea").fill("Helper: {{states.login.helperText}}");
+    await componentEditor(page, "Note").locator("textarea").fill("Helper: Resume safely");
     await page.keyboard.press("Alt+ArrowLeft");
 
-    await expect(app.getByText("Helper: Resume safely")).toHaveCount(0);
+    await expect(app.getByText("Helper: Resume safely")).toBeVisible();
     await expect(runtimeTextInput(app, "E-Mail")).toHaveValue("draft@example.com");
     await expect(runtimeTextInput(app, "Passwort")).toHaveValue("draft-secret");
 
@@ -5365,6 +5425,12 @@ test.describe("State Blueprint tool", () => {
 
   test("keeps every state at one contract width while long titles wrap cleanly", async ({ page }) => {
     const model = defaultTestModel();
+    model.states.find(state => state.id === "login").boundary = {
+      entryId: "",
+      exitId: "",
+      entryDisabled: true,
+      exitDisabled: true
+    };
     model.states.push({
       id: "login_details",
       parentId: "login",
@@ -7421,13 +7487,13 @@ test.describe("State Blueprint tool", () => {
         condition: transition?.condition
       };
     }).toEqual({
-      triggerType: "change",
-      triggerEvent: "change.states.auth_start.fetch.ok",
-      condition: "states.auth_start.fetch.ok == true"
+      triggerType: "api",
+      triggerEvent: "fetch.states.auth_start.fetch.success",
+      condition: ""
     });
     await expect(triggerEvent).toBeVisible();
-    await expect(triggerEvent).toHaveValue("change.states.auth_start.fetch.ok");
-    await triggerEvent.selectOption("change.states.auth_start.fetch.error");
+    await expect(triggerEvent).toHaveValue("fetch.states.auth_start.fetch.success");
+    await triggerEvent.selectOption("fetch.states.auth_start.fetch.error");
     await expect.poll(async () => {
       const model = await savedModel(page);
       const transition = model.transitions.find(item => item.id === "t_auth_login");
@@ -7437,11 +7503,11 @@ test.describe("State Blueprint tool", () => {
         condition: transition?.condition
       };
     }).toEqual({
-      triggerType: "change",
-      triggerEvent: "change.states.auth_start.fetch.error",
-      condition: "states.auth_start.fetch.error != \"\""
+      triggerType: "api",
+      triggerEvent: "fetch.states.auth_start.fetch.error",
+      condition: ""
     });
-    await triggerEvent.selectOption("change.states.auth_start.fetch.ok");
+    await triggerEvent.selectOption("fetch.states.auth_start.fetch.success");
     await expect(page.locator("#pDataCard")).toHaveJSProperty("open", true);
     await expect(page.locator("#pFetchCard")).toHaveJSProperty("open", true);
 
@@ -7455,9 +7521,9 @@ test.describe("State Blueprint tool", () => {
         condition: transition?.condition
       };
     }).toEqual({
-      triggerType: "change",
-      triggerEvent: "change.states.auth_start.fetch.ok",
-      condition: "states.auth_start.fetch.ok == true"
+      triggerType: "api",
+      triggerEvent: "fetch.states.auth_start.fetch.success",
+      condition: ""
     });
     await expect(triggerEvent).toBeVisible();
     await expect(triggerEvent).toHaveJSProperty("length", 0);
@@ -7474,9 +7540,9 @@ test.describe("State Blueprint tool", () => {
         condition: transition?.condition
       };
     }).toEqual({
-      triggerType: "change",
-      triggerEvent: "change.states.auth_start.fetch.ok",
-      condition: "states.auth_start.fetch.ok == true"
+      triggerType: "api",
+      triggerEvent: "fetch.states.auth_start.fetch.success",
+      condition: ""
     });
     await expect(page.locator("#pStateTriggerEventLabel")).toHaveText("Realtime-/WSS-Ereignis");
     await expect(triggerEvent).toBeVisible();
@@ -9172,7 +9238,7 @@ test.describe("State Blueprint tool", () => {
             timeoutMs: 2000,
             retries: 0
           },
-          components: [{ id: "loading_note", type: "note", text: "Loading {{states.load.fetch.status}}", url: "" }]
+          components: [{ id: "loading_note", type: "note", text: "Loading lessons", url: "" }]
         },
         {
           id: "ready",
@@ -9182,10 +9248,16 @@ test.describe("State Blueprint tool", () => {
           y: 140,
           data: {},
           repeat: { path: "states.load.fetch.data", as: "item", index: "i" },
-          components: [
-            { id: "lesson_heading", type: "heading", text: "#{{i}} {{item.title}}", url: "" },
-            { id: "lesson_link", type: "link", text: "Open {{item.title}}", url: "https://example.com/{{item.slug}}" }
-          ]
+          components: [],
+          dataWires: [{
+            id: "lesson_title",
+            sourcePath: "states.load.fetch.data.title",
+            scopePath: "states.load.fetch.data",
+            itemPath: "title",
+            role: "title",
+            componentType: "heading",
+            label: "Title"
+          }]
         }
       ],
       transitions: [
@@ -9212,9 +9284,8 @@ test.describe("State Blueprint tool", () => {
 
     const app = appFrame(page);
     await expect(app.locator("#statePill")).toHaveText("ready");
-    await expect(app.getByRole("heading", { name: "#0 Alpha" })).toBeVisible();
-    await expect(app.getByRole("heading", { name: "#1 Beta" })).toBeVisible();
-    await expect(app.getByRole("link", { name: "Open Alpha" })).toHaveAttribute("href", "https://example.com/alpha");
+    await expect(app.getByRole("heading", { name: "Alpha" })).toBeVisible();
+    await expect(app.getByRole("heading", { name: "Beta" })).toBeVisible();
   });
 
   test("generated app never treats a fetch-related condition as a button trigger", async ({ page }) => {
@@ -9246,7 +9317,7 @@ test.describe("State Blueprint tool", () => {
             timeoutMs: 2000,
             retries: 0
           },
-          components: [{ id: "status", type: "note", text: "Status {{states.load.fetch.status}}", url: "" }]
+          components: [{ id: "status", type: "note", text: "Fetch status", url: "" }]
         },
         {
           id: "ready",
@@ -9272,7 +9343,8 @@ test.describe("State Blueprint tool", () => {
     await page.goto("/state.html");
 
     const app = appFrame(page);
-    await expect(app.getByText("Status success")).toBeVisible();
+    await expect(app.getByText("Fetch status")).toBeVisible();
+    await expect.poll(async () => (await runtimeContext(page)).states?.load?.fetch?.status).toBe("success");
     await expect(app.locator("#statePill")).toHaveText("load");
 
     await app.getByRole("button", { name: "Manual ready" }).click();
@@ -9316,7 +9388,7 @@ test.describe("State Blueprint tool", () => {
           x: 480,
           y: 140,
           data: {},
-          components: [{ id: "failed_note", type: "note", text: "Fetch failed: {{states.load.users.error}}", url: "" }]
+          components: [{ id: "failed_note", type: "note", text: "Fetch failed", url: "" }]
         }
       ],
       transitions: [
@@ -9326,8 +9398,8 @@ test.describe("State Blueprint tool", () => {
           to: "failed",
           label: "Fetch failed",
           condition: "states.load.users.status == \"error\"",
-          triggerType: "change",
-          triggerEvent: "change.states.load.users.error",
+          triggerType: "api",
+          triggerEvent: "fetch.states.load.users.error",
           set: {}
         }
       ]
@@ -9343,7 +9415,8 @@ test.describe("State Blueprint tool", () => {
 
     const app = appFrame(page);
     await expect(app.locator("#statePill")).toHaveText("failed");
-    await expect(app.getByText("Fetch failed: HTTP 500")).toBeVisible();
+    await expect(app.getByText("Fetch failed", { exact: true })).toBeVisible();
+    await expect.poll(async () => (await runtimeContext(page)).states?.load?.users?.error).toBe("HTTP 500");
   });
 
   test("generated app discards stale fetch events after leaving the source state", async ({ page }) => {
@@ -9384,7 +9457,7 @@ test.describe("State Blueprint tool", () => {
             timeoutMs: 2000,
             retries: 0
           },
-          components: [{ id: "loading", type: "note", text: "Loading {{states.load.fetch.status}}", url: "" }]
+          components: [{ id: "loading", type: "note", text: "Loading result", url: "" }]
         },
         {
           id: "skipped",
@@ -9476,7 +9549,7 @@ test.describe("State Blueprint tool", () => {
             timeoutMs: 2000,
             retries: 1
           },
-          components: [{ id: "loading", type: "note", text: "Loading {{states.load.fetch.status}}", url: "" }]
+          components: [{ id: "loading", type: "note", text: "Loading result", url: "" }]
         },
         {
           id: "ready",
@@ -9486,7 +9559,16 @@ test.describe("State Blueprint tool", () => {
           y: 140,
           data: {},
           repeat: { path: "states.load.fetch.data", as: "item", index: "i" },
-          components: [{ id: "ready_heading", type: "heading", text: "{{item.title}}", url: "" }]
+          components: [],
+          dataWires: [{
+            id: "ready_title",
+            sourcePath: "states.load.fetch.data.title",
+            scopePath: "states.load.fetch.data",
+            itemPath: "title",
+            role: "title",
+            componentType: "heading",
+            label: "Title"
+          }]
         }
       ],
       transitions: [
@@ -9517,7 +9599,7 @@ test.describe("State Blueprint tool", () => {
     expect(attempts).toBe(2);
   });
 
-  test("selecting a state starts preview and keeps runtime tab order and Enter submit usable", async ({ page }) => {
+  test("selecting a state keeps tab order and requires an exact click when multiple actions exist", async ({ page }) => {
     const { model } = addExplicitLoginForm(defaultTestModel());
     await openTool(page, { model });
     const app = appFrame(page);
@@ -9537,11 +9619,13 @@ test.describe("State Blueprint tool", () => {
     await expect(email).toHaveAttribute("tabindex", "0");
     await expect(password).toHaveAttribute("tabindex", "0");
     await expect(primaryButton).toHaveAttribute("tabindex", "0");
-    await expect(primaryButton).toHaveAttribute("data-default-action", "true");
+    await expect(primaryButton).not.toHaveAttribute("data-default-action", "true");
 
     await email.fill("user@example.com");
     await password.fill("secret123");
     await password.press("Enter");
+    await expect(app.locator("#statePill")).toHaveText("login");
+    await primaryButton.click();
 
     await expect(app.locator("#statePill")).toHaveText("logged_in");
     await expect(page.locator('[data-id="logged_in"]')).toHaveClass(/selected/);
@@ -13238,7 +13322,14 @@ test.describe("State Blueprint tool", () => {
         rootStateId: "tpl_login_preset",
         title: "Login preset",
         body: "",
-        components: [{ id: "tpl_login_text", type: "text", text: "Welcome {{states.tpl_login_preset.email}}", url: "" }],
+        components: [{ id: "tpl_login_email", type: "dataWire", wireId: "tpl_login_email_wire", text: "", url: "" }],
+        dataWires: [{
+          id: "tpl_login_email_wire",
+          sourcePath: "states.tpl_login_preset.email",
+          role: "text",
+          componentType: "text",
+          label: "Email"
+        }],
         data: { email: "user@example.com" },
         dataTypes: { email: "email" },
         states: [],
@@ -13271,9 +13362,16 @@ test.describe("State Blueprint tool", () => {
     const instanceId = await page.locator(".node.selected").getAttribute("data-id");
     await expect.poll(async () => {
       const model = await savedModel(page);
-      return model.states.find(state => state.id === instanceId)?.components?.[0]?.text || "";
-    }).toBe(`Welcome {{states.${instanceId}.email}}`);
-    await expect(appFrame(page).getByText("Welcome user@example.com")).toBeVisible();
+      const state = model.states.find(item => item.id === instanceId);
+      return {
+        componentWireId: state?.components?.[0]?.wireId || "",
+        sourcePath: state?.dataWires?.[0]?.sourcePath || ""
+      };
+    }).toEqual({
+      componentWireId: "tpl_login_email_wire",
+      sourcePath: `states.${instanceId}.email`
+    });
+    await expect(appFrame(page).locator("#screen")).toContainText("user@example.com");
     await expect.poll(async () => (await savedStateTemplates(page)).length).toBe(0);
   });
   test("drag-drops built-in explorer presets onto the canvas @smoke", async ({ page }) => {
@@ -14545,6 +14643,7 @@ test.describe("State Blueprint tool", () => {
           title: "Parent",
           body: "",
           components: [{ id: "parent_text", type: "text", text: "Parent copy", url: "" }],
+          boundary: { entryId: "child", exitId: "", entryDisabled: false, exitDisabled: true },
           x: 180,
           y: 180
         },

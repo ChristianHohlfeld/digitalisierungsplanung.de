@@ -20,7 +20,6 @@ function adminRouteIndex(config = {}) {
     version: route(config, "versionPath", "/version"),
     productContract: route(config, "productContractPath", "/contract"),
     events: route(config, "eventsPath", "/events"),
-    eventsContract: route(config, "eventsContractPath", "/events/contract"),
     token: route(config, "tokenPath", "/token"),
     console: route(config, "consolePath", "/console.html"),
     eventsAdmin: route(config, "eventsAdminPath", "/events-admin.html"),
@@ -41,7 +40,7 @@ function adminRouteIndex(config = {}) {
       href: paths.eventsAdmin,
       kind: "designer",
       intent: "Realtime-Ereignisse, Webhooks, Mail, SIP und Datenquellen definieren.",
-      endpointIds: ["events-admin-html", "events-admin-catalog", "events", "events-contract"]
+      endpointIds: ["events-admin-html", "events-admin-catalog", "events"]
     },
     {
       id: "presets",
@@ -85,7 +84,6 @@ function adminRouteIndex(config = {}) {
     endpoint("version", "GET", paths.version, "Release", "public", "Gemeinsame Frontend-/Backend-Release-ID."),
     endpoint("product-contract", "GET", paths.productContract, "Product Contract", "public", "Editor-Contract für Trigger, Werte, Datasets, Connectoren und Presets."),
     endpoint("events", "GET", paths.events, "Event Catalog", "public", "Aktuelle Realtime-Events und Connectoren."),
-    endpoint("events-contract", "GET", paths.eventsContract, "Realtime Contract", "public", "Niedriger Event-Contract mit Detail- und State-Beiträgen."),
     endpoint("token", "GET", paths.token, "Room Token", "runtime", "Signiertes Browser-Token für WSS-Räume."),
     endpoint("console-html", "GET", paths.console, "Event Console", "admin", "Stateless Test-Emitter."),
     endpoint("events-admin-html", "GET", paths.eventsAdmin, "Event Designer", "admin", "Admin-Oberfläche für Event-Catalog."),

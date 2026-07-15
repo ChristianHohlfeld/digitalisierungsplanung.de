@@ -128,7 +128,6 @@ function builtinStateTemplates(libraryValue) {
   const template = item => ({
     components: [],
     data: {},
-    renderMode: "state",
     builtIn: true,
     rootStateId: item.id,
     ...item
@@ -245,49 +244,42 @@ function builtinStateTemplates(libraryValue) {
       id: "builtin_page_heading",
       title: "Seitenüberschrift",
       description: "Klare Überschrift für Seiten, Dashboards und Formulare.",
-      renderMode: "component",
       components: [component("builtin_page_heading_component", "heading", "Seitentitel")]
     }),
     template({
       id: "builtin_body_copy",
       title: "Textblock",
       description: "Normaler Text für Hinweise, Erklärungen oder Zusammenfassungen.",
-      renderMode: "component",
       components: [component("builtin_body_copy_component", "text", "Schreibe hier die hilfreiche Erklärung.")]
     }),
     template({
       id: "builtin_media_image",
       title: "Bildblock",
       description: "Bildbereich für Produkte, Diagramme, Avatare oder Cover.",
-      renderMode: "component",
       components: [component("builtin_media_image_component", "image", "Bildbeschreibung", DEFAULT_IMAGE_COMPONENT_URL)]
     }),
     template({
       id: "builtin_task_checklist",
       title: "Aufgaben-Checkliste",
       description: "Wiederverwendbare Checkliste für Aufgaben, Onboarding oder Qualitätssicherung.",
-      renderMode: "component",
       components: [component("builtin_task_checklist_component", "list", "Verantwortung klären\nFrist prüfen\nNachweis anhängen\nErledigt markieren")]
     }),
     template({
       id: "builtin_external_link",
       title: "Externer Link",
       description: "Einzelner Link zu Dokumentation, Support, Kalender oder Download.",
-      renderMode: "component",
       components: [component("builtin_external_link_component", "link", "Dokumentation öffnen", "https://example.com/docs")]
     }),
     template({
       id: "builtin_info_note",
       title: "Infobox",
       description: "Hervorgehobener Hinweis für Warnungen, Tipps oder nächste Schritte.",
-      renderMode: "component",
       components: [component("builtin_info_note_component", "note", "Wichtiger Kontext steht hier.")]
     }),
     template({
       id: "builtin_section_divider",
       title: "Abschnittstrenner",
       description: "Visuelle Trennung zwischen dichten Inhaltsgruppen.",
-      renderMode: "component",
       components: [component("builtin_section_divider_component", "divider")]
     }),
     template({

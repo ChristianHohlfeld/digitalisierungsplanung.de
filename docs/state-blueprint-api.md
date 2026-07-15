@@ -91,15 +91,14 @@ Transition-ID und eine URL im selben Slot sind ungültig.
 
 Der Trigger wird ausschließlich an der Transition modelliert. Bezogen auf die
 effektive Quelle (`from`, bei Parent-Ausgängen `groupExitId`) darf dieselbe
-Trigger-Condition-Identität nur einmal vorkommen. Mehrere Ausgänge auf denselben
-Event sind erlaubt, wenn ihre Conditions unterschiedlich sind; bei einem
-Ereignis muss zur Laufzeit genau eine Condition passen. Ein Timer ist höchstens
+Triggeridentität nur einmal vorkommen. Conditions gehören nicht zur Identität;
+mehrere Ausgänge auf denselben Event sind daher ungültig. Ein Timer ist höchstens
 einmal erlaubt, `auto` ist exklusiv. Interne `flow`-Kanten zählen nicht als
 fachliche Trigger. Die Identität ist für `button` die Transition-ID, für
-`timer` und `auto` jeweils der Typ selbst, und für `change`, `event` und
-`realtime` der vollständige Trigger plus normalisierte Condition. Zulässige
-fachliche Typen sind ausschließlich `button`, `change`, `event`, `realtime`,
-`timer` und `auto`; `flow` ist ausschließlich intern. Andere Werte und
+`timer` und `auto` jeweils der Typ selbst, und für `change`, `event`,
+`realtime` sowie `api` der vollständige Trigger. Zulässige fachliche Typen sind
+ausschließlich `button`, `change`, `event`, `realtime`, `api`, `timer` und
+`auto`; `flow` ist ausschließlich intern. Andere Werte und
 ungültige Kombinationen werden ohne Alias oder Normalisierung abgelehnt.
 Condition-Pfade unter `events.*`, `realtime.*` und `emitters.*` müssen aus dem
 Product Contract kommen.
@@ -170,7 +169,8 @@ Benennt den Ablauf um, ohne Zustände oder Übergänge zu ändern.
 ### `replace_model`
 
 Ersetzt das ganze kanonische Modell. Das ist für vollständige Importe oder
-generierte Modellneubauten gedacht. Das Modell wird normalisiert und validiert.
+generierte Modellneubauten gedacht. Die rohe Eingabe wird validiert und nur bei
+Erfolg kanonisch übernommen; sie wird nicht repariert oder migriert.
 
 ```json
 {
@@ -198,7 +198,6 @@ Felder:
 | `title` | string | nein | Menschlich lesbarer Name. |
 | `parentId` | string | nein | Legt den Zustand in eine Parent-Ebene. Leer bedeutet Root. |
 | `x`, `y` | number | nein | Koordinaten auf der Arbeitsfläche, am Raster ausgerichtet. |
-| `renderMode` | `state` oder `component` | nein | Normale Zustandsansicht oder komponentenartiger Zustand. |
 | `components` | array | nein | Strukturierte Render-Zeilen. Keine `html`-, `localState`- oder versteckten Store-Felder. |
 | `data` | object | nein | Zustandsbezogene Vorgaben und Form für den globalen Bus. |
 | `dataTypes` | object | nein | Typdeklarationen für Pfade aus `data`. |
@@ -207,6 +206,9 @@ Felder:
 | `dataWires` | array | nein | Daten-zu-Darstellung-Zuordnungen. |
 | `subscriptions` | array | nein | Bus-Pfade, für die sich dieser Zustand interessiert. |
 | `boundary` | object | nein | Eingangs-/Ausgangsdaten für Kind-Ebenen. |
+
+`renderMode` ist kein Vertragsfeld. Sichtbare Komponenten gehören immer direkt
+zu ihrem State.
 
 Beispiel: Zustand mit Textkomponente erzeugen.
 
@@ -279,8 +281,8 @@ Fields:
 | `from` | Zustands-ID | ja | Quellzustand. |
 | `to` | Zustands-ID | ja | Zielzustand. |
 | `label` | string | nein | Nutzereigene Beschriftung für Schaltfläche oder Kante. Ohne Angabe exakt `Weiter`; Quelle und Ziel bleiben davon getrennte `from`-/`to`-Referenzen. |
-| `triggerType` | `button`, `change`, `event`, `realtime`, `timer`, `auto` | nein | Standard ist `button`. |
-| `triggerEvent` | string | nein | Expliziter Ereignisname. Wird für Schaltfläche/Timer/Auto erzeugt, wenn leer. Realtime-Übergänge behalten eine konkrete `realtime.*`-Referenz. |
+| `triggerType` | `button`, `change`, `event`, `realtime`, `api`, `timer`, `auto` | nein | Standard ist `button`. |
+| `triggerEvent` | string | nein | Konkreter Ereignisname. Wird nur für Schaltfläche/Timer/Auto erzeugt. Change, Event, Realtime und API verlangen eine konkrete Referenz. |
 | `timerMs` | number | nein | Dauer für Timer-Übergänge. |
 | `condition` | string | nein | Bedingung über Bus-Pfade. |
 | `set` | object | nein | Patch, der beim Übergang in den globalen Bus geschrieben wird. |
@@ -356,6 +358,30 @@ Realtime-Übergang:
 
 Realtime event definitions stay on the Realtime API (`/events`). The model stores
 no `model.realtime` contract copy.
+
+API-Antwort:
+
+```json
+{
+  "type": "upsert_transition",
+  "id": "products_loaded",
+  "from": "products",
+  "to": "results",
+  "label": "Geladen",
+  "triggerType": "api",
+  "triggerEvent": "fetch.states.products.fetch.success"
+}
+```
+
+Der Fehlerpfad verwendet entsprechend `fetch.states.products.fetch.error`.
+`api` ist ein eigener Trigger und kein Alias für `change` oder `event`.
+Conditions gehören nicht zur Triggeridentität; derselbe konkrete Trigger darf
+pro effektiver Quelle nur einmal vorkommen.
+
+Conditions erlauben ausschließlich `&&`, `||`, `!`, die Operatoren `==`, `!=`,
+`>`, `>=`, `<`, `<=` sowie boolesche, endliche numerische oder gequotete
+String-Literale. `null`, `undefined`, freie Ausdrücke und implizite
+Typumwandlung sind verboten.
 
 Preset categories, package metadata, and managed preset definitions stay on the
 Product Contract (`/contract`). The model and MCP workspace store only the

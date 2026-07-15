@@ -71,8 +71,7 @@ The event catalog is the server-side source of truth for offered realtime events
 - `/` and `/admin.html`: central admin hub for human-facing server tools.
 - `/admin/routes`: one JSON route index consumed by the admin hub.
 - `/contract`: product contract for frontend trigger types, value types, datasets, connector sources, preset packages, subscription plans, and collision-free state contribution paths.
-- `/events`: current event and connector definitions.
-- `/events/contract`: lower-level realtime catalog contract for event keys, detail types, and contribution paths.
+- `/events`: canonical realtime catalog for event keys, detail types, emitters, and contribution paths.
 - `/ws`: WebSocket relay only.
 - `/emit`: authenticated server-to-server fire endpoint only.
 - `/console.html`: manual browser emitter for testing only.

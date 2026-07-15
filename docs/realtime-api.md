@@ -35,7 +35,7 @@ http://127.0.0.1:8788
 
 Browser-Origin ist in Produktion auf `https://digitalisierungsplanung.de` begrenzt. Konfiguriert wird das über `REALTIME_ALLOWED_ORIGINS`.
 
-`/contract`, `/events` und `/events/contract` erlauben:
+`/contract` und `/events` erlauben:
 
 - Anfragen ohne `Origin`, z.B. `curl` oder Server-zu-Server,
 - Anfragen mit erlaubtem `Origin`,
@@ -387,114 +387,6 @@ Antwort, gekürzt:
 }
 ```
 
-### `GET /events/contract`
-
-Niedriger Realtime-Katalog-Contract: Event-Keys, feste Detail-Datentypen,
-Emitter und abgeleitete State-Contribution-Pfade. Neue Frontend-Verbraucher
-sollten `/contract` verwenden; die Autorität für Kollisionsfreiheit und
-Uniqueness bleibt `validateEventCatalog` auf dem Server.
-
-Antwort:
-
-```json
-{
-  "provider": {
-    "id": "digitalisierungsplanung.realtime",
-    "label": "Digitalisierungsplanung Realtime"
-  },
-  "state": {
-    "path": "realtime",
-    "schema": {
-      "roomId": "text",
-      "clientId": "text",
-      "status": "text",
-      "connected": "boolean",
-      "joined": "boolean",
-      "connecting": "boolean",
-      "reconnectAttempt": "number",
-      "error": "text"
-    }
-  },
-  "events": [
-    {
-      "name": "realtime.sip.call.incoming",
-      "label": "Eingehender Anruf",
-      "description": "SIP-Anruf gestartet",
-      "detail": {
-        "caller": "text",
-        "callee": "text",
-        "callId": "text"
-      },
-      "bindings": [],
-      "contributes": {
-        "root": "events.realtime.sip.call.incoming",
-        "fields": [
-          "events.realtime.sip.call.incoming.count",
-          "events.realtime.sip.call.incoming.lastAt",
-          "events.realtime.sip.call.incoming.detail",
-          "events.realtime.sip.call.incoming.detail.caller",
-          "events.realtime.sip.call.incoming.detail.callee",
-          "events.realtime.sip.call.incoming.detail.callId"
-        ]
-      }
-    }
-  ],
-  "emitters": [
-    {
-      "id": "sip.threecx",
-      "type": "sip",
-      "label": "3CX / SIP phone system",
-      "description": "Business phone bridge for real call events",
-      "endpoint": "POST /emit",
-      "events": [
-        "realtime.sip.call.incoming"
-      ],
-      "contributes": {
-        "root": "emitters.sip.threecx",
-        "fields": [
-          "emitters.sip.threecx.count",
-          "emitters.sip.threecx.lastAt",
-          "emitters.sip.threecx.lastEvent",
-          "emitters.sip.threecx.lastDetail",
-          "emitters.sip.threecx.status",
-          "emitters.sip.threecx.error"
-        ]
-      }
-    }
-  ],
-  "release": {
-    "ok": true,
-    "releaseId": "release-74",
-    "releaseSequence": 74,
-    "builtAt": "2026-07-13T12:30:00Z",
-    "sourceCommit": "abc1234",
-    "deployedCommit": "def5678"
-  }
-}
-```
-
-Felder:
-
-- `name`: Ereignis-ID, muss mit `realtime.` beginnen.
-- `label`: Anzeige im Editor.
-- `description`: optionale Beschreibung.
-- `detail`: erwartete Payload-Felder und Typen.
-- `bindings`: Optionales Mapping von `detail.*` auf einen vollständig
-  qualifizierten, im Modell deklarierten Pfad `states.<id>.<feld>`. Andere
-  Ziele werden verworfen. Die Standardereignisse besitzen keine Bindings.
-- `emitters`: echte Connector-Quellen. Eine Quelle darf nur die in `events`
-  gelisteten Ereignisse feuern.
-- `contributes`: abgeleiteter State-Beitrag im globalen JSON-Bus. Der Canvas
-  speichert diese Metadaten nicht als Kopie.
-- `release`: aktuelle gemeinsame Release-Metainfo für Audit und Zuordnung. Die
-  Runtime wählt keine alten Versionen aus.
-
-Unterstützte Typen:
-
-```text
-text, email, password, number, boolean, url, image, object, list
-```
-
 ### `GET /token?roomId=<room>&clientId=<client>`
 
 Erzeugt ein kurzlebiges HMAC-Token für den ersten WSS-Join.
@@ -755,7 +647,6 @@ REALTIME_ADMIN_PATH=/admin.html
 REALTIME_ADMIN_ROUTES_PATH=/admin/routes
 REALTIME_PRODUCT_CONTRACT_PATH=/contract
 REALTIME_EVENTS_PATH=/events
-REALTIME_EVENTS_CONTRACT_PATH=/events/contract
 REALTIME_EMIT_PATH=/emit
 REALTIME_CONSOLE_PATH=/console.html
 REALTIME_EVENTS_ADMIN_PATH=/events-admin.html

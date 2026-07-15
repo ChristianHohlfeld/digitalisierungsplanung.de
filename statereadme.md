@@ -1,18 +1,19 @@
 # Zustand-Vertrag
 
-Status: normativ
+Status: erweiterter Architektur- und Auditkontext
 
 Schema: State Blueprint Version 2
 
-Stand: 2026-07-14
+Stand: 2026-07-15
 
 Auditbasis: Repository-Commit `d061538`, gemeinsame Freigabe zu Auditabschluss
 `release-96`
 
-Dieses Dokument ist der schriftliche Vertrag von Zustand / Digitalisierungsplanung.
-Es beschreibt die Invarianten, die Editor, Runtime, Export, API, MCP und
-Realtime-Transport gemeinsam einhalten müssen. Die Tests sind die ausführbare
-Absicherung dieses Vertrags.
+Die normative, kompakte Vertragsgrammatik steht in
+[`docs/state-contract.md`](docs/state-contract.md). Dieses Dokument erläutert
+Architektur, Entscheidungen und Auditverlauf. Bei abweichender oder historischer
+Formulierung gilt ausschließlich der Kernvertrag. Die Tests sind seine
+ausführbare Absicherung.
 
 ## 0. App-Prinzip und durchgängiger Systemfluss
 
@@ -135,12 +136,14 @@ Editoraktion
 - **MOD-001 Version:** Ein kanonisches Modell MUSS `version: 2`, einen Namen,
   `initial`, `states` und `transitions` besitzen. Eine leere Definition mit
   `initial: ""`, `states: []` und `transitions: []` ist gültig.
-- **MOD-002 Normalisierung:** Jeder Schreibweg MUSS vor Persistenz normalisieren
-  und danach validieren. Editor, API und MCP MÜSSEN dieselben Invarianten
-  anwenden.
+- **MOD-002 Validierung vor Normalisierung:** Jeder Schreibweg MUSS die rohe
+  Eingabe vor jeder Normalisierung validieren. Ungültige Werte werden
+  abgelehnt, niemals repariert, migriert oder still entfernt. Editor, API und
+  MCP MÜSSEN dieselben Invarianten anwenden.
 - **MOD-003 Keine undefinierten Werte:** `undefined` DARF weder im Modell noch im
   Bus, Export oder Storage persistieren. Leere Werte MÜSSEN als `""`, `false`,
-  `0`, `null`, `[]` oder `{}` bewusst dargestellt oder entfernt werden.
+  `0`, `[]` oder `{}` bewusst dargestellt oder das optionale Feld muss fehlen.
+  `null` und `undefined` sind als Buswerte und Bedingungsliterale verboten.
 - **MOD-004 Verbotene Modellfelder:** Das kanonische Modell DARF insbesondere
   keine `editorGroups`, Realtime-Katalogkopie, Provider-/Transportkonfiguration,
   Runtime-Historie, Runtime-Kontextkopie, `localState`, `stateStore`, `store`
@@ -302,14 +305,13 @@ Editoraktion
   unverändert. Es gibt keine Kompatibilitätsliste und keine Labelmigration.
 - **TRN-016 Eindeutiger Triggerbesitz:** Der Trigger gehört zur Transition;
   der State besitzt kein zweites Triggerfeld. Bezogen auf die effektive aktive
-  Quelle darf jede Trigger-Condition-Identität genau einmal beansprucht werden.
+  Quelle darf jede Triggeridentität genau einmal beansprucht werden.
   Für direkte Ausgänge ist die effektive Quelle `from`, für einen projizierten
   Parent-Ausgang dessen `groupExitId`. `button` ist durch die Transition-ID
-  eindeutig. `change`, `event` und `realtime` bestehen aus Ereignisname plus
-  normalisierter Condition; ein leerer Guard ist dabei eine eigene Identität.
-  Derselbe Event darf mehrere Ausgänge besitzen, wenn ihre Conditions
-  unterschiedlich sind. Zur Laufzeit muss nach dem passenden Event trotzdem
-  genau eine Condition wahr sein. Pro effektiver Quelle ist höchstens ein
+  eindeutig. `change`, `event`, `realtime` und `api` bestehen aus Typ und
+  vollständigem Ereignisnamen. Conditions gehören nicht zur Identität und
+  erzeugen keine Priorität. Derselbe konkrete Event darf nur einen Ausgang
+  besitzen. Pro effektiver Quelle ist höchstens ein
   `timer` zulässig. Sobald ein `auto` existiert, ist es der einzige fachliche
   Ausgang dieser effektiven Quelle. Interne `flow`-Kanten sind strukturelle
   Child-Führung und zählen nicht als fachlicher Trigger.
@@ -346,13 +348,14 @@ und Parent-Ausgänge an ihrem `groupExitId`.
 - **NEST-002 Exakte Ebene:** Ein Child gehört genau zur Ebene seines Parents.
   Editor und Runtime MÜSSEN beim aktiven Child diese Ebene anzeigen und
   Zustände anderer Ebenen ausblenden.
-- **NEST-003 Parent ist sichtbar:** Ein Parent ist selbst ein echter
-  Runtime-Zustand und MUSS seine eigene Darstellung zeigen können, bevor ein
-  expliziter Boundary-Eintritt aktiviert wird.
-- **NEST-004 Eintritt:** `boundary.entryId` bezeichnet den echten Child-Eintritt.
-  Ein manueller Eintritt wird als explizite Aktion angeboten. Nur eine
-  ausdrückliche Konfiguration wie `entryTriggerType: "auto"` darf den Parent
-  automatisch in sein Entry-Child weiterführen. Jeder bestätigte, bewegungsfreie
+- **NEST-003 Parent bleibt ein echter State:** Ein Parent ist selbst ein echter
+  Runtime-Zustand. Mit `entryDisabled: true` rendert er ausschließlich seinen
+  eigenen Inhalt. Mit aktivem Boundary-Eintritt löst die Runtime ihn auf das
+  exakte Entry-Child auf; Parent- und Child-Inhalt werden niemals gemischt.
+- **NEST-004 Eintritt:** `boundary.entryId` bezeichnet den exakten direkten
+  Child-Eintritt. Sobald er nicht über `entryDisabled: true` abgeschaltet ist,
+  löst die Runtime jeden Parent-Eintritt automatisch auf dieses Child auf. Es
+  gibt keinen Triggeralias und keine First-Child-Inferenz. Jeder bestätigte, bewegungsfreie
   State-Klick im Canvas startet den gewählten State synchron beim Pointer-Up,
   ohne Doppelklick-Wartezeit, erneut, auch nach Reload oder bei bereits
   bestehender Auswahl. Ein nachfolgender zweiter Klick darf zusätzlich den
@@ -394,19 +397,16 @@ und Parent-Ausgänge an ihrem `groupExitId`.
 - **NEST-014 Entgruppieren:** Degroup MUSS das Modell, die Entitätsreihenfolge
   und die vorherige externe Verdrahtung exakt wiederherstellen; es darf keine
   Editor-Metadaten als fachliche Abkürzung verwenden.
-- **NEST-015 Boundary-Reparatur:** Nach Löschen oder Verschieben eines
-  verankerten Childs MÜSSEN Boundary-Anker wiederverwendbar bleiben und auf
-  einen gültigen Endpunkt neu gesetzt oder explizit deaktiviert werden.
+- **NEST-015 Keine Boundary-Reparatur:** Nach Löschen oder Verschieben eines
+  verankerten Childs DARF kein anderes Child als Ersatz gewählt werden. Bleiben
+  Children im Layer, wird die betroffene Referenz geleert und explizit
+  deaktiviert; der Nutzer muss einen neuen Endpunkt ausdrücklich setzen.
 - **NEST-016 Ausgänge am aktiven Parent:** Solange ein Parent selbst der
-  aktuelle Runtime-Zustand ist, MUSS `outgoing(parent)` den synthetischen
-  Boundary-Kind-Eintritt und sämtliche echten, direkt vom Parent ausgehenden
-  Transitionen enthalten. Die Triggerart bestimmt ausschließlich, wie eine
-  Transition dargestellt beziehungsweise ausgelöst wird; sie DARF ihre
-  Zugehörigkeit zur Kandidatenmenge nicht verändern. Der Kind-Eintritt MUSS vor
-  den direkten Parent-Transitionen geordnet bleiben. Sobald ein Kind aktiv ist,
-  DÜRFEN direkte Parent-Transitionen nicht frei vererbt werden; sie sind nur
-  gemäß NEST-007 und NEST-008 am konfigurierten Boundary-Ausgang projiziert
-  verfügbar.
+  aktuelle Runtime-Zustand ist und einen aktiven Boundary-Eintritt besitzt,
+  ist ausschließlich dieser exakte Kind-Eintritt ausführbar. Direkte
+  Parent-Ausgänge werden erst am konfigurierten Exit-Child gemäß NEST-007 und
+  NEST-008 projiziert. Reihenfolge, Position und Array-Index dürfen weder Entry
+  noch Exit bestimmen.
 
 ## 8. Darstellung und Render-Reihenfolge
 
@@ -949,7 +949,7 @@ und Parent-Ausgänge an ihrem `groupExitId`.
   `/events-admin.html`, `/events-admin/catalog`, `/healthz`, `/version`,
   `/presets-admin.html`, `/presets-admin/catalog`, `/presets-admin/parse`,
   `/presets-admin/import`,
-  `/token`, `/contract`, `/events`, `/events/contract`, `/emit` und `/ws` an den lokalen Prozess auf
+  `/token`, `/contract`, `/events`, `/emit` und `/ws` an den lokalen Prozess auf
   `127.0.0.1:8788` weiterleiten. Nicht definierte Kernrouten wie `/`,
   `/catalog`, `/schema`, `/api` und `/process/*` liefern 404.
 - **RT-016 Transportierte Definition:** Der Server MUSS einem akzeptierten
@@ -1305,13 +1305,10 @@ Abdeckungsbereiche:
   `events.<name>.detail` lesbar.
 - **GAP-017 Mehrdeutige Ereignisauflösung, geschlossen am 2026-07-14:** Ein
   gültiges Modell kann für dieselbe effektive Quelle dieselbe
-  Trigger-Condition-Identität nicht mehrfach enthalten. Derselbe Event darf
-  mehrmals vorkommen, wenn die Conditions unterschiedlich sind. Der Editor kann
-  einen echten Identitätskonflikt nicht speichern; Import, API und MCP lehnen
-  ihn ab. Ein dennoch eingeschleustes Fremdmodell erzeugt
-  `invalid-trigger-contract` ohne State-Wechsel. Beim Ereignis darf zur Laufzeit
-  genau eine Condition wahr sein; mehrere wahre Treffer bleiben mehrdeutig und
-  werden nicht als Prioritätslogik aufgelöst.
+  Triggeridentität nicht mehrfach enthalten. Conditions ändern die Identität
+  nicht. Der Editor kann einen Identitätskonflikt nicht speichern; Import, API
+  und MCP lehnen ihn ab. Ein dennoch eingeschleustes Fremdmodell erzeugt
+  `invalid-trigger-contract` ohne State-Wechsel.
 - **GAP-018 Realtime-Zustellgarantie, geschlossen am 2026-07-12:** Der aktuelle
   Browser ist trigger-only und besitzt keine ausgehende Queue oder Outbox. Der
   zustandslose Server garantiert geordnete Live-Übertragung innerhalb der
@@ -1324,13 +1321,10 @@ Abdeckungsbereiche:
 - **GAP-020 Triggerdialekt, geschlossen am 2026-07-12:** `auto` ist in Vertrag,
   Editor, API, MCP und Runtime der einzige Name für eine unmittelbare
   Fortsetzung. `immediate` ist kein Alias.
-- **GAP-021 Template-Tokens gegen strukturierte Data Wires, offen am
-  2026-07-12:** REN-010 verbietet eine sichtbare Datenabbildung über
-  `{{...}}`-Tokens. Die Runtime implementiert mit `renderLiteralText` und
-  `exactTemplatePath` weiterhin genau diese Syntax; zahlreiche Tests und
-  Testmodelle verwenden sie für Text, Links, Fetch und Repeat. Der aktuelle
-  Bestand behauptet deshalb gleichzeitig, Tokens seien verboten und
-  ausführbarer Vertragsbestand.
+- **GAP-021 Einheitliche Datenabbildung, geschlossen am 2026-07-15:** Sichtbare
+  Laufzeitdaten werden ausschließlich über strukturierte Data Wires gebunden.
+  Komponententext und URLs sind literal. `{{...}}` wird von Editor, Import, API
+  und MCP abgelehnt und von Preview sowie Export niemals interpretiert.
 - **GAP-022 Pause als Schattenzustand, geschlossen am 2026-07-12:**
   `runtime.paused` lebt ausschließlich im Runtime-Bus. Host und MCP besitzen
   weder `runtimePaused` noch `preview.pause`. Der Host sendet einen
@@ -1357,12 +1351,12 @@ Abdeckungsbereiche:
   `if_modified_since`. Die App registriert keinen Worker und besitzt keinen
   Cache-Fallback. Extern bleibt die Regel bis zur DNS-/TLS-Umschaltung offen,
   weil GitHub Pages am 2026-07-12 noch `Cache-Control: max-age=600` lieferte.
-- **GAP-028 Condition-Sprache ohne exakte Grammatik, offen am 2026-07-12:** Die
-  Runtime unterstützt faktisch eine kleine Sprache aus `!`, Vergleichen, `&&`
-  und `||`, zerlegt diese Operatoren jedoch per String-Split und validiert die
-  Syntax beim Speichern nicht. Klammern, Escaping, Operatoren in Stringwerten,
-  Typumwandlung und Fehlerdarstellung sind nicht normativ festgelegt. Ein
-  Schreibfehler kann deshalb lediglich als nicht erfüllte Condition erscheinen.
+- **GAP-028 Einheitliche Condition-Grammatik, geschlossen am 2026-07-15:**
+  Editor, formaler Import, API, MCP, Preview und Export akzeptieren dieselbe
+  begrenzte, eval-freie Grammatik aus vollqualifizierten Buspfaden, `!`, `&&`,
+  `||`, Vergleichen sowie Boolean-, endlichen Zahlen- und Stringliteralen.
+  `null`, `undefined`, freie Ausdrücke und ungültige Syntax werden vor der
+  Runtime abgelehnt.
 - **GAP-029 Standalone-Host-Erkennung, geschlossen am 2026-07-12:** Nur eine
   vollständig authentifizierte Window-/Origin-/Session-Zuordnung aktiviert die
   Editorbrücke. Ein Standalone-Export rendert auch in einem Iframe oder Fenster
@@ -1382,14 +1376,12 @@ Abdeckungsbereiche:
 - **GAP-033 Kanonische IDs, geschlossen am 2026-07-12:** Formale Grenzen lehnen
   nicht kanonische IDs, Kollisionen und reservierte Runtime-/Boundary-Namensräume
   ab. Es gibt keine stille Teilnormalisierung und kein partielles Referenz-Rewrite.
-- **GAP-034 Formale Boundary-Definitionen unterscheiden sich zwischen Editor
-  und MCP, offen am 2026-07-12:** `modelDefinitionSnapshot()` entfernt jede
-  `boundaryFlow`-Transition. `mcp.definitionPayload()` exportiert dieselben
-  technischen `boundary-flow:*`-/`proxy:*`-Kanten dagegen als Teil des formalen
-  Modells. Der MCP-Roundtrip-Test prüft ihren Workspace-Bestand, vergleicht aber
-  die formale Transitionmenge nicht mit dem Editor. ID-004, EXP-001, API-009 und
-  die noch offene Materialisierungsentscheidung DEC-005 sind damit nicht
-  konsistent umgesetzt.
+- **GAP-034 Formale Boundary-Parität, geschlossen am 2026-07-15:** Editor und
+  MCP exportieren `boundary.entryId`, `boundary.exitId` und die Disable-Flags.
+  Technische `boundaryFlow`-/Proxy-Projektionen bleiben interne
+  Workspace-Darstellung und erscheinen in keiner formalen Definition. Import
+  erfindet keine Boundary; ein Parent mit Children benötigt einen expliziten
+  Entry oder `entryDisabled: true`.
 - **GAP-035 Standalone-Veröffentlichungsprofil, geschlossen am 2026-07-12:**
   Generische Exporte bleiben selbstenthalten und registrieren keinen Worker.
   Plattformmetadaten und Root-Assets gehören ausschließlich zum separaten
@@ -1487,15 +1479,15 @@ einer Vertragsregel, ist er in Abschnitt 18 als offene Abweichung zu behandeln.
   gleichzeitig oder passiv gerendert. Explizite Render-Reihenfolge verbindet manuelle
   Komponenten, `dataWire`-Referenzen und `transitionButton`-Referenzen. Text ist
   Anzeige; nur explizite Transition-IDs binden eine Nutzeraktion an den Ablauf.
-  Parallel dazu interpretiert `renderLiteralText` weiterhin `{{path}}`-Tokens;
-  siehe GAP-021.
+  Laufzeitwerte gelangen ausschließlich über strukturierte Data Wires in die
+  Darstellung; Text und URLs bleiben literal.
 - **ARC-009 MCP-Schicht:** `mcp/state-blueprint-core.js` implementiert
   normalisierte Modellaktionen und Editor-Kommandos ohne DOM. Der
   `state-blueprint-server.js` stellt sie als zeilenbasiertes JSON-RPC über stdio
   mit dateibasiertem Workspace bereit. `state-blueprint-intents.js` ist ein
   deterministischer Regex-Intent-Parser und kein Sprachmodell; sein Ergebnis
-  sind normale, validierte Aktionen. Normalisierung und technische IDs sind
-  editorgleich; die offene Boundary-Materialisierung steht in GAP-034.
+  sind normale, validierte Aktionen. Formale Boundary-Daten und technische
+  Projektionen folgen der in GAP-034 geschlossenen Parität.
 - **ARC-010 Realtime-Schicht:** `server/server.js` liefert Katalog, HMAC-
   Raumtoken, WebSocket-Relay und HTTP-Emit. Der Server bleibt fachlich zustandslos.
   Presence, Browser-Emitter, lokale Outbox und Graph-/Modellnachrichten sind
@@ -1579,49 +1571,43 @@ Disposition, solange der Vertrag nicht ausdrücklich gemeinsam geändert wird:
   Browserinteraktion und der Verzicht auf Retries oder abgeschwächte Assertions
   bleiben Teil der Freigabe.
 
-### 20.2 Noch offene Entscheidungen
+### 20.2 Festgelegte Entscheidungen
 
-Die folgenden Entscheidungen sind ausdrücklich noch nicht normativ. Bis zu
-ihrer gemeinsamen Festlegung dürfen Implementierung oder Tests keine der
-Varianten stillschweigend zum Vertrag erklären:
-
-- **DEC-001 Standardaktion bei Enter:** Soll Enter nur bei exakt einer sichtbaren
-  Button-Transition feuern, immer der expliziten Render-Reihenfolge folgen oder
-  über ein eigenes Modellfeld eine Standardtransition erhalten? Eine
-  Labelauswertung ist gemäß TRN-004 und TRN-005 keine zulässige Variante.
-- **DEC-005 Boundary-Eintritt:** Festzulegen ist, ob der aus der Boundary
-  abgeleitete Kind-Eintritt die einzige erlaubte abgeleitete Transition bleibt
-  oder als echte Transition im Modell materialisiert wird. In beiden Fällen
-  müssen Trigger, Condition, Timer, ID, Reihenfolge und Darstellung denselben
-  Resolver verwenden wie normale Transitionen.
-- **DEC-007 Datenabbildung:** Zu entscheiden ist zwischen ausschließlich
-  strukturierten Data Wires und einer ausdrücklich unterstützten, validierten
-  Template-Sprache. Beides gleichzeitig widerspricht dem Ziel einer einzigen
-  verständlichen Datenbindung.
-- **DEC-011 Condition-Grammatik:** Die unterstützten Operatoren, Typregeln,
-  Klammern, Stringliterale, Fehler und Validierung müssen exakt definiert werden;
-  alternativ entfällt freie Condition-Eingabe zugunsten ausschließlich
-  strukturierter Regeln.
+- **DEC-001 Standardaktion bei Enter, entschieden am 2026-07-15:** Enter feuert
+  nur bei exakt einer sichtbaren Button-Transition. Bei mehreren Buttons ist
+  ein konkreter Klick erforderlich; Label und Reihenfolge werden nicht
+  ausgewertet.
+- **DEC-005 Boundary-Eintritt, entschieden am 2026-07-15:** Die formale
+  Definition speichert den exakten Entry in `boundary.entryId`; technische
+  Flow-Projektionen bleiben intern. Ein ausgeführter Parent-Übergang darf ein
+  explizites `groupEntryId` besitzen. Fehlt beides, wird kein Child geraten.
+  Nur die atomare Editoraktion, die den ersten State in einem leeren Layer
+  erzeugt, darf denselben neuen State zugleich als Boundary speichern.
+- **DEC-007 Datenabbildung, entschieden am 2026-07-15:** Ausschließlich
+  strukturierte Data Wires binden Laufzeitwerte an die Darstellung. Eine
+  Template-Sprache existiert nicht.
+- **DEC-011 Condition-Grammatik, entschieden am 2026-07-15:** Die normativen
+  Atome, Operatoren und Literale stehen in `docs/state-contract.md`; alle
+  Modellgrenzen und die Runtime verwenden dieselbe Grammatik.
 ### 20.3 Index der zentralen Leitfragen
 
 - **App-Prinzip und Contract-Schutz:** PRN-001 bis PRN-011 sowie SYS-001 bis
-  SYS-007; offen bleiben vor allem die getrennten Implementierungen aus GAP-003
-  und GAP-013.
+  SYS-007; GAP-013 ist geschlossen, die gemeinsame Importimplementierung aus
+  GAP-003 bleibt als interne Vereinfachung offen.
 - **Transitionname gegen Route:** TRN-004, TRN-005 und TRN-015 sind entschieden:
   Standardname `Weiter`, Route separat, Zustandsumbenennung ohne Labeländerung.
   GAP-014 und GAP-039 sind geschlossen.
 - **Mehrere Ausgänge auf dasselbe Ereignis:** GAP-017 und DEC-002 sind
-  entschieden: dieselbe Trigger-Condition-Identität darf pro effektiver Quelle
-  nur einmal vorkommen. Derselbe Event darf mit unterschiedlichen Conditions
-  mehrere Ausgänge besitzen. Konflikte gelangen nicht in einen gültigen
+  entschieden: dieselbe Triggeridentität darf pro effektiver Quelle nur einmal
+  vorkommen. Conditions ändern die Identität nicht. Konflikte gelangen nicht in einen gültigen
   Modellstand; die Runtime bleibt bei einem eingeschleusten Fremdmodell
   fail-closed.
 - **Realtime-Trigger oder Emitter:** DEC-003 und RT-024 sind trigger-only
   entschieden. Zustellklasse und eine mögliche spätere Erweiterung stehen
   getrennt in DEC-004; GAP-018 und GAP-026 sind geschlossen.
-- **Parent-/Child-Laufzeit:** NEST-001 bis NEST-016; offene Resolver- und
-  Boundary-Fragen stehen in GAP-013, GAP-034 und DEC-005. Passive Child-States
-  sind mit DEC-013 und GAP-038 ausgeschlossen.
+- **Parent-/Child-Laufzeit:** NEST-001 bis NEST-016, GAP-013, GAP-034 und
+  DEC-005 sind entschieden. Passive Child-States sind mit DEC-013 und GAP-038
+  ausgeschlossen.
 - **Never-cache und gemeinsame Release-ID:** DEMO-011 sowie RT-019 bis RT-023
   sind fest. Offen sind der beweisbare Header der ersten Antwort in DEC-010 und
   GAP-027. GAP-037 ist geschlossen.
@@ -1651,7 +1637,7 @@ Abnahmevertrag:
 - ein Resolver, der Mehrdeutigkeit sichtbar und fehlgeschlossen behandelt,
 - eine benannte und technisch nachweisbare Realtime-Zustellklasse.
 
-## 22. Verbindlicher Umsetzungsstand vom 2026-07-12
+## 22. Verbindlicher Umsetzungsstand vom 2026-07-15
 
 Dieser Abschnitt beschreibt den nach dem Vollaudit implementierten Vertrag. Er
 ersetzt widersprechende Ist-Beschreibungen und offene Statusangaben in den
@@ -1852,17 +1838,6 @@ auch extern erfüllt.
   Modellnormalisierung. Die Runtime-Parität ist dagegen strukturell erzwungen:
   GAP-013 ist geschlossen und alle Auslieferungspfade verwenden `APP_HTML`
   unverändert.
-- **DEC-001:** Die fachliche Standardaktion für Enter ist noch nicht als
-  explizites Modellfeld entschieden.
-- **DEC-005:** Der abgeleitete Boundary-Eintritt ist noch nicht als normale
-  persistierte Transition materialisiert. GAP-034 dokumentiert die verbleibende
-  Editor-/MCP-Formalisierungsstelle.
-- **DEC-007/GAP-021:** Strukturierte Data Wires und validierte `{{path}}`-
-  Anzeigetokens existieren parallel. Relative Tokens sind verboten; die
-  langfristige Reduktion auf eine Darstellungsform ist noch offen.
-- **DEC-011/GAP-028:** Die freie Condition-Sprache ist eval-frei und ihre
-  Referenzen sind kanonisch, aber ihre vollständige formale Grammatik ist noch
-  nicht als eigenständiges Schema dokumentiert.
 - **GAP-023:** Safari-Verhalten ist per Chromium-Vertrag und realer Beobachtung
   adressiert, aber noch nicht durch einen dauerhaft laufenden WebKit-CI-Job
   abgesichert.
