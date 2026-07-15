@@ -593,7 +593,7 @@ und Parent-Ausgänge an ihrem `groupExitId`.
   Preset-Definition, Contract-Kopie oder versteckter Runtime-State gespeichert
   werden. Wenn das Inlining fehlschlägt, bleibt der ursprüngliche Bildwert im
   Export erhalten.
-- **PRE-021 API-Preset-Import:** Der Preset Designer darf eine öffentliche
+- **PRE-022 API-Preset-Import:** Der Preset Designer darf eine öffentliche
   HTTPS-URL ausschließlich serverseitig und secret-geschützt als
   nichtpersistierende Importquelle abrufen. Die JSON-Antwort MUSS exakt eine
   kanonische Preset-Definition sein. Private oder reservierte Ziele, Redirects,
