@@ -15499,6 +15499,12 @@
             captureTouchPointer(evt);
             startPendingNodeTouch(evt, s);
           });
+          el.addEventListener("pointerup", evt => {
+            if (isTouchPointer(evt) || evt.target.closest(".port, .port-slot, .node-edit")) return;
+            if (!dragging || dragging.id !== el.__state.id || dragging.shiftKey || dragging.moved) return;
+            if (Math.hypot(evt.clientX - dragging.startClientX, evt.clientY - dragging.startClientY) > 4) return;
+            flashStateClickFeedback(dragging.id);
+          }, { capture: true });
 
         }
 
