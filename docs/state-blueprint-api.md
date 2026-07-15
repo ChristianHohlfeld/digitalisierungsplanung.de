@@ -432,6 +432,10 @@ Stored result:
 Allowed `valueType`: `text`, `email`, `password`, `number`, `boolean`, `url`,
 `image`, `object`, `list`.
 
+`image` stores exactly one HTTP(S) URL or image Data URI. A local editor upload
+is represented by that same Data URI; it does not create an asset ID, upload
+URL, side store, or second model value.
+
 ### `delete_state_variable`
 
 Entfernt einen deklarierten Bus-Pfad aus einem Zustand. Passende Datenverbindungen werden mit entfernt.

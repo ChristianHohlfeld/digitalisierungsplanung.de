@@ -67,6 +67,7 @@ Der ausführliche Architektur- und Auditkontext steht in
 - Vorlagen für häufige Oberflächenbausteine
 - verschachtelte Zustände mit Eingang und Ausgang
 - Datenladen beim Betreten eines Zustands
+- Bild-URL oder lokaler Bild-Upload als direkt eingebettete Data-URI
 - Speichern, Laden, Einlesen und Ausgeben
 - Echtzeit-Ereignisse aus `/events`
 - PWA-Dateien und statische HTML-Ausgabe

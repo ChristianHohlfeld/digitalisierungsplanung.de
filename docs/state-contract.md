@@ -89,6 +89,14 @@ Boundary-Felder sind verboten.
 - Text bleibt literal. `{{...}}` und andere String-Interpolation sind verboten;
   dynamische Anzeige nutzt `dataPath` oder `dataWires`.
 - Wird ein State gelöscht, wird sein gesamter Buszweig `states.<id>` entfernt.
+- Ein typisierter `image`-Wert ist entweder eine öffentliche HTTP(S)-URL oder
+  eine unterstützte Bild-Data-URI. Der Bild-Upload liest die gewählte lokale
+  Datei einmal im Browser und schreibt diese Data-URI über denselben
+  Autorenpfad als den kanonischen Bildwert; es entsteht kein Asset-Speicher und
+  keine zweite Kopie.
+- Beim Standalone-Export werden externe Bild-URLs ausschließlich in der
+  abgeleiteten Exportkopie als Data-URI eingebettet. Modell und globaler Bus
+  behalten ihren vorhandenen Wert unverändert.
 
 Lesbare Wurzeln sind:
 

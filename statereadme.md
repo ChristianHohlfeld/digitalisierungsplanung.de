@@ -590,12 +590,16 @@ und Parent-Ausgänge an ihrem `groupExitId`.
   vollständige Library gemeinsam mit der Release-ID.
 - **PRE-021 Exportierbare Bilder:** Bildfelder bleiben normale, eindeutig
   typisierte `image`-Werte im globalen State und dürfen als URL oder Data URI
-  vorliegen. Der Standalone-HTML-Export DARF daraus eine abgeleitete Exportkopie
-  bilden, in der erreichbare Bild-URLs über `/assets/inline-image` als Data URI
-  eingebettet werden. Diese Base64-Kopie DARF nicht als Editor-Modell,
-  Preset-Definition, Contract-Kopie oder versteckter Runtime-State gespeichert
-  werden. Wenn das Inlining fehlschlägt, bleibt der ursprüngliche Bildwert im
-  Export erhalten.
+  vorliegen. Jede editierbare Bildquelle MUSS neben der freien URL-Eingabe einen
+  lokalen Upload anbieten. Der Upload liest die gewählte Bilddatei einmal im
+  Browser und schreibt die Data URI über denselben Autorenpfad als den einen
+  kanonischen Bildwert; es gibt keinen Asset-Speicher, keine Upload-URL und keine
+  versteckte Kopie. Der Standalone-HTML-Export DARF für externe URLs eine
+  abgeleitete Exportkopie bilden, in der erreichbare Bild-URLs über
+  `/assets/inline-image` als Data URI eingebettet werden. Diese nur für den
+  Export erzeugte Base64-Kopie DARF nicht als Editor-Modell, Preset-Definition,
+  Contract-Kopie oder versteckter Runtime-State gespeichert werden. Wenn das
+  Inlining fehlschlägt, bleibt der ursprüngliche Bildwert im Export erhalten.
 - **PRE-022 API-Preset-Import:** Der Preset Designer darf eine öffentliche
   HTTPS-URL ausschließlich serverseitig und secret-geschützt als
   nichtpersistierende Importquelle abrufen. Die JSON-Antwort MUSS exakt eine
@@ -1823,6 +1827,10 @@ auch extern erfüllt.
   die grüne Canvas-Rückmeldung in weniger als 50 ms nach `pointerup`; die lokale
   Messung im vollständigen Beispielablauf lag bei 12,6 ms. Das Aktiv-Badge
   bleibt an die Runtime-Bestätigung gebunden.
+- Die aktuell registrierte Suite umfasst 390 Playwright-Fälle in sechs Dateien:
+  256 Werkzeug-, 111 Core-, 18 MCP- und fünf ergänzende Seiten-/Canvas-/Runtime-
+  Verträge. Der Bild-Upload wurde mit 4/4 angrenzenden URL-, State-, Preset- und
+  Exportfällen sowie erneut mit 111/111 Core-Verträgen geprüft.
 - Lean-Audit vom 2026-07-14: Die Runtime-Enhancer-Kette und 54 nachweislich
   aufruferlose Hostfunktionen wurden entfernt. Der Produktcode in `state.html`
   und `mcp/state-blueprint-server.js` schrumpfte netto um 4.421 Zeilen.

@@ -234,6 +234,8 @@ HTTP(S)-Bildziele, folgt keinen Redirects und lehnt private Netze, Nicht-Bilder
 und zu große Antworten ab. Die Antwort enthält die ursprüngliche URL,
 MIME-Type, Bytezahl und `dataUri`; weder URL noch Bild werden gespeichert.
 Schlägt das Inlining fehl, behält der Export den ursprünglichen Bildwert.
+Bereits im Editor hochgeladene Bilder liegen als kanonische Data-URI vor und
+benötigen diesen Endpunkt nicht.
 
 ### `GET /events`
 

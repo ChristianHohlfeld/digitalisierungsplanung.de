@@ -126,11 +126,14 @@ data are persisted in Git; snippets and raw HTML never enter `/contract` or a
 canvas model.
 
 Website Builder includes `Exportierbares Bild`, a normal contract preset with
-an `image` field under its unique state contribution. The editor does not store
-Base64 copies in the model. During standalone HTML export it sends image-like
-state values and image component URLs to `/assets/inline-image`; successful
-responses are written only into the derived downloaded HTML, while the editor
-model/global state keeps the original URL or existing Data URI.
+an `image` field under its unique state contribution. A local editor upload is
+read once in the browser and its Data URI becomes the canonical image value;
+there is no server-side asset store or second copy. For external URL values the
+editor stores no derived Base64 copy in the model. During standalone HTML
+export it sends image-like state values and image component URLs to
+`/assets/inline-image`; successful responses are written only into the derived
+downloaded HTML, while the editor model/global state keeps the original URL or
+existing Data URI.
 
 All connector IDs are globally unique and path-safe. Runtime state is written under `events.<eventName>.*` and `emitters.<emitterId>.*`. Exact ID collisions and parent/child path collisions are rejected server-side. Every global-state contribution includes `fieldTypes` for compact display and `fieldSchemas` for hard validation: each field has a concrete value type, JSON type, default, and constraints such as length, range, format, protocol, max depth, or max items. `/emit` and WebSocket runtime events use the same schema validator, so a value can have the right JSON type and still be rejected when it violates the contract. The canvas loads `/contract` fresh with `no-store` before editor boot. If the Product Contract is unavailable, the editor must fail closed instead of inventing local trigger types, value types, preset contracts, endpoint definitions, catalog copies, or preset instances.
 

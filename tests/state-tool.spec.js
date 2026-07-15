@@ -2955,6 +2955,131 @@ test.describe("State Blueprint tool", () => {
     await expect.poll(() => page.evaluate(() => definitionPayload().model.states[0])).toEqual(before);
   });
 
+  test("uploads every editable image source as one embedded export value", async ({ page }) => {
+    const model = {
+      version: 2,
+      name: "Embedded image upload",
+      initial: "source",
+      states: [{
+        id: "source",
+        title: "Source",
+        components: [
+          { id: "plain_image", type: "image", text: "Plain image", url: "" },
+          {
+            id: "card_widget",
+            type: "daisy",
+            variant: "card",
+            dataPath: "states.source.card",
+            dataRole: "widget",
+            dataLabel: "Image Card"
+          },
+          {
+            id: "image_list",
+            type: "list",
+            text: "List image",
+            url: "",
+            items: [{ id: "list_image", type: "image", text: "List image", url: "" }]
+          }
+        ],
+        data: {
+          card: { title: "Image Card", body: "Embedded", image: "", actionLabel: "" },
+          avatar: ""
+        },
+        dataTypes: {
+          card: "object",
+          "card.image": "image",
+          avatar: "image"
+        },
+        x: 120,
+        y: 140
+      }, {
+        id: "target",
+        title: "Target",
+        components: [],
+        data: { avatar: "" },
+        dataTypes: { avatar: "image" },
+        x: 480,
+        y: 140
+      }],
+      transitions: [{
+        id: "continue",
+        from: "source",
+        to: "target",
+        label: "Weiter",
+        triggerType: "button",
+        triggerEvent: "button.continue",
+        condition: "",
+        set: { "states.target.avatar": "" }
+      }]
+    };
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+X8nSAAAAAElFTkSuQmCC", "base64");
+    const file = { name: "pixel.png", mimeType: "image/png", buffer: png };
+    const dataUri = `data:image/png;base64,${png.toString("base64")}`;
+    let inlineRequests = 0;
+    await page.route("**/assets/inline-image", async route => {
+      inlineRequests += 1;
+      await route.abort();
+    });
+    await openTool(page, { model });
+    await openStateInspector(page, "source");
+
+    const plainImage = await expandComponentEditor(page, "Image");
+    const uploadButton = plainImage.getByRole("button", { name: "Bild hochladen (als Base64 einbetten)" });
+    const rejectedChooser = page.waitForEvent("filechooser");
+    await uploadButton.click();
+    await (await rejectedChooser).setFiles({ name: "not-an-image.txt", mimeType: "text/plain", buffer: Buffer.from("no image") });
+    await expect(page.locator("#modalTitle")).toHaveText("Bild-Upload fehlgeschlagen");
+    await expect(page.locator("#modalMessage")).toContainText("PNG-, JPEG-, GIF-, WebP- oder SVG-Datei");
+    await expect(plainImage.getByLabel("Bild-URL")).toHaveValue("");
+    await page.locator("#modalConfirm").click();
+
+    const fileChooser = page.waitForEvent("filechooser");
+    await uploadButton.click();
+    await (await fileChooser).setFiles(file);
+    const card = await expandComponentEditor(page, "Baustein: Image Card");
+    await card.locator('[data-widget-quick="image"]').locator("xpath=..").locator(".image-source-file").setInputFiles(file);
+    const list = await expandComponentEditor(page, "List");
+    await list.locator(".list-item-editor .image-source-file").setInputFiles(file);
+
+    await openInitialValuesEditor(page);
+    const avatarRow = page.locator('.state-variable-row[data-variable-path="states.source.avatar"]');
+    await avatarRow.locator(".image-source-file").setInputFiles(file);
+
+    await page.keyboard.press("Escape");
+    await page.locator("svg text.edge-label").filter({ hasText: /^Weiter/ }).click();
+    const transitionAvatar = page.locator('.state-variable-row[data-transition-set-path="states.target.avatar"]');
+    await expect(transitionAvatar.locator('[data-transition-set-type="true"]')).toHaveValue("image");
+    await transitionAvatar.locator(".image-source-file").setInputFiles(file);
+
+    await expect.poll(async () => {
+      const saved = await savedModel(page);
+      const source = saved.states.find(state => state.id === "source");
+      return {
+        component: source?.components.find(component => component.id === "plain_image")?.url,
+        widget: source?.data?.card?.image,
+        list: source?.components.find(component => component.id === "image_list")?.items?.[0]?.url,
+        stateValue: source?.data?.avatar,
+        transitionValue: saved.transitions.find(transition => transition.id === "continue")?.set?.["states.target.avatar"]
+      };
+    }).toEqual({
+      component: dataUri,
+      widget: dataUri,
+      list: dataUri,
+      stateValue: dataUri,
+      transitionValue: dataUri
+    });
+
+    await page.getByRole("button", { name: "App zurücksetzen", exact: true }).click();
+    await expect(appFrame(page).locator(`img[src="${dataUri}"]`)).toHaveCount(3);
+
+    await page.locator("#topbarMore summary").click();
+    const exportDownload = page.waitForEvent("download");
+    await page.getByRole("button", { name: "HTML exportieren" }).click();
+    const html = fs.readFileSync(await (await exportDownload).path(), "utf8");
+    expect(html).toContain(dataUri);
+    expect(inlineRequests).toBe(0);
+  });
+
   test("exports the website demo as a self-contained runnable FSM website @smoke", async ({ page }) => {
     await openTool(page);
 

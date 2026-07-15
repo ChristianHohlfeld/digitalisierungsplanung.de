@@ -2679,6 +2679,44 @@
       border-radius: 8px;
     }
 
+    .image-source-control {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 36px;
+      gap: 6px;
+      align-items: center;
+      width: 100%;
+      min-width: 0;
+    }
+
+    .image-source-control > input:not([type="file"]) {
+      width: 100%;
+      min-width: 0;
+    }
+
+    .image-source-upload {
+      display: inline-grid;
+      place-items: center;
+      width: 36px;
+      min-width: 36px;
+      min-height: 36px;
+      padding: 0;
+      border-radius: 8px;
+    }
+
+    .image-source-upload svg {
+      width: 17px;
+      height: 17px;
+      pointer-events: none;
+    }
+
+    .image-source-file {
+      display: none !important;
+    }
+
+    .state-variable-row > .image-source-control {
+      grid-column: 1 / -1;
+    }
+
     .state-variable-add {
       display: grid;
       grid-template-columns: minmax(92px, 1fr) minmax(96px, .75fr) auto;
@@ -15685,6 +15723,75 @@
 
     const DEFAULT_IMAGE_COMPONENT_URL = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iMzYwIiB2aWV3Qm94PSIwIDAgNjQwIDM2MCI+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCIgeDI9IjEiIHkxPSIwIiB5Mj0iMSI+PHN0b3Agc3RvcC1jb2xvcj0iIzBlYTVlOSIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2Y1OWUwYiIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSI2NDAiIGhlaWdodD0iMzYwIiByeD0iMzIiIGZpbGw9InVybCgjZykiLz48Y2lyY2xlIGN4PSI0NzIiIGN5PSIxMTIiIHI9IjUyIiBmaWxsPSIjZmZmZmZmIiBvcGFjaXR5PSIuMzIiLz48cGF0aCBkPSJNNzIgMjg2bDEyMi0xMjIgNzggNzggNDgtNDggMTc2IDkyeiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iLjQ4Ii8+PHRleHQgeD0iNDgiIHk9IjcwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMzQiIGZvbnQtd2VpZ2h0PSI3MDAiIGZpbGw9IiNmZmZmZmYiPkltYWdlIGJsb2NrPC90ZXh0Pjwvc3ZnPg==";
 
+    const IMAGE_DATA_URI_MAX_LENGTH = 20000000;
+    const IMAGE_UPLOAD_ACCEPT = "image/png,image/jpeg,image/gif,image/webp,image/svg+xml";
+
+    function imageEditorFieldKey(key, label = "") {
+      return /^(image|avatar|src|thumbnail|cover|poster|logo)$/i.test(String(key || "")) || /^(Bild|Avatar)-URL$/i.test(String(label || ""));
+    }
+
+    function readImageUpload(file) {
+      return new Promise((resolve, reject) => {
+        if (!file || !/^(image\/(?:png|jpeg|gif|webp)|image\/svg\+xml)$/i.test(String(file.type || ""))) {
+          reject(new Error("Bitte eine PNG-, JPEG-, GIF-, WebP- oder SVG-Datei auswählen."));
+          return;
+        }
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error("Das Bild konnte nicht gelesen werden."));
+        reader.onload = () => {
+          const dataUri = String(reader.result || "");
+          if (!/^data:image\/[a-z0-9.+-]+;base64,/i.test(dataUri)) {
+            reject(new Error("Das Bild konnte nicht als eingebettete Datei gelesen werden."));
+            return;
+          }
+          if (dataUri.length > IMAGE_DATA_URI_MAX_LENGTH) {
+            reject(new Error("Das eingebettete Bild ist größer als die erlaubten 20 MB."));
+            return;
+          }
+          resolve(dataUri);
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function imageSourceControl(input) {
+      const control = document.createElement("div");
+      control.className = "image-source-control";
+      const upload = document.createElement("button");
+      upload.type = "button";
+      upload.className = "image-source-upload";
+      upload.title = "Bild hochladen (als Base64 einbetten)";
+      upload.setAttribute("aria-label", "Bild hochladen (als Base64 einbetten)");
+      upload.innerHTML = '<svg data-lucide="upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"></path><path d="m7 8 5-5 5 5"></path><path d="M5 21h14a2 2 0 0 0 2-2v-4"></path><path d="M3 15v4a2 2 0 0 0 2 2"></path></svg>';
+      const fileInput = document.createElement("input");
+      fileInput.type = "file";
+      fileInput.accept = IMAGE_UPLOAD_ACCEPT;
+      fileInput.className = "image-source-file";
+      fileInput.tabIndex = -1;
+      fileInput.setAttribute("aria-hidden", "true");
+      upload.onclick = () => {
+        fileInput.value = "";
+        fileInput.click();
+      };
+      fileInput.onchange = async () => {
+        const file = fileInput.files?.[0];
+        if (!file) return;
+        upload.disabled = true;
+        try {
+          input.value = await readImageUpload(file);
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+          input.focus({ preventScroll: true });
+        } catch (error) {
+          await modalAlert(error?.message || "Das Bild konnte nicht eingebettet werden.", "Bild-Upload fehlgeschlagen");
+        } finally {
+          upload.disabled = false;
+          fileInput.value = "";
+        }
+      };
+      control.append(input, upload, fileInput);
+      return control;
+    }
+
     function componentTitle(type) {
       if (type === "heading") return "Überschrift";
       if (type === "image") return "Bild";
@@ -16228,10 +16335,11 @@
         if (opts.wide) field.classList.add("wide");
         const labelEl = document.createElement("label");
         labelEl.textContent = labelText;
-        control.setAttribute("aria-label", labelText);
+        const labelledControl = control.matches?.(".image-source-control") ? control.querySelector("input:not([type='file'])") : control;
+        labelledControl?.setAttribute("aria-label", labelText);
         field.append(labelEl, control);
         container.appendChild(field);
-        return control;
+        return labelledControl || control;
       };
       const quickComponentControl = (component, key, opts = {}) => {
         const control = opts.multiline ? document.createElement("textarea") : document.createElement("input");
@@ -16247,7 +16355,7 @@
           saveComponent(component);
         };
         control.onblur = () => { draw(); };
-        return control;
+        return opts.image ? imageSourceControl(control) : control;
       };
       const appendContentQuickEditor = (component, body) => {
         const configs = {
@@ -16272,7 +16380,7 @@
           image: {
             hint: "Bildquelle und Beschreibung direkt ändern.",
             fields: [
-              { key: "url", label: "Bild-URL", placeholder: "https://example.com/bild.jpg", url: true },
+              { key: "url", label: "Bild-URL", placeholder: "https://example.com/bild.jpg", url: true, image: true },
               { key: "text", label: "Alt-Text", placeholder: "Kurze Bildbeschreibung" }
             ]
           },
@@ -16431,7 +16539,7 @@
         }
         control.setAttribute("aria-label", labelText);
         if (opts.quick) control.dataset.widgetQuick = key;
-        field.append(labelEl, control);
+        field.append(labelEl, imageEditorFieldKey(key, labelText) && control.type !== "checkbox" ? imageSourceControl(control) : control);
         container.appendChild(field);
       };
       const appendWidgetListEditor = (container, component, dataPath, data, key, title) => {
@@ -17115,7 +17223,7 @@
                 const urlField = document.createElement("div");
                 urlField.className = "field list-item-field";
                 const label = document.createElement("label");
-                label.textContent = itemVal.type === "image" ? "Image URL" : "URL";
+                label.textContent = itemVal.type === "image" ? "Bild-URL" : "URL";
 
                 const input = document.createElement("input");
                 input.value = itemVal.url || "";
@@ -17125,7 +17233,7 @@
                   writeItems();
                 };
                 input.onblur = () => { draw(); };
-                urlField.append(label, input);
+                urlField.append(label, itemVal.type === "image" ? imageSourceControl(input) : input);
                 row.appendChild(urlField);
               }
 
@@ -17168,7 +17276,7 @@
           const field = document.createElement("div");
           field.className = "field";
           const fieldLabel = document.createElement("label");
-          fieldLabel.textContent = component.type === "image" ? "Image URL" : "URL";
+          fieldLabel.textContent = component.type === "image" ? "Bild-URL" : "URL";
           const input = document.createElement("input");
           input.value = component.url || "";
           input.placeholder = "https://...";
@@ -17177,7 +17285,7 @@
             saveComponent(component);
           };
           input.onblur = () => { draw(); };
-          field.append(fieldLabel, input);
+          field.append(fieldLabel, component.type === "image" ? imageSourceControl(input) : input);
           body.appendChild(field);
         }
         if (body.childElementCount) item.appendChild(body);
@@ -18538,7 +18646,10 @@
           }
           control.classList.add("state-variable-value-field");
           control.dataset.stateVariableValue = "true";
-          return control;
+          if (type !== "image") return control;
+          const imageControl = imageSourceControl(control);
+          imageControl.classList.add("state-variable-value-field");
+          return imageControl;
         };
         entries.forEach(({ path, busPath, value }) => {
           const row = document.createElement("div");
@@ -20734,7 +20845,10 @@
         }
         control.classList.add("state-variable-value-field");
         control.dataset.transitionSetValue = "true";
-        return control;
+        if (type !== "image") return control;
+        const imageControl = imageSourceControl(control);
+        imageControl.classList.add("state-variable-value-field");
+        return imageControl;
       };
       const renderSetVariableList = () => {
         if (!setVariableList) return;
