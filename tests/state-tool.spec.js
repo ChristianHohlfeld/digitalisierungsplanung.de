@@ -2980,6 +2980,23 @@ test.describe("State Blueprint tool", () => {
     }
     expect(html).toContain("data:image/png;base64,OLD");
     await expect.poll(() => page.evaluate(() => definitionPayload().model.states[0])).toEqual(before);
+
+    const standalone = await page.context().newPage();
+    await standalone.setContent(html);
+    const standaloneImages = standalone.locator(".component-image, .card figure img");
+    await expect(standaloneImages).toHaveCount(2);
+    await expect(standalone.locator("a .component-image, a figure img")).toHaveCount(0);
+    await standalone.evaluate(() => {
+      window.__openedImageUrls = [];
+      window.open = url => {
+        window.__openedImageUrls.push(String(url || ""));
+        return null;
+      };
+    });
+    await standaloneImages.nth(0).click();
+    await standaloneImages.nth(1).click();
+    await expect.poll(() => standalone.evaluate(() => window.__openedImageUrls)).toEqual([]);
+    await standalone.close();
   });
 
   test("uploads every editable image source as one embedded export value", async ({ page }) => {
@@ -8625,7 +8642,7 @@ test.describe("State Blueprint tool", () => {
     }))).toEqual(["badge", "avatar"]);
   });
 
-  test("autowires daisy card actions into real FSM states and transition buttons @smoke", async ({ page }) => {
+  test("autowires daisy card actions without turning its image into navigation @smoke", async ({ page }) => {
     await openTool(page);
 
     await addComponentState(page, "Produktkarte");
@@ -8640,8 +8657,10 @@ test.describe("State Blueprint tool", () => {
     await page.locator(`[data-id="${cardState.id}"]`).click();
     let app = appFrame(page);
     await expect(app.locator(`button.card-image-action[data-transition-id="${cardTransition.id}"]`)).toHaveCount(0);
-    const imageLink = app.locator(".runtime-image-link").first();
-    await expect(imageLink.locator("img")).toHaveAttribute("alt", "Schuhe");
+    const image = app.locator(".card figure img").first();
+    await expect(image).toHaveAttribute("alt", "Schuhe");
+    await expect(app.locator(".runtime-image-link")).toHaveCount(0);
+    await expect(image.locator("xpath=ancestor::a")).toHaveCount(0);
     await page.evaluate(() => {
       window.__stateBlueprintOpenedUrls = [];
       window.open = url => {
@@ -8649,9 +8668,9 @@ test.describe("State Blueprint tool", () => {
         return null;
       };
     });
-    await imageLink.click();
+    await image.click();
     await expect(app.locator("#statePill")).toHaveText(cardState.id);
-    await expect.poll(() => page.evaluate(() => window.__stateBlueprintOpenedUrls?.length || 0)).toBe(1);
+    await expect.poll(() => page.evaluate(() => window.__stateBlueprintOpenedUrls?.length || 0)).toBe(0);
     const buyButton = app.locator(`button[data-transition-id="${cardTransition.id}"]`, { hasText: "Jetzt kaufen" });
     await expect(buyButton).toBeVisible();
     await buyButton.click();

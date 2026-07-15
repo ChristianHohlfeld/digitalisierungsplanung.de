@@ -97,6 +97,10 @@ Boundary-Felder sind verboten.
 - Beim Standalone-Export werden externe Bild-URLs ausschließlich in der
   abgeleiteten Exportkopie als Data-URI eingebettet. Modell und globaler Bus
   behalten ihren vorhandenen Wert unverändert.
+- Eine Bild-URL ist ausschließlich die Quelle des gerenderten Bildes. Bilder
+  erzeugen weder in der Preview noch im Standalone-Export implizite Links oder
+  neue Tabs; Navigation benötigt eine ausdrücklich modellierte Link-Komponente
+  oder Aktion.
 
 Lesbare Wurzeln sind:
 
