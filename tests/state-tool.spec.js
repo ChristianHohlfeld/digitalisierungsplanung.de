@@ -5718,6 +5718,56 @@ test.describe("State Blueprint tool", () => {
     await assertVisibleInViewport(page, '[data-id="login"]');
   });
 
+  test("wraps German state titles inside preview and standalone export", async ({ page, context: browserContext }) => {
+    const model = defaultTestModel();
+    const title = "Vertragsprüfung der Digitalisierungsplanungsabschlussbestätigungsdokumentation";
+    model.states.find(state => state.id === model.initial).title = title;
+    await openTool(page, { model });
+
+    const titleLayout = async root => root.locator(".screen > h1").evaluate(element => {
+      const screen = element.closest(".screen");
+      const style = getComputedStyle(element);
+      const titleBox = element.getBoundingClientRect();
+      const screenBox = screen.getBoundingClientRect();
+      const lineHeight = Number.parseFloat(style.lineHeight);
+      return {
+        language: document.documentElement.lang,
+        overflowWrap: style.overflowWrap,
+        wordBreak: style.wordBreak,
+        hyphens: style.hyphens,
+        textWrap: style.textWrap,
+        lines: Math.round(titleBox.height / lineHeight),
+        insideScreen: titleBox.left >= screenBox.left - 0.5 && titleBox.right <= screenBox.right + 0.5,
+        titleFits: element.scrollWidth <= element.clientWidth + 1,
+        documentFits: document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1
+      };
+    });
+    const expectedLayout = {
+      language: "de",
+      overflowWrap: "anywhere",
+      wordBreak: "normal",
+      hyphens: "auto",
+      textWrap: "balance",
+      insideScreen: true,
+      titleFits: true,
+      documentFits: true
+    };
+
+    await expect.poll(() => titleLayout(appFrame(page))).toMatchObject(expectedLayout);
+    expect((await titleLayout(appFrame(page))).lines).toBeGreaterThan(1);
+
+    const exportedHtml = await page.evaluate(() => buildStandaloneAppHtml(GENERATED_APP_HTML, definitionPayload()));
+    const standalone = await browserContext.newPage();
+    try {
+      await standalone.setContent(exportedHtml, { waitUntil: "domcontentloaded" });
+      await expect(standalone.locator("#statePill")).toHaveText(model.initial);
+      await expect.poll(() => titleLayout(standalone)).toMatchObject(expectedLayout);
+      expect((await titleLayout(standalone)).lines).toBeGreaterThan(1);
+    } finally {
+      await standalone.close();
+    }
+  });
+
   test("clamps canvas state render text to two clean lines", async ({ page }) => {
     const model = defaultTestModel();
     model.states.find(state => state.id === "login").components[0].text =
