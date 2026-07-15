@@ -965,7 +965,7 @@ async function openWebsiteDemo(page) {
   await openTool(page);
   await page.locator("#topbarMore summary").click();
   await page.getByRole("button", { name: "Beispielablauf laden" }).click();
-  await page.getByRole("button", { name: "Beispiel laden" }).click();
+  await page.getByRole("button", { name: "Mit Beispiel neu starten" }).click();
   return savedModel(page);
 }
 
@@ -2130,6 +2130,24 @@ test.describe("State Blueprint tool", () => {
     });
   });
 
+  test("keeps the current scene when the example choice is declined @smoke", async ({ page }) => {
+    await openTool(page);
+    const before = await savedModel(page);
+
+    await page.locator("#topbarMore summary").click();
+    await page.getByRole("button", { name: "Beispielablauf laden" }).click();
+
+    const dialog = page.getByRole("dialog", { name: "Beispielablauf laden" });
+    await expect(dialog).toContainText("aktuelle Szene behalten");
+    await expect(dialog.getByRole("button", { name: "Aktuelle Szene behalten" })).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Mit Beispiel neu starten" })).toBeVisible();
+    await dialog.getByRole("button", { name: "Aktuelle Szene behalten" }).click();
+
+    await expect(dialog).toBeHidden();
+    expect(await savedModel(page)).toEqual(before);
+    await expect(page.locator('[data-id="site_home"]')).toHaveCount(0);
+  });
+
   test("opens the new canvas modal with Ctrl+N instead of a browser tab @smoke", async ({ page, context }) => {
     await openTool(page);
 
@@ -2162,7 +2180,7 @@ test.describe("State Blueprint tool", () => {
     await page.goto("/state.html?demo=zustand");
 
     await expect(page).toHaveURL(/\/state\.html$/);
-    await expect(page.getByRole("dialog", { name: "Digitalisierungsplanung" })).toBeHidden();
+    await expect(page.getByRole("dialog", { name: "Beispielablauf laden" })).toBeHidden();
     await expect(page.locator('[data-id="site_home"]')).toBeVisible();
     await expect(appFrame(page).locator("#statePill")).toHaveText("site_home");
     await expect.poll(async () => {
@@ -2180,9 +2198,9 @@ test.describe("State Blueprint tool", () => {
 
     await page.goto("/state.html?demo=zustand");
     await expect(page).toHaveURL(/\/state\.html$/);
-    await expect(page.getByRole("dialog", { name: "Digitalisierungsplanung" })).toBeHidden();
+    await expect(page.getByRole("dialog", { name: "Beispielablauf laden" })).toBeHidden();
     await page.evaluate(() => document.getElementById("btnWebsiteExample").click());
-    await expect(page.getByRole("dialog", { name: "Digitalisierungsplanung" })).toBeHidden();
+    await expect(page.getByRole("dialog", { name: "Beispielablauf laden" })).toBeHidden();
   });
 
   test("loads the Zustand demo without asking over a single empty initial state @smoke", async ({ page }) => {
@@ -2204,8 +2222,8 @@ test.describe("State Blueprint tool", () => {
     await page.goto("/state.html?demo=zustand");
 
     await expect(page).toHaveURL(/\/state\.html$/);
-    await expect(page.getByRole("dialog", { name: "Digitalisierungsplanung" })).toBeHidden();
-    await expect(page.getByRole("button", { name: "Beispiel laden" })).toHaveCount(0);
+    await expect(page.getByRole("dialog", { name: "Beispielablauf laden" })).toBeHidden();
+    await expect(page.getByRole("button", { name: "Mit Beispiel neu starten" })).toHaveCount(0);
     await expect(page.locator('[data-id="site_home"]')).toBeVisible();
     await expect(appFrame(page).locator("#statePill")).toHaveText("site_home");
     await expect.poll(async () => {
@@ -2380,7 +2398,10 @@ test.describe("State Blueprint tool", () => {
 
     await expect(page).toHaveURL(/\/state\.html$/);
     await expect(page.locator('[data-id="auth_start"]')).toBeVisible();
-    await expect(page.getByRole("dialog", { name: "Digitalisierungsplanung" })).toBeVisible();
+    const dialog = page.getByRole("dialog", { name: "Beispielablauf laden" });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Aktuelle Szene behalten" })).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Mit Beispiel neu starten" })).toBeVisible();
     await expect.poll(async () => {
       const model = await savedModel(page);
       return {
@@ -2394,7 +2415,7 @@ test.describe("State Blueprint tool", () => {
       hasStoredWork: true
     });
 
-    await page.getByRole("button", { name: "Beispiel laden" }).click();
+    await dialog.getByRole("button", { name: "Mit Beispiel neu starten" }).click();
 
     await expect(page.locator('[data-id="site_home"]')).toBeVisible();
     await expect(appFrame(page).locator("#statePill")).toHaveText("site_home");
@@ -2420,7 +2441,7 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator("#topbarMore summary").click();
     await page.getByRole("button", { name: "Beispielablauf laden" }).click();
-    await page.getByRole("button", { name: "Beispiel laden" }).click();
+    await page.getByRole("button", { name: "Mit Beispiel neu starten" }).click();
 
     await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(8);
     await expect(page.locator('[data-id="site_home"]')).toBeVisible();
@@ -2731,7 +2752,7 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator("#topbarMore summary").click();
     await page.getByRole("button", { name: "Beispielablauf laden" }).click();
-    await page.getByRole("button", { name: "Beispiel laden" }).click();
+    await page.getByRole("button", { name: "Mit Beispiel neu starten" }).click();
     await openStateInspector(page, "site_home");
 
     const editor = await expandComponentEditor(page, "Baustein: Kopf-Navigation");
@@ -2864,7 +2885,7 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator("#topbarMore summary").click();
     await page.getByRole("button", { name: "Beispielablauf laden" }).click();
-    await page.getByRole("button", { name: "Beispiel laden" }).click();
+    await page.getByRole("button", { name: "Mit Beispiel neu starten" }).click();
     await expect(appFrame(page).locator("#statePill")).toHaveText("site_home");
 
     expect(await page.evaluate(() => {
@@ -10054,7 +10075,7 @@ test.describe("State Blueprint tool", () => {
     await openTool(page);
     await page.locator("#topbarMore summary").click();
     await page.getByRole("button", { name: "Beispielablauf laden" }).click();
-    await page.getByRole("button", { name: "Beispiel laden" }).click();
+    await page.getByRole("button", { name: "Mit Beispiel neu starten" }).click();
 
     const logoutEdgeId = "site_profile_logout";
     const arrowTip = page.locator(`circle.edge-tip-hit[data-edge-id="${logoutEdgeId}"]`);

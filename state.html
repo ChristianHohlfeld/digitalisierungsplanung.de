@@ -23429,6 +23429,18 @@
       });
     }
 
+    function confirmExampleReplacement(demoLabel) {
+      return modalConfirm(
+        `Möchtest du die aktuelle Szene behalten oder mit dem Beispielablauf „${demoLabel}“ neu starten?`,
+        "Beispielablauf laden",
+        {
+          confirmText: "Mit Beispiel neu starten",
+          cancelText: "Aktuelle Szene behalten",
+          danger: false
+        }
+      );
+    }
+
     async function requestNewCanvas() {
       const ok = await modalConfirm("Arbeitsfläche wirklich neu und leer starten?", "Neue Arbeitsfläche", {
         confirmText: "Neu starten",
@@ -23498,10 +23510,7 @@
 
     document.getElementById("btnWebsiteExample").onclick = () => runTopbarAction(async () => {
       if (modelMatchesExampleEntry("zustand")) return;
-      const ok = await modalConfirm("Aktuelle Szene durch die Digitalisierungsplanung-Demo ersetzen?", "Digitalisierungsplanung", {
-        confirmText: "Beispiel laden",
-        danger: false
-      });
+      const ok = await confirmExampleReplacement(demoLabelForId("zustand"));
       if (!ok) return;
       loadEditorModel(exampleWebsiteModel(), true);
     });
@@ -23725,11 +23734,7 @@
         consumeDemoEntryUrl();
         setTimeout(async () => {
           const demoLabel = demoLabelForId(demoEntry);
-          const ok = await modalConfirm(`Es gibt bereits eine gespeicherte Szene. ${demoLabel} trotzdem laden und aktuelle Szene ersetzen?`, demoLabel, {
-            confirmText: "Beispiel laden",
-            cancelText: "Aktuelle Szene behalten",
-            danger: false
-          });
+          const ok = await confirmExampleReplacement(demoLabel);
           if (ok) {
             try {
               await loadExampleEntryById(demoEntry, true);

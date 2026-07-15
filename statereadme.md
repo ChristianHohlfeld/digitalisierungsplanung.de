@@ -622,7 +622,10 @@ und Parent-Ausgänge an ihrem `groupExitId`.
   ohne Ersetzen konsumiert werden und es DARF kein Lade-Dialog erscheinen. Der
   sichtbare Menübefehl MUSS `Beispielablauf laden` heißen;
   `Digitalisierungsplanung` bleibt der Name des Demo-Modells und DARF nicht als
-  unklare Aktionsbezeichnung verwendet werden.
+  unklare Aktionsbezeichnung verwendet werden. Wenn der Dialog erscheint, MUSS
+  er für Menü- und URL-Einstieg dieselben eindeutigen Entscheidungen
+  `Aktuelle Szene behalten` und `Mit Beispiel neu starten` anbieten. Behalten,
+  Schließen und Escape DÜRFEN das aktuelle Modell nicht verändern.
 - **ED-004 Tastatur:** `Ctrl+N` öffnet den App-Dialog und DARF keinen Browser-Tab
   öffnen. `Ctrl+S` speichert eine formale Definition.
 - **ED-005 Delete-Fokus:** `Delete` darf Graphentitäten nur löschen, wenn der
