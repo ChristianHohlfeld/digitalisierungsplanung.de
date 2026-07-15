@@ -34,6 +34,7 @@ const DEFAULT_EVENT_CATALOG = Object.freeze({
       label: "Incoming call",
       description: "SIP phone call started",
       detail: { caller: "text", callee: "text", callId: "text" },
+      matchFields: ["caller", "callee", "callId"],
       bindings: []
     },
     {
@@ -41,6 +42,7 @@ const DEFAULT_EVENT_CATALOG = Object.freeze({
       label: "Call answered",
       description: "SIP phone call was answered",
       detail: { callId: "text", agent: "text" },
+      matchFields: ["callId", "agent"],
       bindings: []
     },
     {
@@ -48,6 +50,7 @@ const DEFAULT_EVENT_CATALOG = Object.freeze({
       label: "Call ended",
       description: "SIP phone call ended",
       detail: { callId: "text", duration: "number" },
+      matchFields: ["callId", "duration"],
       bindings: []
     },
     {
@@ -55,6 +58,7 @@ const DEFAULT_EVENT_CATALOG = Object.freeze({
       label: "Mail received",
       description: "Inbound email arrived",
       detail: { from: "email", subject: "text", messageId: "text" },
+      matchFields: ["from", "subject", "messageId"],
       bindings: []
     },
     {
@@ -62,6 +66,7 @@ const DEFAULT_EVENT_CATALOG = Object.freeze({
       label: "Endpoint updated",
       description: "External endpoint reported a new status",
       detail: { endpoint: "url", status: "number", changedAt: "text" },
+      matchFields: ["endpoint", "status", "changedAt"],
       bindings: []
     },
     {
@@ -69,6 +74,7 @@ const DEFAULT_EVENT_CATALOG = Object.freeze({
       label: "Data updated",
       description: "External data source reported an update",
       detail: { key: "text", value: "object" },
+      matchFields: ["key"],
       bindings: []
     }
   ],
@@ -219,17 +225,10 @@ function normalizeBindings(value, detail, eventName) {
   });
 }
 
-function defaultMatchFields(detail) {
-  return Object.entries(detail || {})
-    .filter(([, type]) => !["object", "list", "password"].includes(type))
-    .map(([path]) => path);
-}
-
 function normalizeMatchFields(value, detail, eventName) {
-  const source = value === undefined ? defaultMatchFields(detail) : value;
-  if (!Array.isArray(source)) throw contractError("invalid_match_fields", `${eventName}.matchFields must be an array`);
+  if (!Array.isArray(value)) throw contractError("invalid_match_fields", `${eventName}.matchFields must be an array`);
   const seen = new Set();
-  return source.map((rawPath, index) => {
+  return value.map((rawPath, index) => {
     const pathValue = sanitizeStatePath(rawPath);
     if (!pathValue) throw contractError("invalid_match_field", `${eventName}.matchFields[${index}] is invalid`);
     if (!Object.hasOwn(detail, pathValue)) throw contractError("unknown_match_field", `${eventName}.matchFields[${index}] is not declared in detail`);

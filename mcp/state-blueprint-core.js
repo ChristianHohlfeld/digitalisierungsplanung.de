@@ -33,8 +33,10 @@ const CONTRACT_REALTIME_EVENTS_BY_NAME = new Map(
   (REPOSITORY_PRODUCT_CONTRACT.triggerTypes.find(type => type.id === "realtime")?.events || [])
     .map(event => [event.name, event])
 );
+const CONTRACT_MATCH_OPERATORS_BY_ID = new Map(
+  (REPOSITORY_PRODUCT_CONTRACT.matchOperators || []).map(operator => [operator.id, operator])
+);
 const TRIGGER_MATCH_TYPES = new Set(["realtime"]);
-const TRIGGER_MATCH_OPERATORS = new Set(["equals", "gt", "gte", "lt", "lte", "between"]);
 
 function isPlainObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -205,9 +207,10 @@ function runtimeReferenceContractIssuesForState(state) {
 
 function normalizeTriggerMatch(value) {
   if (!isPlainObject(value)) return {};
+  if (Object.keys(value).some(key => !["field", "operator", "value"].includes(key))) return {};
   const field = normalizeBindingPath(value.field || "", "");
   const operator = String(value.operator || "").trim();
-  if (!field || !TRIGGER_MATCH_OPERATORS.has(operator)) return {};
+  if (!field || !/^[a-z][a-zA-Z0-9]*$/.test(operator)) return {};
   if (!Object.prototype.hasOwnProperty.call(value, "value")) return {};
   const out = { field, operator };
   if (operator === "between") {
@@ -219,7 +222,7 @@ function normalizeTriggerMatch(value) {
 }
 
 function triggerMatchIsEmpty(match) {
-  return !isPlainObject(match) || !normalizeBindingPath(match.field || "", "") || !TRIGGER_MATCH_OPERATORS.has(String(match.operator || ""));
+  return !isPlainObject(match) || !normalizeBindingPath(match.field || "", "") || !/^[a-z][a-zA-Z0-9]*$/.test(String(match.operator || ""));
 }
 
 function canonicalTriggerMatchValue(value) {
@@ -246,15 +249,19 @@ function canonicalTriggerMatchKey(match) {
 
 function triggerMatchOperatorsForSchema(schema) {
   const type = String(schema?.type || "").trim();
-  if (type === "number") return new Set(["equals", "gt", "gte", "lt", "lte", "between"]);
-  if (["boolean", "text", "email", "url", "image"].includes(type)) return new Set(["equals"]);
-  return new Set();
+  return new Set((Array.isArray(schema?.operators) ? schema.operators : []).filter(operatorId => {
+    const operator = CONTRACT_MATCH_OPERATORS_BY_ID.get(operatorId);
+    return operator && operator.fieldTypes.includes(type);
+  }));
 }
 
 function normalizeTriggerMatchRange(value) {
   if (!isPlainObject(value)) return null;
-  const min = Number(value.min);
-  const max = Number(value.max);
+  if (Object.keys(value).some(key => !["min", "minInclusive", "max", "maxInclusive"].includes(key))) return null;
+  if (Object.hasOwn(value, "minInclusive") && typeof value.minInclusive !== "boolean") return null;
+  if (Object.hasOwn(value, "maxInclusive") && typeof value.maxInclusive !== "boolean") return null;
+  const min = value.min;
+  const max = value.max;
   if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
   const minInclusive = value.minInclusive !== false;
   const maxInclusive = value.maxInclusive !== false;
@@ -302,7 +309,8 @@ function transitionTriggerMatchesCanOverlap(left, right) {
   if (triggerMatchIsEmpty(leftMatch) || triggerMatchIsEmpty(rightMatch)) return true;
   if (leftMatch.field !== rightMatch.field) return true;
   const event = CONTRACT_REALTIME_EVENTS_BY_NAME.get(normalizeTransitionEvent(left?.triggerEvent || ""));
-  const schema = event?.matchFieldSchemas?.[leftMatch.field] || event?.detailSchemas?.[leftMatch.field] || valueTypes.fieldSchemaForType(event?.detail?.[leftMatch.field] || "text");
+  const schema = event?.matchFieldSchemas?.[leftMatch.field];
+  if (!schema) return true;
   if (String(schema?.type || "") === "number") {
     return triggerMatchIntervalsOverlap(triggerMatchInterval(leftMatch, schema), triggerMatchInterval(rightMatch, schema));
   }
@@ -331,12 +339,16 @@ function triggerMatchContractIssues(transition) {
     add("invalid_trigger_match_event", "triggerMatch must reference an event declared by the Product Contract.");
     return issues;
   }
-  const allowedFields = new Set(event.matchFields || Object.keys(event.detail || {}));
+  const allowedFields = new Set(Array.isArray(event.matchFields) ? event.matchFields : []);
   if (!allowedFields.has(match.field)) {
     add("invalid_trigger_match_field", "triggerMatch.field must be declared as a matchable Product Contract event field.");
     return issues;
   }
-  const schema = event.matchFieldSchemas?.[match.field] || event.detailSchemas?.[match.field] || valueTypes.fieldSchemaForType(event.detail?.[match.field]);
+  const schema = event.matchFieldSchemas?.[match.field];
+  if (!schema) {
+    add("invalid_trigger_match_field", "triggerMatch.field has no Product Contract match schema.");
+    return issues;
+  }
   const operators = triggerMatchOperatorsForSchema(schema);
   if (!operators.has(match.operator)) {
     add("invalid_trigger_match_operator", "triggerMatch.operator is not allowed for this field type.");

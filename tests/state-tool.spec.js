@@ -8028,40 +8028,31 @@ test.describe("State Blueprint tool", () => {
 
   test("uses realtime event catalog without persisting a local contract @smoke", async ({ page }) => {
     let catalogVersion = 1;
+    const baseContract = productContractForTest();
+    const baseRealtimeEvents = baseContract.triggerTypes.find(type => type.id === "realtime").events;
+    const contractEvent = name => structuredClone(baseRealtimeEvents.find(event => event.name === name));
     const eventsPayload = () => ([
-      {
-        name: "realtime.sip.call.incoming",
-        label: "Incoming call",
-        detail: { caller: "text", callId: "text" },
-        bindings: []
-      },
-      ...(catalogVersion > 1 ? [{
-        name: "realtime.sip.call.answered",
-        label: "Call answered",
-        detail: { callId: "text", agent: "text" },
-        bindings: []
-      }] : [])
+      (() => {
+        const event = contractEvent("realtime.sip.call.incoming");
+        event.detail = { caller: "text", callId: "text" };
+        event.detailSchemas = { caller: event.detailSchemas.caller, callId: event.detailSchemas.callId };
+        event.matchFields = ["caller"];
+        event.matchFieldSchemas = { caller: event.matchFieldSchemas.caller };
+        return event;
+      })(),
+      (() => {
+        const event = contractEvent("realtime.sip.call.ended");
+        event.detail = { duration: "number" };
+        event.detailSchemas = { duration: event.detailSchemas.duration };
+        event.matchFields = ["duration"];
+        event.matchFieldSchemas = { duration: { ...event.matchFieldSchemas.duration, operators: ["gte"] } };
+        return event;
+      })(),
+      ...(catalogVersion > 1 ? [contractEvent("realtime.sip.call.answered")] : [])
     ]);
     const contractPayload = () => ({
-      schemaVersion: 1,
-      valueTypes: [
-        { id: "text", label: "Text", jsonType: "string", default: "", constraints: {} },
-        { id: "number", label: "Number", jsonType: "number", default: 0, constraints: { finite: true } },
-        { id: "boolean", label: "Boolean", jsonType: "boolean", default: false, constraints: {} },
-        { id: "object", label: "Object", jsonType: "object", default: {}, constraints: { plainObject: true } }
-      ],
-      triggerTypes: [
-        { id: "button", label: "Klick", settings: {}, events: [] },
-        { id: "timer", label: "Timer", settings: { timerMs: { type: "number", min: 100, max: 300000 } }, events: [] },
-        { id: "api", label: "API", settings: {}, events: [{ name: "fetch.ok" }, { name: "fetch.error" }] },
-        { id: "change", label: "Change", settings: {}, events: [] },
-        { id: "realtime", label: "Realtime", settings: {}, events: eventsPayload() },
-        { id: "auto", label: "Auto", settings: {}, events: [] }
-      ],
-      stateContributions: [],
-      datasets: [],
-      connectors: [],
-      presets: []
+      ...baseContract,
+      triggerTypes: baseContract.triggerTypes.map(type => type.id === "realtime" ? { ...type, events: eventsPayload() } : type)
     });
     await page.route("**/contract", route => route.fulfill({
       status: 200,
@@ -8079,6 +8070,7 @@ test.describe("State Blueprint tool", () => {
     expect((await runtimeContext(page)).lastEvent || "").not.toBe("realtime.sip.call.incoming");
 
     await openStateInspector(page, "auth_start");
+    await expect(page.locator("#pStateTriggerMatchField")).toBeHidden();
     await page.locator("#pStateFlowTransition").selectOption("t_auth_login");
     await page.locator("#pStateTriggerType").selectOption("realtime");
     await expect(page.locator("#pStateTriggerEvent")).toBeVisible();
@@ -8086,6 +8078,19 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#pStateTriggerEvent")).toHaveValue("");
     await page.locator("#pStateTriggerEvent").selectOption("realtime.sip.call.incoming");
     await expect(page.locator("#pStateTriggerEvent")).toHaveValue("realtime.sip.call.incoming");
+    await expect(page.locator("#pStateTriggerMatchField")).toBeVisible();
+    await expect(page.locator("#pStateTriggerMatchFieldSelect")).toHaveValue("");
+    await expect(page.locator("#pStateTriggerMatchFieldSelect")).toContainText("Catch-all");
+    await expect(page.locator("#pStateTriggerMatchFieldSelect")).toContainText("Caller");
+    await page.locator("#pStateTriggerMatchFieldSelect").selectOption("caller");
+    await expect(page.locator("#pStateTriggerMatchOperator")).toHaveValue("equals");
+    await expect(page.locator("#pStateTriggerMatchOperator")).toContainText("Ist gleich");
+    await expect(page.locator("#pStateTriggerMatchOperator option")).toHaveCount(1);
+    for (const attribute of ["autocomplete", "autocorrect", "autocapitalize", "spellcheck"]) {
+      await expect(page.locator("#pStateTriggerMatchValue")).toHaveAttribute(attribute, attribute === "autocomplete" ? "off" : attribute === "spellcheck" ? "false" : "off");
+    }
+    await page.locator("#pStateTriggerMatchClear").click();
+    await expect(page.locator("#pStateTriggerMatchFieldSelect")).toHaveValue("");
     await expect(page.locator('.edge[data-edge-id="t_auth_login"]')).toHaveClass(/inspector-focus-pulse/);
     await expect(page.locator("#pStateTriggerEventImport")).toBeVisible();
     await expect(page.locator("#pStateTriggerEventImport")).toHaveText("Realtime-Ereignisse neu laden");
@@ -8103,6 +8108,12 @@ test.describe("State Blueprint tool", () => {
     await expect.poll(async () => (await savedModel(page)).realtime).toBeUndefined();
 
     await page.locator("#pStateFlowTransition").selectOption("t_auth_register");
+    await page.locator("#pStateTriggerType").selectOption("realtime");
+    await page.locator("#pStateTriggerEvent").selectOption("realtime.sip.call.ended");
+    await page.locator("#pStateTriggerMatchFieldSelect").selectOption("duration");
+    await expect(page.locator("#pStateTriggerMatchOperator")).toHaveValue("gte");
+    await expect(page.locator("#pStateTriggerMatchOperator option")).toHaveText(["Mindestens"]);
+    await page.locator("#pStateTriggerType").selectOption("button");
     await page.locator("#pStateTriggerType").selectOption("realtime");
     expect(await page.evaluate(() => {
       const transition = model.transitions.find(item => item.id === "t_auth_register");
@@ -8164,6 +8175,11 @@ test.describe("State Blueprint tool", () => {
     await page.locator("#pStateTriggerEventImport").click();
     await expect(page.locator("#pStateTriggerEvent")).toContainText("Call answered - realtime.sip.call.answered");
     await expect.poll(async () => (await savedModel(page)).realtime).toBeUndefined();
+
+    await page.evaluate(() => showEdgeInspector(model.transitions.find(transition => transition.id === "t_auth_register"), { focus: false }));
+    for (const attribute of ["autocomplete", "autocorrect", "autocapitalize", "spellcheck"]) {
+      await expect(page.locator("#pTriggerMatchValue")).toHaveAttribute(attribute, attribute === "autocomplete" ? "off" : attribute === "spellcheck" ? "false" : "off");
+    }
   });
 
   test("rejects bus-event transitions in owned runtime namespaces @smoke", async ({ page }) => {

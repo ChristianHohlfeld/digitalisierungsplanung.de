@@ -47,6 +47,8 @@
 
     * { box-sizing: border-box; }
 
+    [hidden] { display: none !important; }
+
     .inspector-body,
     .state-explorer-list,
     .widget-library-panel {
@@ -7910,13 +7912,18 @@
     }
 
     const TRIGGER_MATCH_TYPES = new Set(["realtime"]);
-    const TRIGGER_MATCH_OPERATORS = new Set(["equals", "gt", "gte", "lt", "lte", "between"]);
+
+    function normalizeTriggerMatchOperatorId(value) {
+      const operator = String(value || "").trim();
+      return /^[a-z][a-zA-Z0-9]*$/.test(operator) ? operator : "";
+    }
 
     function normalizeTransitionTriggerMatch(value) {
       if (!isPlainObject(value)) return {};
+      if (Object.keys(value).some(key => !["field", "operator", "value"].includes(key))) return {};
       const field = normalizeBindingPath(value.field || "", "");
-      const operator = String(value.operator || "").trim();
-      if (!field || !TRIGGER_MATCH_OPERATORS.has(operator)) return {};
+      const operator = normalizeTriggerMatchOperatorId(value.operator);
+      if (!field || !operator) return {};
       if (!Object.prototype.hasOwnProperty.call(value, "value")) return {};
       const out = { field, operator };
       if (operator === "between") {
@@ -7928,7 +7935,7 @@
     }
 
     function transitionTriggerMatchIsEmpty(match) {
-      return !isPlainObject(match) || !normalizeBindingPath(match.field || "", "") || !TRIGGER_MATCH_OPERATORS.has(String(match.operator || ""));
+      return !isPlainObject(match) || !normalizeBindingPath(match.field || "", "") || !normalizeTriggerMatchOperatorId(match.operator);
     }
 
     function canonicalTriggerMatchValue(value) {
@@ -7955,15 +7962,19 @@
 
     function triggerMatchOperatorsForSchema(schema) {
       const type = String(schema?.type || "").trim();
-      if (type === "number") return new Set(["equals", "gt", "gte", "lt", "lte", "between"]);
-      if (["boolean", "text", "email", "url", "image"].includes(type)) return new Set(["equals"]);
-      return new Set();
+      return new Set((Array.isArray(schema?.operators) ? schema.operators : []).filter(operatorId => {
+        const operator = productContractMatchOperator(operatorId);
+        return operator && operator.fieldTypes.includes(type);
+      }));
     }
 
     function normalizeTriggerMatchRange(value) {
       if (!isPlainObject(value)) return null;
-      const min = Number(value.min);
-      const max = Number(value.max);
+      if (Object.keys(value).some(key => !["min", "minInclusive", "max", "maxInclusive"].includes(key))) return null;
+      if (Object.hasOwn(value, "minInclusive") && typeof value.minInclusive !== "boolean") return null;
+      if (Object.hasOwn(value, "maxInclusive") && typeof value.maxInclusive !== "boolean") return null;
+      const min = value.min;
+      const max = value.max;
       if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
       const minInclusive = value.minInclusive !== false;
       const maxInclusive = value.maxInclusive !== false;
@@ -8013,7 +8024,8 @@
       if (transitionTriggerMatchIsEmpty(leftMatch) || transitionTriggerMatchIsEmpty(rightMatch)) return true;
       if (leftMatch.field !== rightMatch.field) return true;
       const event = productContractRealtimeEvent(normalizeTransitionTriggerEvent(left));
-      const schema = event?.matchFieldSchemas?.[leftMatch.field] || event?.detailSchemas?.[leftMatch.field] || normalizeProductContractFieldSchema({ type: event?.detail?.[leftMatch.field] || "text" });
+      const schema = event?.matchFieldSchemas?.[leftMatch.field];
+      if (!schema) return true;
       if (String(schema?.type || "") === "number") {
         return triggerMatchIntervalsOverlap(triggerMatchInterval(leftMatch, schema), triggerMatchInterval(rightMatch, schema));
       }
@@ -8071,9 +8083,10 @@
       }
       const event = productContractRealtimeEvent(eventName);
       if (!event) throw new Error(`${path} must reference a realtime event declared by the Product Contract.`);
-      const allowedFields = new Set(Array.isArray(event.matchFields) && event.matchFields.length ? event.matchFields : Object.keys(event.detail || {}));
+      const allowedFields = new Set(Array.isArray(event.matchFields) ? event.matchFields : []);
       if (!allowedFields.has(match.field)) throw new Error(`${path}.field must be declared as a matchable Product Contract event field.`);
-      const schema = event.matchFieldSchemas?.[match.field] || event.detailSchemas?.[match.field] || normalizeProductContractFieldSchema({ type: event.detail?.[match.field] || "text" });
+      const schema = event.matchFieldSchemas?.[match.field];
+      if (!schema) throw new Error(`${path}.field has no Product Contract match schema.`);
       const operators = triggerMatchOperatorsForSchema(schema);
       if (!operators.has(match.operator)) throw new Error(`${path}.operator is not allowed for this field type.`);
       if (String(schema?.type || "") === "number" && match.operator === "between") {
@@ -9009,7 +9022,7 @@
       if (!name.startsWith("realtime.")) return null;
       const detail = normalizeRealtimeDetailSchema(value.detail);
       const detailSchemas = normalizeProductContractFieldSchemas(value.detailSchemas);
-      const matchFields = (Array.isArray(value.matchFields) ? value.matchFields : Object.keys(detail))
+      const matchFields = (Array.isArray(value.matchFields) ? value.matchFields : [])
         .map(field => normalizeBindingPath(field, ""))
         .filter(field => field && Object.prototype.hasOwnProperty.call(detail, field));
       return {
@@ -9065,7 +9078,25 @@
         type: rawType || "text",
         jsonType: String(value.jsonType || "").trim(),
         default: value.default,
-        constraints: isPlainObject(value.constraints) ? value.constraints : {}
+        constraints: isPlainObject(value.constraints) ? value.constraints : {},
+        operators: (Array.isArray(value.operators) ? value.operators : [])
+          .map(normalizeTriggerMatchOperatorId)
+          .filter(Boolean)
+      };
+    }
+
+    function normalizeProductContractMatchOperator(value) {
+      if (!isPlainObject(value)) return null;
+      const id = normalizeTriggerMatchOperatorId(value.id);
+      const fieldTypes = (Array.isArray(value.fieldTypes) ? value.fieldTypes : [])
+        .map(type => String(type || "").trim().toLowerCase())
+        .filter(Boolean);
+      if (!id || !String(value.label || "").trim() || !fieldTypes.length || !isPlainObject(value.operand)) return null;
+      return {
+        id,
+        label: String(value.label).trim(),
+        fieldTypes: [...new Set(fieldTypes)],
+        operand: JSON.parse(JSON.stringify(value.operand))
       };
     }
 
@@ -9173,13 +9204,19 @@
 
     function normalizeProductContractPayload(value) {
       const source = isPlainObject(value) ? value : {};
+      const schemaVersion = Number(source.schemaVersion) || 0;
+      if (schemaVersion !== 2) throw new Error("Product Contract schemaVersion must be 2.");
       const valueTypes = (Array.isArray(source.valueTypes) ? source.valueTypes : []).map(normalizeProductContractValueType).filter(Boolean);
+      const matchOperators = (Array.isArray(source.matchOperators) ? source.matchOperators : []).map(normalizeProductContractMatchOperator).filter(Boolean);
+      const matchOperatorIds = new Set(matchOperators.map(operator => operator.id));
+      if (!matchOperators.length || matchOperatorIds.size !== matchOperators.length) throw new Error("Product Contract matchOperators are invalid.");
       productContractValueTypesInFlight = valueTypes;
       try {
-        return {
-          schemaVersion: Number(source.schemaVersion) || 0,
+        const normalized = {
+          schemaVersion,
           provider: isPlainObject(source.provider) ? source.provider : null,
           valueTypes,
+          matchOperators,
           connectorTypes: Array.isArray(source.connectorTypes) ? source.connectorTypes : [],
           triggerTypes: (Array.isArray(source.triggerTypes) ? source.triggerTypes : []).map(normalizeProductContractTriggerType).filter(Boolean),
           datasets: (Array.isArray(source.datasets) ? source.datasets : []).map(normalizeProductContractDataset).filter(Boolean),
@@ -9194,6 +9231,20 @@
           stateContributions: (Array.isArray(source.stateContributions) ? source.stateContributions : []).map(normalizeProductContractContribution).filter(Boolean),
           release: isPlainObject(source.release) ? source.release : null
         };
+        const realtimeEvents = normalized.triggerTypes.find(type => type.id === "realtime")?.events || [];
+        for (const event of realtimeEvents) {
+          for (const field of event.matchFields) {
+            const schema = event.matchFieldSchemas[field];
+            if (!schema || !schema.operators.length) throw new Error(`Product Contract match schema is missing for ${event.name}.${field}.`);
+            for (const operatorId of schema.operators) {
+              const operator = matchOperators.find(item => item.id === operatorId);
+              if (!operator || !operator.fieldTypes.includes(schema.type)) {
+                throw new Error(`Product Contract operator ${operatorId} is invalid for ${event.name}.${field}.`);
+              }
+            }
+          }
+        }
+        return normalized;
       } finally {
         productContractValueTypesInFlight = null;
       }
@@ -9281,6 +9332,15 @@
 
     function productContractRealtimeEvents() {
       return realtimeEventCatalog(productContractTriggerType("realtime")?.events || []);
+    }
+
+    function productContractMatchOperator(id) {
+      const operatorId = normalizeTriggerMatchOperatorId(id);
+      return (productContract?.matchOperators || []).find(operator => operator.id === operatorId) || null;
+    }
+
+    function triggerMatchOperatorLabel(id) {
+      return productContractMatchOperator(id)?.label || String(id || "");
     }
 
     function productContractStateContributionSuggestions() {
@@ -18437,7 +18497,7 @@
                   <div class="field"><label>Operator</label><select id="pStateTriggerMatchOperator"></select></div>
                 </div>
                 <div class="row">
-                  <div class="field"><label>Wert</label><input id="pStateTriggerMatchValue" placeholder="Wert"></div>
+                  <div class="field"><label>Wert</label><input id="pStateTriggerMatchValue" placeholder="Wert" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></div>
                   <button id="pStateTriggerMatchClear" type="button">Catch-all</button>
                 </div>
               </div>
@@ -18970,23 +19030,9 @@
         data.value = JSON.stringify(normalizeStateDataObject(s.data), null, 2);
         updateDataPreview(false, { refreshVariables: true });
       };
-      const triggerMatchOperatorOptionsForSchema = schema => {
-        const type = String(schema?.type || "").trim();
-        if (type === "number") return [
-          { value: "equals", label: "Ist gleich" },
-          { value: "gt", label: "Groesser als" },
-          { value: "gte", label: "Mindestens" },
-          { value: "lt", label: "Kleiner als" },
-          { value: "lte", label: "Hoechstens" },
-          { value: "between", label: "Zwischen" }
-        ];
-        if (["boolean", "text", "email", "url", "image"].includes(type)) return [{ value: "equals", label: "Ist gleich" }];
-        return [];
-
-      };
       const stateTriggerMatchEvent = () => productContractRealtimeEvent(stateTriggerEvent?.value || "");
       const stateTriggerMatchSchema = (event, field) =>
-        event?.matchFieldSchemas?.[field] || event?.detailSchemas?.[field] || normalizeProductContractFieldSchema({ type: event?.detail?.[field] || "text" });
+        event?.matchFieldSchemas?.[field] || null;
       const stringifyTriggerMatchValue = value => {
         if (isPlainObject(value) && Number.isFinite(value.min) && Number.isFinite(value.max)) {
           const left = value.minInclusive === false ? "(" : "[";
@@ -19024,19 +19070,20 @@
         if (!stateTriggerMatchOperator) return;
         stateTriggerMatchOperator.innerHTML = "";
         const schema = stateTriggerMatchSchema(event, selectedField);
-        const operators = selectedField ? triggerMatchOperatorOptionsForSchema(schema) : [];
-        operators.forEach(operator => {
+        const operators = selectedField ? Array.from(triggerMatchOperatorsForSchema(schema)) : [];
+        const selected = operators.includes(selectedOperator) ? selectedOperator : operators[0] || "";
+        operators.forEach(operatorId => {
           const option = document.createElement("option");
-          option.value = operator.value;
-          option.textContent = operator.label;
-          if (operator.value === selectedOperator) option.selected = true;
+          option.value = operatorId;
+          option.textContent = triggerMatchOperatorLabel(operatorId);
+          if (operatorId === selected) option.selected = true;
           stateTriggerMatchOperator.appendChild(option);
         });
       };
       const renderStateTriggerMatchEditor = (selectedTransition, mode) => {
         if (!stateTriggerMatchField || !stateTriggerMatchFieldSelect || !stateTriggerMatchOperator || !stateTriggerMatchValue) return;
         const event = mode === "realtime" ? stateTriggerMatchEvent() : null;
-        const fields = event ? (Array.isArray(event.matchFields) ? event.matchFields : Object.keys(event.detail || {})) : [];
+        const fields = event && Array.isArray(event.matchFields) ? event.matchFields : [];
         stateTriggerMatchField.hidden = !event || !fields.length;
         if (stateTriggerMatchField.hidden) return;
         const current = normalizeTransitionTriggerMatch(selectedTransition?.triggerMatch);
@@ -19082,6 +19129,8 @@
         if (stateTriggerEventImport) stateTriggerEventImport.hidden = true;
         if (!usesEventDetail) {
           if (stateTriggerMatchField) stateTriggerMatchField.hidden = true;
+          stateTriggerEvent.innerHTML = "";
+          stateTriggerEvent.value = "";
           return;
         }
         const current = normalizeTransitionEvent(selectedTransition?.triggerEvent || "");
@@ -19273,7 +19322,7 @@
         }
         candidate.triggerType = normalizeTransitionTriggerType(candidate);
         candidate.triggerEvent = normalizeTransitionTriggerEvent(candidate);
-        const requestedMatch = triggerMatchFromStateEditor();
+        const requestedMatch = mode === "realtime" ? triggerMatchFromStateEditor() : {};
         if (!transitionTriggerMatchIsEmpty(requestedMatch)) candidate.triggerMatch = requestedMatch;
         else delete candidate.triggerMatch;
         try {
@@ -20322,7 +20371,7 @@
                 <div class="field"><label>Operator</label><select id="pTriggerMatchOperator"></select></div>
               </div>
               <div class="row">
-                <div class="field"><label>Wert</label><input id="pTriggerMatchValue" placeholder="Wert"></div>
+                <div class="field"><label>Wert</label><input id="pTriggerMatchValue" placeholder="Wert" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></div>
                 <button id="pTriggerMatchClear" type="button">Catch-all</button>
               </div>
             </div>
@@ -20427,21 +20476,12 @@
         .filter(Boolean)
         .map(value => "<option value=\"" + escapeHtml(value) + "\" label=\"" + escapeHtml(triggerEventOptionLabel(value)) + "\"></option>")
         .join("");
-      const triggerMatchOperatorLabel = operator => ({
-        equals: "Ist gleich",
-        notEquals: "Ist nicht gleich",
-        gt: "Groesser als",
-        gte: "Mindestens",
-        lt: "Kleiner als",
-        lte: "Hoechstens",
-        between: "Zwischen"
-      })[operator] || operator;
       const transitionTriggerMatchEvent = () =>
         normalizeTransitionTriggerType({ triggerType: triggerType.value }) === "realtime"
           ? productContractRealtimeEvent(triggerEvent.value || "")
           : null;
       const transitionTriggerMatchSchema = (event, field) =>
-        event?.matchFieldSchemas?.[field] || event?.detailSchemas?.[field] || normalizeProductContractFieldSchema({ type: event?.detail?.[field] || "text" });
+        event?.matchFieldSchemas?.[field] || null;
       const stringifyTriggerMatchInputValue = value => {
         if (isPlainObject(value) && Number.isFinite(value.min) && Number.isFinite(value.max)) {
           const left = value.minInclusive === false ? "(" : "[";
@@ -20492,7 +20532,7 @@
       const renderTransitionTriggerMatchEditor = (transition = t, mode = normalizeTransitionTriggerType({ triggerType: triggerType.value })) => {
         if (!triggerMatchField || !triggerMatchFieldSelect || !triggerMatchOperator || !triggerMatchValue) return;
         const event = mode === "realtime" ? transitionTriggerMatchEvent() : null;
-        const fields = event ? (Array.isArray(event.matchFields) ? event.matchFields : Object.keys(event.detail || {})) : [];
+        const fields = event && Array.isArray(event.matchFields) ? event.matchFields : [];
         triggerMatchField.hidden = !event || !fields.length;
         triggerMatchFieldSelect.innerHTML = "";
         triggerMatchOperator.innerHTML = "";
@@ -20528,7 +20568,7 @@
         if (!triggerMatchField || triggerMatchField.hidden || !triggerMatchFieldSelect?.value) return {};
         const event = transitionTriggerMatchEvent();
         const field = normalizeBindingPath(triggerMatchFieldSelect.value, "");
-        const fields = event ? (Array.isArray(event.matchFields) ? event.matchFields : Object.keys(event.detail || {})) : [];
+        const fields = event && Array.isArray(event.matchFields) ? event.matchFields : [];
         if (!event || !field || !fields.includes(field)) return {};
         const schema = transitionTriggerMatchSchema(event, field);
         return {

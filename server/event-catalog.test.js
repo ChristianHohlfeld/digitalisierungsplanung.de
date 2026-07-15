@@ -59,6 +59,7 @@ test("rejects invalid catalog shape and colliding contract paths", () => {
           label: "Call",
           description: "",
           detail: { value: "text" },
+          matchFields: ["value"],
           bindings: []
         }
       ],
@@ -115,6 +116,7 @@ test("accepts new server-contract datasets with strict typed fields", () => {
         label: "Missed call",
         description: "SIP call was not answered",
         detail: { caller: "text", callId: "text", missedAt: "text" },
+        matchFields: ["caller", "callId", "missedAt"],
         bindings: []
       }
     ],
@@ -148,6 +150,15 @@ test("exposes each event contribution to the unique global state tree", () => {
   ]);
   assert.equal(emitter.contributes.root, "emitters.sip.threecx");
   assert.ok(emitter.contributes.fields.includes("emitters.sip.threecx.lastEvent"));
+});
+
+test("requires explicit match fields and never infers them from event detail", () => {
+  const withoutMatchFields = structuredClone(DEFAULT_EVENT_CATALOG);
+  delete withoutMatchFields.events[0].matchFields;
+  assert.throws(
+    () => validateEventCatalog(withoutMatchFields),
+    error => error.code === "invalid_match_fields"
+  );
 });
 
 test("validates runtime event detail against the catalog detail schema", () => {

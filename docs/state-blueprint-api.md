@@ -285,7 +285,7 @@ Fields:
 | `label` | string | nein | Nutzereigene Beschriftung für Schaltfläche oder Kante. Ohne Angabe exakt `Weiter`; Quelle und Ziel bleiben davon getrennte `from`-/`to`-Referenzen. |
 | `triggerType` | `button`, `change`, `event`, `realtime`, `api`, `timer`, `auto` | nein | Standard ist `button`. |
 | `triggerEvent` | string | nein | Konkreter Ereignisname. Wird nur für Schaltfläche/Timer/Auto erzeugt. Change, Event, Realtime und API verlangen eine konkrete Referenz. |
-| `triggerMatch` | object | nein | Nur für `realtime`: `{ field, operator, value }` gegen Product-Contract-Felder. Das Feld fehlt für Catch-all vollständig oder ist mit allen drei Eigenschaften typgerecht gesetzt. Skalare Felder erlauben `equals`; Zahlen erlauben `equals`, `gt`, `gte`, `lt`, `lte`, `between`. Matches desselben Events müssen disjunkt sein. |
+| `triggerMatch` | object | nein | Nur für `realtime`: `{ field, operator, value }` gegen Product-Contract-Felder. Das Feld fehlt für Catch-all vollständig oder ist mit allen drei Eigenschaften typgerecht gesetzt. Zulässige Operatoren stehen ausschließlich in `matchFieldSchemas.<field>.operators`; ihre Definitionen und Operandenformen liefert `/contract.matchOperators`. Matches desselben Events müssen disjunkt sein. |
 | `timerMs` | number | nein | Dauer für Timer-Übergänge. |
 | `condition` | string | nein | Bedingung über Bus-Pfade. |
 | `set` | object | nein | Patch, der beim Übergang in den globalen Bus geschrieben wird. |

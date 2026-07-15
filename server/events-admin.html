@@ -29,6 +29,7 @@
     label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 850; letter-spacing: .04em; text-transform: uppercase; }
     input, select, textarea, button { border: 1px solid var(--line); border-radius: 6px; background: var(--field); color: var(--text); font: inherit; }
     input, select { height: 42px; padding: 0 10px; }
+    input[data-field-match="true"] { width: 20px; height: 20px; padding: 0; accent-color: var(--accent); }
     textarea { min-height: 82px; padding: 10px; resize: vertical; }
     textarea[readonly], input[readonly] { color: #cfe8ff; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; line-height: 1.45; }
     button { min-height: 40px; padding: 0 13px; border-color: #23729b; background: #0b3a55; color: #dff7ff; font-weight: 850; cursor: pointer; }
@@ -49,7 +50,7 @@
     .bad { color: var(--bad); }
     .warn { color: var(--warn); }
     .chip-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(108px, 1fr)); gap: 8px; }
-    .field-row { display: grid; grid-template-columns: minmax(0, 1fr) 140px auto; gap: 8px; align-items: end; }
+    .field-row { display: grid; grid-template-columns: minmax(0, 1fr) 140px auto auto; gap: 8px; align-items: end; }
     .readout { display: grid; gap: 8px; padding: 10px; border: 1px solid rgba(56,189,248,.24); border-radius: 6px; background: rgba(8,32,51,.62); }
     details { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
     summary { cursor: pointer; padding: 13px 15px; color: var(--text); font-weight: 850; }
@@ -243,11 +244,15 @@
 
     function normalizeEvent(event = {}) {
       const detail = event.detail && typeof event.detail === "object" && !Array.isArray(event.detail) ? clone(event.detail) : {};
+      const matchFields = Array.isArray(event.matchFields)
+        ? event.matchFields.map(String).filter(path => Object.hasOwn(detail, path) && !["object", "list", "password"].includes(detail[path]))
+        : [];
       return {
         name: String(event.name || defaultEventName || "").trim(),
         label: String(event.label || labelFromDatasetKey(datasetKeyFromEventName(event.name || defaultEventName))).trim(),
         description: String(event.description || "").trim(),
         detail,
+        matchFields: [...new Set(matchFields)],
         bindings: Array.isArray(event.bindings) ? clone(event.bindings) : []
       };
     }
@@ -374,6 +379,13 @@
       return detail;
     }
 
+    function readMatchFieldsFromForm(detail) {
+      return [...el("fields").querySelectorAll("[data-field-row='true']")]
+        .filter(row => row.querySelector("[data-field-match='true']")?.checked)
+        .map(row => row.querySelector("[data-field-path='true']")?.value.trim())
+        .filter(path => path && Object.hasOwn(detail, path) && !["object", "list", "password"].includes(detail[path]));
+    }
+
     function uniqueFieldPath(basePath = "value") {
       const used = new Set(Object.keys(readFieldsFromForm()));
       if (!used.has(basePath)) return basePath;
@@ -392,6 +404,7 @@
       event.label = el("eventLabel").value.trim();
       event.description = el("eventDescription").value.trim();
       event.detail = readFieldsFromForm();
+      event.matchFields = readMatchFieldsFromForm(event.detail);
       event.bindings = Array.isArray(event.bindings) ? event.bindings : [];
       replaceEventName(oldName, event.name);
       const source = selectedConnector();
@@ -492,7 +505,7 @@
       };
     }
 
-    function addFieldRow(path = "", type = "text") {
+    function addFieldRow(path = "", type = "text", matchable = true) {
       const row = document.createElement("div");
       row.className = "field-row";
       row.dataset.fieldRow = "true";
@@ -514,6 +527,11 @@
       const typeSelect = document.createElement("select");
       typeSelect.dataset.fieldType = "true";
       typeSelect.onchange = () => {
+        const matchInput = row.querySelector("[data-field-match='true']");
+        if (matchInput) {
+          matchInput.disabled = ["object", "list", "password"].includes(typeSelect.value);
+          if (matchInput.disabled) matchInput.checked = false;
+        }
         syncEventFromForm();
         renderReadouts();
       };
@@ -526,6 +544,15 @@
       }
       typeLabel.appendChild(typeSelect);
 
+      const matchLabel = document.createElement("label");
+      matchLabel.textContent = "Match";
+      const matchInput = document.createElement("input");
+      matchInput.type = "checkbox";
+      matchInput.dataset.fieldMatch = "true";
+      matchInput.checked = Boolean(matchable) && !["object", "list", "password"].includes(type);
+      matchInput.disabled = ["object", "list", "password"].includes(type);
+      matchInput.onchange = () => syncEventFromForm();
+      matchLabel.appendChild(matchInput);
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "danger";
@@ -535,7 +562,7 @@
         syncEventFromForm();
         renderReadouts();
       };
-      row.append(pathLabel, typeLabel, remove);
+      row.append(pathLabel, typeLabel, matchLabel, remove);
       el("fields").appendChild(row);
     }
 
@@ -547,7 +574,7 @@
       el("eventLabel").value = event.label;
       el("eventDescription").value = event.description;
       el("fields").innerHTML = "";
-      for (const [path, type] of Object.entries(event.detail || {})) addFieldRow(path, type);
+      for (const [path, type] of Object.entries(event.detail || {})) addFieldRow(path, type, event.matchFields.includes(path));
       if (!Object.keys(event.detail || {}).length) addFieldRow("", "text");
       el("eventLabel").oninput = el("eventDescription").oninput = () => {
         syncEventFromForm();

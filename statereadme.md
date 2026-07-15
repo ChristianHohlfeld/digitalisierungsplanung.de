@@ -314,7 +314,9 @@ Editoraktion
   `triggerMatch` gegen Product-Contract-Felder enthalten. Der Match fehlt für
   Catch-all vollständig oder enthält `field`, `operator` und `value`
   vollständig und typgerecht; leere oder teilweise Match-Objekte sind
-  ungültig. Conditions gehören
+  ungültig. `matchFields`, `matchOperators` und
+  `matchFieldSchemas.<field>.operators` kommen ausschließlich aus `/contract`;
+  Editor und MCP leiten nichts aus `detail` oder dem Feldtyp ab. Conditions gehören
   nicht zur Identität und erzeugen keine Priorität. Realtime-Matches
   desselben Events müssen mathematisch disjunkt sein; unterschiedliche Felder
   gelten als potenziell überlappend. Pro effektiver Quelle ist höchstens ein

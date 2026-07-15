@@ -208,7 +208,7 @@ test("serves the event and connector catalog only to allowed origins", async () 
     assert.equal(productContract.status, 200);
     assert.equal(productContract.headers.get("access-control-allow-origin"), ORIGIN);
     const productContractPayload = await productContract.json();
-    assert.equal(productContractPayload.schemaVersion, 1);
+    assert.equal(productContractPayload.schemaVersion, 2);
     assert.ok(productContractPayload.triggerTypes.some(type => type.id === "button"));
     assert.ok(productContractPayload.triggerTypes.some(type => type.id === "timer"));
     assert.ok(productContractPayload.triggerTypes.some(type => type.id === "api"));
@@ -240,6 +240,22 @@ test("serves the event and connector catalog only to allowed origins", async () 
     const realtimeTrigger = productContractPayload.triggerTypes.find(type => type.id === "realtime");
     assert.ok(realtimeTrigger);
     assert.ok(realtimeTrigger.events.some(event => event.name === "realtime.sip.call.incoming"));
+    assert.deepEqual(
+      productContractPayload.matchOperators.map(operator => operator.id),
+      ["equals", "gt", "gte", "lt", "lte", "between"]
+    );
+    assert.deepEqual(
+      realtimeTrigger.events.find(event => event.name === "realtime.sip.call.incoming").matchFieldSchemas.caller.operators,
+      ["equals"]
+    );
+    assert.deepEqual(
+      realtimeTrigger.events.find(event => event.name === "realtime.sip.call.ended").matchFieldSchemas.duration.operators,
+      ["equals", "gt", "gte", "lt", "lte", "between"]
+    );
+    const betweenOperator = productContractPayload.matchOperators.find(operator => operator.id === "between");
+    assert.equal(betweenOperator.operand.jsonType, "object");
+    assert.deepEqual(betweenOperator.operand.required, ["min", "max"]);
+    assert.equal(betweenOperator.operand.additionalProperties, false);
     assert.ok(productContractPayload.valueTypes.some(type => type.id === "text" && type.jsonType === "string"));
     assert.ok(productContractPayload.valueTypes.some(type =>
       type.id === "number" &&
@@ -578,6 +594,7 @@ test("serves an admin event designer that validates, commits, and pushes the cat
         label: "Missed call",
         description: "SIP call was not answered",
         detail: { caller: "text", callId: "text", missedAt: "text" },
+        matchFields: ["caller", "callId", "missedAt"],
         bindings: []
       };
       loaded.catalog.events.push(missedCall);

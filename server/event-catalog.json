@@ -26,6 +26,7 @@
         "callee": "text",
         "callId": "text"
       },
+      "matchFields": ["caller", "callee", "callId"],
       "bindings": []
     },
     {
@@ -36,6 +37,7 @@
         "callId": "text",
         "agent": "text"
       },
+      "matchFields": ["callId", "agent"],
       "bindings": []
     },
     {
@@ -46,6 +48,7 @@
         "callId": "text",
         "duration": "number"
       },
+      "matchFields": ["callId", "duration"],
       "bindings": []
     },
     {
@@ -57,6 +60,7 @@
         "subject": "text",
         "messageId": "text"
       },
+      "matchFields": ["from", "subject", "messageId"],
       "bindings": []
     },
     {
@@ -68,6 +72,7 @@
         "status": "number",
         "changedAt": "text"
       },
+      "matchFields": ["endpoint", "status", "changedAt"],
       "bindings": []
     },
     {
@@ -78,6 +83,7 @@
         "key": "text",
         "value": "object"
       },
+      "matchFields": ["key"],
       "bindings": []
     }
   ],

@@ -137,9 +137,13 @@ Jede Transition besitzt exakt einen Trigger. Ein State darf mehrere ausgehende
 Transitionen besitzen, wenn ihre Triggeridentitäten verschieden sind.
 Conditions gehören nicht zur Triggeridentität. Bei Realtime darf die
 Identität zusätzlich einen formalen `triggerMatch` auf einem vom Product
-Contract freigegebenen Event-Feld enthalten. Skalare Felder erlauben
-`equals`; Zahlen erlauben zusätzlich `gt`, `gte`, `lt`, `lte` und
-`between`. Alle Realtime-Matches desselben Events und derselben effektiven
+Contract freigegebenen Event-Feld enthalten. Der Event-Katalog deklariert
+`matchFields` immer explizit; fehlende Felder werden niemals aus `detail`
+abgeleitet. `/contract` veröffentlicht die exakten Operatordefinitionen unter
+`matchOperators` und die pro Feld erlaubten IDs unter
+`matchFieldSchemas.<field>.operators`. Editor, Import und MCP dürfen keine
+Operatoren aus dem Feldtyp ableiten oder ergänzen. Alle Realtime-Matches
+desselben Events und derselben effektiven
 Quelle müssen mathematisch disjunkt sein. Unterschiedliche Felder gelten als
 potenziell überlappend. Ein Event ohne `triggerMatch` ist catch-all und darf
 keine spezifischen Matches daneben haben. Der Editor deaktiviert bereits
@@ -148,7 +152,10 @@ die Runtime arbeitet bei einem Fremdmodell fail-closed.
 
 `triggerMatch` fehlt für einen Catch-all vollständig oder enthält `field`,
 `operator` und `value` vollständig typisiert. Leere, teilweise, `null` oder
-`undefined` gesetzte Match-Objekte sind ungültig und werden nicht normalisiert.
+`undefined` gesetzte Match-Objekte sowie unbekannte Eigenschaften sind
+ungültig und werden nicht normalisiert. Ein `between`-Wert enthält ausschließlich
+`min`, `max` und optional die booleschen Werte `minInclusive` und
+`maxInclusive`; beide Grenzen müssen innerhalb der Feld-Constraints liegen.
 
 ## 6. Conditions
 
@@ -239,8 +246,9 @@ Ein API-Ereignis ist ein echter Trigger und kein `change`-Alias. Ein generischer
 
 ## 10. Realtime und Server
 
-- `/contract` liefert den aggregierten Product Contract für Trigger,
-  Datentypen, Datasets, Connectoren, Presets, Pakete und Pläne.
+- `/contract` liefert den aggregierten Product Contract v2 für Trigger,
+  Datentypen, Match-Operatoren, Datasets, Connectoren, Presets, Pakete und
+  Pläne.
 - `/events` liefert den kanonischen niedrigen Realtime-Katalog.
 - Es gibt keinen Alias `/events/contract`.
 - `/emit` und `/ws` akzeptieren nur katalogisierte Ereignisse.

@@ -324,6 +324,35 @@ test.describe("State Blueprint MCP", () => {
       triggerKey: "realtime:realtime.sip.call.ended"
     }));
 
+    const disallowedFieldOperator = base();
+    disallowedFieldOperator.transitions[1].triggerMatch = { field: "caller", operator: "gt", value: 10 };
+    expect(validateModel(disallowedFieldOperator).issues).toContainEqual(expect.objectContaining({
+      code: "invalid_trigger_match_operator",
+      transitionId: "event_b"
+    }));
+
+    const strictRangeShape = base();
+    strictRangeShape.transitions[1] = {
+      ...strictRangeShape.transitions[1],
+      triggerEvent: "realtime.sip.call.ended",
+      triggerMatch: { field: "duration", operator: "between", value: { min: 10, max: 20, extra: true } }
+    };
+    expect(validateModel(strictRangeShape).issues).toContainEqual(expect.objectContaining({
+      code: "invalid_trigger_match",
+      transitionId: "event_b"
+    }));
+
+    const strictRangeTypes = base();
+    strictRangeTypes.transitions[1] = {
+      ...strictRangeTypes.transitions[1],
+      triggerEvent: "realtime.sip.call.ended",
+      triggerMatch: { field: "duration", operator: "between", value: { min: "10", max: 20 } }
+    };
+    expect(validateModel(strictRangeTypes).issues).toContainEqual(expect.objectContaining({
+      code: "invalid_trigger_match",
+      transitionId: "event_b"
+    }));
+
     const duplicateChange = base();
     duplicateChange.transitions = [
       { id: "change_a", from: "start", to: "a", label: "A", triggerType: "change", triggerEvent: "change.states.start.value", set: {} },
@@ -446,18 +475,18 @@ test.describe("State Blueprint MCP", () => {
     genericFetch.transitions[0].triggerType = "event";
     expect(validateModel(genericFetch).issues).toContainEqual(expect.objectContaining({ code: "invalid_event_trigger_namespace" }));
 
-    for (const triggerMatch of [
-      {},
-      null,
-      undefined,
-      { field: "caller", operator: "equals" },
-      { field: "caller", operator: "unknown", value: "Heinz" }
+    for (const [triggerMatch, code] of [
+      [{}, "invalid_trigger_match"],
+      [null, "invalid_trigger_match"],
+      [undefined, "invalid_trigger_match"],
+      [{ field: "caller", operator: "equals" }, "invalid_trigger_match"],
+      [{ field: "caller", operator: "unknown", value: "Heinz" }, "invalid_trigger_match_operator"]
     ]) {
       const malformedMatch = structuredClone(model);
       malformedMatch.transitions[0].triggerType = "realtime";
       malformedMatch.transitions[0].triggerEvent = "realtime.sip.call.incoming";
       malformedMatch.transitions[0].triggerMatch = triggerMatch;
-      expect(validateModel(malformedMatch).issues).toContainEqual(expect.objectContaining({ code: "invalid_trigger_match" }));
+      expect(validateModel(malformedMatch).issues).toContainEqual(expect.objectContaining({ code }));
     }
   });
 

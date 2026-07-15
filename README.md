@@ -111,7 +111,7 @@ Der Server in [`server/`](server/) ist nur Transport. Er speichert keine fachlic
 | `GET /admin/routes` | JSON-Index aller sichtbaren Realtime-Tools und Endpunkte |
 | `GET /healthz` | Gesundheitsprüfung |
 | `GET /version` | gemeinsame Frontend-/Backend-Release-ID |
-| `GET /contract` | zentraler Product Contract: Trigger-Typen, Datentypen, Datasets, Quellen, Presets, Preset-Pakete, Abo-Pläne und State-Beiträge |
+| `GET /contract` | zentraler Product Contract v2: Trigger-Typen, Datentypen, Match-Operatoren, Datasets, Quellen, Presets, Preset-Pakete, Abo-Pläne und State-Beiträge |
 | `GET /events` | kanonischer Realtime-Katalog mit Ereignissen, Emittern, Datentypen und State-Beiträgen |
 | `GET /token` | signiertes Raum-Token für den Browser |
 | `GET /console.html` | Testoberfläche für Ereignisse |
@@ -127,7 +127,8 @@ Der Server in [`server/`](server/) ist nur Transport. Er speichert keine fachlic
 
 Der harte Contract kommt aus [`server/event-catalog.json`](server/event-catalog.json)
 und wird vom Server unter `/contract` als Product Contract ausgeliefert:
-Trigger-Typen, Value-Types mit Constraints, `realtime.*`-Datasets, Quellen,
+Trigger-Typen, Value-Types mit Constraints, `matchOperators` samt strikter
+Operandenform, `realtime.*`-Datasets, Quellen,
 Standard-Presets aus `server/preset-catalog.js`, verwaltete Presets und
 Kategorien aus `server/preset-library.json`, Preset-Pakete,
 Abo-Pläne und kollisionsfreie State-Beiträge. Jedes Contract-Feld liefert neben `fieldTypes`
@@ -137,6 +138,9 @@ wie `min`, `max`, `maxLength`, `format`, `protocols`, `maxDepth` oder
 bevor ein Event in den Raum darf. `/events` bleibt der schlanke Live-Katalog
 für Realtime-Events. Der Canvas speichert keine Katalogkopie, sondern nur
 konkrete Referenzen wie `triggerType: realtime` und `triggerEvent`.
+Match-Felder sind im Event-Katalog explizit. Der Editor liest ihre erlaubten
+Operator-IDs aus `matchFieldSchemas.<field>.operators`; er leitet weder Felder
+aus `detail` noch Operatoren aus dem Datentyp ab.
 `state.html` lädt `/contract` beim Start mit `no-store`; wenn der Product
 Contract nicht erreichbar ist, startet der Editor nicht mit lokalen
 Fallback-Typen oder lokalen Preset-Definitionen.

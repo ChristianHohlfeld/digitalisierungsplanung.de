@@ -245,11 +245,17 @@ Ereignisdefinitionen. Das ist die Live-Quelle für auswählbare Realtime-Ereigni
 
 Zentraler Product Contract für `state.html` und den Event Designer. Dieser
 Endpoint ist die frische Server-Wahrheit für vordefinierte Contract-Teile:
-Trigger-Typen, Value-Types mit Constraints, Realtime-Datasets, Connector-Quellen,
+Trigger-Typen, Value-Types mit Constraints, Match-Operatoren, Realtime-Datasets, Connector-Quellen,
 Preset-Kategorien, Presets, Preset-Pakete, Abo-Pläne und State-Contribution-Pfade. Jedes Feld, das vom Contract in den
 globalen JSON-State geschrieben werden kann, hat neben dem kompakten Typstring
 ein `fieldSchemas`-Objekt mit `type`, `jsonType`, `default` und harten
 `constraints`.
+
+Der Event-Katalog deklariert `matchFields` explizit. Der Product Contract
+liefert dazu `matchOperators` mit stabiler ID, Anzeige, erlaubten Feldtypen und
+strikter Operandenform. Jedes `matchFieldSchemas.<field>` enthält zusätzlich
+genau die dort erlaubten Operator-IDs. Consumer dürfen weder Match-Felder aus
+`detail` noch Operatoren aus `type` ableiten.
 
 Die App darf daraus UI-Optionen rendern und konkrete Referenzen speichern, aber
 keine Contract-Kopie in den Canvas schreiben.
@@ -267,7 +273,7 @@ Antwort, gekürzt:
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "provider": {
     "id": "digitalisierungsplanung.realtime",
     "label": "Digitalisierungsplanung Realtime"
@@ -279,6 +285,14 @@ Antwort, gekürzt:
       "jsonType": "string",
       "default": "",
       "constraints": { "minLength": 0, "maxLength": 20000 }
+    }
+  ],
+  "matchOperators": [
+    {
+      "id": "equals",
+      "label": "Ist gleich",
+      "fieldTypes": ["text", "email", "number", "boolean", "url", "image"],
+      "operand": { "kind": "field-value", "schemaSource": "matchFieldSchemas.<field>" }
     }
   ],
   "triggerTypes": [
@@ -296,6 +310,16 @@ Antwort, gekürzt:
               "jsonType": "string",
               "default": "",
               "constraints": { "minLength": 0, "maxLength": 20000 }
+            }
+          },
+          "matchFields": ["caller", "callee", "callId"],
+          "matchFieldSchemas": {
+            "caller": {
+              "type": "text",
+              "jsonType": "string",
+              "default": "",
+              "constraints": { "minLength": 0, "maxLength": 20000 },
+              "operators": ["equals"]
             }
           }
         }

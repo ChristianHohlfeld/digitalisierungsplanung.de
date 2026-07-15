@@ -4,9 +4,77 @@ const eventCatalog = require("./event-catalog");
 const presetCatalog = require("./preset-catalog");
 const valueTypes = require("./value-types");
 
-const CONTRACT_SCHEMA_VERSION = 1;
+const CONTRACT_SCHEMA_VERSION = 2;
 
 const VALUE_TYPES = valueTypes.valueTypeList();
+
+const FIELD_VALUE_OPERAND = Object.freeze({
+  kind: "field-value",
+  schemaSource: "matchFieldSchemas.<field>"
+});
+
+const MATCH_OPERATORS = Object.freeze([
+  {
+    id: "equals",
+    label: "Ist gleich",
+    fieldTypes: ["text", "email", "number", "boolean", "url", "image"],
+    operand: FIELD_VALUE_OPERAND
+  },
+  {
+    id: "gt",
+    label: "Größer als",
+    fieldTypes: ["number"],
+    operand: FIELD_VALUE_OPERAND
+  },
+  {
+    id: "gte",
+    label: "Mindestens",
+    fieldTypes: ["number"],
+    operand: FIELD_VALUE_OPERAND
+  },
+  {
+    id: "lt",
+    label: "Kleiner als",
+    fieldTypes: ["number"],
+    operand: FIELD_VALUE_OPERAND
+  },
+  {
+    id: "lte",
+    label: "Höchstens",
+    fieldTypes: ["number"],
+    operand: FIELD_VALUE_OPERAND
+  },
+  {
+    id: "between",
+    label: "Zwischen",
+    fieldTypes: ["number"],
+    operand: {
+      kind: "range",
+      jsonType: "object",
+      required: ["min", "max"],
+      additionalProperties: false,
+      properties: {
+        min: { type: "number", constraints: { finite: true, withinFieldConstraints: true } },
+        minInclusive: { type: "boolean", default: true, constraints: { enum: [true, false] } },
+        max: { type: "number", constraints: { finite: true, withinFieldConstraints: true } },
+        maxInclusive: { type: "boolean", default: true, constraints: { enum: [true, false] } }
+      },
+      constraints: { ordered: true, nonEmpty: true }
+    }
+  }
+]);
+
+function matchFieldSchemasForEvent(event) {
+  return Object.fromEntries((event.matchFields || []).map(field => {
+    const schema = event.matchFieldSchemas?.[field];
+    if (!schema) throw new Error(`Missing match-field schema for ${event.name}.${field}`);
+    const operators = MATCH_OPERATORS
+      .filter(operator => operator.fieldTypes.includes(schema.type))
+      .map(operator => operator.id);
+    if (!operators.length) throw new Error(`No match operators declared for ${event.name}.${field}`);
+    return [field, { ...schema, operators }];
+  }));
+}
 
 const CONNECTOR_TYPES = [...eventCatalog.VALID_EMITTER_TYPES].map(id => ({
   id,
@@ -91,7 +159,7 @@ function triggerTypesForCatalog(catalog) {
         detail: event.detail,
         detailSchemas: event.detailSchemas,
         matchFields: event.matchFields,
-        matchFieldSchemas: event.matchFieldSchemas,
+        matchFieldSchemas: matchFieldSchemasForEvent(event),
         contributes: event.contributes
       }))
     };
@@ -109,7 +177,7 @@ function datasetsForCatalog(catalog) {
     fields: event.detail,
     fieldSchemas: event.detailSchemas,
     matchFields: event.matchFields,
-    matchFieldSchemas: event.matchFieldSchemas,
+    matchFieldSchemas: matchFieldSchemasForEvent(event),
     contributes: event.contributes
   }));
 }
@@ -155,6 +223,7 @@ function productContractResponse(configOrCatalog) {
     schemaVersion: CONTRACT_SCHEMA_VERSION,
     provider: response.provider,
     valueTypes: VALUE_TYPES,
+    matchOperators: MATCH_OPERATORS,
     connectorTypes: CONNECTOR_TYPES,
     triggerTypes: triggerTypesForCatalog(catalog),
     datasets: datasetsForCatalog(catalog),
@@ -171,6 +240,7 @@ module.exports = {
   BUILTIN_TRIGGER_TYPES,
   CONNECTOR_TYPES,
   CONTRACT_SCHEMA_VERSION,
+  MATCH_OPERATORS,
   VALUE_TYPES,
   VALUE_TYPE_CONSTRAINTS: valueTypes.VALUE_TYPE_DEFINITIONS,
   productContractResponse

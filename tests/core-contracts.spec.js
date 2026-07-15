@@ -1466,6 +1466,12 @@ test.describe("Core source contracts", () => {
       missing.model.transitions[1].triggerEvent = "";
       const malformedMatch = definition();
       malformedMatch.model.transitions[1].triggerMatch = {};
+      const stringRange = definition();
+      stringRange.model.transitions[1] = {
+        ...stringRange.model.transitions[1],
+        triggerEvent: "realtime.sip.call.ended",
+        triggerMatch: { field: "duration", operator: "between", value: { min: "10", max: 20 } }
+      };
       const childBoundary = definition();
       childBoundary.model.states = [state("parent"), state("child", "parent"), state("sibling", "parent"), state("outside")];
       childBoundary.model.states[0].boundary = { ...boundary, entryId: "child" };
@@ -1498,6 +1504,7 @@ test.describe("Core source contracts", () => {
         unknown,
         missing,
         malformedMatch,
+        stringRange,
         childBoundary,
         structuralFlow
       ].map(validate);
@@ -1520,6 +1527,7 @@ test.describe("Core source contracts", () => {
       expect.stringContaining("must contain only one auto transition"),
       expect.stringContaining("triggerType must be one of button, change, event, realtime, api, timer, auto"),
       expect.stringContaining("must reference a realtime event declared by the Product Contract"),
+      expect.stringContaining("triggerMatch must be absent or define field, operator and value completely"),
       expect.stringContaining("triggerMatch must be absent or define field, operator and value completely"),
       expect.stringContaining("duplicates trigger realtime:realtime.sip.call.incoming|match:*"),
       expect.stringContaining("triggerType must be one of button, change, event, realtime, api, timer, auto")
