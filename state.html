@@ -2411,12 +2411,65 @@
       align-items: center;
     }
 
-    .global-state-key-grid,
-    .transition-key-grid {
+    .global-state-key-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
       gap: 8px;
       min-width: 0;
+    }
+
+    .transition-key-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .transition-trigger-option {
+      display: grid;
+      grid-template-columns: 18px minmax(0, 1fr);
+      align-items: start;
+      gap: 9px;
+      min-width: 0;
+      min-height: 44px;
+      padding: 8px 9px;
+      border: 1px solid rgba(148, 163, 184, .22);
+      border-radius: 8px;
+      background: rgba(2, 6, 23, .24);
+      cursor: pointer;
+    }
+
+    .transition-trigger-option.active {
+      border-color: rgba(56, 189, 248, .56);
+      background: rgba(56, 189, 248, .12);
+    }
+
+    .transition-trigger-option input {
+      width: 18px;
+      height: 18px;
+      margin-top: 1px;
+      accent-color: var(--primary);
+    }
+
+    .transition-trigger-copy {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .transition-trigger-copy strong {
+      color: var(--text);
+      font-size: 12px;
+      line-height: 1.25;
+      overflow-wrap: anywhere;
+    }
+
+    .transition-trigger-copy span {
+      color: var(--muted);
+      font-size: 10.5px;
+      font-weight: 750;
+      line-height: 1.25;
+      overflow-wrap: anywhere;
     }
 
     .global-state-key-card {
@@ -2532,10 +2585,6 @@
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 6px;
-    }
-
-    .transition-key-grid .global-state-key-actions {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .global-state-key-actions button {
@@ -20215,11 +20264,22 @@
           </div>
           <div id="pRulePreview" class="condition-preview empty"></div>
         </div>
+        <details class="inspector-collapse inspector-subcollapse" id="pTransitionDataTriggerCard">
+          <summary class="inspector-collapse-summary">
+            <span class="inspector-collapse-title">
+              <span>Datenauslöser</span>
+              <span>bei Änderung eines Datenwerts starten</span>
+            </span>
+          </summary>
+          <div class="inspector-collapse-body">
+            <div id="pTransitionKeyGrid" class="transition-key-grid"></div>
+          </div>
+        </details>
         <details class="inspector-collapse inspector-subcollapse" id="pTransitionAdvancedTriggerCard">
           <summary class="inspector-collapse-summary">
             <span class="inspector-collapse-title">
               <span>Erweiterter Auslöser</span>
-              <span>Ereignisnamen und Rohfelder</span>
+              <span>Ereignis, Realtime und Timer</span>
             </span>
           </summary>
           <div class="inspector-collapse-body">
@@ -20236,10 +20296,6 @@
               </div>
             </div>
             <div class="field"><label>Verzögerung ms</label><input id="pTriggerTimer" type="number" min="100" step="100" placeholder="1200"></div>
-            <div class="data-source-panel">
-              <div class="small"><b>Datenauslöser</b><br><span>Wähle, was diesen Übergang startet. Bedingungen entscheiden, ob er passieren darf.</span></div>
-              <div id="pTransitionKeyGrid" class="transition-key-grid"></div>
-            </div>
           </div>
         </details>
         <details class="inspector-collapse inspector-subcollapse" id="pTransitionConditionCard">
@@ -20455,12 +20511,11 @@
       const currentTriggerPath = () => {
         if (normalizeTransitionTriggerType({ triggerType: triggerType.value }) !== "change") return "";
         const event = normalizeTransitionEvent(triggerEvent.value || "");
-        if (!event) return "*";
+        if (!event) return "";
         return event.startsWith("change.") ? event.slice("change.".length) : event;
       };
       const transitionBusLabel = item => {
         const path = String(item?.path || "");
-        if (path === "*") return "Jeder ausgewählte Laufzeitwert";
         if (path === "state.current") return "Aktueller Zustand";
         return dataPathLabel(path, "Wert");
       };
@@ -20472,16 +20527,40 @@
         const seen = new Set();
         const add = item => {
           const path = normalizeBindingPath(item?.path || "", "");
-          if (!path || isRuntimeBookkeepingPath(path) || /(?:^|\.)\d+(?:\.|$)/.test(path) || seen.has(path)) return null;
+          if (!path || path === "*" || isRuntimeBookkeepingPath(path) || /(?:^|\.)\d+(?:\.|$)/.test(path) || seen.has(path)) return null;
           seen.add(path);
           return { ...item, path };
         };
-        const items = [{ path: "*", source: "Quellzustand", type: "change" }];
-        conditionDataSuggestions(t).forEach(item => {
-          const added = add(item);
+        const items = [];
+        const sourceState = byId(t.from);
+        if (sourceState) {
+          const sourceData = normalizeStateDataObject(sourceState.data);
+          const sourceTypes = normalizeDataTypes(sourceState.dataTypes, sourceData);
+          for (const { localPath, busPath, value } of stateDataBusEntries(sourceState)) {
+            const candidates = [{ path: busPath, source: "Quellzustand", type: sourceTypes[localPath] || "value", value }];
+            collectDataPathSuggestions(value, busPath, "Quellzustand", candidates);
+            candidates.forEach(item => {
+              const added = add(item);
+              if (added) items.push(added);
+            });
+          }
+          normalizeSubscriptions(sourceState.subscriptions).forEach(path => {
+            const added = add({ path, source: "Abonnement", type: "subscription", value: dataWirePathValue(sourceState, path) });
+            if (added) items.push(added);
+          });
+        }
+        const currentPath = currentTriggerPath();
+        if (currentPath && !seen.has(currentPath)) {
+          const current = conditionDataSuggestions(t).find(item => normalizeBindingPath(item?.path || "", "") === currentPath) || {
+            path: currentPath,
+            source: "Aktueller Auslöser",
+            type: "value",
+            value: undefined
+          };
+          const added = add(current);
           if (added) items.push(added);
-        });
-        return items.slice(0, 28);
+        }
+        return items;
       };
       const stateForRulePath = path => {
         const clean = normalizeBindingPath(path, "");
@@ -20716,77 +20795,47 @@
         saveModel("edge:condition:" + t.id);
         draw();
       };
-      const applyConditionPath = path => {
-        const key = normalizeBindingPath(path, "");
-        if (!key) return;
-        const current = String(cond.value || "").trim();
-        if (!current) cond.value = key;
-        else if (!new RegExp("(^|[^A-Za-z0-9_.])" + key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "([^A-Za-z0-9_.]|$)").test(current)) {
-          cond.value = current + " && " + key;
-        }
-        t.condition = cond.value;
-        updateConditionPreview();
-        saveModel("edge:condition:" + t.id);
-        draw();
-      };
       const renderTransitionKeyGrid = () => {
         if (!transitionKeyGrid) return;
         transitionKeyGrid.innerHTML = "";
         const currentPath = currentTriggerPath();
-        const conditionText = String(cond.value || "");
         const suggestions = transitionBusSuggestions();
         if (!suggestions.length) {
           const empty = document.createElement("div");
           empty.className = "condition-preview empty";
-          empty.textContent = "Füge dem Quellzustand Variablen hinzu, um sie hier zu nutzen.";
+          empty.textContent = "Der Quellzustand hat keine auswählbaren Variablen.";
           transitionKeyGrid.appendChild(empty);
           return;
         }
         for (const item of suggestions) {
           const path = String(item.path || "");
-          const isAny = path === "*";
           const activeTrigger = currentPath === path;
-          const activeCondition = !isAny && new RegExp("(^|[^A-Za-z0-9_.])" + path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "([^A-Za-z0-9_.]|$)").test(conditionText);
-          const card = document.createElement("div");
-          card.className = "global-state-key-card" + (activeTrigger ? " active" : "");
-          card.dataset.path = path;
-          card.title = path;
-          const title = document.createElement("div");
-          title.className = "global-state-key-title";
-          title.textContent = transitionBusLabel(item);
-          const pathLine = document.createElement("div");
-          pathLine.className = "global-state-key-path";
-          pathLine.textContent = isAny ? "Jeder gewählte Wert" : dataPathHint(path);
-          const meta = document.createElement("div");
-          meta.className = "global-state-key-meta";
-          meta.textContent = transitionBusMeta(item);
-          const actions = document.createElement("div");
-          actions.className = "global-state-key-actions";
-          const onChange = document.createElement("button");
-          onChange.type = "button";
-          onChange.className = activeTrigger ? "active" : "";
-          onChange.textContent = activeTrigger ? "Startet hier" : "Hier starten";
-          onChange.title = isAny ? "Startet, wenn sich ein gewählter Live-Wert ändert" : "Startet, wenn sich " + path + " ändert";
-          onChange.onclick = evt => {
-            evt.preventDefault();
+          const option = document.createElement("label");
+          option.className = "transition-trigger-option" + (activeTrigger ? " active" : "");
+          option.dataset.path = path;
+          option.title = path;
+          const radio = document.createElement("input");
+          radio.type = "radio";
+          radio.name = "transition-data-trigger";
+          radio.value = path;
+          radio.checked = activeTrigger;
+          radio.setAttribute("aria-label", `${transitionBusLabel(item)} als Datenauslöser`);
+          radio.onchange = () => {
+            if (!radio.checked) return;
             triggerType.value = "change";
-            triggerEvent.value = isAny ? "" : "change." + path;
+            triggerEvent.value = "change." + path;
             persistTrigger();
             renderTransitionKeyGrid();
           };
-          const condition = document.createElement("button");
-          condition.type = "button";
-          condition.className = activeCondition ? "active" : "";
-          condition.textContent = activeCondition ? "Teil der Bedingung" : "Bedingung hinzufügen";
-          condition.disabled = isAny;
-          condition.title = path + " in dieser Übergangsbedingung nutzen";
-          condition.onclick = evt => {
-            evt.preventDefault();
-            applyConditionPath(path);
-          };
-          actions.append(onChange, condition);
-          card.append(title, pathLine, meta, actions);
-          transitionKeyGrid.appendChild(card);
+          const copy = document.createElement("span");
+          copy.className = "transition-trigger-copy";
+          const title = document.createElement("strong");
+          title.textContent = transitionBusLabel(item);
+          const meta = document.createElement("span");
+          meta.textContent = transitionBusMeta(item);
+          copy.append(title, meta);
+          option.append(radio, copy);
+          transitionKeyGrid.appendChild(option);
         }
       };
       const updateConditionPreview = () => {

@@ -1701,7 +1701,7 @@ test.describe("State Blueprint tool", () => {
     });
   });
 
-  test("transition bus key cards set change triggers and filters without mutating subscriptions @smoke", async ({ page }) => {
+  test("collapsed transition data triggers select one change event without creating a condition @smoke", async ({ page }) => {
     const model = {
       version: 2,
       name: "Transition Bus Key Editor",
@@ -1740,7 +1740,34 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator('[data-id="start"]')).toBeVisible();
 
     await page.locator("svg text.edge-label").filter({ hasText: "Continue" }).click();
-    await page.locator("#pTriggerType").selectOption("change");
+    const dataTriggerCard = page.locator("#pTransitionDataTriggerCard");
+    const dataTriggerGrid = page.locator("#pTransitionKeyGrid");
+    await expect(dataTriggerCard).toHaveJSProperty("open", false);
+    await expect(dataTriggerGrid).toBeHidden();
+    await expect(page.locator("#pTransitionAdvancedTriggerCard")).toHaveJSProperty("open", false);
+
+    await dataTriggerCard.locator(":scope > summary").click();
+    await expect(dataTriggerCard).toHaveJSProperty("open", true);
+    await expect(dataTriggerGrid.locator(".transition-trigger-option")).toHaveCount(1);
+    await expect(dataTriggerGrid.locator("button")).toHaveCount(0);
+    await dataTriggerGrid.locator('input[type="radio"][value="states.start.ready"]').check();
+
+    await expect(page.locator("#pTriggerType")).toHaveValue("change");
+    await expect(page.locator("#pTriggerEvent")).toHaveValue("change.states.start.ready");
+    await expect.poll(async () => {
+      const stored = await savedModel(page);
+      const transition = stored.transitions.find(item => item.id === "start_done");
+      return {
+        triggerType: transition?.triggerType,
+        triggerEvent: transition?.triggerEvent,
+        condition: transition?.condition
+      };
+    }).toEqual({
+      triggerType: "change",
+      triggerEvent: "change.states.start.ready",
+      condition: ""
+    });
+
     await page.locator("#pRuleField").selectOption("states.start.ready");
     await expect(page.locator("#pRuleOperator")).toHaveValue("true");
     await page.locator("#pRuleApply").click();
