@@ -310,42 +310,68 @@
       z-index: 90;
       top: 0;
       bottom: 0;
-      width: 12px;
-      min-width: 12px;
+      width: 34px;
+      min-width: 34px;
       min-height: 0;
       padding: 0;
       border: 0;
       border-radius: 0;
       background: transparent;
+      box-shadow: none;
       cursor: col-resize;
       touch-action: none;
+    }
+
+    .panel-resizer::before {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 24px;
+      height: 104px;
+      border: 1px solid rgba(125,211,252,.42);
+      border-radius: 8px;
+      background: rgba(5,11,20,.92);
+      box-shadow: 0 10px 24px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.08);
+      transform: translate(-50%, -50%);
+      transition: border-color .12s ease, background .12s ease, box-shadow .12s ease;
     }
 
     .panel-resizer::after {
       content: "";
       position: absolute;
-      top: 12px;
-      bottom: 12px;
-      left: 5px;
-      width: 2px;
+      top: 50%;
+      left: 50%;
+      width: 5px;
+      height: 64px;
       border-radius: 999px;
-      background: transparent;
+      background: #7dd3fc;
+      box-shadow: 0 0 14px rgba(125,211,252,.36);
+      transform: translate(-50%, -50%);
       transition: background .12s ease, box-shadow .12s ease;
+    }
+
+    .panel-resizer:hover::before,
+    .panel-resizer:focus-visible::before,
+    .workspace.panel-resizing .panel-resizer::before {
+      border-color: rgba(245,158,11,.72);
+      background: rgba(8,24,39,.98);
+      box-shadow: 0 12px 28px rgba(0,0,0,.4), 0 0 0 3px rgba(56,189,248,.14), inset 0 1px 0 rgba(255,255,255,.1);
     }
 
     .panel-resizer:hover::after,
     .panel-resizer:focus-visible::after,
     .workspace.panel-resizing .panel-resizer::after {
       background: var(--accent);
-      box-shadow: 0 0 0 3px rgba(56,189,248,.16);
+      box-shadow: 0 0 18px rgba(245,158,11,.46);
     }
 
     .inspector-resizer {
-      left: calc(var(--inspector-panel-width) - 6px);
+      left: calc(var(--inspector-panel-width) - 2px);
     }
 
     .preview-resizer {
-      right: calc(var(--preview-panel-width) - 6px);
+      right: calc(var(--preview-panel-width) - 2px);
     }
 
     html[data-inspector-collapsed="true"] .workspace .inspector-resizer,

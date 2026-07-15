@@ -5488,16 +5488,43 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator(".workspace")).not.toHaveClass(/preview-collapsed/);
     const beforeModel = await savedModel(page);
 
+    const handleMetrics = await page.locator("#workspace").evaluate(() => {
+      const metric = id => {
+        const handle = document.getElementById(id);
+        const rect = handle.getBoundingClientRect();
+        const tile = getComputedStyle(handle, "::before");
+        const anchor = getComputedStyle(handle, "::after");
+        const hitX = id === "inspectorResizeHandle" ? rect.right - 4 : rect.left + 4;
+        const hitY = rect.top + rect.height / 2;
+        return {
+          width: Math.round(rect.width),
+          tileWidth: Math.round(parseFloat(tile.width)),
+          tileHeight: Math.round(parseFloat(tile.height)),
+          anchorWidth: Math.round(parseFloat(anchor.width)),
+          anchorHeight: Math.round(parseFloat(anchor.height)),
+          edgeHit: document.elementFromPoint(hitX, hitY) === handle
+        };
+      };
+      return {
+        inspector: metric("inspectorResizeHandle"),
+        preview: metric("previewResizeHandle")
+      };
+    });
+    expect(handleMetrics).toEqual({
+      inspector: { width: 34, tileWidth: 24, tileHeight: 104, anchorWidth: 5, anchorHeight: 64, edgeHit: true },
+      preview: { width: 34, tileWidth: 24, tileHeight: 104, anchorWidth: 5, anchorHeight: 64, edgeHit: true }
+    });
+
     const inspectorHandle = await visibleBox(page.locator("#inspectorResizeHandle"));
-    await page.mouse.move(inspectorHandle.x + inspectorHandle.width / 2, inspectorHandle.y + 80);
+    await page.mouse.move(inspectorHandle.x + inspectorHandle.width - 4, inspectorHandle.y + inspectorHandle.height / 2);
     await page.mouse.down();
-    await page.mouse.move(inspectorHandle.x + inspectorHandle.width / 2 + 84, inspectorHandle.y + 80);
+    await page.mouse.move(inspectorHandle.x + inspectorHandle.width - 4 + 84, inspectorHandle.y + inspectorHandle.height / 2);
     await page.mouse.up();
 
     const previewHandle = await visibleBox(page.locator("#previewResizeHandle"));
-    await page.mouse.move(previewHandle.x + previewHandle.width / 2, previewHandle.y + 80);
+    await page.mouse.move(previewHandle.x + 4, previewHandle.y + previewHandle.height / 2);
     await page.mouse.down();
-    await page.mouse.move(previewHandle.x + previewHandle.width / 2 - 64, previewHandle.y + 80);
+    await page.mouse.move(previewHandle.x + 4 - 64, previewHandle.y + previewHandle.height / 2);
     await page.mouse.up();
 
     const uiState = await savedUiState(page);
