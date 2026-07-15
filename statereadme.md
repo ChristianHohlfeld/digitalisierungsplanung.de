@@ -311,7 +311,10 @@ Editoraktion
   Parent-Ausgang dessen `groupExitId`. `button` ist durch die Transition-ID
   eindeutig. `change`, `event`, `realtime` und `api` bestehen aus Typ und
   vollständigem Ereignisnamen; `realtime` darf zusätzlich einen formalen
-  `triggerMatch` gegen Product-Contract-Felder enthalten. Conditions gehören
+  `triggerMatch` gegen Product-Contract-Felder enthalten. Der Match fehlt für
+  Catch-all vollständig oder enthält `field`, `operator` und `value`
+  vollständig und typgerecht; leere oder teilweise Match-Objekte sind
+  ungültig. Conditions gehören
   nicht zur Identität und erzeugen keine Priorität. Realtime-Matches
   desselben Events müssen mathematisch disjunkt sein; unterschiedliche Felder
   gelten als potenziell überlappend. Pro effektiver Quelle ist höchstens ein
@@ -332,9 +335,10 @@ Die Triggeridentität ist vollständig und abschließend definiert:
 | `triggerType` | Identität an derselben effektiven Quelle | Zulässigkeit |
 | --- | --- | --- |
 | `button` | Transition-ID | Mehrere unterschiedliche Transition-IDs sind zulässig. |
-| `change` | Vollständiger Buspfad aus `triggerEvent`, ohne Pfad `*` | Jede Pfadidentität einschließlich `*` höchstens einmal. |
+| `change` | Vollständiger Buspfad aus `triggerEvent` | Jeder konkrete Pfad höchstens einmal; leer und `*` sind ungültig. |
 | `event` | Vollständiger konkreter Ereignisname | Derselbe Name höchstens einmal; ein leerer Name ist ungültig. |
 | `realtime` | Vollständiger konkreter `realtime.*`-Ereignisname plus optionaler `triggerMatch` | Catch-all höchstens einmal. Spezifische Matches müssen dasselbe Feld nutzen und disjunkt sein; Zahlenbereiche dürfen sich nicht schneiden. |
+| `api` | Exakt `fetch.<target>.success` oder `fetch.<target>.error` | Dasselbe Ergebnisereignis höchstens einmal; kein `event`-Alias. |
 | `timer` | `timer` | Höchstens ein Timer, unabhängig von Dauer oder Ereignisname. |
 | `auto` | `auto` | Muss der einzige fachliche Ausgang der effektiven Quelle sein. |
 | `flow` | keine fachliche Identität | Nur interne Child-Führung; von der Triggerzählung ausgeschlossen. |

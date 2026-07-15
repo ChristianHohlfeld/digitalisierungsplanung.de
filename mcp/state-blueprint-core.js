@@ -208,13 +208,13 @@ function normalizeTriggerMatch(value) {
   const field = normalizeBindingPath(value.field || "", "");
   const operator = String(value.operator || "").trim();
   if (!field || !TRIGGER_MATCH_OPERATORS.has(operator)) return {};
+  if (!Object.prototype.hasOwnProperty.call(value, "value")) return {};
   const out = { field, operator };
   if (operator === "between") {
     const range = normalizeTriggerMatchRange(value.value);
     if (!range) return {};
     out.value = range;
-  } else if (Object.hasOwn(value, "value")) out.value = clone(value.value);
-  else out.value = "";
+  } else out.value = clone(value.value);
   return out;
 }
 
@@ -310,13 +310,18 @@ function transitionTriggerMatchesCanOverlap(left, right) {
 }
 
 function triggerMatchContractIssues(transition) {
+  const hasMatch = Object.prototype.hasOwnProperty.call(transition || {}, "triggerMatch");
+  if (!hasMatch) return [];
   const match = normalizeTriggerMatch(transition?.triggerMatch);
-  if (triggerMatchIsEmpty(match)) return [];
   const transitionId = String(transition?.id || "");
   const triggerType = String(transition?.triggerType || "button");
   const eventName = normalizeTransitionEvent(transition?.triggerEvent || "");
   const issues = [];
   const add = (code, message) => issues.push({ code, transitionId, path: match.field, message });
+  if (triggerMatchIsEmpty(match)) {
+    add("invalid_trigger_match", "triggerMatch must be absent or define field, operator and value completely.");
+    return issues;
+  }
   if (!TRIGGER_MATCH_TYPES.has(triggerType)) {
     add("invalid_trigger_match_type", "triggerMatch is only supported for Product Contract realtime events.");
     return issues;

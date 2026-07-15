@@ -74,6 +74,25 @@ function sha256(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
 }
 
+function runtimeScript(html) {
+  const scripts = [...String(html).matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(match => match[1]);
+  const runtime = scripts.find(source => source.includes("function runtimeTransitionTriggerContract"));
+  expect(runtime, "generated runtime script exists").toBeTruthy();
+  return runtime;
+}
+
+function canonicalizeStandaloneRuntime(source) {
+  return String(source)
+    .replace(
+      /    const IS_STANDALONE_EXPORT = true;\n    const EXPORTED_STATE_BLUEPRINT = [^\n]+;\n    const EXPORTED_STATE_BLUEPRINT_SAVED_AT = [^\n]+;\n\n    let model = normalizeModel\(JSON\.parse\(JSON\.stringify\(EXPORTED_STATE_BLUEPRINT\)\)\);/,
+      "    const IS_STANDALONE_EXPORT = false;\n    let model = blankModel();"
+    )
+    .replace(
+      '    if (!IS_STANDALONE_EXPORT) window.addEventListener("message", evt => {',
+      '    window.addEventListener("message", evt => {'
+    );
+}
+
 function appFrame(page) {
   return page.frameLocator("#appFrame");
 }
@@ -343,6 +362,18 @@ test.describe("Core source contracts", () => {
     }).toEqual({
       bytes: Buffer.byteLength(canonicalRuntime, "utf8"),
       sha256: sha256(canonicalRuntime)
+    });
+  });
+
+  test("production demo uses the current canonical standalone runtime @smoke", () => {
+    const canonical = runtimeScript(generatedAppHtml());
+    const standalone = canonicalizeStandaloneRuntime(runtimeScript(
+      fs.readFileSync(path.join(process.cwd(), "index.html"), "utf8")
+    ));
+
+    expect({ bytes: Buffer.byteLength(standalone, "utf8"), sha256: sha256(standalone) }).toEqual({
+      bytes: Buffer.byteLength(canonical, "utf8"),
+      sha256: sha256(canonical)
     });
   });
 
@@ -1435,6 +1466,8 @@ test.describe("Core source contracts", () => {
       unknown.model.transitions[0].triggerType = "click";
       const missing = definition();
       missing.model.transitions[1].triggerEvent = "";
+      const malformedMatch = definition();
+      malformedMatch.model.transitions[1].triggerMatch = {};
       const childBoundary = definition();
       childBoundary.model.states = [state("parent"), state("child", "parent"), state("sibling", "parent"), state("outside")];
       childBoundary.model.states[0].boundary = { ...boundary, entryId: "child" };
@@ -1466,6 +1499,7 @@ test.describe("Core source contracts", () => {
         automatic,
         unknown,
         missing,
+        malformedMatch,
         childBoundary,
         structuralFlow
       ].map(validate);
@@ -1488,6 +1522,7 @@ test.describe("Core source contracts", () => {
       expect.stringContaining("must contain only one auto transition"),
       expect.stringContaining("triggerType must be one of button, change, event, realtime, api, timer, auto"),
       expect.stringContaining("must reference a realtime event declared by the Product Contract"),
+      expect.stringContaining("triggerMatch must be absent or define field, operator and value completely"),
       expect.stringContaining("duplicates trigger realtime:realtime.sip.call.incoming|match:*"),
       expect.stringContaining("triggerType must be one of button, change, event, realtime, api, timer, auto")
     ]);
@@ -2946,6 +2981,8 @@ test.describe("Core browser contracts", () => {
         { name: "realtime", transitions: [candidate("realtime_a", "route_a", "realtime", "realtime.sip.call.incoming"), candidate("realtime_b", "route_b", "realtime", "realtime.sip.call.incoming")] },
         { name: "api", transitions: [candidate("api_a", "route_a", "api", "fetch.states.waiting.fetch.success"), candidate("api_b", "route_b", "api", "fetch.states.waiting.fetch.success")] },
         { name: "api-as-event", transitions: [candidate("event_fetch", "route_a", "event", "fetch.states.waiting.fetch.success")] },
+        { name: "public-flow", transitions: [candidate("flow_a", "route_a", "flow", "flow.child.entry")] },
+        { name: "invalid-match", transitions: [{ ...candidate("match_a", "route_a", "realtime", "realtime.sip.call.incoming"), triggerMatch: {} }] },
         { name: "timer", transitions: [candidate("timer_a", "route_a", "timer", "timer.a.done"), candidate("timer_b", "route_b", "timer", "timer.b.done")] },
         { name: "auto", transitions: [candidate("auto_a", "route_a", "auto", "auto.a"), candidate("button_b", "route_b", "button")] },
         { name: "missing-event", transitions: [candidate("event_missing", "route_a", "event")] },
@@ -2983,6 +3020,8 @@ test.describe("Core browser contracts", () => {
       "realtime",
       "api",
       "api-as-event",
+      "public-flow",
+      "invalid-match",
       "timer",
       "auto",
       "missing-event",
@@ -3031,6 +3070,17 @@ test.describe("Core browser contracts", () => {
         { name: "change-wildcard", eventName: "change.any", transitions: [candidate("change_a", "change"), candidate("change_b", "change")] },
         { name: "event", eventName: "event.route", transitions: [candidate("event_a", "event", "event.route"), candidate("event_b", "event", "event.route")] },
         { name: "realtime", eventName: "realtime.route", transitions: [candidate("realtime_a", "realtime", "realtime.route"), candidate("realtime_b", "realtime", "realtime.route")] },
+        { name: "api", eventName: "fetch.states.waiting.fetch.success", transitions: [candidate("api_a", "api", "fetch.states.waiting.fetch.success"), candidate("api_b", "api", "fetch.states.waiting.fetch.success")] },
+        { name: "public-flow", eventName: "flow.child.entry", transitions: [candidate("flow_a", "flow", "flow.child.entry")] },
+        { name: "invalid-match", eventName: "realtime.sip.call.incoming", transitions: [{ ...candidate("match_a", "realtime", "realtime.sip.call.incoming"), triggerMatch: {} }] },
+        {
+          name: "overlapping-match",
+          eventName: "realtime.sip.call.ended",
+          transitions: [
+            { ...candidate("match_a", "realtime", "realtime.sip.call.ended"), triggerMatch: { field: "duration", operator: "gt", value: 30 } },
+            { ...candidate("match_b", "realtime", "realtime.sip.call.ended"), triggerMatch: { field: "duration", operator: "lte", value: 50 } }
+          ]
+        },
         { name: "timer", eventName: "timer.timer_a.done", transitions: [candidate("timer_a", "timer", "timer.timer_a.done"), candidate("timer_b", "timer", "timer.timer_b.done")] },
         { name: "auto", eventName: "auto.auto_a", transitions: [candidate("auto_a", "auto", "auto.auto_a"), candidate("event_b", "event", "event.route")] },
         { name: "missing-event", eventName: "event.route", transitions: [candidate("event_a", "event")] },
@@ -3060,6 +3110,10 @@ test.describe("Core browser contracts", () => {
       { name: "change-wildcard", handled: false, current: "waiting", reason: "missing-trigger", transitionIds: ["change_a"] },
       { name: "event", handled: false, current: "waiting", reason: "duplicate-trigger", transitionIds: ["event_a", "event_b"] },
       { name: "realtime", handled: false, current: "waiting", reason: "duplicate-trigger", transitionIds: ["realtime_a", "realtime_b"] },
+      { name: "api", handled: false, current: "waiting", reason: "duplicate-trigger", transitionIds: ["api_a", "api_b"] },
+      { name: "public-flow", handled: false, current: "waiting", reason: "invalid-public-flow", transitionIds: ["flow_a"] },
+      { name: "invalid-match", handled: false, current: "waiting", reason: "invalid-trigger-match", transitionIds: ["match_a"] },
+      { name: "overlapping-match", handled: false, current: "waiting", reason: "ambiguous-trigger-match", transitionIds: ["match_a", "match_b"] },
       { name: "timer", handled: false, current: "waiting", reason: "duplicate-trigger", transitionIds: ["timer_a", "timer_b"] },
       { name: "auto", handled: false, current: "waiting", reason: "exclusive-auto", transitionIds: ["auto_a", "event_b"] },
       { name: "missing-event", handled: false, current: "waiting", reason: "missing-trigger", transitionIds: ["event_a"] },
@@ -3068,6 +3122,80 @@ test.describe("Core browser contracts", () => {
       { name: "valid-events", handled: null, current: "waiting", reason: "", transitionIds: [] }
     ]);
     await expect(appFrame(page).locator("#statePill")).toHaveText("waiting");
+  });
+
+  test("runtime routes disjoint realtime trigger matches deterministically @smoke", async ({ page }) => {
+    await openWithModel(page, {
+      version: 2,
+      name: "Disjoint realtime matches",
+      initial: "waiting",
+      states: [
+        { id: "waiting", title: "Waiting", components: [], data: {}, dataTypes: {}, x: 120, y: 180 },
+        { id: "heinz", title: "Heinz", components: [], data: {}, dataTypes: {}, x: 420, y: 100 },
+        { id: "mueller", title: "Mueller", components: [], data: {}, dataTypes: {}, x: 420, y: 280 }
+      ],
+      transitions: [
+        {
+          id: "to_heinz",
+          from: "waiting",
+          to: "heinz",
+          label: "Heinz",
+          condition: "",
+          triggerType: "realtime",
+          triggerEvent: "realtime.sip.call.incoming",
+          triggerMatch: { field: "caller", operator: "equals", value: "Heinz" },
+          set: {}
+        },
+        {
+          id: "to_mueller",
+          from: "waiting",
+          to: "mueller",
+          label: "Mueller",
+          condition: "",
+          triggerType: "realtime",
+          triggerEvent: "realtime.sip.call.incoming",
+          triggerMatch: { field: "caller", operator: "equals", value: "Mueller" },
+          set: {}
+        }
+      ]
+    });
+
+    const result = await appFrame(page).locator("html").evaluate(() => {
+      const emit = eval("emitRuntimeEvent");
+      const reset = () => eval("setRuntimeCurrent")("waiting", "runtime", true);
+      const fire = caller => emit("realtime.sip.call.incoming", {
+        type: "realtime",
+        source: "realtime",
+        __realtimeRemote: true,
+        caller
+      });
+      const heinzHandled = fire("Heinz");
+      const heinzState = eval("current");
+      reset();
+      const muellerHandled = fire("Mueller");
+      const muellerState = eval("current");
+      reset();
+      const unknownHandled = fire("Unbekannt");
+      return {
+        heinzHandled,
+        heinzState,
+        muellerHandled,
+        muellerState,
+        unknownHandled,
+        unknownState: eval("current"),
+        validation: eval("runtimeValidation")
+      };
+    });
+
+    expect(result).toEqual({
+      heinzHandled: true,
+      heinzState: "heinz",
+      muellerHandled: true,
+      muellerState: "mueller",
+      unknownHandled: false,
+      unknownState: "waiting",
+      validation: null
+    });
   });
 
   test("runtime routes fetch results only through the first-class api trigger @smoke", async ({ page }) => {

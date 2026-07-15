@@ -131,16 +131,20 @@ formalen Definition vor.
 
 Jede Transition besitzt exakt einen Trigger. Ein State darf mehrere ausgehende
 Transitionen besitzen, wenn ihre Triggeridentitäten verschieden sind.
-Conditions gehoeren nicht zur Triggeridentitaet. Bei Realtime darf die
-Identitaet zusaetzlich einen formalen `triggerMatch` auf einem vom Product
+Conditions gehören nicht zur Triggeridentität. Bei Realtime darf die
+Identität zusätzlich einen formalen `triggerMatch` auf einem vom Product
 Contract freigegebenen Event-Feld enthalten. Skalare Felder erlauben
-`equals`; Zahlen erlauben zusaetzlich `gt`, `gte`, `lt`, `lte` und
+`equals`; Zahlen erlauben zusätzlich `gt`, `gte`, `lt`, `lte` und
 `between`. Alle Realtime-Matches desselben Events und derselben effektiven
-Quelle muessen mathematisch disjunkt sein. Unterschiedliche Felder gelten als
-potenziell ueberlappend. Ein Event ohne `triggerMatch` ist catch-all und darf
+Quelle müssen mathematisch disjunkt sein. Unterschiedliche Felder gelten als
+potenziell überlappend. Ein Event ohne `triggerMatch` ist catch-all und darf
 keine spezifischen Matches daneben haben. Der Editor deaktiviert bereits
-belegte oder ueberlappende Optionen; Import, API und MCP lehnen Konflikte ab;
+belegte oder überlappende Optionen; Import, API und MCP lehnen Konflikte ab;
 die Runtime arbeitet bei einem Fremdmodell fail-closed.
+
+`triggerMatch` fehlt für einen Catch-all vollständig oder enthält `field`,
+`operator` und `value` vollständig typisiert. Leere, teilweise, `null` oder
+`undefined` gesetzte Match-Objekte sind ungültig und werden nicht normalisiert.
 
 ## 6. Conditions
 

@@ -445,6 +445,20 @@ test.describe("State Blueprint MCP", () => {
     const genericFetch = structuredClone(model);
     genericFetch.transitions[0].triggerType = "event";
     expect(validateModel(genericFetch).issues).toContainEqual(expect.objectContaining({ code: "invalid_event_trigger_namespace" }));
+
+    for (const triggerMatch of [
+      {},
+      null,
+      undefined,
+      { field: "caller", operator: "equals" },
+      { field: "caller", operator: "unknown", value: "Heinz" }
+    ]) {
+      const malformedMatch = structuredClone(model);
+      malformedMatch.transitions[0].triggerType = "realtime";
+      malformedMatch.transitions[0].triggerEvent = "realtime.sip.call.incoming";
+      malformedMatch.transitions[0].triggerMatch = triggerMatch;
+      expect(validateModel(malformedMatch).issues).toContainEqual(expect.objectContaining({ code: "invalid_trigger_match" }));
+    }
   });
 
   test("documents the public MCP tools and model actions @smoke", () => {
