@@ -2286,6 +2286,10 @@ test.describe("State Blueprint tool", () => {
 
   test("upgrades only the untouched bundled website example @smoke", async ({ page }) => {
     await page.goto("/state.html");
+    await expect.poll(
+      () => page.evaluate(key => Boolean(localStorage.getItem(`${key}.editor`)), STORAGE_KEY),
+      { timeout: 15000 }
+    ).toBe(true);
     await page.evaluate(key => {
       for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
         localStorage.removeItem(name);
