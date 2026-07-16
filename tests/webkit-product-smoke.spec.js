@@ -57,6 +57,7 @@ test.describe("WebKit product smoke", () => {
     );
     await expect(editorLink).toHaveClass(/btn-primary/);
     await expect(page.locator('a[href*="studio.html"]')).toHaveCount(0);
+    await expect(page.locator('.hero[style*="share-card.png"]')).toHaveCount(0);
 
     await page.locator(".navbar").getByRole("button", { name: "Pilot", exact: true }).click();
     await expect(page.locator("#statePill")).toHaveText("site_pricing");
@@ -89,27 +90,50 @@ test.describe("WebKit product smoke", () => {
 
     await expect(page.locator("#btnNew")).toBeVisible();
     await expect(page.locator("#btnSave")).toBeVisible();
-    await expect(page.locator("#publicEditorNotice")).toContainText("Modelle bleiben in diesem Browser");
-    await expect(page.locator("#publicEditorNotice")).toContainText("keine Cloud-Sicherung");
+    const notice = page.locator("#publicEditorNotice");
+    const noticeTrigger = page.locator("#publicEditorNoticeTrigger");
+    const noticePanel = page.locator("#publicEditorNoticePanel");
+    await expect(notice).toBeVisible();
+    await expect(noticeTrigger).toHaveAccessibleName("Lokaler Editor – keine Cloud-Sicherung. Sicherheitshinweise öffnen");
+    await expect(noticePanel).toBeHidden();
     await expect(page.locator('[data-id="start"]')).toBeVisible();
     const runtime = page.frameLocator("#appFrame");
     await expect(runtime.locator("#statePill")).toHaveText("start");
     await expect(runtime.getByRole("heading", { name: "Pilot startklar" })).toBeVisible();
     await expect(runtime.getByText("Der Pilot-Prozess ist bereit.", { exact: true })).toBeVisible();
 
+    const workspaceBeforeNotice = await page.locator("#workspace").boundingBox();
+    await noticeTrigger.click();
+    await expect(noticePanel).toBeVisible();
+    await expect(noticePanel).toContainText("Modelle bleiben in diesem Browser");
+    await expect(noticePanel).toContainText("Keine vertraulichen Daten eingeben");
+    expect(await page.locator("#workspace").boundingBox()).toEqual(workspaceBeforeNotice);
+    await page.getByRole("button", { name: "Hinweis schließen" }).click();
+    await expect(noticePanel).toBeHidden();
+
     await page.setViewportSize({ width: 390, height: 844 });
-    await expect(page.locator("#publicEditorNotice")).toBeVisible();
-    const noticeBox = await page.locator("#publicEditorNotice").boundingBox();
-    expect(noticeBox).not.toBeNull();
-    expect(noticeBox.x).toBeGreaterThanOrEqual(0);
-    expect(noticeBox.x + noticeBox.width).toBeLessThanOrEqual(390);
-    expect(noticeBox.y).toBeGreaterThanOrEqual(0);
-    expect(noticeBox.y + noticeBox.height).toBeLessThanOrEqual(844);
-    const mobileControlsTop = await page.evaluate(() => Math.min(
-      document.querySelector("#mobileCommandBar").getBoundingClientRect().top,
-      document.querySelector("#mobileTabs").getBoundingClientRect().top
-    ));
-    expect(noticeBox.y + noticeBox.height).toBeLessThanOrEqual(mobileControlsTop);
+    await expect(noticeTrigger).toBeVisible();
+    const triggerBox = await noticeTrigger.boundingBox();
+    expect(triggerBox).not.toBeNull();
+    expect(triggerBox.x).toBeGreaterThanOrEqual(0);
+    expect(triggerBox.x + triggerBox.width).toBeLessThanOrEqual(390);
+    expect(triggerBox.height).toBeGreaterThanOrEqual(44);
+    expect(await page.evaluate(() => {
+      const trigger = document.querySelector("#publicEditorNoticeTrigger").getBoundingClientRect();
+      const workspace = document.querySelector("#workspace").getBoundingClientRect();
+      return trigger.left < workspace.right && trigger.right > workspace.left && trigger.top < workspace.bottom && trigger.bottom > workspace.top;
+    })).toBe(false);
+
+    await noticeTrigger.click();
+    await expect(noticePanel).toBeVisible();
+    const panelBox = await noticePanel.boundingBox();
+    expect(panelBox).not.toBeNull();
+    expect(panelBox.x).toBeGreaterThanOrEqual(0);
+    expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(390);
+    expect(panelBox.y).toBeGreaterThanOrEqual(0);
+    expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(844);
+    await page.getByRole("button", { name: "Hinweis schließen" }).click();
+    await expect(noticePanel).toBeHidden();
   });
 
   test("managed studio loads and saves an immutable project version", async ({ page }) => {
@@ -165,6 +189,8 @@ test.describe("WebKit product smoke", () => {
 
     await page.goto(`/state.html?project=${projectId}&api=/api/v1`);
     await expect(page.locator("#publicEditorNotice")).toBeHidden();
+    await expect(page.locator("#publicEditorNoticeTrigger")).toBeHidden();
+    await expect(page.locator("#publicEditorNoticePanel")).toBeHidden();
     await expect(page.locator('[data-id="start"]')).toBeVisible();
     await expect(page.frameLocator("#appFrame").locator("#statePill")).toHaveText("start");
     await expect(page.locator("#managedProjectStatus")).toContainText("WebKit Verwaltungsprozess · v1 · gespeichert");

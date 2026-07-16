@@ -2284,6 +2284,64 @@ test.describe("State Blueprint tool", () => {
     await expect(page.getByRole("dialog", { name: "Beispielablauf laden" })).toBeHidden();
   });
 
+  test("upgrades only the untouched bundled website example @smoke", async ({ page }) => {
+    await page.goto("/state.html");
+    await page.evaluate(key => {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+    }, STORAGE_KEY);
+
+    const storeLegacyExample = name => page.evaluate(({ key, name }) => {
+      const legacy = exampleWebsiteModel();
+      legacy.name = name;
+      const home = legacy.states.find(state => state.id === "site_home");
+      home.data.hero = {
+        layout: "overlay",
+        title: "Aus Erfahrungswissen wird Software.",
+        body: "Ihre wichtigsten Abläufe stecken in Köpfen, E-Mails und Excel. Im Managed Pilot wird ein abgegrenzter Prozess sichtbar, prüfbar und als klickbare Web-Anwendung abnahmefähig – typischerweise in 6–12 Wochen.",
+        actionLabel: "Pilot ansehen",
+        transitionId: "site_home_nav_pricing",
+        image: "./assets/share-card.png"
+      };
+      localStorage.setItem(`${key}.editor`, JSON.stringify({ model: legacy }));
+    }, { key: STORAGE_KEY, name });
+
+    await storeLegacyExample("Digitalisierungsplanung");
+    await page.reload();
+    await expect(appFrame(page).getByRole("heading", { name: "Geschäftsprozesse direkt im Editor modellieren." })).toBeVisible();
+    await expect.poll(async () => (await savedModel(page)).states.find(state => state.id === "site_home")?.data?.hero)
+      .toMatchObject({
+        title: "Geschäftsprozesse direkt im Editor modellieren.",
+        actionLabel: "Editor öffnen",
+        url: "/state.html",
+        image: ""
+      });
+
+    await page.evaluate(key => {
+      const previous = exampleWebsiteModel();
+      previous.states.find(state => state.id === "site_home").data.hero.image = "./assets/share-card.png";
+      localStorage.setItem(`${key}.editor`, JSON.stringify({ model: previous }));
+    }, STORAGE_KEY);
+    await page.reload();
+    await expect.poll(async () => (await savedModel(page)).states.find(state => state.id === "site_home")?.data?.hero?.image)
+      .toBe("");
+
+    await storeLegacyExample("Individuelle Kundenkopie");
+    await page.reload();
+    await expect(appFrame(page).getByRole("heading", { name: "Aus Erfahrungswissen wird Software." })).toBeVisible();
+    await expect.poll(async () => {
+      const saved = await savedModel(page);
+      return {
+        name: saved.name,
+        title: saved.states.find(state => state.id === "site_home")?.data?.hero?.title
+      };
+    }).toEqual({
+      name: "Individuelle Kundenkopie",
+      title: "Aus Erfahrungswissen wird Software."
+    });
+  });
+
   test("loads the Zustand demo without asking over a single empty initial state @smoke", async ({ page }) => {
     const starter = {
       version: 2,
@@ -2649,7 +2707,7 @@ test.describe("State Blueprint tool", () => {
 
     await expectDemoShell("site_home");
     await expect(app.getByRole("heading", { name: "Geschäftsprozesse direkt im Editor modellieren.", exact: true })).toBeVisible();
-    await expect(app.locator('.hero[style*="assets/share-card.png"]')).toBeVisible();
+    await expect(app.locator('.hero[style*="assets/share-card.png"]')).toHaveCount(0);
     await expect(app.locator(".daisy-feature-grid")).toHaveCount(1);
     await expect(app.locator(".daisy-feature-cards > .card")).toHaveCount(3);
     await expect(app.locator(".daisy-feature-image")).toHaveCount(0);

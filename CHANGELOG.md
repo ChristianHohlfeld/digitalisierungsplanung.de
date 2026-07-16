@@ -5,6 +5,11 @@ Releases. Einzelne Entwicklungscommits erhalten keinen künstlichen Releaseeintr
 
 ## Unreleased
 
+- Der lokale Editor zeigt den Speicherhinweis kompakt in der Werkzeugleiste,
+  ohne Arbeitsinhalte zu verdecken. Exakt unveränderte ältere Website-Beispiele
+  werden auf die aktuelle Fassung migriert; bearbeitete Kundenmodelle bleiben
+  unverändert. Die texttragende Share Card bleibt Social-Media-Metadatum und
+  wird nicht mehr hinter dem Live-Hero-Text doppelt gerendert.
 - Der visuelle Editor ist wieder direkt über die öffentliche Produktseite und
   unter `/state.html` erreichbar. Er arbeitet lokal im Browser, kennzeichnet
   fehlende Cloud-Sicherung sichtbar und überträgt keine Managed-Projektdaten.
