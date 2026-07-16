@@ -120,6 +120,9 @@ test("static production artifact is an explicit allowlist", () => {
     assert.ok(!fs.existsSync(path.join(target, ".git")));
     assert.ok(fs.existsSync(path.join(target, "state.html")));
     assert.equal(fs.readFileSync(path.join(target, "state.html"), "utf8"), read("state.html"));
+    const editorHtml = read("state.html");
+    assert.match(editorHtml, /connect-src 'self' blob: https: wss:/);
+    assert.doesNotMatch(editorHtml, /script-src[^;]*'unsafe-eval'/);
     const manifest = JSON.parse(fs.readFileSync(path.join(target, "manifest.webmanifest"), "utf8"));
     const editorShortcut = manifest.shortcuts?.find(shortcut => shortcut.url === "/state.html");
     assert.ok(editorShortcut, "the installed app must expose the public editor shortcut");

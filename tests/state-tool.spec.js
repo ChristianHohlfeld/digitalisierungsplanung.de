@@ -2648,7 +2648,7 @@ test.describe("State Blueprint tool", () => {
     };
 
     await expectDemoShell("site_home");
-    await expect(app.getByRole("heading", { name: "Aus Erfahrungswissen wird Software.", exact: true })).toBeVisible();
+    await expect(app.getByRole("heading", { name: "Geschäftsprozesse direkt im Editor modellieren.", exact: true })).toBeVisible();
     await expect(app.locator('.hero[style*="assets/share-card.png"]')).toBeVisible();
     await expect(app.locator(".daisy-feature-grid")).toHaveCount(1);
     await expect(app.locator(".daisy-feature-cards > .card")).toHaveCount(3);
@@ -3201,7 +3201,7 @@ test.describe("State Blueprint tool", () => {
     };
 
     await expectStandaloneShell("site_home", "Start");
-    await expect(standalone.getByRole("heading", { name: "Aus Erfahrungswissen wird Software.", exact: true })).toBeVisible();
+    await expect(standalone.getByRole("heading", { name: "Geschäftsprozesse direkt im Editor modellieren.", exact: true })).toBeVisible();
     await expect(standalone.locator(".daisy-feature-grid")).toHaveCount(1);
     await expect(standalone.locator(".daisy-feature-cards > .card")).toHaveCount(3);
     await expect(standalone.locator(".daisy-feature-grid button[data-transition-id]")).toHaveCount(3);

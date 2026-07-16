@@ -103,6 +103,13 @@ test.describe("WebKit product smoke", () => {
     expect(noticeBox).not.toBeNull();
     expect(noticeBox.x).toBeGreaterThanOrEqual(0);
     expect(noticeBox.x + noticeBox.width).toBeLessThanOrEqual(390);
+    expect(noticeBox.y).toBeGreaterThanOrEqual(0);
+    expect(noticeBox.y + noticeBox.height).toBeLessThanOrEqual(844);
+    const mobileControlsTop = await page.evaluate(() => Math.min(
+      document.querySelector("#mobileCommandBar").getBoundingClientRect().top,
+      document.querySelector("#mobileTabs").getBoundingClientRect().top
+    ));
+    expect(noticeBox.y + noticeBox.height).toBeLessThanOrEqual(mobileControlsTop);
   });
 
   test("managed studio loads and saves an immutable project version", async ({ page }) => {

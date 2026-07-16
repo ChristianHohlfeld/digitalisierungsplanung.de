@@ -5,7 +5,7 @@
   <meta name="description" content="Zustand ist ein visueller Editor für Business-Prozesse als globales JSON-Zustandsmodell.">
   <meta name="theme-color" content="#07111f">
   <meta name="application-name" content="Zustand">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https: wss:; frame-src 'self' data: blob:; media-src 'self' data: blob: https:; font-src 'self' data:; form-action 'self' https:">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' blob: https: wss:; frame-src 'self' data: blob:; media-src 'self' data: blob: https:; font-src 'self' data:; form-action 'self' https:">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" type="image/svg+xml" href="/assets/zustand-icon.svg">
   <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
@@ -387,9 +387,12 @@
       color: #ffe4e6;
     }
     .public-editor-notice {
-      order: 19;
-      flex: 1 0 100%;
-      width: 100%;
+      position: fixed;
+      z-index: 240;
+      left: 50%;
+      bottom: max(12px, env(safe-area-inset-bottom));
+      width: min(720px, calc(100vw - 24px));
+      transform: translateX(-50%);
       padding: 8px 12px;
       border: 1px solid rgba(56,189,248,.42);
       border-radius: 10px;
@@ -398,6 +401,8 @@
       font-size: 12px;
       font-weight: 750;
       line-height: 1.45;
+      white-space: normal;
+      pointer-events: none;
     }
     .managed-project-status {
       max-width: min(360px, 34vw);
@@ -4027,11 +4032,6 @@
         scrollbar-width: none;
         -ms-overflow-style: none;
       }
-      .topbar:has(.public-editor-notice:not([hidden])) {
-        flex-wrap: wrap;
-        overflow-x: visible;
-        white-space: normal;
-      }
     }
 
     @media (max-width: 720px), (max-width: 899px) and (pointer: coarse), (max-height: 520px) and (max-width: 900px) {
@@ -4045,6 +4045,10 @@
         gap: 4px;
         padding: calc(3px + env(safe-area-inset-top)) 8px 3px;
         overflow: visible;
+      }
+
+      .public-editor-notice {
+        bottom: calc(110px + env(safe-area-inset-bottom));
       }
 
       .topbar::-webkit-scrollbar { display: none; }
@@ -5842,10 +5846,10 @@
     </details>
     <div class="status managed-project-status" id="managedProjectStatus" role="status" aria-live="polite" hidden></div>
     <div class="status" id="runtimeState">Zustand: start</div>
-    <div class="public-editor-notice" id="publicEditorNotice" role="note">
-      Lokaler Editor: Modelle bleiben in diesem Browser, bis Sie sie exportieren. Keine vertraulichen Daten eingeben; es gibt keine Cloud-Sicherung.
-    </div>
     <div class="product-readiness-banner" id="productReadinessBanner" role="status" aria-live="polite" hidden></div>
+  </div>
+  <div class="public-editor-notice" id="publicEditorNotice" role="note">
+    Lokaler Editor: Modelle bleiben in diesem Browser, bis Sie sie exportieren. Keine vertraulichen Daten eingeben; es gibt keine Cloud-Sicherung.
   </div>
   <input id="fileLoad" type="file" accept="application/json,.json,.state.json,.state-component.json" hidden="">
   <div id="modalBackdrop" class="modal-backdrop" hidden="">
