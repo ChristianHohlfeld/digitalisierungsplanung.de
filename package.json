@@ -32,7 +32,7 @@
     "mcp:state": "node mcp/state-blueprint-server.js"
   },
   "devDependencies": {
-    "@playwright/test": "^1.52.0"
+    "@playwright/test": "^1.61.1"
   },
   "dependencies": {
     "parse5": "8.0.1",
