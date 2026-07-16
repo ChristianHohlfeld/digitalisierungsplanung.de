@@ -2,7 +2,7 @@
 
 Status: Gate-Checkliste; **keine Rechtsberatung und kein Compliance-Zertifikat**
 
-Stand: 2026-07-15
+Stand: 2026-07-16
 
 Diese Datei trennt vorhandenen Code von noch zu erbringendem Betriebsnachweis.
 Ein Dokument oder ein grüner Test beweist allein weder DSGVO-Konformität noch
@@ -72,7 +72,7 @@ Betriebsbeleg BLOCKER.
 | --- | --- | --- |
 | BLOCKER | Getrennte Staging- und Produktionsumgebung | Deployment- und Datenflussnachweis |
 | BLOCKER | GitHub Pages veröffentlicht ausschließlich das geprüfte Actions-Artefakt, nicht direkt `main` | Screenshot/Settings-Nachweis plus Release-Run |
-| BLOCKER | Pages-Artefakt enthält weder `state.html` noch einen öffentlichen Editor-/Demo-Link | Artefaktliste plus Root-Smoke |
+| BLOCKER | Pages-Artefakt enthält nur Root-Runtime, öffentlichen lokalen Editor und deren statische Assets; kein Server-, Test-, Admin- oder Betriebsartefakt | Artefaktliste, Negativproben und Root-/Editor-Smoke |
 | BLOCKER | `main`, `release-*` und `production` sind durch Ruleset/Environment geschützt; nur Releaseworkflow hat engen Stamp-Bypass | Settings-Export und negativer Push-Test |
 | BLOCKER | Persistierte Kundendaten sind inventarisiert und gesichert | Backupmatrix je Datenspeicher |
 | BLOCKER | Verschlüsselung und Schlüsselverantwortung für Backups | Konfigurations-/Providerbeleg |

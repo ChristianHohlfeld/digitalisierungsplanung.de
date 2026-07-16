@@ -5,6 +5,11 @@ Releases. Einzelne Entwicklungscommits erhalten keinen künstlichen Releaseeintr
 
 ## Unreleased
 
+- Der visuelle Editor ist wieder direkt über die öffentliche Produktseite und
+  unter `/state.html` erreichbar. Er arbeitet lokal im Browser, kennzeichnet
+  fehlende Cloud-Sicherung sichtbar und überträgt keine Managed-Projektdaten.
+- Der bisherige branchbasierte Pages-Pfad schließt Repository-Interna als
+  zusätzliche Absicherung aus; Releases verwenden weiterhin die Datei-Allowlist.
 - Managed-Pilot-V1 und klare Trennung zwischen Kunden-App und internem Studio.
 - Öffentliche Demo und Product Contract auf ein einmaliges Managed-Pilot-Angebot
   von 2.500–7.500 € bei typischerweise 6–12 Wochen vereinheitlicht; die alten

@@ -8,10 +8,13 @@ getrennte Servergrenzen:
 - Die Managed-Pilot-API authentifiziert Benutzer, trennt Organisationen,
   autorisiert Rollen und persistiert versionierte kanonische Prozessmodelle.
 
-GitHub Pages veröffentlicht nur die allowlist-basierte öffentliche Root-Runtime
-mit ihren Assets und `release-version.js`. `state.html` ist **kein** öffentliches
-Pages-Artefakt. Der Server liefert dieselbe interne Studio-Implementierung nur
-über den kontrollierten Einstieg `/studio.html` aus.
+GitHub Pages veröffentlicht nur die allowlist-basierte öffentliche Root-Runtime,
+den lokalen Editor `state.html`, Assets und `release-version.js`. Der öffentliche
+Editor besitzt keine Managed-Sitzung und persistiert sein Prozessmodell nur im
+Browser. Konfigurierte HTTPS-Datenquellen und Realtime-Verbindungen bleiben
+möglich, übertragen aber weder Managed-Token noch ein Managed-Projekt. Der
+Server liefert verwaltete Projekte mit derselben Studio-Implementierung
+ausschließlich über den kontrollierten Einstieg `/studio.html` aus.
 
 ## Endpunkte
 

@@ -2,21 +2,23 @@
 
 Status: verbindliche Produktgrenze für den ersten Verkauf
 
-Stand: 2026-07-15
+Stand: 2026-07-16
 
 ## Produktversprechen
 
-Digitalisierungsplanung verkauft in V1 **nicht den universellen Editor als
-Self-Service-SaaS**. Verkauft wird ein überprüfbares Ergebnis:
+Digitalisierungsplanung stellt den Editor in V1 als öffentliche, lokale Sandbox
+bereit. Verkauft wird nicht der bloße Zugang zum Editor, sondern ein
+überprüfbares Ergebnis:
 
 > Ein gemeinsam abgegrenzter Unternehmensprozess wird innerhalb eines
 > Managed Pilots als bedienbare, testbare Web-Anwendung umgesetzt und anhand
 > vorher vereinbarter Kennzahlen im echten Arbeitsablauf bewertet.
 
-Das Studio (`state.html`) ist die interne Produktionsmaschine. Kunden arbeiten
-mit der veröffentlichten Prozess-App und erhalten Ergebnis, Dokumentation und
-einen vollständigen Export ihres Prozessmodells. Studio-, Admin- und
-Integrationsoberflächen sind keine regulären Kundenoberflächen.
+`state.html` ist der öffentliche Editor für lokale Modelle und synthetische
+Demos. Kunden arbeiten zusätzlich mit der veröffentlichten Prozess-App und
+erhalten Ergebnis, Dokumentation und einen vollständigen Export ihres
+Prozessmodells. Verwaltete Kundenprojekte, Admin- und Integrationsoberflächen
+bleiben an Anmeldung, Rolle und Mandantengrenze gebunden.
 
 ## Kommerzieller Rahmen
 
@@ -69,28 +71,34 @@ gibt es keinen Start mit Echtdaten.
 
 ## Kundenoberfläche und interne Werkzeuge
 
+Die folgende Matrix regelt verwaltete Kundenprojekte und deren Daten. Im
+öffentlichen lokalen Editor können Modellierungsfunktionen einschließlich
+Composite-/Boundary-Bausteinen ausprobiert werden; daraus entsteht keinerlei
+Zugriff auf ein verwaltetes Projekt.
+
 | Fähigkeit | Pilotnutzer | Kunden-Prozessowner | Interner Operator |
 | --- | ---: | ---: | ---: |
 | Veröffentlichte Prozess-App bedienen | Ja | Ja | Ja |
+| Öffentlichen Editor lokal verwenden | Ja | Ja | Ja |
 | Pilotkennzahlen und vereinbarte Exporte | nach Rolle | Ja | Ja |
 | Prozessänderung beauftragen/freigeben | Nein | Ja | Ja |
-| Studio/Canvas bearbeiten | Nein | Nein in V1 | Ja |
-| Composite-/Boundary-Interna | Nein | Nein | Ja |
+| Verwaltetes Projekt im Studio bearbeiten | Nein | nach Rolle | Ja |
+| Composite-/Boundary-Interna im Managed-Projekt | Nein | Nein | Ja |
 | Realtime-Event-Designer | Nein | Nein | Ja |
 | Preset-Import und Preset-Admin | Nein | Nein | Ja |
 | MCP/API-Entwicklerwerkzeuge | Nein | Nein | Ja |
 | Deployment und Secrets | Nein | Nein | Ja, Least Privilege |
 
-„Nicht kunden-facing“ bedeutet: `state.html` wird nicht mit der öffentlichen
-Pages-Site ausgeliefert, nicht in der öffentlichen Runtime verlinkt und nicht
-durch eine bloß versteckte Schaltfläche geschützt. Der operative Studio-Einstieg
-zeigt ohne gültige Sitzung keine Projekt- oder Kundendaten; jede Datenaktion
-wird zusätzlich serverseitig autorisiert.
+Der öffentliche Editor speichert nur lokale Browsermodelle und erhält durch
+seine URL weder Sitzung noch Zugriff auf ein verwaltetes Projekt. Der operative
+Studio-Einstieg zeigt ohne gültige Sitzung keine Projekt- oder Kundendaten;
+jede Managed-Datenaktion wird zusätzlich serverseitig autorisiert. Öffentliche
+Erreichbarkeit der Editor-Shell ist ausdrücklich keine Autorisierung.
 
 ## Bewusst nicht Teil von V1
 
 - freier Self-Service-Sign-up,
-- visueller Universal-App-Builder für Endkunden,
+- gehosteter Multi-Tenant-Self-Service mit Echtdaten ohne Pilotvertrag,
 - Marketplace oder öffentliche Pluginplattform,
 - gleichzeitige Mehrbenutzerbearbeitung,
 - freie Kundenerstellung eigener Trigger- oder Contract-Dialekte,

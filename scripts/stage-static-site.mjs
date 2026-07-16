@@ -16,6 +16,7 @@ const files = [
   "index.html",
   "manifest.webmanifest",
   "release-version.js",
+  "state.html",
   "sw.js"
 ];
 

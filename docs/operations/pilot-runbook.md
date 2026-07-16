@@ -2,7 +2,7 @@
 
 Status: Arbeits- und Abnahmeverfahren für einen bezahlten V1-Pilot
 
-Stand: 2026-07-15
+Stand: 2026-07-16
 
 ## 1. Pilot-Steckbrief
 
@@ -49,7 +49,8 @@ Ergebnis: freigegebenes Modell, Testfälle und Baseline-Datensatz.
 
 ### Phase C – Build und interne Prüfung
 
-- Prozessmodell ausschließlich im internen Studio erstellen.
+- Verwaltetes Prozessmodell ausschließlich im autorisierten Studio erstellen;
+  der öffentliche Editor bleibt auf lokale oder synthetische Modelle begrenzt.
 - Pure Vertrags-, Export- und relevante Browserfälle ausführen.
 - Berechtigungen und Fehlerpfade mit Negativtests prüfen.
 - Keine Echtdaten in lokale Demo- oder PR-Umgebungen kopieren.

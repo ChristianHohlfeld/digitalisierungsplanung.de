@@ -1,0 +1,26 @@
+# Defense in depth for the legacy branch-based GitHub Pages source.
+# The production release still uses the explicit dist/ allowlist from
+# scripts/stage-static-site.mjs; this file prevents repository internals from
+# being copied while the repository setting is being migrated to GitHub Actions.
+exclude:
+  - .gitattributes
+  - .gitea
+  - .github
+  - .gitignore
+  - CHANGELOG.md
+  - README.md
+  - SECURITY.md
+  - docs
+  - mcp
+  - node_modules
+  - package-lock.json
+  - package.json
+  - playwright-report
+  - playwright.config.js
+  - scripts
+  - server
+  - shared
+  - statereadme.md
+  - test-results
+  - tests
+  - tmp

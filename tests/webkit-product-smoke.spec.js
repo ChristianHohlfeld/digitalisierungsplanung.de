@@ -48,9 +48,15 @@ test.describe("WebKit product smoke", () => {
     await page.goto("/");
 
     await expect(page).toHaveTitle("Digitalisierungsplanung");
-    await expect(page.getByRole("heading", { name: "Aus Erfahrungswissen wird Software.", exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Pilot ansehen" })).toBeVisible();
-    await expect(page.locator('a[href*="state.html"], a[href*="studio.html"]')).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Geschäftsprozesse direkt im Editor modellieren.", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Pilot ansehen" })).toHaveClass(/btn-ghost/);
+    const editorLink = page.getByRole("link", { name: "Editor öffnen", exact: true });
+    await expect(editorLink).toHaveAttribute(
+      "href",
+      "/state.html"
+    );
+    await expect(editorLink).toHaveClass(/btn-primary/);
+    await expect(page.locator('a[href*="studio.html"]')).toHaveCount(0);
 
     await page.locator(".navbar").getByRole("button", { name: "Pilot", exact: true }).click();
     await expect(page.locator("#statePill")).toHaveText("site_pricing");
@@ -73,7 +79,7 @@ test.describe("WebKit product smoke", () => {
     await expect(page.getByText("Diese Demo versendet keine Daten", { exact: false })).toBeVisible();
   });
 
-  test("internal studio boots and renders the persisted workspace", async ({ page }) => {
+  test("public local editor boots and renders the persisted workspace", async ({ page }) => {
     const model = productModel({ name: "Studio Boot Smoke" });
     await page.addInitScript(({ key, value }) => {
       localStorage.setItem(key, JSON.stringify({ model: value }));
@@ -83,11 +89,20 @@ test.describe("WebKit product smoke", () => {
 
     await expect(page.locator("#btnNew")).toBeVisible();
     await expect(page.locator("#btnSave")).toBeVisible();
+    await expect(page.locator("#publicEditorNotice")).toContainText("Modelle bleiben in diesem Browser");
+    await expect(page.locator("#publicEditorNotice")).toContainText("keine Cloud-Sicherung");
     await expect(page.locator('[data-id="start"]')).toBeVisible();
     const runtime = page.frameLocator("#appFrame");
     await expect(runtime.locator("#statePill")).toHaveText("start");
     await expect(runtime.getByRole("heading", { name: "Pilot startklar" })).toBeVisible();
     await expect(runtime.getByText("Der Pilot-Prozess ist bereit.", { exact: true })).toBeVisible();
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.locator("#publicEditorNotice")).toBeVisible();
+    const noticeBox = await page.locator("#publicEditorNotice").boundingBox();
+    expect(noticeBox).not.toBeNull();
+    expect(noticeBox.x).toBeGreaterThanOrEqual(0);
+    expect(noticeBox.x + noticeBox.width).toBeLessThanOrEqual(390);
   });
 
   test("managed studio loads and saves an immutable project version", async ({ page }) => {
@@ -142,6 +157,7 @@ test.describe("WebKit product smoke", () => {
     });
 
     await page.goto(`/state.html?project=${projectId}&api=/api/v1`);
+    await expect(page.locator("#publicEditorNotice")).toBeHidden();
     await expect(page.locator('[data-id="start"]')).toBeVisible();
     await expect(page.frameLocator("#appFrame").locator("#statePill")).toHaveText("start");
     await expect(page.locator("#managedProjectStatus")).toContainText("WebKit Verwaltungsprozess · v1 · gespeichert");
