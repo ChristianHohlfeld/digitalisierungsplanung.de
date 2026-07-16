@@ -29,6 +29,7 @@ test.describe("Root demo export", () => {
     expect(html).toContain('"name":"Digitalisierungsplanung"');
     expect(html).toContain('"initial":"site_home"');
     expect(html).toContain('"site_checkout"');
+    expect(html).toContain('"actionLabel":"Editor öffnen","url":"/state.html"');
     expect(html).not.toContain("state.html?demo=zustand");
     expect(html).toContain("/manifest.webmanifest");
     expect(html).toContain("/assets/share-card.png");
@@ -71,8 +72,14 @@ test.describe("Root demo export", () => {
     await expect(page.getByRole("button", { name: "Neu" })).toHaveCount(0);
     await expect(page.locator("#flowDebug")).toHaveCount(0);
     await expect(page.locator("#statePill")).toHaveText("site_home");
-    await expect(page.getByRole("heading", { name: "Aus Erfahrungswissen wird Software.", exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Pilot ansehen" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Geschäftsprozesse direkt im Editor modellieren.", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Pilot ansehen" })).toHaveClass(/btn-ghost/);
+    const editorLink = page.getByRole("link", { name: "Editor öffnen", exact: true });
+    await expect(editorLink).toHaveAttribute(
+      "href",
+      "/state.html"
+    );
+    await expect(editorLink).toHaveClass(/btn-primary/);
     await expect(page.locator(".hero .card-actions.justify-center")).toHaveCSS("justify-content", "center");
     await expect(page.locator(".navbar").getByRole("button", { name: "Pilot", exact: true })).toBeVisible();
 

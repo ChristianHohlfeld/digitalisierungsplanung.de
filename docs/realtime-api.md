@@ -648,8 +648,12 @@ Einige Fehler schließen die Verbindung mit Policy-Code `1008` oder internem Cod
 
 ## Integration in Studio und Standalone-Runtime
 
-Der Editor wird nicht als öffentliche Pages-Datei ausgeliefert. Ein Owner oder
-Bearbeiter öffnet den serverseitigen Studio-Einstieg aus der Pilot-Konsole:
+Der lokale Editor wird als öffentliche Pages-Datei ausgeliefert und persistiert
+sein Prozessmodell ohne Managed-Projekt ausschließlich im Browser. Eine
+konfigurierte Preview darf HTTPS-Datenquellen oder Realtime-Verbindungen nutzen,
+überträgt dabei aber weder Managed-Token noch ein Managed-Projekt. Ein Owner oder
+Bearbeiter öffnet für ein verwaltetes Kundenprojekt dagegen den serverseitigen,
+autorisierten Studio-Einstieg aus der Pilot-Konsole:
 
 ```text
 https://realtime.digitalisierungsplanung.de/studio.html?project=<project-id>
@@ -658,8 +662,8 @@ https://realtime.digitalisierungsplanung.de/studio.html?project=<project-id>
 Ohne gültige Pilot-Sitzung und Projektberechtigung muss die Route zur
 Pilot-Konsole zurückführen. Session- oder Realtime-Tokens gehören niemals in
 die URL. Eine veröffentlichte Standalone-Prozess-App erhält einen Raum nur aus
-der kontrollierten Deployment-Konfiguration, nicht aus einem öffentlichen
-Editor-Link.
+der kontrollierten Deployment-Konfiguration. Der öffentliche Editor-Link
+überträgt weder Sitzung noch Projekt- oder Realtime-Token.
 
 Ablauf:
 

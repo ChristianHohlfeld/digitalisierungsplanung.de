@@ -33,6 +33,7 @@ test("public demo exposes only the qualified Managed Pilot offer", () => {
   const qualification = model.states.find(state => state.id === "site_checkout");
   const approach = model.states.find(state => state.id === "site_login");
   const acceptance = model.states.find(state => state.id === "site_profile");
+  const home = model.states.find(state => state.id === "site_home");
   const publicModel = JSON.stringify(model);
 
   assert.deepEqual(pricing.data.plans.plans.map(plan => plan.title), ["Managed Pilot"]);
@@ -41,6 +42,10 @@ test("public demo exposes only the qualified Managed Pilot offer", () => {
   assert.equal(qualification.data.qualification.prepared, false);
   assert.equal(approach.title, "Vorgehen");
   assert.equal(acceptance.title, "Abnahme");
+  assert.equal(home.data.hero.actionLabel, "Editor öffnen");
+  assert.equal(home.data.hero.url, "/state.html");
+  assert.equal(home.data.hero.secondaryActionLabel, "Pilot ansehen");
+  assert.equal(home.data.hero.secondaryTransitionId, "site_home_nav_pricing");
   assert.ok(!("order" in qualification.data));
   assert.ok(!("email" in approach.data.hero));
   assert.ok(!("password" in approach.data.hero));
@@ -107,12 +112,21 @@ test("static production artifact is an explicit allowlist", () => {
       "index.html",
       "manifest.webmanifest",
       "release-version.js",
+      "state.html",
       "sw.js"
     ]);
     assert.ok(!fs.existsSync(path.join(target, "server")));
     assert.ok(!fs.existsSync(path.join(target, "mcp")));
     assert.ok(!fs.existsSync(path.join(target, ".git")));
-    assert.ok(!fs.existsSync(path.join(target, "state.html")));
+    assert.ok(fs.existsSync(path.join(target, "state.html")));
+    assert.equal(fs.readFileSync(path.join(target, "state.html"), "utf8"), read("state.html"));
+    const editorHtml = read("state.html");
+    assert.match(editorHtml, /connect-src 'self' blob: https: wss:/);
+    assert.doesNotMatch(editorHtml, /script-src[^;]*'unsafe-eval'/);
+    const manifest = JSON.parse(fs.readFileSync(path.join(target, "manifest.webmanifest"), "utf8"));
+    const editorShortcut = manifest.shortcuts?.find(shortcut => shortcut.url === "/state.html");
+    assert.ok(editorShortcut, "the installed app must expose the public editor shortcut");
+    assert.ok(fs.existsSync(path.join(target, editorShortcut.url.slice(1))), "the editor shortcut target must ship");
   } finally {
     fs.rmSync(target, { recursive: true, force: true });
   }
@@ -125,11 +139,33 @@ test("static production artifact is an explicit allowlist", () => {
   assert.match(unsafe.stderr, /Refusing unsafe static-site output directory/);
 
   const publicRuntime = read("index.html");
-  assert.equal(
-    /state\.html(?:[?#"'])/.test(publicRuntime),
-    false,
-    "the public runtime must not link to the internal editor or demo route"
-  );
+  assert.match(publicRuntime, /"actionLabel":"Editor öffnen","url":"\/state\.html"/);
+  assert.doesNotMatch(publicRuntime, /"(?:url|secondaryUrl)":"[^"]*(?:studio|pilot-admin)\.html/);
+  assert.doesNotMatch(publicRuntime, /state\.html[?#]/, "the public editor entry must not carry project data or tokens");
+});
+
+test("legacy branch Pages excludes repository internals as defense in depth", () => {
+  const pagesConfig = read("_config.yml");
+  for (const entry of [
+    ".gitea",
+    ".github",
+    "CHANGELOG.md",
+    "README.md",
+    "SECURITY.md",
+    "docs",
+    "mcp",
+    "package-lock.json",
+    "package.json",
+    "playwright.config.js",
+    "scripts",
+    "server",
+    "shared",
+    "statereadme.md",
+    "tests"
+  ]) {
+    assert.match(pagesConfig, new RegExp(`^\\s*- ${entry.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}$`, "m"));
+  }
+  assert.doesNotMatch(pagesConfig, /^\s*- (?:assets|CNAME|disable-sw\.js|index\.html|manifest\.webmanifest|release-version\.js|state\.html|sw\.js)$/m);
 });
 
 test("the managed-pilot operating documents are present and explicitly non-certifying", () => {

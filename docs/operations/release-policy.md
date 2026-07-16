@@ -2,7 +2,7 @@
 
 Status: verbindlich für `main` und Produktion
 
-Stand: 2026-07-15
+Stand: 2026-07-16
 
 ## Grundsatz
 
@@ -28,11 +28,17 @@ grün sind, darf der Releasejob schreiben.
 
 Die statische Website wird aus einer expliziten Allowlist nach `dist/` gebaut
 und als GitHub-Pages-Artefakt veröffentlicht. `server/`, `mcp/`, Tests,
-Repositorymetadaten, Betriebsdokumente und insbesondere `state.html` gelangen
-dadurch nicht ins Webroot. Die öffentliche Seite enthält nur die exportierte
-Runtime und Produkt-CTA. Die Repository-Einstellung **Pages source** muss auf
-„GitHub Actions“ stehen; direkte Branch-Veröffentlichung aus `main` ist
-unzulässig.
+Repositorymetadaten und Betriebsdokumente gelangen dadurch nicht ins Webroot.
+Das Artefakt enthält die exportierte Root-Runtime und `state.html` als lokalen
+öffentlichen Editor; verwaltete Projekte und Adminfunktionen bleiben auf der
+authentifizierten Servergrenze. Die Repository-Einstellung **Pages source**
+muss auf „GitHub Actions“ stehen; direkte Branch-Veröffentlichung aus `main`
+ist unzulässig.
+
+Bis dieser Settings-Nachweis erbracht ist, schließt `_config.yml` bekannte
+Repository-Interna auch aus dem historischen branchbasierten Pages-Build aus.
+Diese zusätzliche Absicherung ersetzt weder die Actions-Umstellung noch das
+geprüfte `dist/`-Artefakt.
 
 ## Versionsregel
 

@@ -3550,7 +3550,9 @@ test.describe("Core browser contracts", () => {
       });
       foreign.postHostMessage({ type: "STATE_BLUEPRINT_SHORTCUT", action: "new" });
       foreign.postHostMessage({ type: "STATE_BLUEPRINT_OPEN_URL", url: "https://example.test/attack" });
-      foreign.eval(`
+      const script = foreign.document.createElement("script");
+      script.textContent = `(() => {
+        window.__foreignAttackScriptRan = true;
         const target = parent.document.querySelector("#appFrame").contentWindow;
         const send = payload => target.postMessage({ ...payload, sessionId: RUNTIME_SESSION_ID }, location.origin);
         send({ type: "STATE_BLUEPRINT_RUNTIME_CONTROL", paused: true });
@@ -3571,9 +3573,11 @@ test.describe("Core browser contracts", () => {
           detail: { caller: "foreign" },
           event: { name: "realtime.sip.call.incoming", bindings: [] }
         });
-      `);
+      })();`;
+      foreign.document.body.appendChild(script);
     });
 
+    expect(await page.evaluate(() => document.querySelector("#foreignRuntimeFrame").contentWindow.__foreignAttackScriptRan)).toBe(true);
     await page.waitForTimeout(100);
     expect((await savedModel(page)).name).toBe("Owned runtime");
     expect(await page.evaluate(() => ({ activeState: hostRuntimeStateView(), opens: window.__hostileOpenCalls })))

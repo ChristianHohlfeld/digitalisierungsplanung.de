@@ -2,9 +2,10 @@
 
 Digitalisierungsplanung liefert in V1 einen abgegrenzten Unternehmensprozess
 als bedienbare, testbare Web-Anwendung. Verkauft wird das messbare Ergebnis eines
-betreuten Piloten – nicht der universelle Editor als Self-Service-Produkt.
+betreuten Piloten. Der Editor selbst bleibt als öffentliche, lokale Sandbox
+direkt nutzbar; Echtdaten und verwaltete Kundenprojekte bleiben geschützt.
 
-Das interne Studio „Zustand“ macht Geschäftsprozesse sichtbar, prüfbar und
+Der Editor „Zustand“ macht Geschäftsprozesse sichtbar, prüfbar und
 ausführbar. Zustände, Übergänge, Auslöser, Bedingungen, Daten und Darstellung
 liegen in einem gemeinsamen JSON-Modell. Der wichtigste Gedanke bleibt: Nur
 verstandene Prozesse lassen sich sauber digitalisieren.
@@ -18,8 +19,10 @@ verstandene Prozesse lassen sich sauber digitalisieren.
   typischerweise **6–12 Wochen**; der verbindliche Festpreis folgt aus der
   Qualifizierung des Umfangs.
 - Pilotnutzer arbeiten in der veröffentlichten Prozess-App.
-- Das Studio, Composite-/Boundary-Interna, Realtime-Designer, Preset-Admin und
-  MCP/API-Werkzeuge bleiben Operator- und Entwicklungswerkzeuge.
+- Der öffentliche Editor arbeitet lokal im Browser und ist ausdrücklich Teil
+  der Produktoberfläche; verwaltete Projekte erfordern Anmeldung und Rolle.
+- Realtime-Designer, Preset-Admin und MCP/API-Werkzeuge bleiben Operator- und
+  Entwicklungswerkzeuge.
 - Echtdaten werden erst nach geschlossenem Sicherheits-, Datenschutz-, Backup-
   und Betriebsgate verarbeitet.
 - Erfolg wird gegen eine vorher erhobene Baseline gemessen; Demo und
@@ -31,14 +34,16 @@ Durchführung und Abnahme: [`docs/operations/pilot-runbook.md`](docs/operations/
 
 Produktionsgate: [`docs/operations/production-readiness.md`](docs/operations/production-readiness.md).
 
-## Einstieg für Entwicklung und Betrieb
+## Einstieg
 
-Die technischen Studio-/Adminadressen sind nicht Teil des normalen
-Kunden-Onboardings.
+Der öffentliche Editor braucht kein Konto und speichert lokale Modelle nur im
+Browser. Die technischen Managed-/Adminadressen gehören weiterhin nicht zum
+normalen öffentlichen Einstieg.
 
 | Ziel | Adresse |
 | --- | --- |
 | Öffentliche Startseite | `https://digitalisierungsplanung.de/` |
+| Öffentlicher Editor | `https://digitalisierungsplanung.de/state.html` |
 | Operator-Studio (Anmeldung erforderlich) | `https://realtime.digitalisierungsplanung.de/studio.html` |
 | Pilot-Onboarding/Login | `https://realtime.digitalisierungsplanung.de/pilot-admin.html` |
 | Realtime Admin Hub | `https://realtime.digitalisierungsplanung.de/` |
@@ -77,7 +82,7 @@ Der ausführliche Architektur- und Auditkontext steht in
 ## Hauptdateien
 
 - [`index.html`](index.html): deterministisch erzeugte öffentliche Startseite; nicht von Hand ändern
-- [`state.html`](state.html): internes Studio und kanonische Export-Runtime; kein öffentliches Pages-Artefakt
+- [`state.html`](state.html): öffentlicher lokaler Editor, Managed-Studio-Kern und kanonische Export-Runtime
 - [`docs/product/managed-pilot-v1.md`](docs/product/managed-pilot-v1.md): verkaufbarer V1-Umfang
 - [`docs/operations/`](docs/operations): Release, Umgebungen, Pilot, Security, Backup, Support und Incidents
 - [`docs/state-contract.md`](docs/state-contract.md): normativer Kernvertrag
@@ -103,8 +108,8 @@ Der ausführliche Architektur- und Auditkontext steht in
 - PWA-Dateien und statische HTML-Ausgabe
 
 Die öffentliche Startseite ist ein exportierter Ablauf. Ihr kanonisches
-Beispielmodell bleibt ausschließlich interne Buildquelle; die veröffentlichte
-Runtime verlinkt weder Studio noch Demo-Editor.
+Beispielmodell bleibt interne Buildquelle; die veröffentlichte Runtime verlinkt
+den lokalen Editor ausdrücklich, aber keine Admin- oder Managed-Studio-Route.
 
 Startseite neu erzeugen:
 
@@ -262,11 +267,12 @@ Der Browser-Ursprung ist produktiv auf `https://digitalisierungsplanung.de` begr
 
 Der Echtzeit-Server läuft auf dem Droplet lokal unter `127.0.0.1:8788`. Nginx veröffentlicht ihn unter `realtime.digitalisierungsplanung.de`.
 GitHub Pages veröffentlicht auf `digitalisierungsplanung.de` ausschließlich die
-allowlist-basierte Root-Runtime mit ihren Assets und `release-version.js`.
-`state.html` ist kein Pages-Artefakt. Der Droplet stellt den internen
-Studio-Einstieg ausschließlich als `/studio.html` bereit; ohne gültige
-Pilot-Sitzung und editierbaren Projektkontext muss dieser zur Pilot-Konsole
-zurückführen und darf keine Kundendaten laden.
+allowlist-basierte Root-Runtime, den lokalen Editor `state.html`, Assets und
+`release-version.js`. Servercode, Tests, Adminoberflächen und Betriebsdateien
+gehören nicht in dieses Artefakt. Der Droplet stellt verwaltete Kundenprojekte
+ausschließlich über `/studio.html` bereit; ohne gültige Pilot-Sitzung und
+editierbaren Projektkontext muss dieser zur Pilot-Konsole zurückführen und darf
+keine Kundendaten laden.
 
 Wichtige Dateien:
 
