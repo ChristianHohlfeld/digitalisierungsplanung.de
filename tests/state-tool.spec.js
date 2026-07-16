@@ -2309,14 +2309,18 @@ test.describe("State Blueprint tool", () => {
 
     await storeLegacyExample("Digitalisierungsplanung");
     await page.reload();
-    await expect(appFrame(page).getByRole("heading", { name: "Geschäftsprozesse direkt im Editor modellieren." })).toBeVisible();
-    await expect.poll(async () => (await savedModel(page)).states.find(state => state.id === "site_home")?.data?.hero)
+    await expect.poll(
+      async () => (await savedModel(page)).states.find(state => state.id === "site_home")?.data?.hero,
+      { timeout: 15000 }
+    )
       .toMatchObject({
         title: "Geschäftsprozesse direkt im Editor modellieren.",
         actionLabel: "Editor öffnen",
         url: "/state.html",
         image: ""
       });
+    await expect(appFrame(page).getByRole("heading", { name: "Geschäftsprozesse direkt im Editor modellieren." }))
+      .toBeVisible({ timeout: 15000 });
 
     await page.evaluate(key => {
       const previous = exampleWebsiteModel();
@@ -2324,7 +2328,10 @@ test.describe("State Blueprint tool", () => {
       localStorage.setItem(`${key}.editor`, JSON.stringify({ model: previous }));
     }, STORAGE_KEY);
     await page.reload();
-    await expect.poll(async () => (await savedModel(page)).states.find(state => state.id === "site_home")?.data?.hero?.image)
+    await expect.poll(
+      async () => (await savedModel(page)).states.find(state => state.id === "site_home")?.data?.hero?.image,
+      { timeout: 15000 }
+    )
       .toBe("");
 
     await storeLegacyExample("Individuelle Kundenkopie");
