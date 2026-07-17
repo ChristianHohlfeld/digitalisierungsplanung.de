@@ -2,7 +2,12 @@
   "schemaVersion": 1,
   "daisyVersion": "5.6.18",
   "categories": [
-    { "id": "websuite-builder", "label": "Websuite Builder", "description": "Alle bestehenden Bausteine für Seiten, Formulare, Datenansichten und Prozess-Apps.", "sort": 10 }
+    {
+      "id": "websuite-builder",
+      "label": "Websuite Builder",
+      "description": "Alle bestehenden Bausteine für Seiten, Formulare, Datenansichten und Prozess-Apps.",
+      "sort": 10
+    }
   ],
   "packages": [
     {
@@ -78,5 +83,23 @@
       "sort": 80
     }
   ],
-  "presets": []
+  "presets": [
+    {
+      "id": "custom_daisyui_aura_pricing",
+      "variant": "card",
+      "title": "Aura Pricing Card",
+      "description": "Aura rainbow around a pricing card",
+      "categoryId": "websuite-builder",
+      "packageIds": [
+        "website.builder"
+      ],
+      "data": {
+        "title": "Premium",
+        "body": "",
+        "image": "",
+        "imageAlt": "",
+        "actionLabel": "Subscribe"
+      }
+    }
+  ]
 }
