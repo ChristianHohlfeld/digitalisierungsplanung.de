@@ -14,7 +14,7 @@ const LOCAL_KEY_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const REQUIRED_PACKAGE_IDS = new Set(["core.process", "website.builder", "approval.compliance", "service.operations", "bi.analytics", "sales.crm", "knowledge.portal", "integration.automation"]);
 const SUPPORTED_VARIANTS = new Set([
   "accordion", "alert", "avatar", "badge", "bottom-navigation", "breadcrumbs",
-  "button", "card", "carousel", "checkbox", "countdown", "drawer", "dropdown",
+  "button", "calendar", "card", "carousel", "checkbox", "countdown", "drawer", "dropdown",
   "feature-grid", "file-input", "footer", "hero", "indicator", "input", "loading",
   "mask", "menu", "modal", "navbar", "pricing", "progress", "radial-progress",
   "radio", "range", "rating", "select", "stat", "steps", "table", "tabs",
@@ -271,6 +271,7 @@ function toneFromClasses(node, prefix, fallback = "primary") {
 function variantForNode(node) {
   const classes = classSet(node);
   const has = name => classes.has(name);
+  if (node.tagName === "calendar-date" || has("cally")) return "calendar";
   if (has("toast")) return "toast";
   if (has("footer")) return "footer";
   if (has("navbar")) return "navbar";
@@ -372,6 +373,12 @@ function extractData(variant, root) {
   if (variant === "bottom-navigation") { const items = linkItems(root); return { selected: items[0] || "Start", items }; }
   if (variant === "breadcrumbs") return { items: findAll(root, node => node.tagName === "li").map(node => ({ label: textContent(node), transitionId: "" })).filter(item => item.label) };
   if (variant === "button") return { label: textContent(root) || "Weiter", clicked: false, clickedAt: 0 };
+  if (variant === "calendar") return {
+    label: attr(root, "aria-label") || heading || "Datum",
+    value: cleanText(attr(root, "value") || attr(root, "default-value") || "", "", 40),
+    min: cleanText(attr(root, "min") || "", "", 40),
+    max: cleanText(attr(root, "max") || "", "", 40)
+  };
   if (variant === "carousel") return { index: 0, images: findAll(root, node => node.tagName === "img").map(node => safeImageUrl(attr(node, "src"))).filter(Boolean) };
   if (variant === "checkbox" || variant === "toggle") { const controls = findAll(root, node => hasClass(node, variant)); return { legend: heading || "Einstellungen", label: labelForControl(root), checked: controls.some(node => hasAttr(node, "checked")), items: controls.map(node => ({ label: textContent(node.parentNode) || labelForControl(node), checked: hasAttr(node, "checked") })) }; }
   if (variant === "countdown") return { duration: Number(attr(root, "style").match(/--value:\s*(\d+)/)?.[1] || 20), value: Number(attr(root, "style").match(/--value:\s*(\d+)/)?.[1] || 20), label: paragraph || "Sekunden übrig", running: true, finished: false, startedAt: 0, endsAt: 0 };

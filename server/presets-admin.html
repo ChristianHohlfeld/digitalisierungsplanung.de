@@ -32,6 +32,7 @@
     .toolbar { padding: 13px 15px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); margin-bottom: 14px; }
     .toolbar label { min-width: 260px; flex: 1 1 300px; }
     .status { width: 100%; color: var(--muted); font-size: 13px; white-space: pre-wrap; }
+    .hint { color: var(--muted); font-size: 12px; line-height: 1.45; }
     .ok { color: var(--ok); }
     .bad { color: var(--bad); }
     [hidden] { display: none !important; }
@@ -54,18 +55,21 @@
     <div class="workspace">
       <div class="stack">
         <section class="panel">
-          <h2>Preset-Quelle</h2>
-          <label>Quelle<select id="sourceMode"><option value="snippet">DaisyUI-Snippet</option><option value="api">Webhook/API-URL</option></select></label>
+          <h2>Preset erstellen oder bearbeiten</h2>
+          <label>Importquelle<select id="sourceMode"><option value="snippet">HTML-Snippet einlesen</option><option value="api">Preset-JSON von URL laden</option></select></label>
           <div id="snippetSource">
-            <textarea id="snippet" spellcheck="false" placeholder="DaisyUI-Beispiel hier einfügen"></textarea>
+            <textarea id="snippet" spellcheck="false" placeholder="DaisyUI-HTML hier einfuegen, z. B. &lt;calendar-date class=&quot;cally&quot;&gt;&lt;/calendar-date&gt;"></textarea>
           </div>
           <div id="apiSource" hidden>
-            <label>Webhook/API-URL<input id="apiUrl" type="url" inputmode="url" autocomplete="url" placeholder="https://api.example.com/preset"></label>
+            <label>Preset-JSON-URL<input id="apiUrl" type="url" inputmode="url" autocomplete="url" placeholder="https://api.example.com/preset.json"></label>
+            <div class="hint">Laedt einmalig eine fertige Preset-Definition. Das ist kein Webhook und keine laufende API-Verbindung; die URL wird nicht gespeichert.</div>
           </div>
+
           <div class="grid">
             <label>Preset-ID<input id="presetId" placeholder="custom_mein_preset"></label>
-            <label>Titel<input id="title" placeholder="Mein Preset"></label>
+            <label>Typ<select id="variant"></select></label>
           </div>
+          <label>Titel<input id="title" placeholder="Mein Preset"></label>
           <label>Beschreibung<input id="description" placeholder="Kurze Beschreibung"></label>
           <div class="grid">
             <label>Kategorie<select id="category"></select></label>
@@ -80,33 +84,38 @@
             <label>Paket-Name<input id="packageLabel" placeholder="Portal Pro"></label>
           </div>
           <div class="actions">
-            <button id="parse" type="button">Definition erzeugen</button>
-            <button id="clear" class="secondary" type="button">Neu</button>
+            <button id="parse" type="button">Snippet einlesen</button>
+            <button id="clear" class="secondary" type="button">Leeres neues Preset</button>
           </div>
         </section>
 
         <section class="panel">
-          <h2>Verwaltung</h2>
-          <label>Gespeicherte Presets<select id="existingPreset"></select></label>
+          <h2>Vorhandene Presets</h2>
+          <label>Preset auswaehlen<select id="existingPreset"></select></label>
+          <div class="actions">
+            <button id="loadPreset" type="button">Laden</button>
+            <button id="duplicatePreset" class="secondary" type="button">Duplizieren</button>
+            <button id="deletePreset" class="danger" type="button">Preset loeschen</button>
+          </div>
           <div class="grid">
             <label>Kategorien<select id="managedCategory"></select></label>
             <label>Pakete<select id="managedPackage"></select></label>
           </div>
           <div class="actions">
-            <button id="deletePreset" class="danger" type="button">Preset löschen</button>
-            <button id="deleteCategory" class="danger" type="button">Kategorie löschen</button>
-            <button id="deletePackage" class="danger" type="button">Paket löschen</button>
+            <button id="deleteCategory" class="danger" type="button">Kategorie loeschen</button>
+            <button id="deletePackage" class="danger" type="button">Paket loeschen</button>
           </div>
         </section>
       </div>
 
       <section class="panel">
         <h2>Contract-Definition</h2>
-        <textarea id="definition" readonly spellcheck="false"></textarea>
+        <textarea id="definition" spellcheck="false"></textarea>
+        <div class="hint">Dies ist die kanonische Preset-Definition. Bearbeiten ist erlaubt; Speichern geht immer durch die Server-Validation.</div>
         <label>Commit-Nachricht<input id="message" value="Update preset library"></label>
         <div class="actions">
           <button id="save" type="button">In Contract speichern</button>
-          <button id="validate" class="secondary" type="button">Nur prüfen</button>
+          <button id="validate" class="secondary" type="button">Nur pruefen</button>
         </div>
       </section>
     </div>
@@ -119,18 +128,31 @@
     const el = id => document.getElementById(id);
     let library = null;
     let draft = null;
+    let supportedVariants = [];
 
+    function isPlainObject(value) { return Boolean(value) && typeof value === "object" && !Array.isArray(value); }
     function clone(value) { return JSON.parse(JSON.stringify(value)); }
     function authHeaders() { return { authorization: "Bearer " + el("secret").value.trim(), "content-type": "application/json" }; }
     function setStatus(message, type = "") { el("status").className = "status " + type; el("status").textContent = message; }
-    function setDefinition(value) { draft = value ? clone(value) : null; el("definition").value = draft ? JSON.stringify(draft, null, 2) : ""; }
     function nextSort(items) { return Math.max(0, ...items.map(item => Number(item.sort) || 0)) + 10; }
+
+    function friendlyError(message) {
+      const text = String(message || "Fehler");
+      if (text === "supported_daisy_component_required") {
+        return "Kein unterstuetzter DaisyUI-Root erkannt. Fuer Kalender: <calendar-date class=\"cally\"></calendar-date> verwenden.";
+      }
+      if (text === "unsupported_daisy_variant") return "Dieser Preset-Typ ist nicht im Server-Contract erlaubt.";
+      if (text === "invalid_custom_preset_id") return "Preset-ID muss custom_... sein und nur kleine Buchstaben, Zahlen oder Unterstriche enthalten.";
+      return text;
+    }
+
+    function showError(error) { setStatus(friendlyError(error?.message || error), "bad"); }
 
     function syncSourceMode() {
       const api = el("sourceMode").value === "api";
       el("snippetSource").hidden = api;
       el("apiSource").hidden = !api;
-      el("parse").textContent = api ? "API abrufen" : "Definition erzeugen";
+      el("parse").textContent = api ? "URL einlesen" : "Snippet einlesen";
     }
 
     try { el("secret").value = localStorage.getItem(ADMIN_SECRET_STORAGE_KEY) || ""; } catch (_) {}
@@ -151,22 +173,56 @@
       select.value = [...select.options].some(option => option.value === selected) ? selected : select.options[0]?.value || "";
     }
 
+    function variantLabel(id) {
+      return String(id || "").replace(/-/g, " ").replace(/\b\w/g, char => char.toUpperCase());
+    }
+
+    function variantOptions() {
+      return supportedVariants.map(id => ({ id, label: variantLabel(id) }));
+    }
+
+    function syncFormFields() {
+      if (!draft) return;
+      el("presetId").value = draft.id || "";
+      el("title").value = draft.title || "";
+      el("description").value = draft.description || "";
+      if ([...el("variant").options].some(option => option.value === draft.variant)) el("variant").value = draft.variant;
+      if ([...el("category").options].some(option => option.value === draft.categoryId)) el("category").value = draft.categoryId;
+      if ([...el("package").options].some(option => option.value === draft.packageIds?.[0])) el("package").value = draft.packageIds[0];
+    }
+
+    function setDefinition(value) {
+      draft = value ? clone(value) : null;
+      el("definition").value = draft ? JSON.stringify(draft, null, 2) : "";
+      if (!draft) {
+        el("presetId").value = "";
+        el("title").value = "";
+        el("description").value = "";
+      }
+      syncFormFields();
+    }
+
     function renderCatalog() {
       if (!library) return;
-      fillSelect(el("category"), library.categories, { selected: draft?.categoryId || "websuite-builder", newLabel: "+ Neue Kategorie" });
-      fillSelect(el("package"), library.packages, { selected: draft?.packageIds?.[0] || "website.builder", newLabel: "+ Neues Paket" });
+      fillSelect(el("variant"), variantOptions(), { selected: draft?.variant || el("variant").value || "card" });
+      fillSelect(el("category"), library.categories, { selected: draft?.categoryId || el("category").value || "websuite-builder", newLabel: "+ Neue Kategorie" });
+      fillSelect(el("package"), library.packages, { selected: draft?.packageIds?.[0] || el("package").value || "website.builder", newLabel: "+ Neues Paket" });
       fillSelect(el("managedCategory"), library.categories);
       fillSelect(el("managedPackage"), library.packages);
-      fillSelect(el("existingPreset"), library.presets, { emptyLabel: "Neues Preset" });
+      fillSelect(el("existingPreset"), library.presets, { emptyLabel: "Preset auswaehlen" });
       el("newCategory").hidden = el("category").value !== "__new__";
       el("newPackage").hidden = el("package").value !== "__new__";
+      syncFormFields();
       syncDeleteButtons();
     }
 
     function syncDeleteButtons() {
+      if (!library) return;
       const presetId = el("existingPreset").value;
       const categoryId = el("managedCategory").value;
       const packageId = el("managedPackage").value;
+      el("loadPreset").disabled = !presetId;
+      el("duplicatePreset").disabled = !presetId;
       el("deletePreset").disabled = !presetId;
       el("deleteCategory").disabled = !categoryId || PROTECTED_CATEGORY_IDS.has(categoryId) || library.presets.some(preset => preset.categoryId === categoryId);
       el("deletePackage").disabled = !packageId || PROTECTED_PACKAGE_IDS.has(packageId) || library.presets.some(preset => preset.packageIds.includes(packageId));
@@ -183,8 +239,9 @@
       setStatus("Lade Preset-Library...");
       const payload = await requestJson("/presets-admin/catalog", { headers: authHeaders() });
       library = payload.library;
+      supportedVariants = Array.isArray(payload.supportedVariants) ? payload.supportedVariants : [];
       renderCatalog();
-      setStatus(`${library.presets.length} eigene Presets, ${library.categories.length} Kategorie(n), ${library.packages.length} Paket(e).`, "ok");
+      setStatus(`${library.presets.length} eigene Presets, ${supportedVariants.length} erlaubte Typen.`, "ok");
     }
 
     function ensureCategory() {
@@ -207,8 +264,56 @@
       return id;
     }
 
+    function normalizeCustomId(value, fallback = "custom_preset") {
+      const slug = String(value || fallback).toLowerCase()
+        .normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
+      const prefixed = slug.startsWith("custom_") ? slug : "custom_" + slug;
+      return /^custom_[a-z0-9_]{1,56}$/.test(prefixed) ? prefixed.slice(0, 63) : fallback;
+    }
+
+    function uniqueCustomId(value) {
+      const base = normalizeCustomId(value);
+      const taken = new Set(library.presets.map(item => item.id));
+      if (!taken.has(base)) return base;
+      const stem = base.slice(0, 55);
+      let index = 2;
+      while (taken.has(`${stem}_${index}`)) index += 1;
+      return `${stem}_${index}`;
+    }
+
+    function defaultDataForVariant(variant) {
+      if (variant === "button") return { label: "Weiter", clicked: false, clickedAt: 0 };
+      if (variant === "calendar") return { label: "Datum", value: "", min: "", max: "" };
+      if (variant === "checkbox" || variant === "toggle") return { legend: "Auswahl", label: "Option", checked: false, items: [] };
+      if (variant === "input" || variant === "textarea") return { label: "Feld", value: "" };
+      if (variant === "select") return { label: "Auswahl", value: "Option A", options: ["Option A", "Option B"] };
+      return { title: "Neues Preset", body: "", image: "", imageAlt: "", actionLabel: "" };
+    }
+
+    function createBlankPreset() {
+      if (!library) throw new Error("Preset-Library ist nicht geladen.");
+      const variant = el("variant").value || supportedVariants[0] || "card";
+      const title = "Neues Preset";
+      const preset = {
+        id: uniqueCustomId(el("presetId").value || title),
+        variant,
+        title,
+        description: "",
+        categoryId: el("category").value && el("category").value !== "__new__" ? el("category").value : "websuite-builder",
+        packageIds: [el("package").value && el("package").value !== "__new__" ? el("package").value : "website.builder"],
+        data: defaultDataForVariant(variant)
+      };
+      setDefinition(preset);
+      el("snippet").value = "";
+      el("apiUrl").value = "";
+      renderCatalog();
+      setStatus("Leeres Preset angelegt. Definition bearbeiten und speichern.", "ok");
+    }
+
     async function parseSnippet() {
       if (!library) throw new Error("Preset-Library ist nicht geladen.");
+      if (!el("snippet").value.trim()) throw new Error("Snippet fehlt.");
       const categoryId = ensureCategory();
       const packageId = ensurePackage();
       const payload = await requestJson("/presets-admin/parse", {
@@ -224,33 +329,22 @@
         })
       });
       setDefinition(payload.preset);
-      el("presetId").value = draft.id;
-      el("title").value = draft.title;
-      el("description").value = draft.description;
       renderCatalog();
-      el("category").value = categoryId;
-      el("package").value = packageId;
-      setStatus(`Definition für ${draft.variant} erzeugt.`, "ok");
+      setStatus(`Definition fuer ${draft.variant} aus Snippet gelesen.`, "ok");
       return draft;
     }
 
     async function importApiPreset() {
       if (!library) throw new Error("Preset-Library ist nicht geladen.");
-      if (el("category").value === "__new__") ensureCategory();
-      if (el("package").value === "__new__") ensurePackage();
+      if (!el("apiUrl").value.trim()) throw new Error("Preset-JSON-URL fehlt.");
       const payload = await requestJson("/presets-admin/import", {
         method: "POST",
         headers: authHeaders(),
         body: JSON.stringify({ url: el("apiUrl").value.trim(), library })
       });
       setDefinition(payload.preset);
-      el("presetId").value = draft.id;
-      el("title").value = draft.title;
-      el("description").value = draft.description;
       renderCatalog();
-      el("category").value = draft.categoryId;
-      el("package").value = draft.packageIds[0] || "";
-      setStatus(`API-Definition für ${draft.variant} erzeugt.`, "ok");
+      setStatus(`Definition fuer ${draft.variant} von URL geladen.`, "ok");
       return draft;
     }
 
@@ -258,18 +352,39 @@
       return el("sourceMode").value === "api" ? importApiPreset() : parseSnippet();
     }
 
+    function definitionValue() {
+      const text = el("definition").value.trim();
+      if (!text) return null;
+      const value = JSON.parse(text);
+      if (!isPlainObject(value)) throw new Error("Definition muss ein JSON-Objekt sein.");
+      return value;
+    }
+
     function currentDraft() {
-      if (!draft) throw new Error("Zuerst eine Definition erzeugen oder ein Preset auswählen.");
-      const next = clone(draft);
+      const base = definitionValue() || draft;
+      if (!base) throw new Error("Erst Preset laden, duplizieren, neu anlegen oder Snippet/URL einlesen.");
+      const next = clone(base);
       next.id = el("presetId").value.trim() || next.id;
-      next.title = el("title").value.trim() || next.title;
+      next.variant = el("variant").value || next.variant || "card";
+      if (!supportedVariants.includes(next.variant)) throw new Error("unsupported_daisy_variant");
+      next.title = el("title").value.trim() || next.title || "Preset";
       next.description = el("description").value.trim();
-      const categoryId = ensureCategory();
-      const packageId = ensurePackage();
-      next.categoryId = categoryId;
-      if (next.packageIds?.[0] !== packageId) next.packageIds = [packageId];
+      next.categoryId = ensureCategory();
+      next.packageIds = [ensurePackage()];
+      next.data = isPlainObject(next.data) ? next.data : defaultDataForVariant(next.variant);
       setDefinition(next);
       return next;
+    }
+
+    function upsertCurrentDraft() {
+      const preset = currentDraft();
+      const index = library.presets.findIndex(item => item.id === preset.id);
+      if (index >= 0) library.presets[index] = preset;
+      else library.presets.push(preset);
+      renderCatalog();
+      el("existingPreset").value = preset.id;
+      syncDeleteButtons();
+      return preset;
     }
 
     async function submitLibrary(validateOnly = false) {
@@ -284,30 +399,67 @@
         setStatus("Library ist vertragskonform.", "ok");
         return;
       }
-      const message = payload.changed ? `Gespeichert und gepusht: ${payload.commit}` : "Keine Änderung.";
+      const message = payload.changed ? `Gespeichert und gepusht: ${payload.commit}` : "Keine Aenderung.";
       await loadCatalog();
       setStatus(message, "ok");
     }
 
     async function savePreset() {
-      if (el("sourceMode").value === "snippet" && el("snippet").value.trim()) await parseSnippet();
-      if (el("sourceMode").value === "api" && el("apiUrl").value.trim() && !draft) await importApiPreset();
-      const preset = currentDraft();
-      const index = library.presets.findIndex(item => item.id === preset.id);
-      if (index >= 0) library.presets[index] = preset;
-      else library.presets.push(preset);
+      upsertCurrentDraft();
       await submitLibrary(false);
     }
 
-    function clearForm() {
-      setDefinition(null);
+    async function validateLibrary() {
+      if (el("definition").value.trim() || draft) upsertCurrentDraft();
+      await submitLibrary(true);
+    }
+
+    function selectedPreset() {
+      const id = el("existingPreset").value;
+      return library?.presets.find(item => item.id === id) || null;
+    }
+
+    function applyPreset(preset, opts = {}) {
+      if (!preset) throw new Error("Kein Preset ausgewaehlt.");
+      const next = clone(preset);
+      if (opts.duplicate) {
+        next.id = uniqueCustomId(next.id + "_copy");
+        next.title = `${next.title || "Preset"} Kopie`;
+      }
+      setDefinition(next);
       el("snippet").value = "";
       el("apiUrl").value = "";
-      el("presetId").value = "";
-      el("title").value = "";
-      el("description").value = "";
-      el("existingPreset").value = "";
       renderCatalog();
+      if (!opts.duplicate) el("existingPreset").value = next.id;
+      setStatus(opts.duplicate ? "Preset dupliziert. Neue ID pruefen und speichern." : "Preset geladen.", "ok");
+    }
+
+    function deleteSelectedPreset() {
+      const preset = selectedPreset();
+      if (!preset) throw new Error("Kein Preset ausgewaehlt.");
+      if (!confirm(`Preset ${preset.id} wirklich loeschen?`)) return;
+      library.presets = library.presets.filter(item => item.id !== preset.id);
+      setDefinition(null);
+      renderCatalog();
+      submitLibrary(false).catch(showError);
+    }
+
+    function deleteSelectedCategory() {
+      const id = el("managedCategory").value;
+      if (!id || el("deleteCategory").disabled) return;
+      if (!confirm(`Kategorie ${id} wirklich loeschen?`)) return;
+      library.categories = library.categories.filter(item => item.id !== id);
+      renderCatalog();
+      submitLibrary(false).catch(showError);
+    }
+
+    function deleteSelectedPackage() {
+      const id = el("managedPackage").value;
+      if (!id || el("deletePackage").disabled) return;
+      if (!confirm(`Paket ${id} wirklich loeschen?`)) return;
+      library.packages = library.packages.filter(item => item.id !== id);
+      renderCatalog();
+      submitLibrary(false).catch(showError);
     }
 
     el("category").addEventListener("change", () => { el("newCategory").hidden = el("category").value !== "__new__"; });
@@ -315,41 +467,20 @@
     el("sourceMode").addEventListener("change", syncSourceMode);
     el("managedCategory").addEventListener("change", syncDeleteButtons);
     el("managedPackage").addEventListener("change", syncDeleteButtons);
-    el("existingPreset").addEventListener("change", () => {
-      const preset = library.presets.find(item => item.id === el("existingPreset").value);
-      if (!preset) { clearForm(); return; }
-      setDefinition(preset);
-      el("snippet").value = "";
-      el("presetId").value = preset.id;
-      el("title").value = preset.title;
-      el("description").value = preset.description;
-      renderCatalog();
-      el("existingPreset").value = preset.id;
-      syncDeleteButtons();
-    });
-    el("parse").onclick = () => parseSource().catch(error => setStatus(error.message, "bad"));
-    el("save").onclick = () => savePreset().catch(error => setStatus(error.message, "bad"));
-    el("validate").onclick = () => submitLibrary(true).catch(error => setStatus(error.message, "bad"));
-    el("reload").onclick = () => loadCatalog().catch(error => setStatus(error.message, "bad"));
-    el("clear").onclick = clearForm;
-    el("deletePreset").onclick = () => {
-      library.presets = library.presets.filter(item => item.id !== el("existingPreset").value);
-      clearForm();
-      submitLibrary(false).catch(error => setStatus(error.message, "bad"));
-    };
-    el("deleteCategory").onclick = () => {
-      library.categories = library.categories.filter(item => item.id !== el("managedCategory").value);
-      renderCatalog();
-      submitLibrary(false).catch(error => setStatus(error.message, "bad"));
-    };
-    el("deletePackage").onclick = () => {
-      library.packages = library.packages.filter(item => item.id !== el("managedPackage").value);
-      renderCatalog();
-      submitLibrary(false).catch(error => setStatus(error.message, "bad"));
-    };
+    el("existingPreset").addEventListener("change", syncDeleteButtons);
+    el("parse").onclick = () => parseSource().catch(showError);
+    el("save").onclick = () => savePreset().catch(showError);
+    el("validate").onclick = () => validateLibrary().catch(showError);
+    el("reload").onclick = () => loadCatalog().catch(showError);
+    el("clear").onclick = () => { try { createBlankPreset(); } catch (error) { showError(error); } };
+    el("loadPreset").onclick = () => { try { applyPreset(selectedPreset()); } catch (error) { showError(error); } };
+    el("duplicatePreset").onclick = () => { try { applyPreset(selectedPreset(), { duplicate: true }); } catch (error) { showError(error); } };
+    el("deletePreset").onclick = () => { try { deleteSelectedPreset(); } catch (error) { showError(error); } };
+    el("deleteCategory").onclick = () => { try { deleteSelectedCategory(); } catch (error) { showError(error); } };
+    el("deletePackage").onclick = () => { try { deleteSelectedPackage(); } catch (error) { showError(error); } };
 
     syncSourceMode();
-    loadCatalog().catch(error => setStatus(error.message, "bad"));
+    loadCatalog().catch(showError);
   </script>
 </body>
 </html>

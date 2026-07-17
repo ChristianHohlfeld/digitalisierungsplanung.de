@@ -1285,6 +1285,7 @@ function createRealtimeServer(options = {}) {
     if (request.method === "GET") {
       writeJson(response, 200, {
         library: config.presetLibrary,
+        supportedVariants: [...presetLibrary.SUPPORTED_VARIANTS].sort(),
         release: releaseResponse(config)
       }, headers);
       return;

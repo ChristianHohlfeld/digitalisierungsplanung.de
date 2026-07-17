@@ -670,12 +670,15 @@ test("converts official Daisy snippets into managed contract presets and pushes 
       assert.equal(htmlResponse.status, 200);
       const html = await htmlResponse.text();
       assert.match(html, /Preset Designer/);
-      assert.match(html, /DaisyUI-Snippet/);
-      assert.match(html, /Webhook\/API-URL/);
-      assert.match(html, /API abrufen/);
+      assert.match(html, /HTML-Snippet einlesen/);
+      assert.match(html, /Preset-JSON von URL laden/);
+      assert.match(html, /Snippet einlesen/);
+      assert.match(html, /Leeres neues Preset/);
+      assert.match(html, /Duplizieren/);
       assert.match(html, /In Contract speichern/);
       assert.match(html, /\+ Neue Kategorie/);
       assert.match(html, /\+ Neues Paket/);
+      assert.doesNotMatch(html, /Webhook\/API-URL/);
       assert.doesNotMatch(html, /admin-secret/);
 
       const unauthorized = await fetch(httpUrl(realtime, "/presets-admin/catalog"));
@@ -688,6 +691,7 @@ test("converts official Daisy snippets into managed contract presets and pushes 
       const loaded = await load.json();
       assert.deepEqual(loaded.library.categories.map(category => category.id), ["websuite-builder"]);
       assert.equal(loaded.library.daisyVersion, "5.6.18");
+      assert.ok(loaded.supportedVariants.includes("calendar"));
 
       const privateImport = await fetch(httpUrl(realtime, "/presets-admin/import"), {
         method: "POST",
@@ -748,6 +752,26 @@ test("converts official Daisy snippets into managed contract presets and pushes 
         { label: "Versand", body: "Zwei Werktage." },
         { label: "Rückgabe", body: "Dreißig Tage." }
       ]);
+
+      const calendarResponse = await fetch(httpUrl(realtime, "/presets-admin/parse"), {
+        method: "POST",
+        headers: { authorization: "Bearer admin-secret", "content-type": "application/json" },
+        body: JSON.stringify({
+          snippet: '<calendar-date class="cally" value="2026-07-17" min="2026-01-01" max="2026-12-31"></calendar-date>',
+          title: "Termin",
+          categoryId: "websuite-builder",
+          packageIds: ["website.builder"]
+        })
+      });
+      assert.equal(calendarResponse.status, 200);
+      const calendar = await calendarResponse.json();
+      assert.equal(calendar.preset.variant, "calendar");
+      assert.deepEqual(calendar.preset.data, {
+        label: "Datum",
+        value: "2026-07-17",
+        min: "2026-01-01",
+        max: "2026-12-31"
+      });
 
       const unsafeResponse = await fetch(httpUrl(realtime, "/presets-admin/parse"), {
         method: "POST",

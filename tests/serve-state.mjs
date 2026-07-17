@@ -44,7 +44,10 @@ createServer(async (req, res) => {
   }
   if (url.pathname === "/presets-admin/catalog") {
     if (req.method === "GET") {
-      writeJson(res, 200, { library: adminPresetLibrary });
+      writeJson(res, 200, {
+        library: adminPresetLibrary,
+        supportedVariants: [...presetLibrary.SUPPORTED_VARIANTS].sort()
+      });
       return;
     }
     if (req.method === "POST") {

@@ -177,9 +177,9 @@ test.describe("Preset designer", () => {
     await page.locator("#package").selectOption("__new__");
     await page.locator("#packageId").fill("portal.pro");
     await page.locator("#packageLabel").fill("Portal Pro");
-    await page.getByRole("button", { name: "Definition erzeugen" }).click();
+    await page.getByRole("button", { name: "Snippet einlesen" }).click();
 
-    await expect(page.locator("#status")).toContainText("Definition für footer erzeugt");
+    await expect(page.locator("#status")).toContainText("Definition fuer footer aus Snippet gelesen");
     const definition = JSON.parse(await page.locator("#definition").inputValue());
     expect(definition).toMatchObject({
       id: "custom_acme_footer",
@@ -196,11 +196,11 @@ test.describe("Preset designer", () => {
     await expect(page.locator("#managedCategory")).toContainText("Portal");
     await expect(page.locator("#managedPackage")).toContainText("Portal Pro");
 
-    await page.getByRole("button", { name: "Neu", exact: true }).click();
+    await page.getByRole("button", { name: "Leeres neues Preset", exact: true }).click();
     await page.locator("#sourceMode").selectOption("api");
     await page.locator("#apiUrl").fill("https://preset.example.test/card");
-    await page.getByRole("button", { name: "API abrufen" }).click();
-    await expect(page.locator("#status")).toContainText("API-Definition für card erzeugt");
+    await page.getByRole("button", { name: "URL einlesen" }).click();
+    await expect(page.locator("#status")).toContainText("Definition fuer card von URL geladen");
     const apiDefinition = JSON.parse(await page.locator("#definition").inputValue());
     expect(apiDefinition).toMatchObject({
       id: "custom_api_card",
