@@ -1373,6 +1373,61 @@ test.describe("State Blueprint tool", () => {
     });
   });
 
+  test("updates active preview from inspector state variables without overwriting runtime input @smoke", async ({ page }) => {
+    const model = {
+      version: 2,
+      name: "Inspector defaults",
+      initial: "start",
+      states: [
+        {
+          id: "start",
+          title: "Start",
+          body: "",
+          x: 120,
+          y: 140,
+          data: {
+            headline: "Old headline",
+            name: { label: "Name", value: "" }
+          },
+          dataTypes: {
+            headline: "text",
+            name: "object",
+            "name.label": "text",
+            "name.value": "text"
+          },
+          components: [
+            { id: "headline_wire", type: "dataWire", wireId: "wire_headline", text: "", url: "" },
+            { id: "name_input", type: "daisy", variant: "input", dataPath: "states.start.name", dataRole: "widget", dataLabel: "Name" }
+          ],
+          dataWires: [
+            { id: "wire_headline", sourcePath: "states.start.headline", role: "text", componentType: "text", label: "Headline" }
+          ]
+        }
+      ],
+      transitions: []
+    };
+
+    await openTool(page, { model });
+    const app = appFrame(page);
+    await expect(app.locator("#screen")).toContainText("Old headline");
+
+    await runtimeTextInput(app, "Name").fill("Runtime Name");
+    await expect.poll(async () => (await runtimeContext(page)).states?.start?.name?.value).toBe("Runtime Name");
+
+    await openStateInspector(page, "start");
+    await openInitialValuesEditor(page);
+    await page.locator('.state-variable-row[data-variable-path="states.start.headline"] [data-state-variable-value="true"]').fill("New headline");
+
+    await expect(app.locator("#screen")).toContainText("New headline");
+    await expect.poll(async () => (await runtimeContext(page)).states?.start?.headline).toBe("New headline");
+
+    await page.locator('.state-variable-row[data-variable-path="states.start.name.value"] [data-state-variable-value="true"]').fill("Default Name");
+
+    await expect(runtimeTextInput(app, "Name")).toHaveValue("Runtime Name");
+    await expect.poll(async () => (await savedModel(page)).states.find(state => state.id === "start")?.data?.name?.value).toBe("Default Name");
+    await expect.poll(async () => (await runtimeContext(page)).states?.start?.name?.value).toBe("Runtime Name");
+  });
+
   test("state explorer exposes declared bus paths without persisting runtime values into defaults @smoke", async ({ page }) => {
     const { model, emailPath } = addExplicitLoginForm(defaultTestModel());
     await openTool(page, { model });
@@ -8047,6 +8102,9 @@ test.describe("State Blueprint tool", () => {
     await expect(app.locator("input.checkbox.checkbox-primary")).toHaveCount(1);
     await app.locator("input.checkbox.checkbox-primary").first().check();
     await expect(app.locator("input.checkbox.checkbox-primary").first()).toBeChecked();
+    await stateItems.getByRole("textbox", { name: "Checkbox-Beschriftung", exact: true }).first().fill("Remember session");
+    await expect(app.getByText("Remember session")).toBeVisible();
+    await expect(app.locator("input.checkbox.checkbox-primary").first()).toBeChecked();
     await stateItems.getByRole("textbox", { name: "Neue Checkbox-Beschriftung" }).fill("Accept newsletter");
     await stateItems.getByRole("button", { name: "+ Checkbox" }).click();
     await expect(stateItems.getByRole("textbox", { name: "Checkbox-Beschriftung", exact: true })).toHaveCount(2);
@@ -8056,7 +8114,7 @@ test.describe("State Blueprint tool", () => {
       model = await savedModel(page);
       return model.states.find(state => state.id === checkboxState.id)?.data?.items || [];
     }).toEqual([
-      { label: "Angemeldet bleiben", checked: false },
+      { label: "Remember session", checked: false },
       { label: "Accept newsletter", checked: false }
     ]);
 
