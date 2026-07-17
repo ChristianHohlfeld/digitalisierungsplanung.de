@@ -1429,7 +1429,7 @@ test.describe("State Blueprint tool", () => {
     await openInspectorDetails(page, "#pDataCard");
 
     const inspector = page.locator("#stateInspectorBody");
-    await expect(inspector).toContainText("Sichtbare Felder");
+    await expect(inspector).toContainText("Anzeige aus Daten");
     await expect(inspector).toContainText("Daten laden");
     await expect(inspector).toContainText("Liste anzeigen");
     await expect(inspector).not.toContainText(/globalState|React|Watch|Own var/i);
@@ -1826,20 +1826,84 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#pRuleOperator option:checked")).toHaveText("Bild ist gesetzt");
     await page.locator("#pRuleApply").click();
     await expect.poll(async () => (await savedModel(page)).transitions.find(item => item.id === "start_done").condition)
-      .toBe('states.start.heroImage != ""');
+      .toBe('states.start.accepted == true && states.start.heroImage != ""');
 
     await page.locator("#pRuleField").selectOption("states.start.ctaUrl");
     await expect(page.locator("#pRuleOperator option:checked")).toHaveText("Link ist gesetzt");
     await page.locator("#pRuleApply").click();
     await expect.poll(async () => (await savedModel(page)).transitions.find(item => item.id === "start_done").condition)
-      .toBe('states.start.ctaUrl != ""');
+      .toBe('states.start.accepted == true && states.start.heroImage != "" && states.start.ctaUrl != ""');
 
     await page.locator("#pRuleField").selectOption("states.start.score");
     await page.locator("#pRuleOperator").selectOption("gte");
     await page.locator("#pRuleValue").fill("3");
     await page.locator("#pRuleApply").click();
     await expect.poll(async () => (await savedModel(page)).transitions.find(item => item.id === "start_done").condition)
-      .toBe("states.start.score >= 3");
+      .toBe('states.start.accepted == true && states.start.heroImage != "" && states.start.ctaUrl != "" && states.start.score >= 3');
+  });
+
+  test("builds multiple checkbox-item rules from the scoped global state", async ({ page }) => {
+    const model = {
+      version: 2,
+      name: "Checkbox item rules",
+      initial: "start",
+      states: [
+        {
+          id: "start",
+          title: "Checkbox-Feld",
+          body: "",
+          x: 120,
+          y: 180,
+          data: {
+            legend: "Einstellungen",
+            items: [
+              { label: "AGB akzeptiert", checked: false },
+              { label: "Datenschutz akzeptiert", checked: false }
+            ],
+            checked: false
+          },
+          dataTypes: {
+            legend: "text",
+            items: "list",
+            checked: "boolean"
+          },
+          components: [{ id: "c_start", type: "daisy", variant: "checkbox", dataPath: "states.start", dataRole: "widget", dataLabel: "Checkbox-Feld" }]
+        },
+        {
+          id: "done",
+          title: "Done",
+          body: "",
+          x: 430,
+          y: 180,
+          components: [{ id: "c_done", type: "text", text: "Done", url: "" }]
+        }
+      ],
+      transitions: [
+        { id: "start_done", from: "start", to: "done", label: "Weiter", condition: "", triggerType: "button", triggerEvent: "", set: {} }
+      ]
+    };
+
+    await page.addInitScript(({ key, model }) => {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(`${key}.editor`, JSON.stringify({ model }));
+    }, { key: STORAGE_KEY, model });
+    await page.goto("/state.html");
+    await expect(page.locator('[data-id="start"]')).toBeVisible();
+
+    await page.locator("svg text.edge-label").filter({ hasText: "Weiter" }).click();
+    await expect(page.locator('#pRuleField option[value="states.start.items.0.checked"]')).toContainText("AGB akzeptiert aktiv");
+    await expect(page.locator('#pRuleField option[value="states.start.items.1.checked"]')).toContainText("Datenschutz akzeptiert aktiv");
+
+    await page.locator("#pRuleField").selectOption("states.start.items.0.checked");
+    await expect(page.locator("#pRuleOperator")).toHaveValue("true");
+    await page.locator("#pRuleApply").click();
+    await page.locator("#pRuleField").selectOption("states.start.items.1.checked");
+    await page.locator("#pRuleApply").click();
+
+    await expect.poll(async () => (await savedModel(page)).transitions.find(item => item.id === "start_done").condition)
+      .toBe("states.start.items.0.checked == true && states.start.items.1.checked == true");
   });
 
   test("drops unsupported body fields instead of remapping them into render state", async ({ page }) => {
@@ -7592,7 +7656,8 @@ test.describe("State Blueprint tool", () => {
       condition: ""
     });
     await expect(triggerEvent).toBeVisible();
-    await expect(triggerEvent).toHaveJSProperty("length", 0);
+    await expect(triggerEvent).toContainText("Kein Bus-Ereignis im Contract");
+    await expect(triggerEvent).toHaveValue("");
     await expect(appFrame(page).locator('button[data-transition-id="t_auth_login"]')).toHaveCount(0);
     await expect(appFrame(page).locator('button[data-transition-id="t_auth_register"]')).toBeVisible();
 
@@ -7957,6 +8022,11 @@ test.describe("State Blueprint tool", () => {
     const scopePath = `states.${checkboxState.id}`;
     const stateItems = page.locator(`.state-variable-row[data-variable-path="${cssAttributeValue(scopePath + ".items")}"] .choice-list-editor`);
     await expect(stateItems).toBeVisible();
+    await page.locator(`[data-id="${checkboxState.id}"]`).click();
+    const app = appFrame(page);
+    await expect(app.locator("input.checkbox.checkbox-primary")).toHaveCount(1);
+    await app.locator("input.checkbox.checkbox-primary").first().check();
+    await expect(app.locator("input.checkbox.checkbox-primary").first()).toBeChecked();
     await stateItems.getByRole("textbox", { name: "Neue Checkbox-Beschriftung" }).fill("Accept newsletter");
     await stateItems.getByRole("button", { name: "+ Checkbox" }).click();
     await expect(stateItems.getByRole("textbox", { name: "Checkbox-Beschriftung", exact: true })).toHaveCount(2);
@@ -7970,10 +8040,8 @@ test.describe("State Blueprint tool", () => {
       { label: "Accept newsletter", checked: false }
     ]);
 
-    await page.getByRole("button", { name: "App zurücksetzen", exact: true }).click();
-    await page.locator(`[data-id="${checkboxState.id}"]`).click();
-    const app = appFrame(page);
     await expect(app.locator("input.checkbox.checkbox-primary")).toHaveCount(2);
+    await expect(app.locator("input.checkbox.checkbox-primary").first()).toBeChecked();
     await expect(app.getByText("Accept newsletter")).toBeVisible();
   });
 
@@ -8170,7 +8238,7 @@ test.describe("State Blueprint tool", () => {
     const scopePath = `states.${tabsState.id}`;
 
     const app = appFrame(page);
-    const addRenderSelect = page.locator('.data-wire-render-panel select[aria-label="Sichtbares Feld hinzufügen"]');
+    const addRenderSelect = page.locator('.data-wire-render-panel select[aria-label="Datenfeld auswählen"]');
     await expect(addRenderSelect).toBeVisible();
     await expect(addRenderSelect.locator('option[value="events"]')).toHaveCount(0);
     await expect(addRenderSelect.locator(`option[value="${scopePath}"]`)).toHaveCount(0);
@@ -8181,7 +8249,7 @@ test.describe("State Blueprint tool", () => {
     await expect(stateBranchButton).toHaveText("Nutzen");
 
     await addRenderSelect.selectOption(`${scopePath}.selected`);
-    await page.locator(".data-wire-render-panel").getByRole("button", { name: "Ausgewähltes Feld anzeigen" }).click();
+    await page.locator(".data-wire-render-panel").getByRole("button", { name: "In Vorschau anzeigen" }).click();
     await expect(app.locator("#screen")).toContainText("Selected: Übersicht");
     await expect(app.locator("#screen")).not.toContainText("Events:");
     await expect(app.locator("#screen")).not.toContainText('{"change"');
@@ -8201,12 +8269,12 @@ test.describe("State Blueprint tool", () => {
     const scopePath = `states.${tabsState.id}`;
     const selectedPath = `${scopePath}.selected`;
     const panel = page.locator(".data-wire-render-panel");
-    const addRenderSelect = panel.locator('select[aria-label="Sichtbares Feld hinzufügen"]');
+    const addRenderSelect = panel.locator('select[aria-label="Datenfeld auswählen"]');
 
     await addRenderSelect.selectOption(selectedPath);
-    await expect(panel.getByRole("button", { name: "Ausgewähltes Feld anzeigen" })).toBeVisible();
-    await panel.getByRole("button", { name: "Ausgewähltes Feld anzeigen" }).click();
-    await expect(panel.getByRole("button", { name: "Ausgewähltes Feld entfernen" })).toBeVisible();
+    await expect(panel.getByRole("button", { name: "In Vorschau anzeigen" })).toBeVisible();
+    await panel.getByRole("button", { name: "In Vorschau anzeigen" }).click();
+    await expect(panel.getByRole("button", { name: "Aus Anzeige entfernen" })).toBeVisible();
     await expect(page.locator(`.global-state-key-card[data-path="${selectedPath}"] .global-state-key-status`)).toContainText("In der Darstellung");
     await expect(page.locator(`.global-state-json-line[data-path="${selectedPath}"]`)).toHaveClass(/wired/);
     await expect.poll(async () => {
@@ -8214,8 +8282,8 @@ test.describe("State Blueprint tool", () => {
       return stored.states.find(state => state.id === tabsState.id).dataWires.map(wire => wire.sourcePath);
     }).toContain(selectedPath);
 
-    await panel.getByRole("button", { name: "Ausgewähltes Feld entfernen" }).click();
-    await expect(panel.getByRole("button", { name: "Ausgewähltes Feld anzeigen" })).toBeVisible();
+    await panel.getByRole("button", { name: "Aus Anzeige entfernen" }).click();
+    await expect(panel.getByRole("button", { name: "In Vorschau anzeigen" })).toBeVisible();
     await expect.poll(async () => {
       const stored = await savedModel(page);
       return stored.states.find(state => state.id === tabsState.id).dataWires.map(wire => wire.sourcePath);
@@ -14203,10 +14271,10 @@ test.describe("State Blueprint tool", () => {
     await openStateInspector(page, "state_3");
 
     await expect(appFrame(page).locator(".component-image")).toHaveAttribute("src", imageUrl);
-    const addRenderSelect = page.locator('.data-wire-render-panel select[aria-label="Sichtbares Feld hinzufügen"]');
+    const addRenderSelect = page.locator('.data-wire-render-panel select[aria-label="Datenfeld auswählen"]');
     await expect(addRenderSelect.locator('option[value="states.state_3.catalog.item.badge"]')).toHaveCount(1);
     await addRenderSelect.selectOption("states.state_3.catalog.item.badge");
-    await page.locator(".data-wire-render-panel").getByRole("button", { name: "Ausgewähltes Feld anzeigen" }).click();
+    await page.locator(".data-wire-render-panel").getByRole("button", { name: "In Vorschau anzeigen" }).click();
     await expect.poll(async () => {
       const stored = await savedModel(page);
       return stored.states.find(state => state.id === "state_3").dataWires.map(wire => wire.sourcePath);

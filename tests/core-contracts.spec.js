@@ -1696,7 +1696,7 @@ test.describe("Core source contracts", () => {
     )).toBe(true);
     expect(html).not.toContain(['label: "Daten aen', 'dern sich"'].join(""));
     expect(html).toContain(".data-wire-row");
-    expect(html).toContain("Sichtbare Felder");
+    expect(html).toContain("Anzeige aus Daten");
     expect(html).toContain("Alle Pfade");
     expect(html).toContain(".component-editor input");
     expect(html).toContain("function normalizeBindingPath");
@@ -1740,7 +1740,7 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("function dataWiresFromRepeatSample");
     expect(html).toContain("generatedFromDataWire");
     expect(html).not.toContain("Auto data part");
-    expect(html).toContain("Sichtbare Felder");
+    expect(html).toContain("Anzeige aus Daten");
     expect(html).toContain("applyDerivedDataWires");
     expect(html).toContain("upsertDataWire");
     expect(html).toContain("runtimeDataWireComponentsForState");
@@ -1792,7 +1792,16 @@ test.describe("Core source contracts", () => {
     expect(appHtml).toContain("function daisyScopeData");
     expect(appHtml).toContain("readContextPathRaw(daisyScopePath(component))");
     expect(appHtml).toContain("function daisyWrite");
-    expect(appHtml).toContain('runtimeSet(path, JSON.parse(JSON.stringify(value)), { source: "state-default"');
+    const hostDataSync = html.slice(
+      html.indexOf("function syncRuntimeAfterStateDataChange"),
+      html.indexOf("function startAppAtState")
+    );
+    expect(hostDataSync).toContain("syncToApp(false)");
+    expect(hostDataSync).not.toContain("resetContext");
+    expect(appHtml).toContain("function mergeStateDefaultValue");
+    expect(appHtml).toContain('runtimeSet(path, merged.value, { source: "state-default"');
+    expect(appHtml).toContain("runCurrentStateEntryEffects({ fetch: entered || currentDataSourceTargetChanged(changedTargets), defaults: true })");
+    expect(appHtml).not.toContain("runtimeDefaultValuesEqual");
     expect(appHtml).toContain("function runtimeContextAfterModelUpdate");
     expect(appHtml).toContain("runtimeContextAfterModelUpdate(previousModel, model, context)");
     expect(appHtml).not.toContain("pruneRemovedStateDataDefaults");
@@ -1861,8 +1870,8 @@ test.describe("Core source contracts", () => {
     expect(html).not.toContain("function dataWireComponentsForState");
     expect(html).toContain("function applyDerivedDataWires");
     expect(html).toContain("dataWires: normalizeDataWires");
-    expect(html).toContain("Sichtbare Felder");
-    expect(html).toContain("Sichtbare Felder");
+    expect(html).toContain("Anzeige aus Daten");
+    expect(html).toContain("Anzeige aus Daten");
     expect(html).toContain("components: [],");
     expect(html).toContain("function dataWireDisplayValue");
     expect(html).toContain("function dataWireUrlValue");
@@ -1946,7 +1955,10 @@ test.describe("Core source contracts", () => {
     expect(appHtml).toContain("const handledChange = runtimeSet(target, result, { source: \"fetch\", eventName: \"change.\" + target })");
     expect(appHtml).toContain('detail?.source === "fetch" && detail?.type === "change"');
     expect(appHtml).toContain('runtimeSet("state.current", runtimeTarget || ""');
-    expect(appHtml).toContain('runtimeSet(path, JSON.parse(JSON.stringify(value)), { source: "state-default"');
+    expect(appHtml).toContain("function mergeStateDefaultValue");
+    expect(appHtml).toContain('runtimeSet(path, merged.value, { source: "state-default"');
+    expect(appHtml).toContain("runCurrentStateEntryEffects({ fetch: entered || currentDataSourceTargetChanged(changedTargets), defaults: true })");
+    expect(appHtml).not.toContain("runtimeDefaultValuesEqual");
     expect(appHtml).toContain('runtimeSet(targetPath, dataSourceResult({ status: "source-changed"');
     expect(appHtml).not.toContain("function sanitizeContext");
     expect(appHtml).not.toContain("function ensureContext");
@@ -3845,7 +3857,7 @@ test.describe("Core browser contracts", () => {
     await openStateInspector(page, "login");
     await openInspectorDetails(page, "#pDataCard");
 
-    await expect(page.locator(".global-state-subscribe-head").filter({ hasText: "Sichtbare Felder" }).first()).toBeVisible();
+    await expect(page.locator(".global-state-subscribe-head").filter({ hasText: "Anzeige aus Daten" }).first()).toBeVisible();
     await expect(page.getByText("Alle Pfade")).toBeVisible();
     await expect.poll(() => page.locator("#pSubscriptionPaths .global-state-key-card").count()).toBeGreaterThan(0);
     await openInspectorDetails(page, "#pStateTreeCard");
