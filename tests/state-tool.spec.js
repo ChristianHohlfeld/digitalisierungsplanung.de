@@ -6259,6 +6259,26 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator('[data-id="login"] .title')).toHaveText("Sign in");
   });
 
+  test("keeps inspector text typing batched without full canvas redraws @smoke", async ({ page }) => {
+    await openTool(page);
+    await openStateInspector(page, "login");
+
+    await page.evaluate(() => { window.__stateBlueprintPerfMetrics = {}; });
+    const title = page.locator("#pTitle");
+    await title.focus();
+    await title.pressSequentially("Login fast");
+
+    await expect(page.locator('[data-id="login"] .title')).toHaveText("Login fast");
+    const duringTyping = await page.evaluate(() => window.__stateBlueprintPerfMetrics || {});
+    expect(duringTyping.drawCalls || 0).toBe(0);
+
+    await title.evaluate(element => element.blur());
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return model.states.find(state => state.id === "login")?.title || "";
+    }).toBe("Login fast");
+  });
+
   test("restores layer and selection before runtime follow can resume @smoke", async ({ page }) => {
     await page.addInitScript(key => {
       for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {

@@ -6003,6 +6003,9 @@
     let historyCurrent = null;
     let historyActionId = 0;
     let lastHistoryGroup = null;
+    let pendingInspectorTextCommit = null;
+    let pendingInspectorTextCommitTimer = null;
+    let flushingInspectorTextCommit = false;
     let historyPointerActive = false;
     let activePointerId = null;
     let lastTouchAt = 0;
@@ -7370,6 +7373,49 @@
       return true;
     }
 
+    function cancelInspectorTextCommit() {
+      if (pendingInspectorTextCommitTimer) {
+        clearTimeout(pendingInspectorTextCommitTimer);
+        pendingInspectorTextCommitTimer = null;
+      }
+      pendingInspectorTextCommit = null;
+    }
+
+    function flushInspectorTextCommit() {
+      if (!pendingInspectorTextCommit) return true;
+      const pending = pendingInspectorTextCommit;
+      cancelInspectorTextCommit();
+      flushingInspectorTextCommit = true;
+      let saved = false;
+      try {
+        saved = saveEditorState(pending.historyKey, pending.sync);
+      } finally {
+        flushingInspectorTextCommit = false;
+      }
+      if (saved && pending.draw) scheduleDraw();
+      return saved;
+    }
+
+    function scheduleInspectorTextCommit(historyKey, opts = {}) {
+      const next = {
+        historyKey,
+        sync: opts.sync !== false,
+        draw: Boolean(opts.draw)
+      };
+      if (pendingInspectorTextCommit && pendingInspectorTextCommit.historyKey !== historyKey) {
+        flushInspectorTextCommit();
+      }
+      pendingInspectorTextCommit = pendingInspectorTextCommit
+        ? {
+            historyKey,
+            sync: pendingInspectorTextCommit.sync || next.sync,
+            draw: pendingInspectorTextCommit.draw || next.draw
+          }
+        : next;
+      if (pendingInspectorTextCommitTimer) clearTimeout(pendingInspectorTextCommitTimer);
+      pendingInspectorTextCommitTimer = setTimeout(flushInspectorTextCommit, opts.delay ?? 120);
+    }
+
     function updateHistoryButtons() {
       const canUndo = Boolean(undoStack.length);
       const canRedo = Boolean(redoStack.length);
@@ -7438,6 +7484,9 @@
     }
 
     function saveEditorState(historyKey = null, sync = true) {
+      if (!flushingInspectorTextCommit && pendingInspectorTextCommit) {
+        flushInspectorTextCommit();
+      }
       if (modelTransitionTriggerContractIssue(model)) {
         restoreRejectedEditorMutation();
         return false;
@@ -7504,6 +7553,7 @@
     }
 
     function undoModel() {
+      flushInspectorTextCommit();
       if (!undoStack.length) return;
       const current = editorSnapshot();
       const previous = undoStack.pop();
@@ -7513,6 +7563,7 @@
     }
 
     function redoModel() {
+      flushInspectorTextCommit();
       if (!redoStack.length) return;
       const current = editorSnapshot();
       const next = redoStack.pop();
@@ -8567,6 +8618,7 @@
     }
 
     function saveDefinitionFile() {
+      flushInspectorTextCommit();
       persistModel(false);
       saveCamera();
       saveUiState();
@@ -8577,6 +8629,7 @@
     }
 
     async function exportHtmlFile() {
+      flushInspectorTextCommit();
       persistModel(false);
       saveCamera();
       saveUiState();
@@ -15764,8 +15817,6 @@
       };
       const persistOwner = options.persistOwner || (historyKey => {
         saveModel(historyKey);
-        draw();
-        syncRenderEditorChange();
       });
       const rerender = request => renderComponentEditors(s, request, root, options);
       const renderWidgetLibrary = () => {
@@ -16178,7 +16229,7 @@
         if (!options.skipLiveStateSync) scheduleSync(false);
         if (typeof refreshInspectorGlobalStateTree === "function") refreshInspectorGlobalStateTree();
       };
-      const saveComponent = component => {
+      const saveComponent = (component, opts = {}) => {
         if (!options.skipLiveStateSync) {
           const liveState = byId(s.id);
           const liveComponent = liveState?.components?.find(item => item.id === component.id);
@@ -16199,7 +16250,11 @@
             }
           }
         }
-        persistOwner("state:component:" + component.id);
+        if (opts.deferred && !options.persistOwner) {
+          scheduleInspectorTextCommit("state:component:" + component.id, { sync: true, draw: opts.draw === true });
+        } else {
+          persistOwner("state:component:" + component.id);
+        }
       };
       const appendQuickEditPanel = (container, title, hint, buildFields) => {
         const panel = document.createElement("div");
@@ -16243,9 +16298,9 @@
         control.dataset.componentQuick = key;
         control.oninput = () => {
           component[key] = control.value;
-          saveComponent(component);
+          saveComponent(component, { deferred: true });
         };
-        control.onblur = () => { draw(); };
+        control.onblur = () => { flushInspectorTextCommit(); scheduleDraw(); };
         return control;
       };
       const appendContentQuickEditor = (component, body) => {
@@ -16354,7 +16409,7 @@
         pointerWidgetListItem = null;
         clearWidgetListDropMarks();
       };
-      const persistWidgetData = (component, dataPath, data, historyKey) => {
+      const persistWidgetData = (component, dataPath, data, historyKey, opts = {}) => {
         const stateScope = stateVariableScopePath(s);
         const localPath = stateVariableLocalPath(s, dataPath);
         if (!localPath && dataPath !== stateScope) return;
@@ -16364,10 +16419,14 @@
         const dataTypes = normalizeDataTypes(s.dataTypes, s.data);
         if (localPath) dataTypes[localPath] = "object";
         s.dataTypes = normalizeDataTypes(dataTypes, s.data);
-        if (options.persistOwner) options.persistOwner(historyKey);
-        else saveEditorState(historyKey, false);
-        syncWidgetDataChange();
-        if (typeof refreshInspectorGlobalStateTree === "function") refreshInspectorGlobalStateTree();
+        if (opts.deferred && !options.persistOwner) {
+          scheduleInspectorTextCommit(historyKey, { sync: true, draw: opts.draw === true });
+        } else {
+          if (options.persistOwner) options.persistOwner(historyKey);
+          else saveEditorState(historyKey, false);
+          syncWidgetDataChange();
+        }
+        if (opts.refreshTree !== false && typeof refreshInspectorGlobalStateTree === "function") refreshInspectorGlobalStateTree();
       };
       const updateTransitionLabelFromWidgetItem = (item, label) => {
         const transitionId = widgetItemTransitionId(item);
@@ -16387,7 +16446,7 @@
           items[index] = cleanLabel;
         }
         updateTransitionLabelFromWidgetItem(items[index], cleanLabel);
-        persistWidgetData(component, dataPath, { ...data, [key]: items }, "state:widget-list-label:" + component.id);
+        persistWidgetData(component, dataPath, { ...data, [key]: items }, "state:widget-list-label:" + component.id, { deferred: true, refreshTree: false });
       };
       const moveWidgetListItem = (component, dataPath, key, fromIndex, targetIndex, after = false) => {
         const data = stateScopedComponentData(s, component);
@@ -16424,9 +16483,9 @@
           control.placeholder = labelText;
           control.oninput = () => {
             data[key] = typeof data[key] === "number" ? Number(control.value) || 0 : control.value;
-            persistWidgetData(component, dataPath, data, "state:widget-field:" + component.id + ":" + key);
+            persistWidgetData(component, dataPath, data, "state:widget-field:" + component.id + ":" + key, { deferred: true, refreshTree: false });
           };
-          control.onblur = () => { draw(); };
+          control.onblur = () => { flushInspectorTextCommit(); scheduleDraw(); };
         }
         control.setAttribute("aria-label", labelText);
         if (opts.quick) control.dataset.widgetQuick = key;
@@ -16535,7 +16594,7 @@
           input.value = widgetItemLabel(itemValue);
           input.setAttribute("aria-label", `${title} Eintrag ${index + 1}`);
           input.oninput = () => updateWidgetListLabel(component, dataPath, key, index, input.value);
-          input.onblur = () => { draw(); };
+          input.onblur = () => { flushInspectorTextCommit(); scheduleDraw(); };
           const controls = document.createElement("div");
           controls.className = "widget-list-actions";
           const up = document.createElement("button");
@@ -16597,9 +16656,9 @@
         nameInput.setAttribute("aria-label", "Bausteinname");
         nameInput.oninput = () => {
           component.dataLabel = nameInput.value.slice(0, 80);
-          saveComponent(component);
+          saveComponent(component, { deferred: true });
         };
-        nameInput.onblur = () => { draw(); rerender({ componentId: component.id }); };
+        nameInput.onblur = () => { flushInspectorTextCommit(); scheduleDraw(); rerender({ componentId: component.id }); };
         nameField.append(nameLabel, nameInput);
 
         const variant = daisyVariantName(component);
@@ -17145,9 +17204,10 @@
                 input.dataset.listIndex = String(index);
                 input.oninput = () => {
                   itemVal.text = input.value;
-                  writeItems();
+                  component.text = component.items.map(item => item.text).join("\n");
+                  saveComponent(component, { deferred: true });
                 };
-                input.onblur = () => { draw(); };
+                input.onblur = () => { flushInspectorTextCommit(); scheduleDraw(); };
                 textField.append(label, input);
                 row.appendChild(textField);
               }
@@ -17163,9 +17223,10 @@
                 input.placeholder = "https://...";
                 input.oninput = () => {
                   itemVal.url = input.value;
-                  writeItems();
+                  component.text = component.items.map(item => item.text).join("\n");
+                  saveComponent(component, { deferred: true });
                 };
-                input.onblur = () => { draw(); };
+                input.onblur = () => { flushInspectorTextCommit(); scheduleDraw(); };
                 urlField.append(label, input);
                 row.appendChild(urlField);
               }
@@ -17198,9 +17259,9 @@
             input.value = component.text || "";
             input.oninput = () => {
               component.text = input.value;
-              saveComponent(component);
+              saveComponent(component, { deferred: true });
             };
-            input.onblur = () => { draw(); };
+            input.onblur = () => { flushInspectorTextCommit(); scheduleDraw(); };
             field.append(fieldLabel, input);
             body.appendChild(field);
           }
@@ -17215,9 +17276,9 @@
           input.placeholder = "https://...";
           input.oninput = () => {
             component.url = input.value;
-            saveComponent(component);
+            saveComponent(component, { deferred: true });
           };
-          input.onblur = () => { draw(); };
+          input.onblur = () => { flushInspectorTextCommit(); scheduleDraw(); };
           field.append(fieldLabel, input);
           body.appendChild(field);
         }
@@ -18668,9 +18729,14 @@
             initialDataStatus.classList.toggle("active", Boolean(keys.length));
           }
           if (persist) {
-            saveModel(opts.historyKey || "state:data:" + s.id);
-            if (opts.resetRuntime && hostRuntimeStateView() === s.id) startAppAtState(s.id, { preserveFocus: true, suppressLayerFollow: true });
-            else scheduleSync(false);
+            const historyKey = opts.historyKey || "state:data:" + s.id;
+            if (opts.deferred && !opts.resetRuntime) {
+              scheduleInspectorTextCommit(historyKey, { sync: true });
+            } else {
+              saveEditorState(historyKey, false);
+              if (opts.resetRuntime && hostRuntimeStateView() === s.id) startAppAtState(s.id, { preserveFocus: true, suppressLayerFollow: true });
+              else scheduleSync(false);
+            }
           }
           if (opts.refreshVariables !== false) renderStateVariableList();
         } catch (err) {
@@ -19623,10 +19689,19 @@
       title.oninput = () => {
         s.title = title.value;
         stateInspectorTitleEl.textContent = s.title || s.id;
-        saveModel("state:title:" + s.id);
-        draw();
+        const nodeTitle = nodesEl.querySelector(`.node[data-id="${cssEscapeValue(s.id)}"] .title`);
+        if (nodeTitle) {
+          nodeTitle.textContent = s.title || s.id;
+          nodeTitle.title = s.title || s.id;
+        }
+        scheduleInspectorTextCommit("state:title:" + s.id, { sync: true, draw: true });
       };
-      data.oninput = () => updateDataPreview(true);
+      title.onblur = () => { flushInspectorTextCommit(); scheduleDraw(); };
+      data.oninput = () => updateDataPreview(true, { deferred: true, refreshVariables: false });
+      data.onblur = () => {
+        flushInspectorTextCommit();
+        updateDataPreview(false, { refreshVariables: true });
+      };
       let stateVariableTypeTouched = false;
       const refreshStateVariableTypeOptions = () => {
         const path = stateVariableActualPath(s, stateVariableName.value);
@@ -20588,8 +20663,9 @@
       const syncTransitionSetObject = (nextSet, historyKey = "edge:set:" + t.id, refreshRows = true) => {
         t.set = normalizeDataObject(nextSet);
         set.value = JSON.stringify(t.set, null, 2);
-        updateSetPreview(refreshRows);
-        saveEditorState(historyKey, true);
+        updateSetPreview(refreshRows, { persist: false });
+        if (refreshRows) saveEditorState(historyKey, true);
+        else scheduleInspectorTextCommit(historyKey, { sync: true });
       };
       const makeSetValueControl = (path, value, type) => {
         let control;
@@ -20727,7 +20803,7 @@
         renderSetVariableSuggestions();
         setupEditorAccessibility(root, false);
       };
-      const updateSetPreview = (refreshRows = false) => {
+      const updateSetPreview = (refreshRows = false, opts = {}) => {
         try {
           const parsed = JSON.parse(set.value || "{}");
           if (!isPlainObject(parsed)) throw new Error("Raw values must be an object.");
@@ -20736,7 +20812,10 @@
           setPreview.classList.toggle("empty", !Object.keys(t.set).length);
           if (refreshRows) renderSetVariableList();
           renderSetVariableSuggestions();
-          saveEditorState("edge:set:" + t.id, true);
+          if (opts.persist !== false) {
+            if (opts.deferred) scheduleInspectorTextCommit("edge:set:" + t.id, { sync: true });
+            else saveEditorState("edge:set:" + t.id, true);
+          }
         } catch (err) {
           setPreview.textContent = err.message || "Invalid JSON.";
           setPreview.classList.remove("empty");
@@ -20858,10 +20937,16 @@
       label.oninput = () => {
         t.label = label.value || defaultTransitionLabel();
         stateInspectorTitleEl.textContent = "Übergang: " + transitionDisplayLabel(t);
-        saveModel("edge:label:" + t.id);
-        draw();
+        scheduleInspectorTextCommit("edge:label:" + t.id, { sync: true, draw: true });
       };
-      cond.oninput = () => { t.condition = cond.value; syncRuleBuilderFromCondition(); updateConditionPreview(); saveModel("edge:condition:" + t.id); draw(); };
+      label.onblur = () => { flushInspectorTextCommit(); scheduleDraw(); };
+      cond.oninput = () => {
+        t.condition = cond.value;
+        syncRuleBuilderFromCondition();
+        updateConditionPreview();
+        scheduleInspectorTextCommit("edge:condition:" + t.id, { sync: true, draw: true });
+      };
+      cond.onblur = () => { flushInspectorTextCommit(); scheduleDraw(); };
       let setVariableTypeTouched = false;
       const refreshSetVariableTypeOptions = () => {
         const path = normalizeBindingPath(setVariableName.value, "");
@@ -20880,8 +20965,7 @@
         setVariableName.classList.remove("invalid");
         refreshSetVariableTypeOptions();
       });
-      set.oninput = () => updateSetPreview(true);
-      set.addEventListener("input", () => updateSetPreview(true));
+      set.oninput = () => updateSetPreview(true, { deferred: true });
       set.addEventListener("change", () => updateSetPreview(true));
       let lastSetValue = set.value;
       const pollSetPreview = () => {
@@ -24037,6 +24121,7 @@
     });
 
     window.addEventListener("beforeunload", () => {
+      flushInspectorTextCommit();
       persistModel(false);
     });
 
@@ -24047,6 +24132,7 @@
       const normalizedModel = normalizeModel(JSON.parse(JSON.stringify(nextModel)));
       const triggerIssue = modelTransitionTriggerContractIssue(normalizedModel);
       if (triggerIssue) throw new Error(triggerIssue.message);
+      cancelInspectorTextCommit();
       model = normalizedModel;
       selected = null;
       dragging = null;
