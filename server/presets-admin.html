@@ -231,7 +231,10 @@
     async function requestJson(url, options = {}) {
       const response = await fetch(url, { cache: "no-store", ...options });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
+      if (!response.ok) {
+        const label = payload.error || `HTTP ${response.status}`;
+        throw new Error(payload.detail ? `${label}: ${payload.detail}` : label);
+      }
       return payload;
     }
 
@@ -434,32 +437,58 @@
       setStatus(opts.duplicate ? "Preset dupliziert. Neue ID pruefen und speichern." : "Preset geladen.", "ok");
     }
 
-    function deleteSelectedPreset() {
+    async function deleteSelectedPreset() {
       const preset = selectedPreset();
       if (!preset) throw new Error("Kein Preset ausgewaehlt.");
       if (!confirm(`Preset ${preset.id} wirklich loeschen?`)) return;
+      const previousLibrary = clone(library);
+      const previousDraft = clone(draft);
       library.presets = library.presets.filter(item => item.id !== preset.id);
       setDefinition(null);
       renderCatalog();
-      submitLibrary(false).catch(showError);
+      try {
+        await submitLibrary(false);
+      } catch (error) {
+        library = previousLibrary;
+        draft = previousDraft;
+        renderCatalog();
+        syncFormFields();
+        throw error;
+      }
     }
 
-    function deleteSelectedCategory() {
+    async function deleteSelectedCategory() {
       const id = el("managedCategory").value;
       if (!id || el("deleteCategory").disabled) return;
       if (!confirm(`Kategorie ${id} wirklich loeschen?`)) return;
+      const previousLibrary = clone(library);
       library.categories = library.categories.filter(item => item.id !== id);
       renderCatalog();
-      submitLibrary(false).catch(showError);
+      try {
+        await submitLibrary(false);
+      } catch (error) {
+        library = previousLibrary;
+        renderCatalog();
+        syncFormFields();
+        throw error;
+      }
     }
 
-    function deleteSelectedPackage() {
+    async function deleteSelectedPackage() {
       const id = el("managedPackage").value;
       if (!id || el("deletePackage").disabled) return;
       if (!confirm(`Paket ${id} wirklich loeschen?`)) return;
+      const previousLibrary = clone(library);
       library.packages = library.packages.filter(item => item.id !== id);
       renderCatalog();
-      submitLibrary(false).catch(showError);
+      try {
+        await submitLibrary(false);
+      } catch (error) {
+        library = previousLibrary;
+        renderCatalog();
+        syncFormFields();
+        throw error;
+      }
     }
 
     el("category").addEventListener("change", () => { el("newCategory").hidden = el("category").value !== "__new__"; });
@@ -475,9 +504,9 @@
     el("clear").onclick = () => { try { createBlankPreset(); } catch (error) { showError(error); } };
     el("loadPreset").onclick = () => { try { applyPreset(selectedPreset()); } catch (error) { showError(error); } };
     el("duplicatePreset").onclick = () => { try { applyPreset(selectedPreset(), { duplicate: true }); } catch (error) { showError(error); } };
-    el("deletePreset").onclick = () => { try { deleteSelectedPreset(); } catch (error) { showError(error); } };
-    el("deleteCategory").onclick = () => { try { deleteSelectedCategory(); } catch (error) { showError(error); } };
-    el("deletePackage").onclick = () => { try { deleteSelectedPackage(); } catch (error) { showError(error); } };
+    el("deletePreset").onclick = () => deleteSelectedPreset().catch(showError);
+    el("deleteCategory").onclick = () => deleteSelectedCategory().catch(showError);
+    el("deletePackage").onclick = () => deleteSelectedPackage().catch(showError);
 
     syncSourceMode();
     loadCatalog().catch(showError);

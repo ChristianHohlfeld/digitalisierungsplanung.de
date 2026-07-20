@@ -2955,7 +2955,7 @@ test.describe("State Blueprint tool", () => {
     await editor.getByLabel("Bausteinname").fill("Site Header");
 
     await expect.poll(async () => (await savedModel(page)).states.find(state => state.id === "site_home")?.data?.nav?.brand).toBe("Site Header");
-    await expect(appFrame(page).locator(".navbar")).not.toContainText("Site Header");
+    await expect(appFrame(page).locator(".navbar")).toContainText("Site Header");
     await page.getByRole("button", { name: "App zurücksetzen", exact: true }).click();
     await expect(appFrame(page).locator(".navbar")).toContainText("Site Header");
     await expect(appFrame(page).locator(".navbar")).not.toContainText("Zustand");
@@ -7001,7 +7001,8 @@ test.describe("State Blueprint tool", () => {
       "Kopfleiste Shop/Warenkorb",
       "Prozessschritte",
       "Inhalts-Tabs",
-      "Schalter"
+      "Schalter",
+      "Aura Pricing Card"
     ]);
 
     for (const item of audit) {
@@ -7216,7 +7217,7 @@ test.describe("State Blueprint tool", () => {
       variant: (template.components || []).find(component => component.type === "daisy")?.variant || ""
     })));
     expect(templates.length).toBeGreaterThan(40);
-    expect(templates.length).toBeLessThan(60);
+    expect(templates.length).toBeLessThan(80);
 
     for (const template of templates) {
       await page.evaluate(index => {
@@ -7716,7 +7717,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#pDataCard")).toHaveJSProperty("open", true);
     await expect(page.locator("#pFetchCard")).toHaveJSProperty("open", true);
 
-    await triggerType.selectOption("event");
+    await expect(triggerType.locator('option[value="event"]')).toHaveCount(0);
     await expect.poll(async () => {
       const model = await savedModel(page);
       const transition = model.transitions.find(item => item.id === "t_auth_login");
@@ -7730,9 +7731,6 @@ test.describe("State Blueprint tool", () => {
       triggerEvent: "fetch.states.auth_start.fetch.success",
       condition: ""
     });
-    await expect(triggerEvent).toBeVisible();
-    await expect(triggerEvent).toContainText("Kein Bus-Ereignis im Contract");
-    await expect(triggerEvent).toHaveValue("");
     await expect(appFrame(page).locator('button[data-transition-id="t_auth_login"]')).toHaveCount(0);
     await expect(appFrame(page).locator('button[data-transition-id="t_auth_register"]')).toBeVisible();
 
@@ -7754,7 +7752,7 @@ test.describe("State Blueprint tool", () => {
     await expect(triggerEvent).toBeVisible();
     await expect(triggerEvent).toContainText("Incoming call - realtime.sip.call.incoming");
     await expect(triggerEvent).toHaveValue("");
-    await expect(page.locator("#pStateTriggerEventImport")).toBeVisible();
+    await expect(page.locator("#pStateTriggerEventImport")).toHaveCount(0);
     await expect(appFrame(page).locator('button[data-transition-id="t_auth_login"]')).toHaveCount(0);
 
     await triggerType.selectOption("button");
@@ -7868,8 +7866,7 @@ test.describe("State Blueprint tool", () => {
     await page.locator("#pStateTriggerEvent").selectOption("realtime.sip.call.incoming");
     await expect(page.locator("#pStateTriggerEvent")).toHaveValue("realtime.sip.call.incoming");
     await expect(page.locator('.edge[data-edge-id="t_auth_login"]')).toHaveClass(/inspector-focus-pulse/);
-    await expect(page.locator("#pStateTriggerEventImport")).toBeVisible();
-    await expect(page.locator("#pStateTriggerEventImport")).toHaveText("Realtime-Ereignisse neu laden");
+    await expect(page.locator("#pStateTriggerEventImport")).toHaveCount(0);
     await expect.poll(async () => {
       const model = await savedModel(page);
       const transition = model.transitions.find(item => item.id === "t_auth_login");
@@ -7942,7 +7939,8 @@ test.describe("State Blueprint tool", () => {
     });
 
     catalogVersion = 2;
-    await page.locator("#pStateTriggerEventImport").click();
+    await page.locator("#pStateTriggerType").selectOption("button");
+    await page.locator("#pStateTriggerType").selectOption("realtime");
     await expect(page.locator("#pStateTriggerEvent")).toContainText("Call answered - realtime.sip.call.answered");
     await expect.poll(async () => (await savedModel(page)).realtime).toBeUndefined();
   });
@@ -10565,7 +10563,7 @@ test.describe("State Blueprint tool", () => {
     });
   });
 
-  test("prevents browser text selection inside the generated app preview @smoke", async ({ page }) => {
+  test("prevents browser text selection but keeps the generated app context menu native @smoke", async ({ page }) => {
     await openTool(page);
 
     const runtimeSelection = await appFrame(page).locator("h1").evaluate(title => {
@@ -10583,17 +10581,17 @@ test.describe("State Blueprint tool", () => {
         menuPrevented: menuEvent.defaultPrevented,
         text: selection.toString(),
         userSelect: getComputedStyle(document.body).userSelect,
-        hasTouchCalloutRegel: [...document.querySelectorAll("style")]
+        hasTouchCalloutRule: [...document.querySelectorAll("style")]
           .some(style => style.textContent.includes("-webkit-touch-callout: none"))
       };
     });
 
     expect(runtimeSelection).toEqual({
       selectPrevented: true,
-      menuPrevented: true,
+      menuPrevented: false,
       text: "",
       userSelect: "none",
-      hasTouchCalloutRegel: true
+      hasTouchCalloutRule: false
     });
 
     const passiveTouchFeedback = await appFrame(page).locator("body").evaluate(async body => {
@@ -14560,7 +14558,7 @@ test.describe("State Blueprint tool", () => {
     }).toEqual({ localTemplates: [], hasImportedPreset: false });
   });
 
-  test("reorders component rows with the editor drag handle @smoke", async ({ page }) => {
+  test("reorders component rows by dragging the editor row header @smoke", async ({ page }) => {
     await openTool(page);
     await page.evaluate(() => {
       const state = model.states.find(item => item.id === "login");
@@ -14574,12 +14572,12 @@ test.describe("State Blueprint tool", () => {
     });
     await openStateInspector(page, "login");
     await expect.poll(() => page.locator(".component-editor").evaluateAll(rows =>
-      rows.every(row => row.querySelector(".component-editor-actions")?.lastElementChild?.classList.contains("component-drag-handle"))
+      rows.every(row => row.querySelector(".component-editor-summary")?.draggable === true)
     )).toBe(true);
 
     const dataTransfer = await page.evaluateHandle(() => new DataTransfer());
     const targetBox = await visibleBox(componentEditor(page, "Note"));
-    await componentEditor(page, "Heading").locator(".component-drag-handle").dispatchEvent("dragstart", {
+    await componentEditor(page, "Heading").locator(".component-editor-summary").dispatchEvent("dragstart", {
       dataTransfer,
       bubbles: true,
       cancelable: true

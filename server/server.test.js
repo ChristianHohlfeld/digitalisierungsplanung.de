@@ -839,6 +839,62 @@ test("converts official Daisy snippets into managed contract presets and pushes 
   }
 });
 
+test("syncs a clean managed catalog checkout before committing preset library changes", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "preset-library-sync-"));
+  const libraryPath = path.join(tempDir, "server", "preset-library.json");
+  const calls = [];
+  let behindOrigin = true;
+  fs.mkdirSync(path.dirname(libraryPath), { recursive: true });
+  fs.copyFileSync(presetLibrary.DEFAULT_PRESET_LIBRARY_PATH, libraryPath);
+
+  const gitRunner = args => {
+    calls.push(args);
+    if (args[0] === "status") return { status: 0, stdout: "", stderr: "" };
+    if (args[0] === "rev-list" && args[2] === "origin/main..HEAD") return { status: 0, stdout: "0\n", stderr: "" };
+    if (args[0] === "rev-list" && args[2] === "HEAD..origin/main") return { status: 0, stdout: behindOrigin ? "2\n" : "0\n", stderr: "" };
+    if (args[0] === "reset") {
+      behindOrigin = false;
+      return { status: 0, stdout: "HEAD is now at origin/main\n", stderr: "" };
+    }
+    if (args[0] === "diff") return { status: 1, stdout: "", stderr: "" };
+    if (args[0] === "rev-parse") return { status: 0, stdout: "fedcba\n", stderr: "" };
+    return { status: 0, stdout: "", stderr: "" };
+  };
+
+  try {
+    await withRealtimeServer({
+      roomSecret: SECRET,
+      adminSecret: "admin-secret",
+      presetLibraryPath: libraryPath,
+      repoDir: tempDir,
+      gitRunner
+    }, async realtime => {
+      const load = await fetch(httpUrl(realtime, "/presets-admin/catalog"), {
+        headers: { authorization: "Bearer admin-secret" }
+      });
+      const loaded = await load.json();
+      loaded.library.presets[0].title = `${loaded.library.presets[0].title} synced`;
+
+      const saved = await fetch(httpUrl(realtime, "/presets-admin/catalog"), {
+        method: "POST",
+        headers: { authorization: "Bearer admin-secret", "content-type": "application/json" },
+        body: JSON.stringify({ library: loaded.library, message: "Sync and save preset library" })
+      });
+
+      assert.equal(saved.status, 200);
+      assert.equal((await saved.json()).commit, "fedcba");
+      const fetchIndex = calls.findIndex(args => args[0] === "fetch");
+      const resetIndex = calls.findIndex(args => args[0] === "reset");
+      const addIndex = calls.findIndex(args => args[0] === "add");
+      assert.ok(fetchIndex >= 0);
+      assert.ok(resetIndex > fetchIndex);
+      assert.ok(addIndex > resetIndex);
+    });
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("serves a stateless event console for catalogued test emits", async () => {
   await withRealtimeServer({ roomSecret: SECRET, emitSecret: "emit-secret" }, async realtime => {
     const consoleResponse = await fetch(httpUrl(realtime, "/console.html"));

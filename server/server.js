@@ -780,7 +780,16 @@ function gitFailure(code, result, status = 500) {
   error.code = code;
   error.status = status;
   error.gitStatus = result?.status;
+  error.gitStdout = String(result?.stdout || "");
+  error.gitStderr = String(result?.stderr || "");
   return error;
+}
+
+function errorJson(error, fallback) {
+  const payload = { error: error.code || fallback };
+  const detail = String(error.gitStderr || error.gitStdout || "").trim();
+  if (detail && detail !== payload.error) payload.detail = detail.slice(0, 1200);
+  return payload;
 }
 
 function runGit(config, args, code) {
@@ -831,7 +840,31 @@ function localAheadCount(config) {
   return Number.isFinite(count) && count > 0 ? count : 0;
 }
 
+function gitRevListCount(config, range) {
+  const result = config.gitRunner(["rev-list", "--count", range], {
+    cwd: config.repoDir,
+    env: process.env
+  });
+  if (!result || result.status !== 0) return 0;
+  const count = Number.parseInt(String(result.stdout || "").trim(), 10);
+  return Number.isFinite(count) && count > 0 ? count : 0;
+}
+
+function syncManagedCatalogBase(config) {
+  runGit(config, ["fetch", "origin", "main"], "git_fetch_failed");
+  const status = runGit(config, ["status", "--porcelain"], "git_status_failed");
+  const dirty = String(status.stdout || "").trim();
+  if (dirty) throw gitFailure("git_worktree_dirty", { status: 1, stdout: dirty, stderr: "repository has uncommitted changes" }, 409);
+  const ahead = gitRevListCount(config, "origin/main..HEAD");
+  const behind = gitRevListCount(config, "HEAD..origin/main");
+  if (ahead > 0 && behind > 0) {
+    throw gitFailure("git_branch_diverged", { status: 1, stdout: "", stderr: "local main diverged from origin/main" }, 409);
+  }
+  if (behind > 0) runGit(config, ["reset", "--hard", "origin/main"], "git_sync_failed");
+}
+
 function writeManagedCatalogCommitAndPush(config, options) {
+  syncManagedCatalogBase(config);
   const relativeCatalogPath = repoRelativePath(config.repoDir, options.catalogPath);
   const relativeReleasePath = repoRelativePath(config.repoDir, config.releaseFile);
   fs.writeFileSync(options.catalogPath, options.serialized, { encoding: "utf8", mode: 0o644 });
@@ -1242,8 +1275,10 @@ function createRealtimeServer(options = {}) {
 
     if (request.method === "GET") {
       try {
+        const catalog = eventCatalog.loadEventCatalogFile(config.eventCatalogPath);
+        setEventCatalog(catalog);
         writeJson(response, 200, {
-          catalog: eventCatalog.loadEventCatalogFile(config.eventCatalogPath),
+          catalog,
           release: releaseResponse(config)
         }, headers);
       } catch (error) {
@@ -1272,7 +1307,7 @@ function createRealtimeServer(options = {}) {
       if (result.release) config.release = result.release;
       writeJson(response, 200, result, headers);
     } catch (error) {
-      writeJson(response, error.status || 500, { error: error.code || "event_catalog_save_failed" }, headers);
+      writeJson(response, error.status || 500, errorJson(error, "event_catalog_save_failed"), headers);
     }
   }
 
@@ -1283,11 +1318,17 @@ function createRealtimeServer(options = {}) {
     const headers = prepared.headers;
 
     if (request.method === "GET") {
-      writeJson(response, 200, {
-        library: config.presetLibrary,
-        supportedVariants: [...presetLibrary.SUPPORTED_VARIANTS].sort(),
-        release: releaseResponse(config)
-      }, headers);
+      try {
+        const library = presetLibrary.loadPresetLibraryFile(config.presetLibraryPath);
+        setPresetLibrary(library);
+        writeJson(response, 200, {
+          library,
+          supportedVariants: [...presetLibrary.SUPPORTED_VARIANTS].sort(),
+          release: releaseResponse(config)
+        }, headers);
+      } catch (error) {
+        writeJson(response, error.status || 500, { error: error.code || "preset_library_load_failed" }, headers);
+      }
       return;
     }
 
@@ -1311,7 +1352,7 @@ function createRealtimeServer(options = {}) {
       if (result.release) config.release = result.release;
       writeJson(response, 200, result, headers);
     } catch (error) {
-      writeJson(response, error.status || 500, { error: error.code || "preset_library_save_failed" }, headers);
+      writeJson(response, error.status || 500, errorJson(error, "preset_library_save_failed"), headers);
     }
   }
 
