@@ -83,23 +83,5 @@
       "sort": 80
     }
   ],
-  "presets": [
-    {
-      "id": "custom_daisyui_aura_pricing",
-      "variant": "card",
-      "title": "Aura Pricing Card",
-      "description": "Aura rainbow around a pricing card",
-      "categoryId": "websuite-builder",
-      "packageIds": [
-        "website.builder"
-      ],
-      "data": {
-        "title": "Premium",
-        "body": "",
-        "image": "",
-        "imageAlt": "",
-        "actionLabel": "Subscribe"
-      }
-    }
-  ]
+  "presets": []
 }
