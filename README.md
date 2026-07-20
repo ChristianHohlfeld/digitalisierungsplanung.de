@@ -42,6 +42,7 @@ Regeln:
 - Verschachtelte Zustände laufen über echte Eingänge, Ausgänge und Verbindungen.
 - Wenn kein echter Ausgang erreichbar ist, stoppt der Ablauf.
 - Externe Ereignisse schreiben zuerst in den Datenbus. Erst danach kann ein Übergang reagieren.
+- Der geklickte Durchlauf wird als Prozessprotokoll im globalen Runtime-Bus geführt und kann als Bericht gedruckt oder als JSON gespeichert werden.
 
 Der normative Kernvertrag steht in [`docs/state-contract.md`](docs/state-contract.md).
 Der ausführliche Architektur- und Auditkontext steht in
@@ -67,6 +68,7 @@ Der ausführliche Architektur- und Auditkontext steht in
 - Vorlagen für häufige Oberflächenbausteine
 - verschachtelte Zustände mit Eingang und Ausgang
 - Datenladen beim Betreten eines Zustands
+- Prozessprotokoll für geklickte Abläufe mit Fallbezeichnung, JSON-Export und PDF-Druckansicht
 - Speichern, Laden, Einlesen und Ausgeben
 - Echtzeit-Ereignisse aus `/events`
 - PWA-Dateien und statische HTML-Ausgabe

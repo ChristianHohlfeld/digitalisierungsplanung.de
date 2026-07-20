@@ -2,7 +2,7 @@
 
 Status: normativ
 Schema: State Blueprint 2
-Stand: 2026-07-15
+Stand: 2026-07-20
 
 Dieses Dokument ist die kanonische Kurzfassung des Produktvertrags. Editor,
 MCP, Preview, Standalone-Export und Tests müssen dieselben Regeln anwenden.
@@ -96,6 +96,8 @@ Lesbare Wurzeln sind:
 states.<id>.*
 state.current
 runtime.paused
+runtime.path
+runtime.pathName
 events.*
 emitters.*
 realtime.*
@@ -221,7 +223,24 @@ Ein API-Ereignis ist ein echter Trigger und kein `change`-Alias. Ein generischer
 - Pause ist ein globaler Runtime-Wert für den Editor. Standalone-Seiten haben
   keinen Editor-Pause-Shortcut.
 
-## 10. Realtime und Server
+## 10. Prozessprotokoll
+
+- Die Runtime darf den tatsächlich ausgeführten Durchlauf ausschließlich unter
+  `runtime.path` im globalen Bus protokollieren.
+- Ein Protokollschritt entsteht nur nach einer ausgeführten Transition, nie beim
+  Selektieren, Rendern, Exportieren oder durch Editor-Host-Sync.
+- Jeder Schritt enthält mindestens Index, Zeitpunkt, Quelle, Ziel, Transition,
+  Trigger-Typ und Trigger-Ereignis.
+- `runtime.pathName` ist eine optionale Fallbezeichnung des aktuellen
+  Durchlaufs. Sie ist Laufzeit-Buswert, kein Modellfeld.
+- Reset startet ein neues leeres Protokoll. Normale Modellupdates erhalten den
+  bestehenden Buspfad.
+- Schrittzahl, Startzeit und letzte Änderung werden aus `runtime.path`
+  abgeleitet. Bericht, JSON-Download und PDF-Druckansicht sind reine
+  Projektionen aus Modell plus globalem Bus. Sie persistieren kein zweites
+  Prozessmodell.
+
+## 11. Realtime und Server
 
 - `/contract` liefert den aggregierten Product Contract für Trigger,
   Datentypen, Datasets, Connectoren, Presets, Pakete und Pläne.
@@ -235,7 +254,7 @@ Ein API-Ereignis ist ein echter Trigger und kein `change`-Alias. Ein generischer
 - `server/admin-tools.js` ist die Routenliste. Tests beweisen jede dort
   aufgeführte Route gegen Server und Nginx.
 
-## 11. Absicherung
+## 12. Absicherung
 
 Vertragsänderungen müssen gemeinsam ändern:
 
