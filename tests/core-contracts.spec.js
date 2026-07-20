@@ -1980,6 +1980,54 @@ test.describe("Core source contracts", () => {
     expect(appHtml).not.toContain('setValueAtPath(context, "state.current"');
   });
 
+  test("generated runtime renders a human-readable printable process protocol @smoke", async ({ page }) => {
+    await openWithModel(page, {
+      version: 2,
+      name: "Rechnungseingang",
+      initial: "start",
+      states: [
+        { id: "start", title: "Eingang", body: "", components: [{ id: "c_start", type: "text", text: "Neue Rechnung ist eingegangen.", url: "" }], x: 120, y: 160 },
+        { id: "check", title: "Pruefung", body: "", components: [{ id: "c_check", type: "text", text: "Sachliche Pruefung laeuft.", url: "" }], x: 420, y: 160 }
+      ],
+      transitions: [
+        { id: "to_check", from: "start", to: "check", label: "Zur Pruefung", condition: "", triggerType: "button", set: {} }
+      ]
+    });
+
+    const app = appFrame(page);
+    await app.getByRole("button", { name: "Zur Pruefung" }).click();
+    await expect(app.locator("#statePill")).toHaveText("check");
+    await expect(app.locator("#processProtocolButton")).toBeVisible();
+
+    await app.locator("#processProtocolButton").click();
+    await app.locator("#processProtocolName").fill("Rechnung 1042");
+    await expect(app.locator(".protocol-summary-title")).toContainText("1 Schritt: Eingang -> Pruefung");
+    await expect(app.locator(".protocol-summary-text")).toContainText("globalen Runtime-Bus");
+    await expect(app.locator(".protocol-step-story")).toContainText('Der Nutzer hat "Zur Pruefung"');
+    await expect(app.locator(".protocol-footer")).toContainText("digitalisierungsplanung.de");
+
+    await app.locator("body").evaluate(body => body.classList.add("protocol-printing"));
+    await page.emulateMedia({ media: "print" });
+    const printSnapshot = await app.locator("html").evaluate(() => {
+      const appRoot = document.querySelector(".app");
+      const overlay = document.getElementById("processProtocolOverlay");
+      const screen = document.getElementById("screen");
+      return {
+        appDisplay: getComputedStyle(appRoot).display,
+        overlayDisplay: getComputedStyle(overlay).display,
+        screenDisplay: getComputedStyle(screen).display,
+        overlayWidth: overlay.getBoundingClientRect().width,
+        overlayHeight: overlay.getBoundingClientRect().height
+      };
+    });
+    await page.emulateMedia({ media: null });
+    expect(printSnapshot.appDisplay).toBe("block");
+    expect(printSnapshot.overlayDisplay).toBe("block");
+    expect(printSnapshot.screenDisplay).toBe("none");
+    expect(printSnapshot.overlayWidth).toBeGreaterThan(0);
+    expect(printSnapshot.overlayHeight).toBeGreaterThan(0);
+  });
+
   test("generated runtime guards bus writes against unauthorized sources @smoke", async ({ page }) => {
     await page.goto("/state.html");
     const appHtml = await generatedPreviewHtml(page);

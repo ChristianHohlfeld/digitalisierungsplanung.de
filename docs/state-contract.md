@@ -239,6 +239,10 @@ Ein API-Ereignis ist ein echter Trigger und kein `change`-Alias. Ein generischer
   abgeleitet. Bericht, JSON-Download und PDF-Druckansicht sind reine
   Projektionen aus Modell plus globalem Bus. Sie persistieren kein zweites
   Prozessmodell.
+- Die PDF-Druckansicht ist ein menschenlesbarer Bericht mit Kopf,
+  Zusammenfassung, Metadaten, Schrittfolge und Fuß. Alle Inhalte werden aus
+  `runtime.path`, `runtime.pathName`, aktuellem Modell und globalem Bus
+  abgeleitet.
 
 ## 11. Realtime und Server
 
