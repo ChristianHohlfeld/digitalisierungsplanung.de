@@ -1,0 +1,195 @@
+import fs from "node:fs";
+
+function replaceOnce(source, before, after, label) {
+  const index = source.indexOf(before);
+  if (index < 0) throw new Error("Missing patch anchor: " + label);
+  if (source.indexOf(before, index + before.length) >= 0) throw new Error("Ambiguous patch anchor: " + label);
+  return source.slice(0, index) + after + source.slice(index + before.length);
+}
+
+function extractAppHtml(source) {
+  const declaration = "const APP_HTML = ";
+  const start = source.indexOf(declaration);
+  if (start < 0) throw new Error("APP_HTML declaration missing");
+  const literalStart = start + declaration.length;
+  if (source[literalStart] !== '"') throw new Error("APP_HTML is not a JSON string literal");
+  let escaped = false;
+  for (let index = literalStart + 1; index < source.length; index += 1) {
+    const char = source[index];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (char === '"') {
+      return {
+        value: JSON.parse(source.slice(literalStart, index + 1)),
+        literalStart,
+        literalEnd: index + 1
+      };
+    }
+  }
+  throw new Error("APP_HTML closing quote missing");
+}
+
+const statePath = "state.html";
+let stateSource = fs.readFileSync(statePath, "utf8");
+const extracted = extractAppHtml(stateSource);
+let appHtml = extracted.value;
+
+appHtml = replaceOnce(appHtml, String.raw`    .protocol-actions {
+      display: flex;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 16px;
+    }`, String.raw`    .protocol-inputs,
+    .protocol-changes {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+      border: 1px solid rgba(148,163,184,.18);
+      border-radius: 12px;
+      padding: 11px;
+      background: rgba(2,6,23,.22);
+    }
+
+    .protocol-section-title {
+      color: #bfdbfe;
+      font-size: 11px;
+      font-weight: 950;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    .protocol-input-list,
+    .protocol-change-list {
+      display: grid;
+      gap: 7px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .protocol-input-item,
+    .protocol-change-item {
+      display: grid;
+      grid-template-columns: minmax(130px, .8fr) minmax(0, 1.2fr);
+      gap: 10px;
+      align-items: start;
+      border-top: 1px solid rgba(148,163,184,.12);
+      padding-top: 7px;
+    }
+
+    .protocol-input-item:first-child,
+    .protocol-change-item:first-child {
+      border-top: 0;
+      padding-top: 0;
+    }
+
+    .protocol-input-label,
+    .protocol-change-label {
+      color: #9fb3c8;
+      font-size: 12px;
+      font-weight: 850;
+      overflow-wrap: anywhere;
+    }
+
+    .protocol-input-value,
+    .protocol-change-value {
+      color: #f8fbff;
+      font-size: 13px;
+      line-height: 1.45;
+      font-weight: 850;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .protocol-input-path,
+    .protocol-change-path {
+      grid-column: 1 / -1;
+      color: #7893ad;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 10px;
+      overflow-wrap: anywhere;
+    }
+
+    .protocol-path-map {
+      display: grid;
+      gap: 7px;
+      margin-top: 10px;
+      border: 1px solid rgba(56,189,248,.24);
+      border-radius: 12px;
+      padding: 10px;
+      background:
+        linear-gradient(rgba(56,189,248,.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(56,189,248,.04) 1px, transparent 1px),
+        rgba(2,6,23,.28);
+      background-size: 22px 22px;
+    }
+
+    .protocol-path-map-title {
+      color: #bfdbfe;
+      font-size: 11px;
+      font-weight: 950;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+
+    .protocol-path-map-scroll {
+      overflow-x: auto;
+      scrollbar-width: thin;
+    }
+
+    .protocol-path-map svg {
+      display: block;
+      width: max(100%, var(--protocol-map-width, 520px));
+      height: auto;
+      min-height: 118px;
+    }
+
+    .protocol-map-edge {
+      fill: none;
+      stroke: #47708f;
+      stroke-width: 4;
+      stroke-linecap: round;
+    }
+
+    .protocol-map-edge.current { stroke: #34d399; stroke-width: 6; }
+    .protocol-map-edge-label { fill: #9fb3c8; font-size: 11px; font-weight: 800; }
+    .protocol-map-node { fill: #102642; stroke: #47708f; stroke-width: 2; }
+    .protocol-map-node.visited { fill: #0c3551; stroke: #38bdf8; }
+    .protocol-map-node.current { fill: #064e3b; stroke: #34d399; stroke-width: 4; }
+    .protocol-map-node-title { fill: #f8fbff; font-size: 12px; font-weight: 900; }
+    .protocol-map-node-meta { fill: #9fb3c8; font-size: 9px; font-weight: 750; }
+
+    .protocol-actions {
+      display: flex;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 16px;
+    }`, "protocol input and visual styles");
+
+appHtml = replaceOnce(appHtml, String.raw`    @media (max-width: 520px) {
+      .protocol-step-details { grid-template-columns: 1fr; }
+      .protocol-footer { flex-direction: column; }
+    }`, String.raw`    @media (max-width: 520px) {
+      .protocol-step-details { grid-template-columns: 1fr; }
+      .protocol-input-item,
+      .protocol-change-item { grid-template-columns: 1fr; gap: 3px; }
+      .protocol-footer { flex-direction: column; }
+    }`, "protocol mobile fields");
+
+appHtml = replaceOnce(appHtml, String.raw`      body.protocol-printing .protocol-summary,
+      body.protocol-printing .protocol-meta-item,
+      body.protocol-printing .protocol-empty,
+      body.protocol-printing .protocol-step,
+      body.protocol-printing .protocol-detail,
+      body.protocol-printing .protocol-route-pill {`, String.raw`      body.protocol-printing .protocol-summary,
+      body.protocol-printing .protocol-meta-item,
+      body.protocol-printing .protocol-empty,
+      body.protocol-printing .protocol-step,
