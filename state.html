@@ -2212,6 +2212,61 @@
       margin: 10px 0;
     }
 
+    .rule-quick-chips {
+      display: grid;
+      gap: 8px;
+      margin: 0 0 10px;
+    }
+
+    .rule-quick-chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .rule-quick-chip {
+      border: 1px solid rgba(56,189,248,.35);
+      border-radius: 999px;
+      padding: 6px 10px;
+      background: rgba(8,24,39,.72);
+      color: #e0f2fe;
+      font-size: 12px;
+      font-weight: 850;
+      cursor: pointer;
+      max-width: 100%;
+    }
+
+    .rule-quick-chip:hover,
+    .rule-quick-chip:focus-visible {
+      border-color: rgba(56,189,248,.75);
+      background: rgba(14,48,78,.92);
+      outline: none;
+    }
+
+    .rule-quick-chip.active {
+      border-color: rgba(52,211,153,.7);
+      background: rgba(6,78,59,.55);
+      color: #bbf7d0;
+    }
+
+    .widget-action-bind {
+      display: grid;
+      gap: 6px;
+      margin: 0 0 10px;
+      padding: 10px 11px;
+      border: 1px solid rgba(56,189,248,.28);
+      border-radius: 12px;
+      background: rgba(8,24,39,.55);
+    }
+
+    .widget-action-bind .small {
+      margin: 0;
+    }
+
+    .widget-list-remove {
+      min-width: 34px;
+    }
+
     .transition-rule-grid {
       display: grid;
       grid-template-columns: minmax(0, 1.15fr) minmax(0, .95fr);
@@ -16696,21 +16751,39 @@
           down.textContent = "Ab";
           down.disabled = index >= items.length - 1;
           bindImmediateButton(down, () => moveWidgetListItem(component, dataPath, key, index, index + 1, true));
-          controls.append(up, down);
+          const remove = document.createElement("button");
+          remove.type = "button";
+          remove.className = "component-editor-action icon-action widget-list-remove";
+          remove.textContent = "×";
+          remove.title = "Eintrag entfernen";
+          bindImmediateButton(remove, () => {
+            const nextItems = items.slice();
+            nextItems.splice(index, 1);
+            persistWidgetData(component, dataPath, { ...data, [key]: nextItems }, "state:widget-list-remove:" + component.id + ":" + key);
+            rerender({ componentId: component.id });
+            if (!options.skipLiveStateSync) draw();
+          });
+          controls.append(up, down, remove);
           row.append(drag, input, controls);
           section.appendChild(row);
         });
         const addRow = document.createElement("div");
         addRow.className = "widget-list-row widget-list-add-row";
         const addInput = document.createElement("input");
-        addInput.placeholder = "Neuer Eintrag";
-        addInput.setAttribute("aria-label", `${title} neuen Eintrag`);
+        const variantForAdd = daisyVariantName(component);
+        const addNoun = ["checkbox", "toggle"].includes(variantForAdd) && key === "items"
+          ? "Checkbox"
+          : key === "options"
+          ? "Option"
+          : "Eintrag";
+        addInput.placeholder = "Neue " + addNoun;
+        addInput.setAttribute("aria-label", `${title} neue ${addNoun}`);
         const addButton = document.createElement("button");
         addButton.type = "button";
         addButton.className = "component-editor-action";
-        addButton.textContent = "Hinzufügen";
+        addButton.textContent = addNoun + " hinzufügen";
         const addItem = () => {
-          const label = String(addInput.value || "").trim() || `Option ${items.length + 1}`;
+          const label = String(addInput.value || "").trim() || `${addNoun} ${items.length + 1}`;
           const variant = daisyVariantName(component);
           const nextItem = ["checkbox", "toggle"].includes(variant) && key === "items"
             ? { label, checked: false }
@@ -16749,6 +16822,66 @@
         nameField.append(nameLabel, nameInput);
 
         const variant = daisyVariantName(component);
+        const appendWidgetActionBinder = () => {
+          const singleAction = ["button", "card", "hero", "modal", "checkbox", "toggle", "input", "textarea", "select", "alert", "loading", "countdown"].includes(variant);
+          if (!singleAction) return;
+          const outgoing = model.transitions.filter(tr =>
+            tr && tr.from === s.id && !isBoundaryFlowTransition(tr) && transitionIsRenderButtonAction(tr)
+          );
+          const panel = document.createElement("div");
+          panel.className = "widget-action-bind";
+          const head = document.createElement("div");
+          head.className = "small";
+          head.innerHTML = "<b>Löst aus</b><br><span>Welcher Übergang startet, wenn man hier klickt oder bestätigt?</span>";
+          const field = document.createElement("div");
+          field.className = "field";
+          const labelEl = document.createElement("label");
+          labelEl.textContent = "Übergang";
+          const select = document.createElement("select");
+          select.setAttribute("aria-label", "Übergang für " + (component.dataLabel || component.variant || "Baustein"));
+          const empty = document.createElement("option");
+          empty.value = "";
+          empty.textContent = "— Kein Übergang gebunden —";
+          select.appendChild(empty);
+          outgoing.forEach(tr => {
+            const option = document.createElement("option");
+            option.value = tr.id;
+            const target = byId(tr.to);
+            option.textContent = (transitionDisplayLabel(tr) || tr.id) + " → " + (target?.title || tr.to || "?");
+            select.appendChild(option);
+          });
+          const currentId = String(data.transitionId || component.transitionId || "").trim();
+          if (currentId && [...select.options].some(option => option.value === currentId)) select.value = currentId;
+          else if (currentId) {
+            const orphan = document.createElement("option");
+            orphan.value = currentId;
+            orphan.textContent = currentId + " (nicht ausgehend)";
+            select.appendChild(orphan);
+            select.value = currentId;
+          }
+          select.onchange = () => {
+            const nextId = String(select.value || "").trim();
+            const nextData = { ...data };
+            if (nextId) nextData.transitionId = nextId;
+            else delete nextData.transitionId;
+            if ("transitionId" in component) component.transitionId = nextId;
+            persistWidgetData(component, dataPath, nextData, "state:widget-action:" + component.id);
+            if (!options.skipLiveStateSync) {
+              saveComponent(component);
+              draw();
+            }
+          };
+          field.append(labelEl, select);
+          panel.append(head, field);
+          if (!outgoing.length) {
+            const tip = document.createElement("div");
+            tip.className = "small";
+            tip.textContent = "Zeichne zuerst einen Pfeil von diesem Zustand weg – dann erscheint er hier.";
+            panel.appendChild(tip);
+          }
+          editor.appendChild(panel);
+        };
+        appendWidgetActionBinder();
         const scalarLabels = {
           brand: "Marke",
           title: "Titel",
@@ -16812,7 +16945,7 @@
           .filter(key => ["string", "number", "boolean"].includes(typeof data[key]))
           .filter(key => !/transitionId$/i.test(key))
           .slice(0, 4);
-        appendQuickEditPanel(editor, "Schnell bearbeiten", "Die wichtigsten Inhalte dieses Presets.", fields => {
+        appendQuickEditPanel(editor, "Schnell bearbeiten", "Direkt die Inhalte dieses Bausteins setzen.", fields => {
           quickScalarKeys.forEach(key => {
             appendWidgetScalarField(fields, component, dataPath, data, key, scalarLabels[key] || dataPathLabel(key, "Feld"), { quick: true });
           });
@@ -16828,7 +16961,11 @@
         scalarKeys.forEach(key => appendWidgetScalarField(editor, component, dataPath, data, key, scalarLabels[key] || dataPathLabel(key, "Feld")));
 
         const listLabels = {
-          items: variant === "navbar" ? "Menüpunkte" : "Einträge",
+          items: variant === "navbar"
+            ? "Menüpunkte"
+            : ["checkbox", "toggle"].includes(variant)
+            ? "Checkboxen"
+            : "Einträge",
           menuItems: "Profilmenü",
           submenu: "Untermenü",
           options: "Optionen",
@@ -20083,10 +20220,11 @@
         <div class="field"><label>Beschriftung</label><input id="pLabel"></div>
         <div class="field"><label>Startet wenn</label><select id="pTriggerType"></select></div>
         <div class="data-source-panel transition-rule-panel">
-          <div class="small"><b>Regel</b><br><span>Wähle, was wahr sein muss, damit dieser Übergang weiterlaufen darf.</span></div>
+          <div class="small"><b>Regel</b><br><span>Was aus dem vorherigen Zustand muss stimmen, damit es weitergeht?</span></div>
+          <div id="pRuleQuickChips" class="rule-quick-chips" hidden></div>
           <div class="transition-rule-grid">
-            <div class="field"><label>Feld</label><select id="pRuleField"></select></div>
-            <div class="field"><label>Muss sein</label><select id="pRuleOperator"></select></div>
+            <div class="field"><label>Wert aus Zustand</label><select id="pRuleField"></select></div>
+            <div class="field"><label>Bedingung</label><select id="pRuleOperator"></select></div>
           </div>
           <div id="pRuleValueSlot" class="field transition-rule-value"></div>
           <div class="transition-rule-actions">
@@ -20183,6 +20321,7 @@
       const ruleApply = root.querySelector("#pRuleApply");
       const ruleClear = root.querySelector("#pRuleClear");
       const rulePreview = root.querySelector("#pRulePreview");
+      const ruleQuickChips = root.querySelector("#pRuleQuickChips");
       const set = root.querySelector("#pSet");
       const setPreview = root.querySelector("#pSetPreview");
       const setVariableList = root.querySelector("#pSetVariableList");
@@ -20392,12 +20531,35 @@
         const state = stateForRulePath(path);
         const choiceLabel = indexedChoiceRuleLabel(path, state);
         if (choiceLabel) return choiceLabel;
+        const widgetLabel = widgetFieldLabelForPath(path, state);
+        if (widgetLabel) return widgetLabel;
         const field = dataPathLabel(path, "Wert");
         if (!state) return field;
         const title = String(state.title || state.id || "Zustand").trim();
         return title ? `${title} - ${field}` : field;
       };
       const isIndexedChoiceRulePath = path => /(?:^|\.)items\.\d+\.checked$/.test(normalizeBindingPath(path, ""));
+      const widgetFieldLabelForPath = (path, state) => {
+        const clean = normalizeBindingPath(path || "", "");
+        if (!clean || !state) return "";
+        for (const component of normalizeComponents(state.components)) {
+          if (component?.type !== "daisy") continue;
+          const dataPath = normalizeBindingPath(component.dataPath, "");
+          if (!dataPath) continue;
+          if (clean !== dataPath && !clean.startsWith(dataPath + ".")) continue;
+          const base = String(component.dataLabel || component.variant || "Baustein").trim() || "Baustein";
+          if (clean === dataPath) return base;
+          const rest = clean.slice(dataPath.length + 1);
+          if (!rest) return base;
+          if (isIndexedChoiceRulePath(clean)) return "";
+          if (rest === "checked") return base + " angehakt";
+          if (rest === "value") return base + " Wert";
+          if (rest === "selected") return base + " Auswahl";
+          if (rest === "label") return base + " Beschriftung";
+          return base + " · " + dataPathLabel(rest, rest);
+        }
+        return "";
+      };
       const ruleFieldMeta = item => {
         const type = stateVariableTypeLabel(stateVariableTypeFromSuggestion(item?.path || "", item?.type || "value", item?.value));
         const state = stateForRulePath(item?.path || "");
@@ -20406,16 +20568,21 @@
       const transitionRuleSuggestionScore = item => {
         const path = normalizeBindingPath(item?.path || "", "");
         const source = String(item?.source || "");
+        const fromScope = stateDataScopeForId(t.from) + ".";
         let score = 0;
-        if (path.startsWith(stateDataScopeForId(t.from) + ".")) score += 300;
-        if (path.startsWith(stateDataScopeForId(t.to) + ".")) score += 260;
-        if (path.startsWith("states.")) score += 180;
-        if (source.includes("from state")) score += 120;
-        if (source.includes("target state")) score += 110;
-        if (source.includes("parent state")) score += 90;
-        if (path.startsWith("events.") || path.startsWith("emitters.")) score -= 80;
-        if (path.startsWith("realtime.")) score -= 60;
-        score -= Math.min(60, path.split(".").length * 4);
+        if (path.startsWith(fromScope)) score += 400;
+        if (path.startsWith(stateDataScopeForId(t.to) + ".")) score += 200;
+        if (path.startsWith("states.")) score += 160;
+        if (source.includes("from state")) score += 140;
+        if (source.includes("target state")) score += 90;
+        if (source.includes("parent state")) score += 70;
+        if (isIndexedChoiceRulePath(path)) score += 220;
+        if (/(?:^|\.)(checked|value|selected|label|title|accepted|ready|score)$/i.test(path)) score += 80;
+        if (byId(t.from) && widgetFieldLabelForPath(path, byId(t.from))) score += 160;
+        if (path.startsWith("events.") || path.startsWith("emitters.")) score -= 160;
+        if (path.startsWith("realtime.")) score -= 140;
+        if (path === "state.current") score -= 40;
+        score -= Math.min(40, path.split(".").length * 3);
         return score;
       };
       const transitionRuleSuggestions = () => {
@@ -20622,6 +20789,7 @@
         } else {
           renderRulePreview();
         }
+        renderQuickRuleChips();
       };
       const applyRuleCondition = () => {
         const item = selectedRuleItem();
@@ -20636,6 +20804,73 @@
         updateConditionPreview();
         saveModel("edge:condition:" + t.id);
         draw();
+        renderQuickRuleChips();
+      };
+      const renderQuickRuleChips = () => {
+        if (!ruleQuickChips) return;
+        const fromState = byId(t.from);
+        const primary = transitionRuleSuggestions()
+          .filter(item => {
+            const path = item.path;
+            if (!fromState) return false;
+            if (path.startsWith(stateDataScopeForId(t.from) + ".")) return true;
+            return false;
+          })
+          .slice(0, 10);
+        ruleQuickChips.innerHTML = "";
+        if (!primary.length) {
+          ruleQuickChips.hidden = true;
+          return;
+        }
+        ruleQuickChips.hidden = false;
+        const hint = document.createElement("div");
+        hint.className = "small";
+        hint.innerHTML = "<b>Schnellwahl</b><br><span>Ein Tipp setzt die Regel aus dem vorherigen Zustand.</span>";
+        ruleQuickChips.appendChild(hint);
+        const row = document.createElement("div");
+        row.className = "rule-quick-chip-row";
+        const activeParts = new Set(splitRuleConditions(cond.value));
+        primary.forEach(item => {
+          const type = normalizeStateVariableType(item.type);
+          const shortLabel = String(item.label || "").replace(/\s+aktiv$/i, "").trim() || dataPathLabel(item.path, "Wert");
+          const chipDefs = type === "boolean"
+            ? [
+                { operator: "true", text: shortLabel + ": an" },
+                { operator: "false", text: shortLabel + ": aus" }
+              ]
+            : type === "number"
+            ? [{ operator: "gte", text: shortLabel + " ≥ …", needsValue: true }]
+            : type === "list"
+            ? [{ operator: "notEmpty", text: shortLabel + " hat Einträge" }]
+            : type === "image" || type === "url"
+            ? [{ operator: "filled", text: shortLabel + " gesetzt" }]
+            : [
+                { operator: "filled", text: shortLabel + " gefüllt" },
+                { operator: "equals", text: shortLabel + " = …", needsValue: true }
+              ];
+          chipDefs.forEach(def => {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "rule-quick-chip";
+            btn.textContent = def.text;
+            const previewCondition = ruleConditionFor(item.path, def.operator, "", item.type);
+            if (previewCondition && activeParts.has(previewCondition)) btn.classList.add("active");
+            btn.onclick = () => {
+              renderRuleFields(item.path);
+              renderRuleOperators(def.operator);
+              renderRuleValueControl("");
+              if (def.needsValue) {
+                renderRulePreview();
+                ruleValueControl?.focus({ preventScroll: true });
+                return;
+              }
+              applyRuleCondition();
+              syncRuleBuilderFromCondition();
+            };
+            row.appendChild(btn);
+          });
+        });
+        ruleQuickChips.appendChild(row);
       };
       const applyConditionPath = path => {
         const key = normalizeBindingPath(path, "");
