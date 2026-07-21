@@ -231,6 +231,11 @@ Ein API-Ereignis ist ein echter Trigger und kein `change`-Alias. Ein generischer
   Selektieren, Rendern, Exportieren oder durch Editor-Host-Sync.
 - Jeder Schritt enthält mindestens Index, Zeitpunkt, Quelle, Ziel, Transition,
   Trigger-Typ und Trigger-Ereignis.
+- Zusätzlich speichert jeder Schritt den aktiven Zustandspfad (`fromPath`,
+  `activePath`), die vor dem Wechsel erfassten Eingaben/Werte (`inputs`) und
+  die durch `transition.set` geschriebenen Daten (`changes`). Werte stammen
+  aus dem globalen Bus und sichtbaren Screen-Eingaben zum Zeitpunkt des
+  Wechsels; Secret-Felder werden redacted.
 - `runtime.pathName` ist eine optionale Fallbezeichnung des aktuellen
   Durchlaufs. Sie ist Laufzeit-Buswert, kein Modellfeld.
 - Reset startet ein neues leeres Protokoll. Normale Modellupdates erhalten den
@@ -238,11 +243,11 @@ Ein API-Ereignis ist ein echter Trigger und kein `change`-Alias. Ein generischer
 - Schrittzahl, Startzeit und letzte Änderung werden aus `runtime.path`
   abgeleitet. Bericht, JSON-Download und PDF-Druckansicht sind reine
   Projektionen aus Modell plus globalem Bus. Sie persistieren kein zweites
-  Prozessmodell.
+  Prozessmodell und sind kein Undo/Redo.
 - Die PDF-Druckansicht ist ein menschenlesbarer Bericht mit Kopf,
-  Zusammenfassung, Metadaten, Schrittfolge und Fuß. Alle Inhalte werden aus
-  `runtime.path`, `runtime.pathName`, aktuellem Modell und globalem Bus
-  abgeleitet.
+  Zusammenfassung, Metadaten, Schrittfolge (inkl. Eingaben und gesetzter
+  Werte) und Fuß. Alle Inhalte werden aus `runtime.path`,
+  `runtime.pathName`, aktuellem Modell und globalem Bus abgeleitet.
 
 ## 11. Realtime und Server
 

@@ -1986,15 +1986,38 @@ test.describe("Core source contracts", () => {
       name: "Rechnungseingang",
       initial: "start",
       states: [
-        { id: "start", title: "Eingang", body: "", components: [{ id: "c_start", type: "text", text: "Neue Rechnung ist eingegangen.", url: "" }], x: 120, y: 160 },
+        {
+          id: "start",
+          title: "Eingang",
+          body: "",
+          data: { betrag: "0", notiz: "" },
+          components: [{ id: "c_start", type: "text", text: "Neue Rechnung ist eingegangen.", url: "" }],
+          x: 120,
+          y: 160
+        },
         { id: "check", title: "Pruefung", body: "", components: [{ id: "c_check", type: "text", text: "Sachliche Pruefung laeuft.", url: "" }], x: 420, y: 160 }
       ],
       transitions: [
-        { id: "to_check", from: "start", to: "check", label: "Zur Pruefung", condition: "", triggerType: "button", set: {} }
+        {
+          id: "to_check",
+          from: "start",
+          to: "check",
+          label: "Zur Pruefung",
+          condition: "",
+          triggerType: "button",
+          set: { "states.start.notiz": "geprueft" }
+        }
       ]
     });
 
     const app = appFrame(page);
+    await app.locator("body").evaluate(() => {
+      const input = document.createElement("input");
+      input.id = "states.start.betrag";
+      input.name = "states.start.betrag";
+      input.value = "42.5";
+      document.getElementById("screen")?.appendChild(input);
+    });
     await app.getByRole("button", { name: "Zur Pruefung" }).click();
     await expect(app.locator("#statePill")).toHaveText("check");
     await expect(app.locator("#processProtocolButton")).toBeVisible();
@@ -2004,6 +2027,10 @@ test.describe("Core source contracts", () => {
     await expect(app.locator(".protocol-summary-title")).toContainText("1 Schritt: Eingang -> Pruefung");
     await expect(app.locator(".protocol-summary-text")).toContainText("globalen Runtime-Bus");
     await expect(app.locator(".protocol-step-story")).toContainText('Der Nutzer hat "Zur Pruefung"');
+    await expect(app.locator(".protocol-values").filter({ hasText: "Erfasste Eingaben" })).toContainText("betrag");
+    await expect(app.locator(".protocol-values").filter({ hasText: "Erfasste Eingaben" })).toContainText("42.5");
+    await expect(app.locator(".protocol-values").filter({ hasText: "gesetzte Daten" })).toContainText("notiz");
+    await expect(app.locator(".protocol-values").filter({ hasText: "gesetzte Daten" })).toContainText("geprueft");
     await expect(app.locator(".protocol-footer")).toContainText("digitalisierungsplanung.de");
 
     await app.locator("body").evaluate(body => body.classList.add("protocol-printing"));
