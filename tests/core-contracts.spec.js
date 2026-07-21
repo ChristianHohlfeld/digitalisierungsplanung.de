@@ -2026,12 +2026,22 @@ test.describe("Core source contracts", () => {
     await app.locator("#processProtocolName").fill("Rechnung 1042");
     await expect(app.locator(".protocol-summary-title")).toContainText("1 Schritt: Eingang -> Pruefung");
     await expect(app.locator(".protocol-summary-text")).toContainText("globalen Runtime-Bus");
+    await expect(app.locator(".protocol-step-title")).toContainText('Geklickt: "Zur Pruefung"');
     await expect(app.locator(".protocol-step-story")).toContainText('Der Nutzer hat "Zur Pruefung"');
-    await expect(app.locator(".protocol-values").filter({ hasText: "Erfasste Eingaben" })).toContainText("betrag");
-    await expect(app.locator(".protocol-values").filter({ hasText: "Erfasste Eingaben" })).toContainText("42.5");
-    await expect(app.locator(".protocol-values").filter({ hasText: "gesetzte Daten" })).toContainText("notiz");
-    await expect(app.locator(".protocol-values").filter({ hasText: "gesetzte Daten" })).toContainText("geprueft");
+    await expect(app.locator(".protocol-values").filter({ hasText: "Eingaben" })).toContainText("betrag");
+    await expect(app.locator(".protocol-values").filter({ hasText: "Eingaben" })).toContainText("42.5");
+    await expect(app.locator(".protocol-values").filter({ hasText: "Gesetzte Werte" })).toContainText("notiz");
+    await expect(app.locator(".protocol-values").filter({ hasText: "Gesetzte Werte" })).toContainText("geprueft");
     await expect(app.locator(".protocol-footer")).toContainText("digitalisierungsplanung.de");
+
+    const printHtml = await app.locator("body").evaluate(() => {
+      const snapshot = runtimeProtocolSnapshot();
+      return runtimeProtocolPrintDocumentHtml(snapshot);
+    });
+    expect(printHtml).toContain("Prozessbericht");
+    expect(printHtml).toContain("Geklickt:");
+    expect(printHtml).toContain("42.5");
+    expect(printHtml).not.toContain("transitionId");
 
     await app.locator("body").evaluate(body => body.classList.add("protocol-printing"));
     await page.emulateMedia({ media: "print" });
