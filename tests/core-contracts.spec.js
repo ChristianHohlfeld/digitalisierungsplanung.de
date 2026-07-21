@@ -2012,11 +2012,14 @@ test.describe("Core source contracts", () => {
 
     const app = appFrame(page);
     await app.locator("body").evaluate(() => {
+      const label = document.createElement("label");
+      label.textContent = "Betrag";
       const input = document.createElement("input");
       input.id = "states.start.betrag";
       input.name = "states.start.betrag";
       input.value = "42.5";
-      document.getElementById("screen")?.appendChild(input);
+      label.appendChild(input);
+      document.getElementById("screen")?.appendChild(label);
     });
     await app.getByRole("button", { name: "Zur Pruefung" }).click();
     await expect(app.locator("#statePill")).toHaveText("check");
@@ -2024,24 +2027,24 @@ test.describe("Core source contracts", () => {
 
     await app.locator("#processProtocolButton").click();
     await app.locator("#processProtocolName").fill("Rechnung 1042");
-    await expect(app.locator(".protocol-summary-title")).toContainText("1 Schritt: Eingang -> Pruefung");
-    await expect(app.locator(".protocol-summary-text")).toContainText("globalen Runtime-Bus");
-    await expect(app.locator(".protocol-step-title")).toContainText('Geklickt: "Zur Pruefung"');
-    await expect(app.locator(".protocol-step-story")).toContainText('Der Nutzer hat "Zur Pruefung"');
-    await expect(app.locator(".protocol-values").filter({ hasText: "Eingaben" })).toContainText("betrag");
-    await expect(app.locator(".protocol-values").filter({ hasText: "Eingaben" })).toContainText("42.5");
-    await expect(app.locator(".protocol-values").filter({ hasText: "Gesetzte Werte" })).toContainText("notiz");
-    await expect(app.locator(".protocol-values").filter({ hasText: "Gesetzte Werte" })).toContainText("geprueft");
-    await expect(app.locator(".protocol-footer")).toContainText("digitalisierungsplanung.de");
+    await expect(app.locator(".protocol-summary-title")).toContainText("Eingang");
+    await expect(app.locator(".protocol-summary-title")).toContainText("Pruefung");
+    await expect(app.locator(".protocol-summary-text")).toContainText("Fall: Rechnung 1042");
+    await expect(app.locator(".protocol-step-title")).toContainText("Zur Pruefung");
+    await expect(app.locator(".protocol-step-title")).toContainText("Pruefung");
+    await expect(app.locator(".protocol-values").filter({ hasText: "Ihre Eingaben" })).toContainText("Betrag");
+    await expect(app.locator(".protocol-values").filter({ hasText: "Ihre Eingaben" })).toContainText("42.5");
+    await expect(app.locator(".protocol-values").filter({ hasText: "Ergebnis" })).toContainText("Notiz");
+    await expect(app.locator(".protocol-values").filter({ hasText: "Ergebnis" })).toContainText("geprueft");
+    await expect(app.locator("#processProtocolPrint")).toContainText("PDF");
 
-    const printHtml = await app.locator("body").evaluate(() => {
+    const pdfHead = await app.locator("body").evaluate(() => {
       const snapshot = runtimeProtocolSnapshot();
-      return runtimeProtocolPrintDocumentHtml(snapshot);
+      const pdf = runtimeProtocolBuildPdfBytes(snapshot);
+      return pdf.slice(0, 8);
     });
-    expect(printHtml).toContain("Prozessbericht");
-    expect(printHtml).toContain("Geklickt:");
-    expect(printHtml).toContain("42.5");
-    expect(printHtml).not.toContain("transitionId");
+    expect(pdfHead).toBe("%PDF-1.4");
+    expect(await app.locator("body").evaluate(() => typeof saveRuntimeProtocolPdf === "function")).toBe(true);
 
     await app.locator("body").evaluate(body => body.classList.add("protocol-printing"));
     await page.emulateMedia({ media: "print" });

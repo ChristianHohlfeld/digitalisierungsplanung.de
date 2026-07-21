@@ -2183,7 +2183,7 @@
         <div class="protocol-head">
           <div>
             <div class="protocol-kicker">Digitalisierungsplanung</div>
-            <h2 id="processProtocolTitle">Prozessprotokoll</h2>
+            <h2 id="processProtocolTitle">Durchlauf-Bericht</h2>
           </div>
           <button class="protocol-close" id="processProtocolClose" type="button">Schließen</button>
         </div>
@@ -2192,8 +2192,8 @@
         </label>
         <div id="processProtocolBody"></div>
         <div class="protocol-actions">
-          <button class="protocol-action" id="processProtocolPrint" type="button">Bericht drucken</button>
-          <button class="protocol-action primary" id="processProtocolDownload" type="button">JSON speichern</button>
+          <button class="protocol-action" id="processProtocolPrint" type="button">PDF speichern</button>
+          <button class="protocol-action primary" id="processProtocolDownload" type="button">JSON</button>
         </div>
       </section>
     </div>
@@ -2204,7 +2204,7 @@
 
     const IS_STANDALONE_EXPORT = true;
     const EXPORTED_STATE_BLUEPRINT = {"version":2,"name":"Digitalisierungsplanung","initial":"site_home","boundary":{"entryId":"site_home","exitId":"site_thanks","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"states":[{"id":"site_home","title":"Start","components":[{"id":"site_home_nav","type":"daisy","text":"","url":"","variant":"navbar","dataPath":"states.site_home.nav","dataRole":"widget","dataLabel":"Kopf-Navigation"},{"id":"home_hero","type":"daisy","text":"","url":"","variant":"hero","dataPath":"states.site_home.hero","dataRole":"widget","dataLabel":"Titelbereich"},{"id":"home_features","type":"daisy","text":"","url":"","variant":"feature-grid","dataPath":"states.site_home.features","dataRole":"widget","dataLabel":"Start-Highlights"},{"id":"home_footer","type":"daisy","text":"","url":"","variant":"footer","dataPath":"states.site_home.footer","dataRole":"widget","dataLabel":"Fußzeile"}],"data":{"nav":{"layout":"menu-submenu","brand":"Digitalisierungsplanung","selected":"Start","items":[{"label":"Start","transitionId":"site_home_nav_home"},{"label":"Nutzen","transitionId":"site_home_nav_features"},{"label":"Pakete","transitionId":"site_home_nav_pricing"},{"label":"Kontakt","transitionId":"site_home_nav_contact"},{"label":"Konto","transitionId":"site_home_nav_login"}],"parent":"","submenu":[],"submenuOpen":false},"hero":{"layout":"overlay","title":"Aus Erfahrungswissen wird Software.","body":"Ihre wichtigsten Abläufe stecken in Köpfen, E-Mails und Excel. Digitalisierungsplanung.de macht sie sichtbar, prüfbar und als klickbare Web-Anwendung nutzbar, bevor Sie Geld in große IT-Projekte stecken.","actionLabel":"Erstgespräch anfragen","transitionId":"site_home_nav_contact","image":"https://images.unsplash.com/photo-1556761175-b413da4baf72?auto=format\u0026fit=crop\u0026w=1600\u0026q=82"},"features":{"eyebrow":"Für Mittelstand, Geschäftsführung und Prozessverantwortliche","heading":"Die wahren Kosten entstehen vor der Software","body":"Unklare Abläufe verursachen Nachfragen, Fehler, Wartezeiten und falsche Entscheidungen. Wir machen den realen Prozess sichtbar und testbar.","selected":"","items":[{"title":"Wissen steckt in Köpfen","body":"Wenn erfahrene Mitarbeiter ausfallen oder wechseln, fehlt plötzlich der Ablauf. Wir sichern dieses Wissen sichtbar und nachvollziehbar.","image":"https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format\u0026fit=crop\u0026w=900\u0026q=82","imageAlt":"Geschäftliche Planung mit Zahlen und Risiken","features":["Know-how sichern","Einarbeitung vereinfachen"],"actionLabel":"Nutzen","transitionId":"site_home_nav_features"},{"title":"Reibung kostet jeden Tag","body":"Manuelle Abstimmungen, Rückfragen und Fehler fressen Zeit. Ein klarer Ablauf reduziert Reibung und macht Entscheidungen prüfbar.","image":"https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format\u0026fit=crop\u0026w=900\u0026q=82","imageAlt":"Team klärt einen Geschäftsprozess am Tisch","features":["Rückfragen reduzieren","Fehler vermeiden"],"actionLabel":"Pakete","transitionId":"site_home_nav_pricing"},{"title":"Digitalisierung ohne Großprojekt","body":"Aus dem geklärten Ablauf entsteht sofort eine klickbare Anwendung. So wird Digitalisierung testbar, bevor sie teuer wird.","image":"https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format\u0026fit=crop\u0026w=900\u0026q=82","imageAlt":"Geschäftliche Übergabe zwischen Teams","features":["Schnell testbar","Günstig starten"],"actionLabel":"Kontakt","transitionId":"site_home_nav_contact"}]},"footer":{"brand":"Digitalisierungsplanung.de","note":"Aus Erfahrungswissen wird Software.","columns":[{"title":"Produkt","items":[{"label":"Nutzen","transitionId":"site_home_nav_features"},{"label":"Pakete","transitionId":"site_home_nav_pricing"},{"label":"Kontakt","transitionId":"site_home_nav_contact"}]},{"title":"Unternehmen","items":[{"label":"Start","transitionId":"site_home_nav_home"},{"label":"Konto","transitionId":"site_home_nav_login"}]},{"title":"Werkzeug","items":[{"label":"Editor öffnen","url":"state.html?demo=zustand"}]}]}},"dataTypes":{"nav":"object","hero":"object","features":"object","footer":"object"},"dataSource":{"url":"","target":"states.site_home.fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"subscriptions":[],"boundary":{"entryId":"","exitId":"","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"parentId":null,"x":96,"y":288},{"id":"site_features","title":"Nutzen","components":[{"id":"site_features_nav","type":"daisy","text":"","url":"","variant":"navbar","dataPath":"states.site_features.nav","dataRole":"widget","dataLabel":"Kopf-Navigation"},{"id":"features_overview","type":"daisy","text":"","url":"","variant":"feature-grid","dataPath":"states.site_features.overview","dataRole":"widget","dataLabel":"Nutzen-Übersicht"},{"id":"features_steps","type":"daisy","text":"","url":"","variant":"steps","dataPath":"states.site_features.steps","dataRole":"widget","dataLabel":"Aufbauschritte"},{"id":"features_footer","type":"daisy","text":"","url":"","variant":"footer","dataPath":"states.site_features.footer","dataRole":"widget","dataLabel":"Fußzeile"}],"data":{"nav":{"layout":"menu-submenu","brand":"Digitalisierungsplanung","selected":"Nutzen","items":[{"label":"Start","transitionId":"site_features_nav_home"},{"label":"Nutzen","transitionId":"site_features_nav_features"},{"label":"Pakete","transitionId":"site_features_nav_pricing"},{"label":"Kontakt","transitionId":"site_features_nav_contact"},{"label":"Konto","transitionId":"site_features_nav_login"}],"parent":"","submenu":[],"submenuOpen":false},"overview":{"eyebrow":"Nutzen","heading":"Was Ihr Unternehmen gewinnt","body":"Sie bekommen keine weitere Zeichnung für die Schublade, sondern eine gemeinsame Wahrheit: Ablauf, Entscheidungen, Daten und Ausnahmen werden sichtbar und als Anwendung testbar.","selected":"","items":[{"title":"Wissen sichern, bevor es fehlt","body":"Kritisches Prozesswissen wird aus Köpfen, E-Mails und Excel herausgeholt und für alle Beteiligten verständlich gemacht.","image":"https://images.unsplash.com/photo-1542744094-3a31f272c490?auto=format\u0026fit=crop\u0026w=900\u0026q=82","imageAlt":"Führungsteam trifft eine Projektentscheidung","features":["Abhängigkeit reduzieren","Einarbeitung beschleunigen"],"actionLabel":"Pakete","transitionId":"site_features_nav_pricing"},{"title":"Schneller entscheiden","body":"Geschäftsführung, Fachbereich und Berater sehen denselben Ablauf. Das macht Prioritäten, Risiken und nächste Schritte klarer.","image":"https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format\u0026fit=crop\u0026w=900\u0026q=82","imageAlt":"Workshop-Situation mit Prozessklärung","features":["Bessere Entscheidungen","Weniger Abstimmung"],"actionLabel":"Kontakt","transitionId":"site_features_nav_contact"},{"title":"Direkt nutzbar statt nur dokumentiert","body":"Der Prozess bleibt nicht bei PowerPoint stehen. Aus dem Modell wird eine klickbare Web-Anwendung für Tests, Schulung oder erste Nutzung.","image":"https://images.unsplash.com/photo-1556761175-4b46a572b786?auto=format\u0026fit=crop\u0026w=900\u0026q=82","imageAlt":"Team setzt einen geklärten Prozess um","features":["Klickbar prüfen","Schrittweise verbessern"],"actionLabel":"Konto","transitionId":"site_features_nav_login"}]},"steps":{"current":"Prüfen","items":[{"label":"Aufnehmen","description":"Den echten Ablauf mit Menschen erfassen, die ihn täglich leben.","transitionId":"site_features_step_capture"},{"label":"Prüfen","description":"Entscheidungen, Ausnahmen und Daten gemeinsam sichtbar testen.","transitionId":"site_features_step_check"},{"label":"Nutzen","description":"Als klickbare Anwendung exportieren und Schritt für Schritt verbessern.","transitionId":"site_features_step_use"}]},"footer":{"brand":"Digitalisierungsplanung.de","note":"Aus Erfahrungswissen wird Software.","columns":[{"title":"Produkt","items":[{"label":"Nutzen","transitionId":"site_features_nav_features"},{"label":"Pakete","transitionId":"site_features_nav_pricing"},{"label":"Kontakt","transitionId":"site_features_nav_contact"}]},{"title":"Unternehmen","items":[{"label":"Start","transitionId":"site_features_nav_home"},{"label":"Konto","transitionId":"site_features_nav_login"}]},{"title":"Werkzeug","items":[{"label":"Editor öffnen","url":"state.html?demo=zustand"}]}]}},"dataTypes":{"nav":"object","overview":"object","steps":"object","footer":"object"},"dataSource":{"url":"","target":"states.site_features.fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"subscriptions":[],"boundary":{"entryId":"","exitId":"","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"parentId":null,"x":480,"y":96},{"id":"site_pricing","title":"Pakete","components":[{"id":"site_pricing_nav","type":"daisy","text":"","url":"","variant":"navbar","dataPath":"states.site_pricing.nav","dataRole":"widget","dataLabel":"Kopf-Navigation"},{"id":"pricing_intro","type":"daisy","text":"","url":"","variant":"alert","dataPath":"states.site_pricing.intro","dataRole":"widget","dataLabel":"Preishinweis"},{"id":"pricing_plans","type":"daisy","text":"","url":"","variant":"pricing","dataPath":"states.site_pricing.plans","dataRole":"widget","dataLabel":"Preispläne"},{"id":"pricing_addons","type":"daisy","text":"","url":"","variant":"feature-grid","dataPath":"states.site_pricing.addons","dataRole":"widget","dataLabel":"Zusatzpakete"},{"id":"pricing_footer","type":"daisy","text":"","url":"","variant":"footer","dataPath":"states.site_pricing.footer","dataRole":"widget","dataLabel":"Fußzeile"}],"data":{"nav":{"layout":"menu-submenu","brand":"Digitalisierungsplanung","selected":"Pakete","items":[{"label":"Start","transitionId":"site_pricing_nav_home"},{"label":"Nutzen","transitionId":"site_pricing_nav_features"},{"label":"Pakete","transitionId":"site_pricing_nav_pricing"},{"label":"Kontakt","transitionId":"site_pricing_nav_contact"},{"label":"Konto","transitionId":"site_pricing_nav_login"}],"parent":"","submenu":[],"submenuOpen":false},"intro":{"tone":"info","message":"Wählen Sie ein Abo für den Kern und buchen Sie Pakete dazu, wenn BI, CRM, Wissensportal oder Integrationen echten Mehrwert bringen."},"plans":{"selectedPlan":"","plans":[{"title":"Starter","badge":"","price":"249 EUR","period":"/Monat","body":"Für den ersten echten Ablauf: modellieren, prüfen und als einfache Web-App nutzen.","features":["Process Core enthalten","1 Prozess-App","Export als Web-Anwendung"],"highlight":false,"actionLabel":"Starter anfragen","transitionId":"site_pricing_buy_starter"},{"title":"Business","badge":"Beliebt","price":"749 EUR","period":"/Monat","body":"Für Teams, die Abläufe sichtbar machen, Website-/Portal-Apps bauen und Freigaben sauber prüfen.","features":["Process Core","Website Builder","Freigabe \u0026 Compliance"],"highlight":true,"actionLabel":"Business anfragen","transitionId":"site_pricing_buy_business"},{"title":"Scale","badge":"Teams","price":"1.990 EUR","period":"/Monat","body":"Für mehrere Bereiche, operative Echtzeit-Prozesse und wiederholbare Digitalisierung im Unternehmen.","features":["Business-Pakete enthalten","Service \u0026 Operations","Mehrere Teams und Räume"],"highlight":false,"actionLabel":"Scale anfragen","transitionId":"site_pricing_buy_scale"}]},"addons":{"eyebrow":"Zubuchbare Pakete","heading":"Nicht alles muss im größten Paket stecken","body":"Scale bleibt schlank. Spezielle Business-Pakete können weiter separat gebucht werden, damit der Preis nicht künstlich gedeckelt ist.","selected":"","items":[{"title":"BI \u0026 Analyse","badge":"Add-on","body":"KPI-Boards, Charts, Tabellen und Management-Auswertungen direkt aus Prozessdaten.","features":["KPI-Boards","Charts \u0026 Tabellen","Pipeline-Auswertung"],"actionLabel":"BI zubuchen","transitionId":"site_pricing_buy_bi"},{"title":"Sales \u0026 CRM","badge":"Add-on","body":"Lead-Strecken, Angebotsstatus, Follow-ups und Kundenservice-Prozesse.","features":["Lead-Status","Angebotsstrecken","Follow-up-Prozesse"],"actionLabel":"Sales zubuchen","transitionId":"site_pricing_buy_sales"},{"title":"Wissensportal","badge":"Add-on","body":"FAQ, Onboarding, interne Portale und dokumentiertes Erfahrungswissen.","features":["Onboarding","FAQ und Hilfe","Wissenssicherung"],"actionLabel":"Portal zubuchen","transitionId":"site_pricing_buy_knowledge"},{"title":"Integration \u0026 Automation","badge":"Add-on","body":"Webhook-, Mail-, Telefonie- und Datenquellen als echte Ereignisse im Prozess.","features":["Webhooks","Mail und Telefonie","Datenquellen"],"actionLabel":"Integration zubuchen","transitionId":"site_pricing_buy_automation"}]},"footer":{"brand":"Digitalisierungsplanung.de","note":"Aus Erfahrungswissen wird Software.","columns":[{"title":"Produkt","items":[{"label":"Nutzen","transitionId":"site_pricing_nav_features"},{"label":"Pakete","transitionId":"site_pricing_nav_pricing"},{"label":"Kontakt","transitionId":"site_pricing_nav_contact"}]},{"title":"Unternehmen","items":[{"label":"Start","transitionId":"site_pricing_nav_home"},{"label":"Konto","transitionId":"site_pricing_nav_login"}]},{"title":"Werkzeug","items":[{"label":"Editor öffnen","url":"state.html?demo=zustand"}]}]}},"dataTypes":{"nav":"object","intro":"object","plans":"object","addons":"object","footer":"object"},"dataSource":{"url":"","target":"states.site_pricing.fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"subscriptions":[],"boundary":{"entryId":"","exitId":"","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"parentId":null,"x":480,"y":456},{"id":"site_checkout_flow","title":"Anfrage","components":[],"data":{},"dataTypes":{},"dataSource":{"url":"","target":"states.site_checkout_flow.fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"subscriptions":[],"boundary":{"entryId":"site_checkout","exitId":"site_checkout","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"parentId":null,"x":888,"y":456},{"id":"site_checkout","title":"Anfrage","components":[{"id":"site_checkout_nav","type":"daisy","text":"","url":"","variant":"navbar","dataPath":"states.site_checkout.nav","dataRole":"widget","dataLabel":"Kopf-Navigation"},{"id":"checkout_summary","type":"daisy","text":"","url":"","variant":"card","dataPath":"states.site_checkout.summary","dataRole":"widget","dataLabel":"Anfrageübersicht"},{"id":"checkout_email","type":"daisy","text":"","url":"","variant":"input","dataPath":"states.site_checkout.emailField","dataRole":"widget","dataLabel":"Rechnungs-E-Mail"},{"id":"checkout_submit","type":"daisy","text":"","url":"","variant":"button","dataPath":"states.site_checkout.submit","dataRole":"widget","dataLabel":"Anfrage senden"},{"id":"checkout_footer","type":"daisy","text":"","url":"","variant":"footer","dataPath":"states.site_checkout.footer","dataRole":"widget","dataLabel":"Fußzeile"}],"data":{"nav":{"layout":"menu-submenu","brand":"Digitalisierungsplanung","selected":"Pakete","items":[{"label":"Start","transitionId":"site_checkout_nav_home"},{"label":"Nutzen","transitionId":"site_checkout_nav_features"},{"label":"Pakete","transitionId":"site_checkout_nav_pricing"},{"label":"Kontakt","transitionId":"site_checkout_nav_contact"},{"label":"Konto","transitionId":"site_checkout_nav_login"}],"parent":"","submenu":[],"submenuOpen":false},"summary":{"title":"Starter","badge":"Anfrage","price":"249 EUR","period":"/Monat","body":"Prüfen Sie das gewählte Abo oder Zusatzpaket und senden Sie die Anfrage. Danach klären wir Start, Paketumfang und nächsten Schritt.","features":["Process Core enthalten","1 Prozess-App","Export als Web-Anwendung"],"actionLabel":""},"emailField":{"label":"Rechnungs-E-Mail","value":""},"submit":{"label":"Anfrage senden","clicked":false,"transitionId":"site_checkout_complete"},"order":{"plan":"Starter","price":"249 EUR","completed":false},"footer":{"brand":"Digitalisierungsplanung.de","note":"Aus Erfahrungswissen wird Software.","columns":[{"title":"Produkt","items":[{"label":"Nutzen","transitionId":"site_checkout_nav_features"},{"label":"Pakete","transitionId":"site_checkout_nav_pricing"},{"label":"Kontakt","transitionId":"site_checkout_nav_contact"}]},{"title":"Unternehmen","items":[{"label":"Start","transitionId":"site_checkout_nav_home"},{"label":"Konto","transitionId":"site_checkout_nav_login"}]},{"title":"Werkzeug","items":[{"label":"Editor öffnen","url":"state.html?demo=zustand"}]}]}},"dataTypes":{"nav":"object","summary":"object","emailField":"object","submit":"object","order":"object","footer":"object"},"dataSource":{"url":"","target":"states.site_checkout.fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"subscriptions":[],"boundary":{"entryId":"","exitId":"","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"parentId":"site_checkout_flow","x":216,"y":192},{"id":"site_contact","title":"Kontakt","components":[{"id":"site_contact_nav","type":"daisy","text":"","url":"","variant":"navbar","dataPath":"states.site_contact.nav","dataRole":"widget","dataLabel":"Kopf-Navigation"},{"id":"contact_alert","type":"daisy","text":"","url":"","variant":"alert","dataPath":"states.site_contact.alert","dataRole":"widget","dataLabel":"Kontakthinweis"},{"id":"contact_name","type":"daisy","text":"","url":"","variant":"input","dataPath":"states.site_contact.nameField","dataRole":"widget","dataLabel":"Name"},{"id":"contact_email","type":"daisy","text":"","url":"","variant":"input","dataPath":"states.site_contact.emailField","dataRole":"widget","dataLabel":"E-Mail"},{"id":"contact_message","type":"daisy","text":"","url":"","variant":"textarea","dataPath":"states.site_contact.messageField","dataRole":"widget","dataLabel":"Nachricht"},{"id":"contact_submit","type":"daisy","text":"","url":"","variant":"button","dataPath":"states.site_contact.submit","dataRole":"widget","dataLabel":"Anfrage senden"},{"id":"contact_footer","type":"daisy","text":"","url":"","variant":"footer","dataPath":"states.site_contact.footer","dataRole":"widget","dataLabel":"Fußzeile"}],"data":{"nav":{"layout":"menu-submenu","brand":"Digitalisierungsplanung","selected":"Kontakt","items":[{"label":"Start","transitionId":"site_contact_nav_home"},{"label":"Nutzen","transitionId":"site_contact_nav_features"},{"label":"Pakete","transitionId":"site_contact_nav_pricing"},{"label":"Kontakt","transitionId":"site_contact_nav_contact"},{"label":"Konto","transitionId":"site_contact_nav_login"}],"parent":"","submenu":[],"submenuOpen":false},"alert":{"tone":"success","message":"Nennen Sie uns den Ablauf, der heute Zeit kostet, Fehler erzeugt oder von einzelnen Personen abhängt."},"nameField":{"label":"Name","value":""},"emailField":{"label":"E-Mail","value":""},"messageField":{"label":"Welcher Ablauf soll sichtbar werden?","value":""},"submit":{"label":"Anfrage senden","clicked":false,"transitionId":"site_contact_send"},"form":{"submitted":false},"footer":{"brand":"Digitalisierungsplanung.de","note":"Aus Erfahrungswissen wird Software.","columns":[{"title":"Produkt","items":[{"label":"Nutzen","transitionId":"site_contact_nav_features"},{"label":"Pakete","transitionId":"site_contact_nav_pricing"},{"label":"Kontakt","transitionId":"site_contact_nav_contact"}]},{"title":"Unternehmen","items":[{"label":"Start","transitionId":"site_contact_nav_home"},{"label":"Konto","transitionId":"site_contact_nav_login"}]},{"title":"Werkzeug","items":[{"label":"Editor öffnen","url":"state.html?demo=zustand"}]}]}},"dataTypes":{"nav":"object","alert":"object","nameField":"object","emailField":"object","messageField":"object","submit":"object","form":"object","footer":"object"},"dataSource":{"url":"","target":"states.site_contact.fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"subscriptions":[],"boundary":{"entryId":"","exitId":"","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"parentId":null,"x":888,"y":96},{"id":"site_login","title":"Konto","components":[{"id":"site_login_nav","type":"daisy","text":"","url":"","variant":"navbar","dataPath":"states.site_login.nav","dataRole":"widget","dataLabel":"Kopf-Navigation"},{"id":"login_hero","type":"daisy","text":"","url":"","variant":"hero","dataPath":"states.site_login.hero","dataRole":"widget","dataLabel":"Anmeldeformular"},{"id":"login_footer","type":"daisy","text":"","url":"","variant":"footer","dataPath":"states.site_login.footer","dataRole":"widget","dataLabel":"Fußzeile"}],"data":{"nav":{"layout":"menu-submenu","brand":"Digitalisierungsplanung","selected":"Konto","items":[{"label":"Start","transitionId":"site_login_nav_home"},{"label":"Nutzen","transitionId":"site_login_nav_features"},{"label":"Pakete","transitionId":"site_login_nav_pricing"},{"label":"Kontakt","transitionId":"site_login_nav_contact"},{"label":"Konto","transitionId":"site_login_nav_login"}],"parent":"","submenu":[],"submenuOpen":false},"hero":{"layout":"form","title":"Kundenbereich","body":"Beispiel für einen geschützten Bereich. In echten Projekten können Rollen, Freigaben und Prozessstände sichtbar werden.","emailLabel":"E-Mail","passwordLabel":"Passwort","email":"","password":"","actionLabel":"Anmelden","transitionId":"site_login_submit","loggedIn":false},"footer":{"brand":"Digitalisierungsplanung.de","note":"Aus Erfahrungswissen wird Software.","columns":[{"title":"Produkt","items":[{"label":"Nutzen","transitionId":"site_login_nav_features"},{"label":"Pakete","transitionId":"site_login_nav_pricing"},{"label":"Kontakt","transitionId":"site_login_nav_contact"}]},{"title":"Unternehmen","items":[{"label":"Start","transitionId":"site_login_nav_home"},{"label":"Konto","transitionId":"site_login_nav_login"}]},{"title":"Werkzeug","items":[{"label":"Editor öffnen","url":"state.html?demo=zustand"}]}]}},"dataTypes":{"nav":"object","hero":"object","footer":"object"},"dataSource":{"url":"","target":"states.site_login.fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"subscriptions":[],"boundary":{"entryId":"","exitId":"","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"parentId":null,"x":1296,"y":96},{"id":"site_profile","title":"Profil","components":[{"id":"site_profile_nav","type":"daisy","text":"","url":"","variant":"navbar","dataPath":"states.site_profile.nav","dataRole":"widget","dataLabel":"Kopf-Navigation"},{"id":"profile_avatar","type":"daisy","text":"","url":"","variant":"avatar","dataPath":"states.site_profile.avatar","dataRole":"widget","dataLabel":"Benutzer-Avatar"},{"id":"profile_alert","type":"daisy","text":"","url":"","variant":"alert","dataPath":"states.site_profile.alert","dataRole":"widget","dataLabel":"Sitzungsstatus"},{"id":"profile_stat","type":"daisy","text":"","url":"","variant":"stat","dataPath":"states.site_profile.stat","dataRole":"widget","dataLabel":"Paket"},{"id":"profile_logout","type":"daisy","text":"","url":"","variant":"button","dataPath":"states.site_profile.logout","dataRole":"widget","dataLabel":"Abmelden"},{"id":"profile_footer","type":"daisy","text":"","url":"","variant":"footer","dataPath":"states.site_profile.footer","dataRole":"widget","dataLabel":"Fußzeile"}],"data":{"nav":{"layout":"menu-submenu","brand":"Digitalisierungsplanung","selected":"Konto","items":[{"label":"Start","transitionId":"site_profile_nav_home"},{"label":"Nutzen","transitionId":"site_profile_nav_features"},{"label":"Pakete","transitionId":"site_profile_nav_pricing"},{"label":"Kontakt","transitionId":"site_profile_nav_contact"},{"label":"Konto","transitionId":"site_profile_nav_profile"}],"parent":"","submenu":[],"submenuOpen":false},"avatar":{"name":"Mira Keller","image":"https://img.daisyui.com/images/profile/demo/2@94.webp","status":"online","size":"w-16","shape":"rounded-full","ring":true},"alert":{"tone":"success","message":"Willkommen zurück. Hier könnten Prozessstände, Verantwortliche und nächste Entscheidungen liegen."},"stat":{"title":"Paket","value":"Team","description":"Beispielhafter Projektstatus"},"account":{"loggedIn":true},"logout":{"label":"Abmelden","clicked":false,"transitionId":"site_profile_logout"},"footer":{"brand":"Digitalisierungsplanung.de","note":"Aus Erfahrungswissen wird Software.","columns":[{"title":"Produkt","items":[{"label":"Nutzen","transitionId":"site_profile_nav_features"},{"label":"Pakete","transitionId":"site_profile_nav_pricing"},{"label":"Kontakt","transitionId":"site_profile_nav_contact"}]},{"title":"Unternehmen","items":[{"label":"Start","transitionId":"site_profile_nav_home"},{"label":"Konto","transitionId":"site_profile_nav_profile"}]},{"title":"Werkzeug","items":[{"label":"Editor öffnen","url":"state.html?demo=zustand"}]}]}},"dataTypes":{"nav":"object","avatar":"object","alert":"object","stat":"object","account":"object","logout":"object","footer":"object"},"dataSource":{"url":"","target":"states.site_profile.fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"subscriptions":[],"boundary":{"entryId":"","exitId":"","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"parentId":null,"x":1656,"y":288},{"id":"site_thanks","title":"Danke","components":[{"id":"site_thanks_nav","type":"daisy","text":"","url":"","variant":"navbar","dataPath":"states.site_thanks.nav","dataRole":"widget","dataLabel":"Kopf-Navigation"},{"id":"thanks_alert","type":"daisy","text":"","url":"","variant":"alert","dataPath":"states.site_thanks.alert","dataRole":"widget","dataLabel":"Erfolgsmeldung"},{"id":"thanks_stat","type":"daisy","text":"","url":"","variant":"stat","dataPath":"states.site_thanks.stat","dataRole":"widget","dataLabel":"Antwortzeit"},{"id":"thanks_footer","type":"daisy","text":"","url":"","variant":"footer","dataPath":"states.site_thanks.footer","dataRole":"widget","dataLabel":"Fußzeile"}],"data":{"nav":{"layout":"menu-submenu","brand":"Digitalisierungsplanung","selected":"Kontakt","items":[{"label":"Start","transitionId":"site_thanks_nav_home"},{"label":"Nutzen","transitionId":"site_thanks_nav_features"},{"label":"Pakete","transitionId":"site_thanks_nav_pricing"},{"label":"Kontakt","transitionId":"site_thanks_nav_contact"},{"label":"Konto","transitionId":"site_thanks_nav_login"}],"parent":"","submenu":[],"submenuOpen":false},"alert":{"tone":"success","message":"Anfrage erhalten. Wir melden uns mit einem konkreten Vorschlag für den ersten Ablauf."},"stat":{"title":"Nächster Schritt","value":"24h","description":"Antwortzeit für Erstkontakt"},"order":{"plan":"","price":"","completed":false},"footer":{"brand":"Digitalisierungsplanung.de","note":"Aus Erfahrungswissen wird Software.","columns":[{"title":"Produkt","items":[{"label":"Nutzen","transitionId":"site_thanks_nav_features"},{"label":"Pakete","transitionId":"site_thanks_nav_pricing"},{"label":"Kontakt","transitionId":"site_thanks_nav_contact"}]},{"title":"Unternehmen","items":[{"label":"Start","transitionId":"site_thanks_nav_home"},{"label":"Konto","transitionId":"site_thanks_nav_login"}]},{"title":"Werkzeug","items":[{"label":"Editor öffnen","url":"state.html?demo=zustand"}]}]}},"dataTypes":{"nav":"object","alert":"object","stat":"object","order":"object","footer":"object"},"dataSource":{"url":"","target":"states.site_thanks.fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"subscriptions":[],"boundary":{"entryId":"","exitId":"","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"parentId":null,"x":1296,"y":456}],"transitions":[{"id":"site_home_nav_home","from":"site_home","to":"site_home","label":"Start","condition":"","triggerType":"button","triggerEvent":"button.site_home_nav_home.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_home_nav_features","from":"site_home","to":"site_features","label":"Nutzen","condition":"","triggerType":"button","triggerEvent":"button.site_home_nav_features.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_home_nav_pricing","from":"site_home","to":"site_pricing","label":"Pakete","condition":"","triggerType":"button","triggerEvent":"button.site_home_nav_pricing.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_home_nav_contact","from":"site_home","to":"site_contact","label":"Kontakt","condition":"","triggerType":"button","triggerEvent":"button.site_home_nav_contact.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_home_nav_login","from":"site_home","to":"site_login","label":"Konto","condition":"","triggerType":"button","triggerEvent":"button.site_home_nav_login.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_features_nav_home","from":"site_features","to":"site_home","label":"Start","condition":"","triggerType":"button","triggerEvent":"button.site_features_nav_home.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_features_nav_features","from":"site_features","to":"site_features","label":"Nutzen","condition":"","triggerType":"button","triggerEvent":"button.site_features_nav_features.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_features_nav_pricing","from":"site_features","to":"site_pricing","label":"Pakete","condition":"","triggerType":"button","triggerEvent":"button.site_features_nav_pricing.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_features_nav_contact","from":"site_features","to":"site_contact","label":"Kontakt","condition":"","triggerType":"button","triggerEvent":"button.site_features_nav_contact.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_features_nav_login","from":"site_features","to":"site_login","label":"Konto","condition":"","triggerType":"button","triggerEvent":"button.site_features_nav_login.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_pricing_nav_home","from":"site_pricing","to":"site_home","label":"Start","condition":"","triggerType":"button","triggerEvent":"button.site_pricing_nav_home.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_pricing_nav_features","from":"site_pricing","to":"site_features","label":"Nutzen","condition":"","triggerType":"button","triggerEvent":"button.site_pricing_nav_features.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_pricing_nav_pricing","from":"site_pricing","to":"site_pricing","label":"Pakete","condition":"","triggerType":"button","triggerEvent":"button.site_pricing_nav_pricing.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_pricing_nav_contact","from":"site_pricing","to":"site_contact","label":"Kontakt","condition":"","triggerType":"button","triggerEvent":"button.site_pricing_nav_contact.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_pricing_nav_login","from":"site_pricing","to":"site_login","label":"Konto","condition":"","triggerType":"button","triggerEvent":"button.site_pricing_nav_login.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_checkout_nav_home","from":"site_checkout_flow","to":"site_home","label":"Start","condition":"","triggerType":"button","triggerEvent":"button.site_checkout_nav_home.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":"site_checkout"},{"id":"site_checkout_nav_features","from":"site_checkout_flow","to":"site_features","label":"Nutzen","condition":"","triggerType":"button","triggerEvent":"button.site_checkout_nav_features.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":"site_checkout"},{"id":"site_checkout_nav_pricing","from":"site_checkout_flow","to":"site_pricing","label":"Pakete","condition":"","triggerType":"button","triggerEvent":"button.site_checkout_nav_pricing.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":"site_checkout"},{"id":"site_checkout_nav_contact","from":"site_checkout_flow","to":"site_contact","label":"Kontakt","condition":"","triggerType":"button","triggerEvent":"button.site_checkout_nav_contact.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":"site_checkout"},{"id":"site_checkout_nav_login","from":"site_checkout_flow","to":"site_login","label":"Konto","condition":"","triggerType":"button","triggerEvent":"button.site_checkout_nav_login.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":"site_checkout"},{"id":"site_contact_nav_home","from":"site_contact","to":"site_home","label":"Start","condition":"","triggerType":"button","triggerEvent":"button.site_contact_nav_home.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_contact_nav_features","from":"site_contact","to":"site_features","label":"Nutzen","condition":"","triggerType":"button","triggerEvent":"button.site_contact_nav_features.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_contact_nav_pricing","from":"site_contact","to":"site_pricing","label":"Pakete","condition":"","triggerType":"button","triggerEvent":"button.site_contact_nav_pricing.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_contact_nav_contact","from":"site_contact","to":"site_contact","label":"Kontakt","condition":"","triggerType":"button","triggerEvent":"button.site_contact_nav_contact.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_contact_nav_login","from":"site_contact","to":"site_login","label":"Konto","condition":"","triggerType":"button","triggerEvent":"button.site_contact_nav_login.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_login_nav_home","from":"site_login","to":"site_home","label":"Start","condition":"","triggerType":"button","triggerEvent":"button.site_login_nav_home.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_login_nav_features","from":"site_login","to":"site_features","label":"Nutzen","condition":"","triggerType":"button","triggerEvent":"button.site_login_nav_features.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_login_nav_pricing","from":"site_login","to":"site_pricing","label":"Pakete","condition":"","triggerType":"button","triggerEvent":"button.site_login_nav_pricing.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_login_nav_contact","from":"site_login","to":"site_contact","label":"Kontakt","condition":"","triggerType":"button","triggerEvent":"button.site_login_nav_contact.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_login_nav_login","from":"site_login","to":"site_login","label":"Konto","condition":"","triggerType":"button","triggerEvent":"button.site_login_nav_login.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_profile_nav_home","from":"site_profile","to":"site_home","label":"Start","condition":"","triggerType":"button","triggerEvent":"button.site_profile_nav_home.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_profile_nav_features","from":"site_profile","to":"site_features","label":"Nutzen","condition":"","triggerType":"button","triggerEvent":"button.site_profile_nav_features.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_profile_nav_pricing","from":"site_profile","to":"site_pricing","label":"Pakete","condition":"","triggerType":"button","triggerEvent":"button.site_profile_nav_pricing.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_profile_nav_contact","from":"site_profile","to":"site_contact","label":"Kontakt","condition":"","triggerType":"button","triggerEvent":"button.site_profile_nav_contact.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_profile_nav_profile","from":"site_profile","to":"site_profile","label":"Konto","condition":"","triggerType":"button","triggerEvent":"button.site_profile_nav_profile.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_thanks_nav_home","from":"site_thanks","to":"site_home","label":"Start","condition":"","triggerType":"button","triggerEvent":"button.site_thanks_nav_home.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_thanks_nav_features","from":"site_thanks","to":"site_features","label":"Nutzen","condition":"","triggerType":"button","triggerEvent":"button.site_thanks_nav_features.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_thanks_nav_pricing","from":"site_thanks","to":"site_pricing","label":"Pakete","condition":"","triggerType":"button","triggerEvent":"button.site_thanks_nav_pricing.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_thanks_nav_contact","from":"site_thanks","to":"site_contact","label":"Kontakt","condition":"","triggerType":"button","triggerEvent":"button.site_thanks_nav_contact.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_thanks_nav_login","from":"site_thanks","to":"site_login","label":"Konto","condition":"","triggerType":"button","triggerEvent":"button.site_thanks_nav_login.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""},{"id":"site_features_step_capture","from":"site_features","to":"site_contact","label":"Aufnehmen","condition":"","triggerType":"button","triggerEvent":"button.site_features_step_capture.clicked","timerMs":3000,"set":{"states.site_features.steps.current":"Aufnehmen"},"groupEntryId":"","groupExitId":""},{"id":"site_features_step_check","from":"site_features","to":"site_features","label":"Prüfen","condition":"","triggerType":"button","triggerEvent":"button.site_features_step_check.clicked","timerMs":3000,"set":{"states.site_features.steps.current":"Prüfen"},"groupEntryId":"","groupExitId":""},{"id":"site_features_step_use","from":"site_features","to":"site_pricing","label":"Nutzen","condition":"","triggerType":"button","triggerEvent":"button.site_features_step_use.clicked","timerMs":3000,"set":{"states.site_features.steps.current":"Nutzen"},"groupEntryId":"","groupExitId":""},{"id":"site_pricing_buy_starter","from":"site_pricing","to":"site_checkout_flow","label":"Starter anfragen","condition":"","triggerType":"button","triggerEvent":"button.site_pricing_buy_starter.clicked","timerMs":3000,"set":{"states.site_pricing.plans.selectedPlan":"Starter","states.site_checkout.summary.title":"Starter","states.site_checkout.summary.badge":"Anfrage","states.site_checkout.summary.price":"249 EUR","states.site_checkout.summary.period":"/Monat","states.site_checkout.summary.body":"Prüfen Sie das gewählte Abo oder Zusatzpaket und senden Sie die Anfrage. Danach klären wir Start, Paketumfang und nächsten Schritt.","states.site_checkout.summary.features":["Process Core enthalten","1 Prozess-App","Export als Web-Anwendung"],"states.site_checkout.order.plan":"Starter","states.site_checkout.order.price":"249 EUR","states.site_checkout.order.completed":false,"states.site_thanks.order.plan":"Starter","states.site_thanks.order.price":"249 EUR","states.site_thanks.order.completed":false},"groupEntryId":"","groupExitId":""},{"id":"site_pricing_buy_business","from":"site_pricing","to":"site_checkout_flow","label":"Business anfragen","condition":"","triggerType":"button","triggerEvent":"button.site_pricing_buy_business.clicked","timerMs":3000,"set":{"states.site_pricing.plans.selectedPlan":"Business","states.site_checkout.summary.title":"Business","states.site_checkout.summary.badge":"Beliebt","states.site_checkout.summary.price":"749 EUR","states.site_checkout.summary.period":"/Monat","states.site_checkout.summary.body":"Prüfen Sie das gewählte Abo oder Zusatzpaket und senden Sie die Anfrage. Danach klären wir Start, Paketumfang und nächsten Schritt.","states.site_checkout.summary.features":["Process Core","Website Builder","Freigabe \u0026 Compliance"],"states.site_checkout.order.plan":"Business","states.site_checkout.order.price":"749 EUR","states.site_checkout.order.completed":false,"states.site_thanks.order.plan":"Business","states.site_thanks.order.price":"749 EUR","states.site_thanks.order.completed":false},"groupEntryId":"","groupExitId":""},{"id":"site_pricing_buy_scale","from":"site_pricing","to":"site_checkout_flow","label":"Scale anfragen","condition":"","triggerType":"button","triggerEvent":"button.site_pricing_buy_scale.clicked","timerMs":3000,"set":{"states.site_pricing.plans.selectedPlan":"Scale","states.site_checkout.summary.title":"Scale","states.site_checkout.summary.badge":"Teams","states.site_checkout.summary.price":"1.990 EUR","states.site_checkout.summary.period":"/Monat","states.site_checkout.summary.body":"Prüfen Sie das gewählte Abo oder Zusatzpaket und senden Sie die Anfrage. Danach klären wir Start, Paketumfang und nächsten Schritt.","states.site_checkout.summary.features":["Business-Pakete enthalten","Service \u0026 Operations","Mehrere Teams und Räume"],"states.site_checkout.order.plan":"Scale","states.site_checkout.order.price":"1.990 EUR","states.site_checkout.order.completed":false,"states.site_thanks.order.plan":"Scale","states.site_thanks.order.price":"1.990 EUR","states.site_thanks.order.completed":false},"groupEntryId":"","groupExitId":""},{"id":"site_pricing_buy_bi","from":"site_pricing","to":"site_checkout_flow","label":"BI zubuchen","condition":"","triggerType":"button","triggerEvent":"button.site_pricing_buy_bi.clicked","timerMs":3000,"set":{"states.site_pricing.plans.selectedPlan":"BI \u0026 Analyse","states.site_checkout.summary.title":"BI \u0026 Analyse","states.site_checkout.summary.badge":"Add-on","states.site_checkout.summary.price":"+249 EUR","states.site_checkout.summary.period":"/Monat","states.site_checkout.summary.body":"Prüfen Sie das gewählte Abo oder Zusatzpaket und senden Sie die Anfrage. Danach klären wir Start, Paketumfang und nächsten Schritt.","states.site_checkout.summary.features":["KPI-Boards","Charts \u0026 Tabellen","Pipeline-Auswertung"],"states.site_checkout.order.plan":"BI \u0026 Analyse","states.site_checkout.order.price":"+249 EUR","states.site_checkout.order.completed":false,"states.site_thanks.order.plan":"BI \u0026 Analyse","states.site_thanks.order.price":"+249 EUR","states.site_thanks.order.completed":false},"groupEntryId":"","groupExitId":""},{"id":"site_pricing_buy_sales","from":"site_pricing","to":"site_checkout_flow","label":"Sales zubuchen","condition":"","triggerType":"button","triggerEvent":"button.site_pricing_buy_sales.clicked","timerMs":3000,"set":{"states.site_pricing.plans.selectedPlan":"Sales \u0026 CRM","states.site_checkout.summary.title":"Sales \u0026 CRM","states.site_checkout.summary.badge":"Add-on","states.site_checkout.summary.price":"+349 EUR","states.site_checkout.summary.period":"/Monat","states.site_checkout.summary.body":"Prüfen Sie das gewählte Abo oder Zusatzpaket und senden Sie die Anfrage. Danach klären wir Start, Paketumfang und nächsten Schritt.","states.site_checkout.summary.features":["Lead-Status","Angebotsstrecken","Follow-up-Prozesse"],"states.site_checkout.order.plan":"Sales \u0026 CRM","states.site_checkout.order.price":"+349 EUR","states.site_checkout.order.completed":false,"states.site_thanks.order.plan":"Sales \u0026 CRM","states.site_thanks.order.price":"+349 EUR","states.site_thanks.order.completed":false},"groupEntryId":"","groupExitId":""},{"id":"site_pricing_buy_knowledge","from":"site_pricing","to":"site_checkout_flow","label":"Portal zubuchen","condition":"","triggerType":"button","triggerEvent":"button.site_pricing_buy_knowledge.clicked","timerMs":3000,"set":{"states.site_pricing.plans.selectedPlan":"Wissensportal","states.site_checkout.summary.title":"Wissensportal","states.site_checkout.summary.badge":"Add-on","states.site_checkout.summary.price":"+199 EUR","states.site_checkout.summary.period":"/Monat","states.site_checkout.summary.body":"Prüfen Sie das gewählte Abo oder Zusatzpaket und senden Sie die Anfrage. Danach klären wir Start, Paketumfang und nächsten Schritt.","states.site_checkout.summary.features":["Onboarding","FAQ und Hilfe","Wissenssicherung"],"states.site_checkout.order.plan":"Wissensportal","states.site_checkout.order.price":"+199 EUR","states.site_checkout.order.completed":false,"states.site_thanks.order.plan":"Wissensportal","states.site_thanks.order.price":"+199 EUR","states.site_thanks.order.completed":false},"groupEntryId":"","groupExitId":""},{"id":"site_pricing_buy_automation","from":"site_pricing","to":"site_checkout_flow","label":"Integration zubuchen","condition":"","triggerType":"button","triggerEvent":"button.site_pricing_buy_automation.clicked","timerMs":3000,"set":{"states.site_pricing.plans.selectedPlan":"Integration \u0026 Automation","states.site_checkout.summary.title":"Integration \u0026 Automation","states.site_checkout.summary.badge":"Add-on","states.site_checkout.summary.price":"+499 EUR","states.site_checkout.summary.period":"/Monat","states.site_checkout.summary.body":"Prüfen Sie das gewählte Abo oder Zusatzpaket und senden Sie die Anfrage. Danach klären wir Start, Paketumfang und nächsten Schritt.","states.site_checkout.summary.features":["Webhooks","Mail und Telefonie","Datenquellen"],"states.site_checkout.order.plan":"Integration \u0026 Automation","states.site_checkout.order.price":"+499 EUR","states.site_checkout.order.completed":false,"states.site_thanks.order.plan":"Integration \u0026 Automation","states.site_thanks.order.price":"+499 EUR","states.site_thanks.order.completed":false},"groupEntryId":"","groupExitId":""},{"id":"site_checkout_complete","from":"site_checkout_flow","to":"site_thanks","label":"Anfrage senden","condition":"","triggerType":"button","triggerEvent":"button.site_checkout_complete.clicked","timerMs":3000,"set":{"states.site_checkout.submit.clicked":true,"states.site_checkout.order.completed":true,"states.site_thanks.order.completed":true},"groupEntryId":"","groupExitId":"site_checkout"},{"id":"site_contact_send","from":"site_contact","to":"site_thanks","label":"Anfrage senden","condition":"","triggerType":"button","triggerEvent":"button.site_contact_send.clicked","timerMs":3000,"set":{"states.site_contact.submit.clicked":true,"states.site_contact.form.submitted":true},"groupEntryId":"","groupExitId":""},{"id":"site_login_submit","from":"site_login","to":"site_profile","label":"Anmelden","condition":"","triggerType":"button","triggerEvent":"button.site_login_submit.clicked","timerMs":3000,"set":{"states.site_login.hero.loggedIn":true,"states.site_profile.account.loggedIn":true},"groupEntryId":"","groupExitId":""},{"id":"site_profile_logout","from":"site_profile","to":"site_login","label":"Abmelden","condition":"","triggerType":"button","triggerEvent":"button.site_profile_logout.clicked","timerMs":3000,"set":{"states.site_profile.logout.clicked":true,"states.site_profile.account.loggedIn":false},"groupEntryId":"","groupExitId":""}]};
-    const EXPORTED_STATE_BLUEPRINT_SAVED_AT = "2026-07-21T14:24:43.679Z";
+    const EXPORTED_STATE_BLUEPRINT_SAVED_AT = "2026-07-21T14:32:01.568Z";
 
     let model = normalizeModel(JSON.parse(JSON.stringify(EXPORTED_STATE_BLUEPRINT)));
     let current = model.initial;
@@ -4184,73 +4184,112 @@
       return entry;
     }
 
+    function runtimeProtocolNoiseKey(key) {
+      const k = String(key || "").trim().toLowerCase();
+      if (!k) return true;
+      return /^(layout|brand|items|menuitems|submenu|columns|links|tabs|steps|options|plans|features|image|alt|avatar|url|href|period|badge|eyebrow|heading|body|note|message|tone|parent|submenuopen|cartlabel|subtotal|search|transitionid|primarytransitionid|secondarytransitionid|actionlabel|nextlabel|secondaryactionlabel|clicked|open|confirmed|submitted|finished|loading|durationms|status|count|sourcekey|entryid|stateid|ok|error|statuscode|data|done)$/i.test(k);
+    }
+
+    function runtimeProtocolIsNoisePath(path) {
+      const parts = String(path || "").split(".").filter(Boolean);
+      if (!parts.length) return true;
+      const leaf = parts[parts.length - 1];
+      if (runtimeProtocolNoiseKey(leaf)) return true;
+      if (/transitionid$/i.test(leaf)) return true;
+      return false;
+    }
+
+    function runtimeProtocolControlLabel(el) {
+      const aria = String(el.getAttribute("aria-label") || "").trim();
+      if (aria) return aria;
+      const labelledBy = String(el.getAttribute("aria-labelledby") || "").trim();
+      if (labelledBy) {
+        const bits = labelledBy.split(/\s+/).map(id => document.getElementById(id)?.textContent || "").join(" ").trim();
+        if (bits) return bits.replace(/\s+/g, " ").slice(0, 80);
+      }
+      const wrap = el.closest("label, .form-control, .daisy-widget, .component-field, fieldset, .field");
+      if (wrap) {
+        const legend = wrap.querySelector("legend, .label-text, .label, [data-label]")?.textContent;
+        if (legend && String(legend).trim()) return String(legend).trim().replace(/\s+/g, " ").slice(0, 80);
+      }
+      if (el.labels && el.labels[0]) {
+        const t = String(el.labels[0].textContent || "").trim();
+        if (t) return t.replace(/\s+/g, " ").slice(0, 80);
+      }
+      const ph = String(el.getAttribute("placeholder") || "").trim();
+      if (ph) return ph;
+      return "";
+    }
+
+    function runtimeProtocolControlValue(el) {
+      if (!el) return undefined;
+      if (el.type === "checkbox" || el.type === "radio") return !!el.checked;
+      if (el.type === "file") return el.files?.[0]?.name || "";
+      if (el.tagName === "SELECT" && el.multiple) return [...el.selectedOptions].map(option => option.value).filter(Boolean);
+      if (el.tagName === "SELECT") {
+        const opt = el.selectedOptions?.[0];
+        return String(opt?.textContent || el.value || "").trim();
+      }
+      return el.value;
+    }
+
+    function runtimeProtocolIsMeaningfulValue(value) {
+      if (value === null || value === undefined) return false;
+      if (typeof value === "boolean") return true;
+      if (typeof value === "number") return Number.isFinite(value);
+      if (Array.isArray(value)) return value.length > 0;
+      if (isPlainDataObject(value)) return false;
+      return String(value).trim() !== "";
+    }
+
     function runtimeProtocolCaptureInputs(fromStateId) {
-      const state = findState(fromStateId);
-      const chain = state ? activeStateChain(state) : [];
       const entries = [];
       const seen = new Set();
-      const visitDeclared = (node, value, localPath = "") => {
-        if (isPlainDataObject(value)) {
-          for (const [key, child] of Object.entries(value)) {
-            visitDeclared(node, child, localPath ? localPath + "." + key : key);
-          }
-          return;
-        }
-        if (!localPath || !node?.id) return;
-        const path = "states." + node.id + "." + localPath;
-        if (seen.has(path)) return;
-        seen.add(path);
-        const currentValue = readValueAtPath(context, path);
-        const label = localPath.split(".").pop() || localPath;
-        entries.push(runtimeProtocolValueEntry(path, label, currentValue !== undefined ? currentValue : value));
-      };
-      for (const node of chain) {
-        if (!node) continue;
-        visitDeclared(node, normalizeStateDataObject(node.data), "");
-      }
       const controls = document.querySelectorAll("#screen input, #screen textarea, #screen select");
       controls.forEach((el, index) => {
-        if (!el || el.disabled || el.type === "hidden") return;
-        const label = String(
-          el.labels?.[0]?.textContent
-          || el.getAttribute("aria-label")
-          || el.getAttribute("placeholder")
-          || el.name
-          || el.id
-          || "Eingabe"
-        ).trim();
-        let value;
-        if (el.type === "checkbox" || el.type === "radio") value = !!el.checked;
-        else if (el.type === "file") value = el.files?.[0]?.name || "";
-        else if (el.tagName === "SELECT" && el.multiple) value = [...el.selectedOptions].map(option => option.value);
-        else value = el.value;
-        const boundPath = String(el.getAttribute("name") || el.id || "").trim();
-        if (boundPath && boundPath.includes(".")) {
-          const entry = runtimeProtocolValueEntry(boundPath, label || boundPath.split(".").pop(), value);
-          if (seen.has(boundPath)) {
-            const index = entries.findIndex(item => item.path === boundPath);
-            if (index >= 0) entries[index] = entry;
-          } else {
-            seen.add(boundPath);
-            entries.push(entry);
-          }
+        if (!el || el.disabled || el.type === "hidden" || el.type === "button" || el.type === "submit" || el.type === "reset") return;
+        if (el.closest(".protocol-overlay, .protocol-panel")) return;
+        let value = runtimeProtocolControlValue(el);
+        if (el.type === "checkbox" || el.type === "radio") {
+          if (!el.checked) return;
+          value = true;
+        } else if (!runtimeProtocolIsMeaningfulValue(value)) {
           return;
         }
-        if (value === "" || value === false || value === null || value === undefined) return;
-        if (boundPath && seen.has(boundPath)) return;
-        const synthetic = boundPath && !boundPath.includes(".") ? "screen." + boundPath : "screen.input." + (index + 1);
-        if (seen.has(synthetic)) return;
-        seen.add(synthetic);
-        entries.push(runtimeProtocolValueEntry(synthetic, label, value));
+        const label = runtimeProtocolControlLabel(el) || ("Eingabe " + (entries.length + 1));
+        if (runtimeProtocolNoiseKey(label)) return;
+        const boundPath = String(el.getAttribute("name") || el.id || "").trim();
+        const path = boundPath && boundPath.includes(".") ? boundPath : ("screen.input." + (index + 1));
+        if (seen.has(path) || seen.has(label + "::" + String(value))) return;
+        seen.add(path);
+        seen.add(label + "::" + String(value));
+        entries.push(runtimeProtocolValueEntry(path, label, value));
       });
       return entries;
     }
 
     function runtimeProtocolCaptureChanges(transition) {
-      return Object.keys(normalizeDataObject(transition?.set)).map(path => {
+      const set = normalizeDataObject(transition?.set);
+      const entries = [];
+      for (const [path, raw] of Object.entries(set)) {
+        if (runtimeProtocolIsNoisePath(path)) continue;
         const value = readValueAtPath(context, path);
-        return runtimeProtocolValueEntry(path, path.split(".").pop() || path, value);
-      });
+        const finalValue = value !== undefined ? value : raw;
+        if (!runtimeProtocolIsMeaningfulValue(finalValue) && finalValue !== false) continue;
+        const leaf = String(path).split(".").filter(Boolean).pop() || path;
+        if (runtimeProtocolNoiseKey(leaf)) continue;
+        // skip pure UI flags
+        if (/^(clicked|submitted|finished|open|confirmed)$/i.test(leaf) && finalValue === true) continue;
+        let label = leaf;
+        if (leaf === "selectedPlan" || leaf === "selected") label = "Auswahl";
+        else if (leaf === "plan") label = "Paket";
+        else if (leaf === "price") label = "Preis";
+        else if (leaf === "completed") label = "Abgeschlossen";
+        else if (leaf === "value") label = "Wert";
+        else label = leaf.charAt(0).toUpperCase() + leaf.slice(1);
+        entries.push(runtimeProtocolValueEntry(path, label, finalValue));
+      }
+      return entries;
     }
 
     function runtimeProtocolCaptureFetches(fromStateId) {
@@ -4267,7 +4306,7 @@
         seen.add(target);
         const result = readValueAtPath(context, target);
         if (!isPlainDataObject(result) || result.done !== true) continue;
-        const url = runtimeProtocolText(result.url || source.url, target);
+        const url = runtimeProtocolText(result.url || source.url, "API");
         const ok = result.ok === true;
         const count = Number(result.count);
         const error = runtimeProtocolText(result.error);
@@ -4276,7 +4315,7 @@
           : ("Fehler: " + (error || "unbekannt"));
         const entry = {
           path: target,
-          label: url,
+          label: "Daten geladen",
           url,
           ok,
           count: Number.isFinite(count) ? count : 0,
@@ -6905,43 +6944,9 @@
       return el;
     }
 
-    function appendRuntimeProtocolMeta(parent, label, value) {
-      const item = createRuntimeProtocolElement("div", "protocol-meta-item");
-      item.appendChild(createRuntimeProtocolElement("div", "protocol-meta-label", label));
-      item.appendChild(createRuntimeProtocolElement("div", "protocol-meta-value", value || "-"));
-      parent.appendChild(item);
-    }
 
 
 
-    function runtimeProtocolStepStory(step) {
-      const fromLabel = step.fromTitle || step.from || "Start";
-      const toLabel = step.toTitle || step.to || "Ende";
-      const action = step.label || step.triggerEvent || "Weiter";
-      const event = step.triggerEvent ? " (" + step.triggerEvent + ")" : "";
-      if (step.triggerType === "button") {
-        return 'Der Nutzer hat "' + action + '" gew\u00e4hlt. Der Ablauf wechselte von "' + fromLabel + '" nach "' + toLabel + '".';
-      }
-      if (step.triggerType === "timer") {
-        return 'Nach Ablauf der Wartezeit wechselte der Ablauf von "' + fromLabel + '" nach "' + toLabel + '".';
-      }
-      if (step.triggerType === "realtime") {
-        return 'Ein Realtime-Ereignis' + event + ' hat den Wechsel von "' + fromLabel + '" nach "' + toLabel + '" ausgel\u00f6st.';
-      }
-      if (step.triggerType === "api") {
-        return 'Eine API-Antwort' + event + ' hat den Wechsel von "' + fromLabel + '" nach "' + toLabel + '" ausgel\u00f6st.';
-      }
-      if (step.triggerType === "change") {
-        return 'Eine Daten\u00e4nderung' + event + ' hat den Wechsel von "' + fromLabel + '" nach "' + toLabel + '" ausgel\u00f6st.';
-      }
-      if (step.triggerType === "auto") {
-        return 'Der Ablauf wechselte automatisch von "' + fromLabel + '" nach "' + toLabel + '".';
-      }
-      if (step.triggerType === "flow") {
-        return 'Der Unterablauf wurde betreten und f\u00fchrte von "' + fromLabel + '" nach "' + toLabel + '".';
-      }
-      return 'Der Ablauf wechselte von "' + fromLabel + '" nach "' + toLabel + '".';
-    }
 
 
 
@@ -6955,15 +6960,18 @@
     }
 
     function runtimeProtocolHumanValue(entry) {
-      return runtimeProtocolText(entry?.displayValue, "leer");
+      const text = runtimeProtocolText(entry?.displayValue, "");
+      if (!text || text === "leer") return "";
+      return text;
     }
 
     function appendRuntimeProtocolPlainList(parent, title, values) {
-      if (!Array.isArray(values) || !values.length) return;
+      const rows = (Array.isArray(values) ? values : []).filter(entry => runtimeProtocolHumanValue(entry));
+      if (!rows.length) return;
       const section = createRuntimeProtocolElement("section", "protocol-values");
       section.appendChild(createRuntimeProtocolElement("div", "protocol-values-title", title));
       const list = createRuntimeProtocolElement("ul", "protocol-value-list");
-      values.forEach(entry => {
+      rows.forEach(entry => {
         const item = createRuntimeProtocolElement("li", "protocol-value-row");
         item.appendChild(createRuntimeProtocolElement("span", "protocol-value-label", runtimeProtocolHumanLabel(entry) + ": "));
         item.appendChild(createRuntimeProtocolElement("span", "protocol-value-text", runtimeProtocolHumanValue(entry)));
@@ -6975,59 +6983,59 @@
 
     function runtimeProtocolStepHeadline(step) {
       const action = step.label || step.triggerEvent || "Weiter";
-      if (step.triggerType === "button") return 'Geklickt: "' + action + '"';
-      if (step.triggerType === "timer") return "Zeit abgelaufen";
-      if (step.triggerType === "realtime") return "Ereignis empfangen" + (step.triggerEvent ? ': "' + step.triggerEvent + '"' : "");
-      if (step.triggerType === "api") return "API-Antwort verarbeitet" + (step.triggerEvent ? ': "' + step.triggerEvent + '"' : "");
-      if (step.triggerType === "change") return "Daten geändert";
-      if (step.triggerType === "auto") return "Automatisch weiter";
-      if (step.triggerType === "flow") return "Unterablauf betreten";
-      return action;
+      const toLabel = step.toTitle || step.to || "nächster Schritt";
+      if (step.triggerType === "button") return action + "  →  " + toLabel;
+      if (step.triggerType === "timer") return "Zeit abgelaufen  →  " + toLabel;
+      if (step.triggerType === "realtime") return "Ereignis  →  " + toLabel;
+      if (step.triggerType === "api") return "API  →  " + toLabel;
+      if (step.triggerType === "change") return "Datenänderung  →  " + toLabel;
+      if (step.triggerType === "auto") return "Automatisch  →  " + toLabel;
+      return action + "  →  " + toLabel;
+    }
+
+    function runtimeProtocolJourneyLine(snapshot) {
+      const titles = [];
+      if (snapshot.steps[0]) titles.push(snapshot.steps[0].fromTitle || snapshot.steps[0].from || "Start");
+      snapshot.steps.forEach(step => {
+        const title = step.toTitle || step.to || "";
+        if (title && titles[titles.length - 1] !== title) titles.push(title);
+      });
+      if (!titles.length) {
+        const cur = snapshot.currentState.title || snapshot.currentState.id;
+        if (cur) titles.push(cur);
+      }
+      return titles.join("  →  ");
     }
 
     function buildRuntimeProtocolReportArticle(snapshot) {
       const report = createRuntimeProtocolElement("article", "protocol-report");
-      const startTitle = snapshot.steps[0]?.fromTitle || snapshot.startState.title || snapshot.startState.id || "Start";
-      const currentTitle = snapshot.currentState.title || snapshot.currentState.id || "Ende";
+      const journey = runtimeProtocolJourneyLine(snapshot);
 
       const summary = createRuntimeProtocolElement("section", "protocol-summary");
-      const stepWord = snapshot.stepCount === 1 ? "Schritt" : "Schritte";
       summary.appendChild(createRuntimeProtocolElement("div", "protocol-summary-title",
-        snapshot.stepCount + " " + stepWord + ": " + startTitle + " -> " + currentTitle));
+        snapshot.stepCount ? journey : "Noch kein Durchlauf"));
       summary.appendChild(createRuntimeProtocolElement("div", "protocol-summary-text", snapshot.stepCount
-        ? "Einfacher Ablaufbericht aus dem globalen Runtime-Bus: Klicks, Eingaben, geladene Daten und Wechsel."
-        : "Noch kein Schritt. Der Bericht beginnt mit dem ersten Klick oder ausgelösten Wechsel."));
+        ? ((snapshot.caseName ? ("Fall: " + snapshot.caseName + " · ") : "")
+          + snapshot.stepCount + (snapshot.stepCount === 1 ? " Schritt" : " Schritte")
+          + (snapshot.duration ? (" · " + snapshot.duration) : ""))
+        : "Klicken Sie durch die Vorschau. Der Bericht sammelt nur Ihre Klicks und Eingaben."));
       report.appendChild(summary);
-
-      const meta = createRuntimeProtocolElement("div", "protocol-meta");
-      appendRuntimeProtocolMeta(meta, "Prozess", snapshot.app);
-      appendRuntimeProtocolMeta(meta, "Fall", snapshot.caseName || "ohne Bezeichnung");
-      appendRuntimeProtocolMeta(meta, "Start", startTitle);
-      appendRuntimeProtocolMeta(meta, "Aktuell", currentTitle);
-      appendRuntimeProtocolMeta(meta, "Schritte", String(snapshot.stepCount));
-      appendRuntimeProtocolMeta(meta, "Dauer", snapshot.duration || "-");
-      appendRuntimeProtocolMeta(meta, "Gestartet", runtimeProtocolDate(snapshot.startedAt) || "-");
-      appendRuntimeProtocolMeta(meta, "Erstellt", runtimeProtocolDate(snapshot.generatedAt));
-      report.appendChild(meta);
 
       if (!snapshot.steps.length) {
         report.appendChild(createRuntimeProtocolElement("div", "protocol-empty",
-          "Noch kein ausgeführter Übergang. Bitte im Prozess klicken, tippen oder laden."));
+          "Noch nichts protokolliert. Nutzen Sie die App in der Vorschau – jeder Klick und jede Eingabe erscheint hier."));
       } else {
         const list = createRuntimeProtocolElement("ol", "protocol-steps");
         snapshot.steps.forEach(step => {
           const item = createRuntimeProtocolElement("li", "protocol-step");
           item.appendChild(createRuntimeProtocolElement("div", "protocol-step-index", String(step.index)));
           const main = createRuntimeProtocolElement("div", "protocol-step-main");
-          const fromLabel = step.fromTitle || step.from || "Start";
-          const toLabel = step.toTitle || step.to || "Ende";
           main.appendChild(createRuntimeProtocolElement("div", "protocol-step-title", runtimeProtocolStepHeadline(step)));
-          main.appendChild(createRuntimeProtocolElement("div", "protocol-step-story", runtimeProtocolStepStory(step)));
-          main.appendChild(createRuntimeProtocolElement("div", "protocol-step-meta",
-            runtimeProtocolDate(step.at) || "-" + " · " + fromLabel + " → " + toLabel));
-          appendRuntimeProtocolPlainList(main, "Eingaben", step.inputs);
-          appendRuntimeProtocolPlainList(main, "Geladene Daten", step.fetches);
-          appendRuntimeProtocolPlainList(main, "Gesetzte Werte", step.changes);
+          const when = runtimeProtocolDate(step.at);
+          if (when) main.appendChild(createRuntimeProtocolElement("div", "protocol-step-meta", when));
+          appendRuntimeProtocolPlainList(main, "Ihre Eingaben", step.inputs);
+          appendRuntimeProtocolPlainList(main, "Geladen", step.fetches);
+          appendRuntimeProtocolPlainList(main, "Ergebnis", step.changes);
           item.appendChild(main);
           list.appendChild(item);
         });
@@ -7035,70 +7043,176 @@
       }
 
       const footer = createRuntimeProtocolElement("footer", "protocol-footer");
-      footer.appendChild(createRuntimeProtocolElement("span", "", "Erstellt mit digitalisierungsplanung.de"));
-      footer.appendChild(createRuntimeProtocolElement("span", "", "Quelle: aktueller Prozessdurchlauf im globalen Runtime-Bus"));
+      footer.appendChild(createRuntimeProtocolElement("span", "", snapshot.app || "Prozessbericht"));
+      footer.appendChild(createRuntimeProtocolElement("span", "", runtimeProtocolDate(snapshot.generatedAt) || ""));
       report.appendChild(footer);
       return report;
     }
 
-    function runtimeProtocolPrintDocumentHtml(snapshot) {
-      const esc = value => String(value ?? "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;");
+    function runtimeProtocolPdfEscape(text) {
+      return String(text ?? "")
+        .replace(/\\/g, "\\\\")
+        .replace(/\(/g, "\\(")
+        .replace(/\)/g, "\\)")
+        .replace(/\r/g, "")
+        .replace(/\t/g, " ");
+    }
+
+    function runtimeProtocolPdfLatin1(text) {
+      return Array.from(String(text ?? "")).map(ch => {
+        const code = ch.charCodeAt(0);
+        if (code === 0x20AC) return "EUR";
+        if (code > 255) {
+          const map = {
+            "ä": "ae", "ö": "oe", "ü": "ue", "Ä": "Ae", "Ö": "Oe", "Ü": "Ue", "ß": "ss",
+            "–": "-", "—": "-", "→": "->", "·": "-", "“": "\"", "”": "\"", "„": "\"", "’": "'", "‘": "'"
+          };
+          if (map[ch]) return map[ch];
+          try { return ch.normalize("NFKD").replace(/[\u0300-\u036f]/g, ""); } catch (_) { return "?"; }
+        }
+        return ch;
+      }).join("");
+    }
+
+    function runtimeProtocolPdfWrap(text, maxChars) {
+      const clean = runtimeProtocolPdfLatin1(String(text ?? "")).replace(/\s+/g, " ").trim();
+      if (!clean) return [];
+      const words = clean.split(" ");
       const lines = [];
-      lines.push("<!doctype html><html lang=\"de\"><head><meta charset=\"utf-8\" />");
-      lines.push("<title>" + esc((snapshot.caseName || snapshot.app || "Prozess") + " – Bericht") + "</title>");
-      lines.push("<style>");
-      lines.push("body{font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;color:#111;max-width:720px;margin:32px auto;padding:0 20px;}");
-      lines.push("h1{font-size:28px;margin:0 0 6px;} h2{font-size:18px;margin:28px 0 10px;}");
-      lines.push("p,li{margin:0 0 8px;} .muted{color:#444;} .meta{margin:16px 0 24px;padding:12px 14px;border:1px solid #ddd;border-radius:8px;}");
-      lines.push(".meta div{margin:4px 0;} .step{margin:0 0 18px;padding:0 0 14px;border-bottom:1px solid #e5e5e5;}");
-      lines.push(".step h3{margin:0 0 6px;font-size:16px;} ul{margin:6px 0 0 18px;padding:0;}");
-      lines.push("@media print{body{margin:0;max-width:none;}}");
-      lines.push("</style></head><body>");
-      lines.push("<h1>Prozessbericht</h1>");
-      lines.push("<p class=\"muted\">" + esc(snapshot.app || "Zustand") + (snapshot.caseName ? " · Fall: " + esc(snapshot.caseName) : "") + "</p>");
-      lines.push("<div class=\"meta\">");
-      const startTitle = snapshot.steps[0]?.fromTitle || snapshot.startState.title || snapshot.startState.id || "Start";
-      const currentTitle = snapshot.currentState.title || snapshot.currentState.id || "Ende";
-      lines.push("<div><strong>Verlauf:</strong> " + esc(startTitle) + " → " + esc(currentTitle) + "</div>");
-      lines.push("<div><strong>Schritte:</strong> " + esc(String(snapshot.stepCount)) + "</div>");
-      if (snapshot.duration) lines.push("<div><strong>Dauer:</strong> " + esc(snapshot.duration) + "</div>");
-      if (snapshot.startedAt) lines.push("<div><strong>Gestartet:</strong> " + esc(runtimeProtocolDate(snapshot.startedAt)) + "</div>");
-      lines.push("<div><strong>Erstellt:</strong> " + esc(runtimeProtocolDate(snapshot.generatedAt)) + "</div>");
-      lines.push("</div>");
-      if (!snapshot.steps.length) {
-        lines.push("<p>Noch keine Schritte im Durchlauf.</p>");
-      } else {
-        lines.push("<h2>Ablauf</h2>");
-        snapshot.steps.forEach(step => {
-          const fromLabel = step.fromTitle || step.from || "Start";
-          const toLabel = step.toTitle || step.to || "Ende";
-          lines.push("<section class=\"step\">");
-          lines.push("<h3>" + esc(String(step.index) + ". " + runtimeProtocolStepHeadline(step)) + "</h3>");
-          lines.push("<p>" + esc(runtimeProtocolStepStory(step)) + "</p>");
-          lines.push("<p class=\"muted\">" + esc((runtimeProtocolDate(step.at) || "-") + " · " + fromLabel + " → " + toLabel) + "</p>");
-          const blocks = [
-            ["Eingaben", step.inputs],
-            ["Geladene Daten", step.fetches],
-            ["Gesetzte Werte", step.changes]
-          ];
-          blocks.forEach(([title, values]) => {
-            if (!Array.isArray(values) || !values.length) return;
-            lines.push("<p><strong>" + esc(title) + "</strong></p><ul>");
-            values.forEach(entry => {
-              lines.push("<li>" + esc(runtimeProtocolHumanLabel(entry) + ": " + runtimeProtocolHumanValue(entry)) + "</li>");
-            });
-            lines.push("</ul>");
-          });
-          lines.push("</section>");
+      let line = "";
+      words.forEach(word => {
+        const next = line ? (line + " " + word) : word;
+        if (next.length > maxChars && line) {
+          lines.push(line);
+          line = word;
+        } else {
+          line = next;
+        }
+      });
+      if (line) lines.push(line);
+      return lines;
+    }
+
+    function runtimeProtocolBuildPdfBytes(snapshot) {
+      const lines = [];
+      const push = (text, opts = {}) => {
+        lines.push({
+          text: runtimeProtocolPdfLatin1(text),
+          size: opts.size || 11,
+          gap: opts.gap == null ? 16 : opts.gap,
+          bold: !!opts.bold
         });
+      };
+      const journey = runtimeProtocolJourneyLine(snapshot);
+      push("Prozessbericht", { size: 20, gap: 22, bold: true });
+      push(snapshot.app || "Zustand", { size: 12, gap: 14 });
+      if (snapshot.caseName) push("Fall: " + snapshot.caseName, { size: 11, gap: 14 });
+      if (snapshot.stepCount) {
+        push(journey, { size: 12, gap: 16, bold: true });
+        push(
+          snapshot.stepCount + (snapshot.stepCount === 1 ? " Schritt" : " Schritte")
+          + (snapshot.duration ? "  |  " + snapshot.duration : "")
+          + (snapshot.startedAt ? "  |  " + runtimeProtocolDate(snapshot.startedAt) : ""),
+          { size: 10, gap: 22 }
+        );
+      } else {
+        push("Noch kein Durchlauf protokolliert.", { size: 11, gap: 18 });
       }
-      lines.push("<p class=\"muted\">Erstellt mit digitalisierungsplanung.de</p>");
-      lines.push("</body></html>");
-      return lines.join("");
+      snapshot.steps.forEach(step => {
+        push(String(step.index) + ".  " + runtimeProtocolStepHeadline(step), { size: 12, gap: 15, bold: true });
+        const when = runtimeProtocolDate(step.at);
+        if (when) push(when, { size: 9, gap: 13 });
+        const blocks = [
+          ["Eingaben", step.inputs],
+          ["Geladen", step.fetches],
+          ["Ergebnis", step.changes]
+        ];
+        blocks.forEach(([title, values]) => {
+          const rows = (Array.isArray(values) ? values : []).filter(entry => runtimeProtocolHumanValue(entry));
+          if (!rows.length) return;
+          push(title, { size: 10, gap: 13, bold: true });
+          rows.forEach(entry => {
+            const row = runtimeProtocolHumanLabel(entry) + ": " + runtimeProtocolHumanValue(entry);
+            runtimeProtocolPdfWrap(row, 88).forEach((part, idx) => {
+              push((idx ? "   " : "  - ") + part, { size: 10, gap: 13 });
+            });
+          });
+        });
+        push("", { size: 10, gap: 10 });
+      });
+      push("digitalisierungsplanung.de", { size: 9, gap: 12 });
+
+      // Build simple multi-page PDF (Helvetica, WinAnsi-ish via latin1)
+      const pageWidth = 595.28;
+      const pageHeight = 841.89;
+      const marginX = 48;
+      const marginTop = 52;
+      const marginBottom = 48;
+      const contentWidth = pageWidth - marginX * 2;
+      const pages = [[]];
+      let y = pageHeight - marginTop;
+      const ensure = (need) => {
+        if (y - need < marginBottom) {
+          pages.push([]);
+          y = pageHeight - marginTop;
+        }
+      };
+      lines.forEach(item => {
+        const size = item.size;
+        const leading = item.gap;
+        ensure(leading);
+        if (item.text) pages[pages.length - 1].push({ ...item, y });
+        y -= leading;
+      });
+
+      const objects = [];
+      const add = content => {
+        objects.push(content);
+        return objects.length;
+      };
+      const fontId = add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
+      const fontBoldId = add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
+      const pageIds = [];
+      pages.forEach(pageLines => {
+        const ops = ["BT"];
+        pageLines.forEach(line => {
+          const font = line.bold ? "F2" : "F1";
+          ops.push("/" + font + " " + line.size + " Tf");
+          ops.push("1 0 0 1 " + marginX.toFixed(2) + " " + line.y.toFixed(2) + " Tm");
+          ops.push("(" + runtimeProtocolPdfEscape(line.text) + ") Tj");
+        });
+        ops.push("ET");
+        const stream = ops.join("\n");
+        const contentId = add("<< /Length " + stream.length + " >>\nstream\n" + stream + "\nendstream");
+        const pageId = add(
+          "<< /Type /Page /Parent PAGES /MediaBox [0 0 " + pageWidth + " " + pageHeight + "] "
+          + "/Resources << /Font << /F1 " + fontId + " 0 R /F2 " + fontBoldId + " 0 R >> >> "
+          + "/Contents " + contentId + " 0 R >>"
+        );
+        pageIds.push(pageId);
+      });
+      const kids = pageIds.map(id => id + " 0 R").join(" ");
+      const pagesId = add("<< /Type /Pages /Kids [ " + kids + " ] /Count " + pageIds.length + " >>");
+      // patch parent refs
+      pageIds.forEach(id => {
+        objects[id - 1] = objects[id - 1].replace("/Parent PAGES", "/Parent " + pagesId + " 0 R");
+      });
+      const catalogId = add("<< /Type /Catalog /Pages " + pagesId + " 0 R >>");
+      let pdf = "%PDF-1.4\n";
+      const offsets = [0];
+      objects.forEach((body, index) => {
+        offsets.push(pdf.length);
+        pdf += (index + 1) + " 0 obj\n" + body + "\nendobj\n";
+      });
+      const xrefPos = pdf.length;
+      pdf += "xref\n0 " + (objects.length + 1) + "\n";
+      pdf += "0000000000 65535 f \n";
+      for (let i = 1; i <= objects.length; i += 1) {
+        pdf += String(offsets[i]).padStart(10, "0") + " 00000 n \n";
+      }
+      pdf += "trailer\n<< /Size " + (objects.length + 1) + " /Root " + catalogId + " 0 R >>\n";
+      pdf += "startxref\n" + xrefPos + "\n%%EOF";
+      return pdf;
     }
 
     function renderRuntimeProtocolReport() {
@@ -7124,11 +7238,11 @@
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-+|-+$/g, "")
         .slice(0, 60) || "prozess";
-      return base + "-protokoll." + extension;
+      return base + "-bericht." + extension;
     }
 
-    function downloadRuntimeProtocolFile(text, filename, type) {
-      const blob = new Blob([text], { type });
+    function downloadRuntimeProtocolFile(data, filename, type) {
+      const blob = data instanceof Blob ? data : new Blob([data], { type });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = filename;
@@ -7143,29 +7257,17 @@
       downloadRuntimeProtocolFile(JSON.stringify(snapshot, null, 2), runtimeProtocolFilename("json"), "application/json");
     }
 
-    function printRuntimeProtocol() {
+    function saveRuntimeProtocolPdf() {
       const snapshot = runtimeProtocolSnapshot();
-      const html = runtimeProtocolPrintDocumentHtml(snapshot);
-      const printWindow = window.open("", "_blank", "noopener,noreferrer,width=900,height=700");
-      if (!printWindow) {
-        // Popup blocked: fall back to in-page print of the simplified report.
-        renderRuntimeProtocolReport();
-        document.body.classList.add("protocol-printing");
-        setTimeout(() => {
-          window.print();
-          setTimeout(() => document.body.classList.remove("protocol-printing"), 200);
-        }, 0);
-        return;
-      }
-      printWindow.document.open();
-      printWindow.document.write(html);
-      printWindow.document.close();
-      const trigger = () => {
-        try { printWindow.focus(); } catch (_) {}
-        printWindow.print();
-      };
-      if (printWindow.document.readyState === "complete") setTimeout(trigger, 50);
-      else printWindow.onload = () => setTimeout(trigger, 50);
+      const pdf = runtimeProtocolBuildPdfBytes(snapshot);
+      // binary string -> Uint8Array
+      const bytes = new Uint8Array(pdf.length);
+      for (let i = 0; i < pdf.length; i += 1) bytes[i] = pdf.charCodeAt(i) & 0xff;
+      downloadRuntimeProtocolFile(new Blob([bytes], { type: "application/pdf" }), runtimeProtocolFilename("pdf"), "application/pdf");
+    }
+
+    function printRuntimeProtocol() {
+      saveRuntimeProtocolPdf();
     }
 
     function openRuntimeProtocol() {

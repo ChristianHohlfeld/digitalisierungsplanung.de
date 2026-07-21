@@ -244,12 +244,11 @@ Ein API-Ereignis ist ein echter Trigger und kein `change`-Alias. Ein generischer
   abgeleitet. Bericht, JSON-Download und PDF-Druckansicht sind reine
   Projektionen aus Modell plus globalem Bus. Sie persistieren kein zweites
   Prozessmodell und sind kein Undo/Redo.
-- Die PDF-/Druckansicht ist ein schlichter menschenlesbarer Bericht
-  (Prozessbericht): Kopf, kurzer Verlauf, nummerierte Schritte mit Klick/
-  Auslöser, Eingaben, geladenen Daten und gesetzten Werten. Technische IDs
-  und Buspfade gehören nicht in die Druckansicht; sie bleiben im JSON-Export.
-  Alle Inhalte werden aus `runtime.path`, `runtime.pathName`, aktuellem Modell
-  und globalem Bus abgeleitet.
+- Der PDF-Bericht ist eine erzeugte Datei (kein Browser-Druckdialog) und
+  zeigt einen menschenlesbaren Durchlauf: Verlauf, nummerierte Schritte mit
+  Aktion, nur echte Nutzereingaben, optionale Ladeergebnisse und relevante
+  gesetzte Werte. Layout-/Widget-Chrom und technische IDs gehören nicht in
+  den Bericht; sie bleiben im JSON-Export unter `runtime.path`.
 
 ## 11. Realtime und Server
 
