@@ -2006,7 +2006,10 @@ test.describe("Core source contracts", () => {
     expect(html).toContain(".panel-resizer::before");
     expect(html).toContain("left: calc(var(--inspector-panel-width) - (var(--panel-resizer-hit) / 2));");
     expect(html).toContain("right: calc(var(--preview-panel-width) - (var(--panel-resizer-hit) / 2));");
-    expect(html).toContain("--state-explorer-dock-height: 154px;");
+    expect(html).toContain("--state-explorer-dock-height: var(--state-explorer-dock-height-value, 154px);");
+    expect(html).toContain("id=\"stateExplorerResizeHandle\"");
+    expect(html).toContain("bottom: calc(var(--state-explorer-dock-height) - (var(--panel-resizer-hit) / 2));");
+    expect(html).toContain("stateExplorerDockHeight = panelResize.stateExplorerHeight - deltaY;");
     expect(html).toContain("inset: 0 0 var(--state-explorer-dock-height) 0;");
     expect(html).toContain("bottom: calc(var(--state-explorer-dock-height) + 16px);");
     expect(html).toContain("function canvasViewportRect");

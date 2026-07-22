@@ -15100,6 +15100,41 @@ test.describe("State Blueprint tool", () => {
     await assertVisibleInViewport(page, "#btnToggleStateExplorer");
   });
 
+  test("resizes the docked preset explorer from the canvas seam @smoke", async ({ page }) => {
+    await openTool(page);
+
+    const explorer = page.locator("#stateExplorer");
+    const handle = page.locator("#stateExplorerResizeHandle");
+    const mapScene = page.locator("#mapScene");
+    await expect(handle).toBeVisible();
+
+    const beforeExplorer = await visibleBox(explorer);
+    const beforeScene = await visibleBox(mapScene);
+    const beforeHandle = await visibleBox(handle);
+    expect(Math.abs((beforeHandle.y + beforeHandle.height / 2) - beforeExplorer.y)).toBeLessThanOrEqual(2);
+
+    await page.mouse.move(beforeHandle.x + beforeHandle.width / 2, beforeHandle.y + beforeHandle.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(beforeHandle.x + beforeHandle.width / 2, beforeHandle.y - 72, { steps: 8 });
+    await page.mouse.up();
+
+    const afterExplorer = await visibleBox(explorer);
+    const afterScene = await visibleBox(mapScene);
+    const afterHandle = await visibleBox(handle);
+    expect(afterExplorer.height).toBeGreaterThan(beforeExplorer.height + 48);
+    expect(afterScene.height).toBeLessThan(beforeScene.height - 48);
+    expect(Math.abs((afterHandle.y + afterHandle.height / 2) - afterExplorer.y)).toBeLessThanOrEqual(2);
+
+    await expect.poll(() => page.evaluate(key => {
+      const stored = JSON.parse(localStorage.getItem(`${key}.ui`) || "{}");
+      return Number(stored.stateExplorerHeight || 0);
+    }, STORAGE_KEY)).toBeGreaterThan(200);
+
+    await page.locator("#btnToggleStateExplorer").click();
+    await expect(explorer).toHaveClass(/collapsed/);
+    await expect(handle).toBeHidden();
+  });
+
   test("downloads formal definitions and self-contained HTML exports", async ({ page }) => {
     await openTool(page);
 

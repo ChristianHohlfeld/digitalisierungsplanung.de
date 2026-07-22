@@ -15,15 +15,21 @@
       const fallbackPreviewCollapsed = window.matchMedia?.("(max-width: 720px), (max-width: 899px) and (pointer: coarse), (max-height: 520px) and (max-width: 900px)")?.matches || false;
       let previewCollapsed = fallbackPreviewCollapsed;
       let inspectorCollapsed = true;
+      let stateExplorerHeight = 154;
       try {
         const stored = JSON.parse(localStorage.getItem("stateBlueprintHotLinked.model.v2.ui") || "null");
         if (stored && typeof stored === "object") {
           if (typeof stored.previewCollapsed === "boolean") previewCollapsed = stored.previewCollapsed;
           if (typeof stored.inspectorCollapsed === "boolean") inspectorCollapsed = stored.inspectorCollapsed;
+          const storedStateExplorerHeight = Number(stored.stateExplorerHeight);
+          if (Number.isFinite(storedStateExplorerHeight)) {
+            stateExplorerHeight = Math.min(360, Math.max(104, Math.round(storedStateExplorerHeight)));
+          }
         }
       } catch (_) {}
       root.dataset.previewCollapsed = previewCollapsed ? "true" : "false";
       root.dataset.inspectorCollapsed = inspectorCollapsed ? "true" : "false";
+      root.style.setProperty("--state-explorer-dock-height-value", stateExplorerHeight + "px");
     })();
   </script>
   <style>
@@ -378,10 +384,40 @@
       right: calc(var(--preview-panel-width) - (var(--panel-resizer-hit) / 2));
     }
 
+    .state-explorer-resizer {
+      left: 0;
+      right: 0;
+      top: auto;
+      bottom: calc(var(--state-explorer-dock-height) - (var(--panel-resizer-hit) / 2));
+      width: auto;
+      min-width: 0;
+      height: var(--panel-resizer-hit);
+      min-height: var(--panel-resizer-hit);
+      cursor: ns-resize;
+    }
+
+    .state-explorer-resizer::before {
+      width: min(156px, calc(100% - 44px));
+      min-width: 86px;
+      height: 22px;
+      min-height: 0;
+    }
+
+    .state-explorer-resizer::after {
+      width: min(92px, calc(100% - 78px));
+      min-width: 52px;
+      height: 4px;
+      min-height: 0;
+    }
+
     html[data-inspector-collapsed="true"] .workspace .inspector-resizer,
     html[data-preview-collapsed="true"] .workspace .preview-resizer,
     .workspace.inspector-collapsed .inspector-resizer,
     .workspace.preview-collapsed .preview-resizer {
+      display: none;
+    }
+
+    .map:has(.state-explorer.collapsed) .state-explorer-resizer {
       display: none;
     }
 
@@ -509,7 +545,7 @@
       position: relative;
       min-width: 0;
       overflow: hidden;
-      --state-explorer-dock-height: 154px;
+      --state-explorer-dock-height: var(--state-explorer-dock-height-value, 154px);
       --state-explorer-collapsed-height: 42px;
       background:
         linear-gradient(to right, rgba(56,189,248,.08) 1px, transparent 1px),
@@ -3166,6 +3202,10 @@
       transition: width .16s ease, height .16s ease, opacity .16s ease;
     }
 
+    .workspace.state-explorer-resizing .state-explorer {
+      transition: none;
+    }
+
     .state-explorer.collapsed {
       height: var(--state-explorer-collapsed-height);
       opacity: .96;
@@ -5756,6 +5796,7 @@
         <button id="btnSelectionCollapse" type="button" disabled="">Gruppieren</button>
         <button id="btnSelectionDelete" type="button" class="danger">Löschen</button>
       </div>
+      <button id="stateExplorerResizeHandle" class="panel-resizer state-explorer-resizer" type="button" title="Vorlagenbereich skalieren" aria-label="Vorlagenbereich skalieren"></button>
       <div id="stateExplorer" class="state-explorer">
         <div class="state-explorer-title">
           <span>Vorlagen</span>
@@ -5918,6 +5959,7 @@
     const btnTogglePreview = document.getElementById("btnTogglePreview");
     const previewResizeHandleEl = document.getElementById("previewResizeHandle");
     const mobileSheetHandleEl = document.getElementById("mobileSheetHandle");
+    const stateExplorerResizeHandleEl = document.getElementById("stateExplorerResizeHandle");
     const stateExplorerEl = document.getElementById("stateExplorer");
     const stateExplorerListEl = document.getElementById("stateExplorerList");
     const stateExplorerGroupsEl = document.getElementById("stateExplorerGroups");
@@ -6109,6 +6151,10 @@
     const PREVIEW_PANEL_MOBILE_DEFAULT = PREVIEW_PANEL_MOBILE_MIN;
     const PREVIEW_PANEL_MAX = 720;
     const MIN_CANVAS_COLUMN = 240;
+    const STATE_EXPLORER_DOCK_MIN = 104;
+    const STATE_EXPLORER_DOCK_DEFAULT = 154;
+    const STATE_EXPLORER_DOCK_MAX = 360;
+    const MIN_CANVAS_ROW = 220;
     const initialEditorState = loadEditorState();
     const initialPersistedModel = initialEditorState?.model || null;
     const initialPersistedModelExists = Boolean(initialPersistedModel);
@@ -6129,6 +6175,7 @@
     let stateExplorerSearch = "";
     let inspectorPanelWidth = uiState.inspectorWidth;
     let previewPanelWidth = uiState.previewWidth;
+    let stateExplorerDockHeight = uiState.stateExplorerHeight;
     let templateTouchDrag = null;
     let pendingLoadIntent = "definition";
     let previewTemplateId = "";
@@ -6995,6 +7042,11 @@
       return Number.isFinite(number) ? clampNumber(Math.round(number), min, max) : fallback;
     }
 
+    function normalizeStoredPanelHeight(value, min, max, fallback) {
+      const number = Number(value);
+      return Number.isFinite(number) ? clampNumber(Math.round(number), min, max) : fallback;
+    }
+
     function defaultPreviewCollapsed() {
       return isMobileWorkspaceLayout();
     }
@@ -7010,7 +7062,8 @@
         mobileWorkspaceView: "canvas",
         mobileSheetTopRatio: MOBILE_SHEET_DEFAULT_TOP_RATIO,
         inspectorWidth: INSPECTOR_PANEL_DEFAULT,
-        previewWidth: mobilePreviewLayout ? PREVIEW_PANEL_MOBILE_DEFAULT : PREVIEW_PANEL_DEFAULT
+        previewWidth: mobilePreviewLayout ? PREVIEW_PANEL_MOBILE_DEFAULT : PREVIEW_PANEL_DEFAULT,
+        stateExplorerHeight: STATE_EXPLORER_DOCK_DEFAULT
       };
       try {
         const stored = JSON.parse(localStorage.getItem(UI_STATE_KEY) || "null");
@@ -7023,7 +7076,8 @@
           mobileWorkspaceView: normalizeMobileWorkspaceView(stored.mobileWorkspaceView),
           mobileSheetTopRatio: normalizeMobileSheetTopRatio(stored.mobileSheetTopRatio),
           inspectorWidth: normalizeStoredPanelWidth(stored.inspectorWidth, INSPECTOR_PANEL_MIN, INSPECTOR_PANEL_MAX, fallback.inspectorWidth),
-          previewWidth: normalizeStoredPanelWidth(stored.previewWidth, previewMin, PREVIEW_PANEL_MAX, fallback.previewWidth)
+          previewWidth: normalizeStoredPanelWidth(stored.previewWidth, previewMin, PREVIEW_PANEL_MAX, fallback.previewWidth),
+          stateExplorerHeight: normalizeStoredPanelHeight(stored.stateExplorerHeight, STATE_EXPLORER_DOCK_MIN, STATE_EXPLORER_DOCK_MAX, fallback.stateExplorerHeight)
         };
       } catch (_) {
         return fallback;
@@ -7039,7 +7093,8 @@
         mobileWorkspaceView: normalizeMobileWorkspaceView(mobileWorkspaceView),
         mobileSheetTopRatio: normalizeMobileSheetTopRatio(mobileSheetTopRatio),
         inspectorWidth: Math.round(inspectorPanelWidth),
-        previewWidth: Math.round(previewPanelWidth)
+        previewWidth: Math.round(previewPanelWidth),
+        stateExplorerHeight: Math.round(stateExplorerDockHeight)
       };
     }
 
@@ -7125,10 +7180,29 @@
       return Math.max(PREVIEW_PANEL_MIN, Math.min(PREVIEW_PANEL_MAX, workspaceWidth - inspectorColumn - MIN_CANVAS_COLUMN));
     }
 
+    function maxStateExplorerDockHeight() {
+      if (isMobileWorkspaceLayout()) return STATE_EXPLORER_DOCK_DEFAULT;
+      const mapHeight = mapEl.getBoundingClientRect().height || workspacePanelHeight();
+      return Math.max(STATE_EXPLORER_DOCK_MIN, Math.min(STATE_EXPLORER_DOCK_MAX, mapHeight - MIN_CANVAS_ROW));
+    }
+
     function clampPanelWidths() {
       const previewMin = isMobileWorkspaceLayout() ? PREVIEW_PANEL_MOBILE_MIN : PREVIEW_PANEL_MIN;
       previewPanelWidth = clampNumber(Math.round(previewPanelWidth), previewMin, maxPreviewPanelWidth());
       inspectorPanelWidth = clampNumber(Math.round(inspectorPanelWidth), INSPECTOR_PANEL_MIN, maxInspectorPanelWidth());
+    }
+
+    function clampStateExplorerDockHeight() {
+      stateExplorerDockHeight = clampNumber(Math.round(stateExplorerDockHeight), STATE_EXPLORER_DOCK_MIN, maxStateExplorerDockHeight());
+    }
+
+    function applyStateExplorerDockHeight() {
+      if (isMobileWorkspaceLayout()) {
+        mapEl.style.removeProperty("--state-explorer-dock-height");
+        return;
+      }
+      clampStateExplorerDockHeight();
+      mapEl.style.setProperty("--state-explorer-dock-height", stateExplorerDockHeight + "px");
     }
 
     function mobileSheetBounds() {
@@ -7191,6 +7265,7 @@
 
     function applyPanelWidths(opts = {}) {
       clampPanelWidths();
+      applyStateExplorerDockHeight();
       workspaceEl.style.setProperty("--inspector-panel-width", inspectorPanelWidth + "px");
       workspaceEl.style.setProperty("--preview-panel-width", previewPanelWidth + "px");
       workspaceEl.style.setProperty("--mobile-preview-panel-height", previewPanelWidth + "px");
@@ -7205,6 +7280,7 @@
 
     function startPanelResize(kind, evt) {
       if (isMobileWorkspaceLayout()) return;
+      if (kind === "stateExplorer" && stateExplorerCollapsed) return;
       evt.preventDefault();
       evt.stopPropagation();
       clearQuickRenameSession();
@@ -7214,9 +7290,11 @@
         startX: evt.clientX,
         startY: evt.clientY,
         inspectorWidth: inspectorPanelWidth,
-        previewWidth: previewPanelWidth
+        previewWidth: previewPanelWidth,
+        stateExplorerHeight: stateExplorerDockHeight
       };
       workspaceEl.classList.add("panel-resizing");
+      workspaceEl.classList.toggle("state-explorer-resizing", kind === "stateExplorer");
       try { evt.currentTarget.setPointerCapture(evt.pointerId); } catch (_) {}
     }
 
@@ -7247,6 +7325,8 @@
         setMobileSheetTopPx(panelResize.startTop + deltaY, { persist: false });
       } else if (panelResize.kind === "inspector") {
         inspectorPanelWidth = panelResize.inspectorWidth + deltaX;
+      } else if (panelResize.kind === "stateExplorer") {
+        stateExplorerDockHeight = panelResize.stateExplorerHeight - deltaY;
       } else {
         previewPanelWidth = panelResize.previewWidth - deltaX;
       }
@@ -7267,6 +7347,7 @@
       }
       panelResize = null;
       workspaceEl.classList.remove("panel-resizing");
+      workspaceEl.classList.remove("state-explorer-resizing");
       applyPanelWidths();
       return true;
     }
@@ -24739,6 +24820,7 @@
     });
     inspectorResizeHandleEl.addEventListener("pointerdown", evt => startPanelResize("inspector", evt));
     previewResizeHandleEl.addEventListener("pointerdown", evt => startPanelResize("preview", evt));
+    stateExplorerResizeHandleEl.addEventListener("pointerdown", evt => startPanelResize("stateExplorer", evt));
     mobileSheetHandleEl.addEventListener("pointerdown", startMobileSheetResize);
     window.addEventListener("pointermove", evt => {
       updatePanelResize(evt);
