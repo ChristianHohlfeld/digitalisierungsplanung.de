@@ -1980,6 +1980,37 @@ test.describe("Core source contracts", () => {
     expect(appHtml).not.toContain('setValueAtPath(context, "state.current"');
   });
 
+  test("generated runtime records process path after committed state", () => {
+    const appHtml = generatedAppHtml();
+    const followStart = appHtml.indexOf("function followTransition");
+    const followEnd = appHtml.indexOf("function log", followStart);
+    expect(followStart).toBeGreaterThanOrEqual(0);
+    expect(followEnd).toBeGreaterThan(followStart);
+    const followBody = appHtml.slice(followStart, followEnd);
+
+    expect(followBody.indexOf("applyTransitionSet(transition)")).toBeLessThan(followBody.indexOf("enterState(runtimeTarget, transition)"));
+    expect(followBody.indexOf("enterState(runtimeTarget, transition)")).toBeLessThan(followBody.indexOf('runtimeSet("state.current", runtimeTarget || ""'));
+    expect(followBody.indexOf('runtimeSet("state.current", runtimeTarget || ""')).toBeLessThan(followBody.indexOf("recordProcessPathStep(transition"));
+    expect(followBody).toContain("if (!findState(runtimeTarget)) return false;");
+    expect(followBody).toContain("if (!enterState(runtimeTarget, transition)) return false;");
+    expect(appHtml).toContain("function appendRuntimePathStep");
+    expect(appHtml).toContain("function setRuntimePathName");
+  });
+
+  test("editor desktop panels use real resize handles and a docked preset explorer", () => {
+    const html = editorHostSource();
+    expect(html).toContain("--panel-resizer-hit: 36px;");
+    expect(html).toContain(".panel-resizer::before");
+    expect(html).toContain("left: calc(var(--inspector-panel-width) - (var(--panel-resizer-hit) / 2));");
+    expect(html).toContain("right: calc(var(--preview-panel-width) - (var(--panel-resizer-hit) / 2));");
+    expect(html).toContain("--state-explorer-dock-height: 154px;");
+    expect(html).toContain("inset: 0 0 var(--state-explorer-dock-height) 0;");
+    expect(html).toContain("bottom: calc(var(--state-explorer-dock-height) + 16px);");
+    expect(html).toContain("function canvasViewportRect");
+    expect(html).toContain("const r = canvasViewportRect();");
+    expect(html).not.toContain("const mobilePreviewResize = false;");
+  });
+
   test("generated runtime renders a human-readable printable process protocol @smoke", async ({ page }) => {
     await openWithModel(page, {
       version: 2,
