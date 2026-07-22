@@ -156,6 +156,10 @@ Zuweisungen und implizite Typumwandlung sind verboten. Ungültige Conditions
 werden an jeder Autoren- oder Importgrenze abgelehnt und in der Runtime niemals
 ausgeführt.
 
+Der Editor schlägt Regel-Felder zuerst aus dem effektiven Quell-State der
+Transition vor; bei Composite-Ausgängen ist das `groupExitId`, sonst `from`.
+Weitere vertragsgültige Pfade bleiben nur im erweiterten Ausdruck sichtbar.
+
 ## 7. API
 
 Ein State mit `dataSource` startet beim Eintritt genau einen GET-Abruf mit

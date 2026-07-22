@@ -1505,8 +1505,8 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#pSet")).toBeHidden();
     await expect(page.locator("#pCond")).toBeHidden();
 
-    const currentRuleOption = page.locator('#pRuleField option[value="state.current"]');
-    await expect(currentRuleOption).toHaveText("Aktueller Zustand");
+    await expect(page.locator('#pRuleField option[value="state.current"]')).toHaveCount(0);
+    await expect(page.locator("#pRuleField option").first()).toHaveAttribute("value", /^states\.login\./);
     await expect(page.locator("#pRuleField")).not.toContainText(/state\.current|runtime|mapped/i);
   });
 
@@ -1959,6 +1959,100 @@ test.describe("State Blueprint tool", () => {
 
     await expect.poll(async () => (await savedModel(page)).transitions.find(item => item.id === "start_done").condition)
       .toBe("states.start.items.0.checked == true && states.start.items.1.checked == true");
+  });
+
+  test("suggests transition rules from the effective previous state scope first @smoke", async ({ page }) => {
+    const model = {
+      version: 2,
+      name: "Context aware rules",
+      initial: "start",
+      states: [
+        {
+          id: "start",
+          title: "Start",
+          body: "",
+          x: 80,
+          y: 180,
+          components: []
+        },
+        {
+          id: "parent",
+          title: "Anfrage",
+          body: "",
+          x: 340,
+          y: 180,
+          boundary: { entryId: "approval", exitId: "approval", entryDisabled: false, exitDisabled: false },
+          components: []
+        },
+        {
+          id: "approval",
+          title: "Prüfung",
+          body: "",
+          parentId: "parent",
+          x: 160,
+          y: 140,
+          data: { approved: false, amount: 0 },
+          dataTypes: { approved: "boolean", amount: "number" },
+          components: []
+        },
+        {
+          id: "done",
+          title: "Fertig",
+          body: "",
+          x: 620,
+          y: 180,
+          data: { visibleButNotPrimary: false },
+          dataTypes: { visibleButNotPrimary: "boolean" },
+          components: []
+        }
+      ],
+      transitions: [
+        {
+          id: "start_parent",
+          from: "start",
+          to: "parent",
+          label: "Anfrage öffnen",
+          condition: "",
+          triggerType: "button",
+          triggerEvent: "",
+          groupEntryId: "approval",
+          set: {}
+        },
+        {
+          id: "parent_done",
+          from: "parent",
+          to: "done",
+          label: "Abschließen",
+          condition: "",
+          triggerType: "button",
+          triggerEvent: "",
+          groupExitId: "approval",
+          set: {}
+        }
+      ]
+    };
+
+    await page.addInitScript(({ key, model }) => {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(`${key}.editor`, JSON.stringify({ model }));
+    }, { key: STORAGE_KEY, model });
+    await page.goto("/state.html");
+    await expect(page.locator('[data-id="parent"]')).toBeVisible();
+
+    await page.locator("svg text.edge-label").filter({ hasText: "Abschließen" }).click();
+    const ruleValues = await page.locator("#pRuleField option").evaluateAll(options => options.map(option => option.value));
+    expect(ruleValues[0]).toBe("states.approval.approved");
+    expect(ruleValues).toContain("states.approval.amount");
+    expect(ruleValues).not.toContain("states.done.visibleButNotPrimary");
+    await expect(page.locator('#pRuleField option[value="states.approval.approved"]')).toContainText("Prüfung");
+
+    await page.locator("#pRuleField").selectOption("states.approval.approved");
+    await expect(page.locator("#pRuleOperator")).toHaveValue("true");
+    await page.locator("#pRuleApply").click();
+    await expect.poll(async () => (await savedModel(page)).transitions.find(item => item.id === "parent_done").condition)
+      .toBe("states.approval.approved == true");
   });
 
   test("drops unsupported body fields instead of remapping them into render state", async ({ page }) => {

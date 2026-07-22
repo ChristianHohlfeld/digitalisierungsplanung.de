@@ -8246,6 +8246,10 @@
       return String(transition?.groupExitId || transition?.from || "");
     }
 
+    function effectiveTransitionTargetStateId(transition) {
+      return String(transition?.groupEntryId || transition?.to || "");
+    }
+
     function transitionTriggerContractType(transition) {
       return transition?.triggerType === undefined ? "button" : String(transition.triggerType);
     }
@@ -17780,6 +17784,9 @@
       if (!text) return "Geteilte Daten";
       if (text === "current" || text === "mapped") return "In der Darstellung";
       if (text === "state data" || text === "state") return "Dieser Zustand";
+      if (text === "previous state" || text === "from state" || text === "source state") return "Vorheriger Zustand";
+      if (text === "parent context" || text === "parent state") return "Übergeordneter Zustand";
+      if (text === "target state") return "Zielzustand";
       if (text === "runtime" || text === "runtime global state" || text === "app flow" || text === "screen flow") return "Ablauf";
       if (text === "repeat" || text === "repeat item") return "Ausgewählte Liste";
       if (text.includes("fetch")) return "API-Daten";
@@ -20227,10 +20234,43 @@
         seen.add(state.id);
         states.push(state);
       };
+      const sourceState = byId(effectiveTransitionTriggerStateId(t)) || byId(t.from);
+      add(sourceState);
+      for (let parent = byId(sourceState?.parentId); parent; parent = byId(parent.parentId)) add(parent);
       add(byId(t.from));
-      add(byId(t.to));
-      for (let parent = byId(byId(t.from)?.parentId); parent; parent = byId(parent.parentId)) add(parent);
+      add(byId(effectiveTransitionTargetStateId(t)) || byId(t.to));
       return states;
+    }
+
+    function pathBelongsToState(path, state) {
+      const clean = normalizeBindingPath(path, "");
+      if (!clean || !state) return false;
+      const scope = stateDataScope(state);
+      return clean === scope || clean.startsWith(scope + ".");
+    }
+
+    function conditionSuggestionScopeRank(t, item) {
+      const path = normalizeBindingPath(item?.path || "", "");
+      if (!path) return 90;
+      const sourceState = byId(effectiveTransitionTriggerStateId(t)) || byId(t?.from);
+      if (pathBelongsToState(path, sourceState)) return 0;
+      for (let parent = byId(sourceState?.parentId); parent; parent = byId(parent.parentId)) {
+        if (pathBelongsToState(path, parent)) return 1;
+      }
+      const fromState = byId(t?.from);
+      if (fromState && fromState !== sourceState && pathBelongsToState(path, fromState)) return 1;
+      const targetState = byId(effectiveTransitionTargetStateId(t)) || byId(t?.to);
+      if (pathBelongsToState(path, targetState)) return 2;
+      if (path === "state.current") return 3;
+      if (path.startsWith("states.")) return 4;
+      if (path.startsWith("events.") || path.startsWith("emitters.") || path.startsWith("realtime.")) return 5;
+      return 6;
+    }
+
+    function conditionSuggestionSort(t, a, b) {
+      const rankDelta = conditionSuggestionScopeRank(t, a) - conditionSuggestionScopeRank(t, b);
+      if (rankDelta) return rankDelta;
+      return String(a?.path || "").localeCompare(String(b?.path || ""));
     }
 
     function collectDataPathSuggestions(value, prefix, sourceLabel, out, depth = 0) {
@@ -20299,8 +20339,18 @@
         add(`events.${eventName}.detail`, `${eventName} detail`, "object");
       }
       let includeKnownGlobalState = false;
+      const effectiveSourceId = effectiveTransitionTriggerStateId(t);
+      const targetStateId = effectiveTransitionTargetStateId(t);
+      const sourceAncestorIds = new Set();
+      for (let parent = byId(byId(effectiveSourceId)?.parentId); parent; parent = byId(parent.parentId)) sourceAncestorIds.add(parent.id);
       for (const state of conditionScopeStates(t)) {
-        const label = state.id === t.from ? "from state" : state.id === t.to ? "target state" : "parent state";
+        const label = state.id === effectiveSourceId
+          ? "previous state"
+          : sourceAncestorIds.has(state.id) || state.id === t.from
+          ? "parent context"
+          : state.id === targetStateId
+          ? "target state"
+          : "context state";
         for (const path of normalizeSubscriptions(state.subscriptions)) {
           if (path === "*") {
             includeKnownGlobalState = true;
@@ -20321,7 +20371,7 @@
         }
       }
       productContractStateContributionSuggestions().forEach(item => add(item.path, item.source, item.type));
-      return suggestions.sort((a, b) => a.path.localeCompare(b.path));
+      return suggestions.sort((a, b) => conditionSuggestionSort(t, a, b));
     }
 
     function renderConditionSuggestions(datalist, suggestions) {
@@ -20355,7 +20405,7 @@
           <div class="small"><b>Regel</b><br><span>Was aus dem vorherigen Zustand muss stimmen, damit es weitergeht?</span></div>
           <div id="pRuleQuickChips" class="rule-quick-chips" hidden></div>
           <div class="transition-rule-grid">
-            <div class="field"><label>Wert aus Zustand</label><select id="pRuleField"></select></div>
+            <div class="field"><label>Wert aus vorherigem Zustand</label><select id="pRuleField"></select></div>
             <div class="field"><label>Bedingung</label><select id="pRuleOperator"></select></div>
           </div>
           <div id="pRuleValueSlot" class="field transition-rule-value"></div>
@@ -20700,26 +20750,36 @@
       const transitionRuleSuggestionScore = item => {
         const path = normalizeBindingPath(item?.path || "", "");
         const source = String(item?.source || "");
-        const fromScope = stateDataScopeForId(t.from) + ".";
+        const sourceState = byId(effectiveTransitionTriggerStateId(t)) || byId(t.from);
+        const targetState = byId(effectiveTransitionTargetStateId(t)) || byId(t.to);
         let score = 0;
-        if (path.startsWith(fromScope)) score += 400;
-        if (path.startsWith(stateDataScopeForId(t.to) + ".")) score += 200;
+        const scopeRank = conditionSuggestionScopeRank(t, item);
+        if (scopeRank === 0) score += 900;
+        else if (scopeRank === 1) score += 560;
+        else if (scopeRank === 2) score += 160;
+        if (sourceState && pathBelongsToState(path, sourceState)) score += 220;
+        if (targetState && pathBelongsToState(path, targetState)) score += 40;
         if (path.startsWith("states.")) score += 160;
-        if (source.includes("from state")) score += 140;
-        if (source.includes("target state")) score += 90;
-        if (source.includes("parent state")) score += 70;
+        if (source.includes("previous state") || source.includes("from state")) score += 160;
+        if (source.includes("parent context") || source.includes("parent state")) score += 90;
+        if (source.includes("target state")) score += 20;
         if (isIndexedChoiceRulePath(path)) score += 220;
         if (/(?:^|\.)(checked|value|selected|label|title|accepted|ready|score)$/i.test(path)) score += 80;
-        if (byId(t.from) && widgetFieldLabelForPath(path, byId(t.from))) score += 160;
+        if (sourceState && widgetFieldLabelForPath(path, sourceState)) score += 180;
+        const cleanType = normalizeStateVariableType(item?.type || "value");
+        if (cleanType === "boolean") score += 110;
+        else if (cleanType === "number") score += 50;
+        else if (cleanType === "object") score -= 180;
         if (path.startsWith("events.") || path.startsWith("emitters.")) score -= 160;
         if (path.startsWith("realtime.")) score -= 140;
         if (path === "state.current") score -= 40;
         score -= Math.min(40, path.split(".").length * 3);
         return score;
       };
-      const transitionRuleSuggestions = () => {
+      const transitionRuleSuggestions = (opts = {}) => {
         const seen = new Set();
-        return conditionDataSuggestions(t)
+        const selectedPath = normalizeBindingPath(opts.selectedPath || "", "");
+        const all = conditionDataSuggestions(t)
           .map(item => {
             const path = normalizeBindingPath(item?.path || "", "");
             if (!path || path === "*" || isRuntimeBookkeepingPath(path) || seen.has(path)) return null;
@@ -20729,7 +20789,19 @@
             return { ...item, path, type, label: ruleFieldLabel({ ...item, path }) };
           })
           .filter(Boolean)
-          .sort((a, b) => transitionRuleSuggestionScore(b) - transitionRuleSuggestionScore(a) || a.path.localeCompare(b.path))
+          .sort((a, b) => transitionRuleSuggestionScore(b) - transitionRuleSuggestionScore(a) || a.path.localeCompare(b.path));
+        if (opts.includeOptional) return all;
+        const actionable = item => {
+          const cleanType = normalizeStateVariableType(item?.type || "value");
+          return cleanType !== "object" || selectedPath && item.path === selectedPath;
+        };
+        let visible = all.filter(item => actionable(item) && conditionSuggestionScopeRank(t, item) <= 1);
+        if (!visible.length) visible = all.filter(actionable).slice(0, 12);
+        if (selectedPath && !visible.some(item => item.path === selectedPath)) {
+          const selectedItem = all.find(item => item.path === selectedPath);
+          if (selectedItem) visible = [selectedItem, ...visible];
+        }
+        return visible;
       };
       const ruleOperatorsForType = type => {
         const clean = normalizeStateVariableType(type);
@@ -20796,7 +20868,7 @@
       const parseSimpleRuleCondition = condition => {
         const clean = String(condition || "").trim();
         if (!clean) return null;
-        const suggestions = transitionRuleSuggestions().slice().sort((a, b) => b.path.length - a.path.length);
+        const suggestions = transitionRuleSuggestions({ includeOptional: true }).slice().sort((a, b) => b.path.length - a.path.length);
         for (const item of suggestions) {
           const path = item.path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
           let match = clean.match(new RegExp(`^${path}\\s*==\\s*true$`));
@@ -20825,7 +20897,7 @@
         return null;
       };
       let ruleValueControl = null;
-      const selectedRuleItem = () => transitionRuleSuggestions().find(item => item.path === ruleField.value) || null;
+      const selectedRuleItem = () => transitionRuleSuggestions({ selectedPath: ruleField.value }).find(item => item.path === ruleField.value) || null;
       const renderRuleValueControl = (value = "") => {
         ruleValueSlot.innerHTML = "";
         ruleValueControl = null;
@@ -20866,7 +20938,7 @@
         ruleApply.textContent = existingRules.length ? "Regel hinzufügen" : "Regel verwenden";
         ruleClear.textContent = existingRules.length ? "Alle Regeln löschen" : "Immer erlauben";
         if (!item) {
-          rulePreview.textContent = "Füge diesem Zustand eine Variable hinzu, um eine Regel zu bauen.";
+          rulePreview.textContent = "Füge dem vorherigen Zustand eine Variable hinzu, um eine Regel zu bauen.";
           rulePreview.classList.add("empty");
           return;
         }
@@ -20879,7 +20951,7 @@
         rulePreview.classList.toggle("empty", !condition);
       };
       const renderRuleFields = (selectedPath = "") => {
-        const suggestions = transitionRuleSuggestions();
+        const suggestions = transitionRuleSuggestions({ selectedPath });
         ruleField.innerHTML = "";
         if (!suggestions.length) {
           ruleField.disabled = true;
@@ -20940,13 +21012,11 @@
       };
       const renderQuickRuleChips = () => {
         if (!ruleQuickChips) return;
-        const fromState = byId(t.from);
+        const sourceState = byId(effectiveTransitionTriggerStateId(t)) || byId(t.from);
         const primary = transitionRuleSuggestions()
           .filter(item => {
             const path = item.path;
-            if (!fromState) return false;
-            if (path.startsWith(stateDataScopeForId(t.from) + ".")) return true;
-            return false;
+            return pathBelongsToState(path, sourceState);
           })
           .slice(0, 10);
         ruleQuickChips.innerHTML = "";
