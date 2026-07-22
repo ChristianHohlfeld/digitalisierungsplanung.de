@@ -7487,11 +7487,23 @@
       saveUiState();
     }
 
-    function modelSnapshot() {
+    function modelSnapshotValue() {
       normalizeModel(model);
       const issue = modelTransitionTriggerContractIssue(model);
       if (issue) throw new Error(issue.message);
-      return JSON.stringify(model);
+      const snapshot = JSON.parse(JSON.stringify(model));
+      if (dragging?.moved) {
+        const draggedState = snapshot.states.find(state => state.id === dragging.id);
+        if (draggedState) {
+          draggedState.x = dragging.originalX;
+          draggedState.y = dragging.originalY;
+        }
+      }
+      return snapshot;
+    }
+
+    function modelSnapshot() {
+      return JSON.stringify(modelSnapshotValue());
     }
 
     function modelDefinitionValue(value) {
@@ -7509,8 +7521,7 @@
     }
 
     function modelDefinitionSnapshot() {
-      normalizeModel(model);
-      return modelDefinitionValue(model);
+      return modelDefinitionValue(modelSnapshotValue());
     }
 
     function normalizeSelection(value = selected) {
@@ -11944,7 +11955,14 @@
 
     function cancelActiveCanvasGesture() {
       cancelQueuedCanvasMove();
-      const dragToSave = dragging?.moved ? dragging.id : null;
+      const draggingOverStateExplorer = Boolean(dragging?.moved && (
+        stateExplorerEl.classList.contains("drag-over") ||
+        pointInElement(dragging.lastClientX, dragging.lastClientY, stateExplorerEl)
+      ));
+      const dragToSave = dragging?.moved && !draggingOverStateExplorer ? dragging.id : null;
+      const dragToRestore = dragging?.moved && draggingOverStateExplorer
+        ? { id: dragging.id, x: dragging.originalX, y: dragging.originalY }
+        : null;
       const hadSelectionBox = Boolean(boxSelecting);
       const hadGesture = Boolean(
         pendingCanvasMouse ||
@@ -11983,6 +12001,14 @@
         draw();
       }
       else if (dragToSave) saveModel("state:drag:" + dragToSave);
+      else if (dragToRestore) {
+        const state = byId(dragToRestore.id);
+        if (state) {
+          state.x = dragToRestore.x;
+          state.y = dragToRestore.y;
+        }
+        draw();
+      }
       else draw();
       return true;
     }
@@ -13308,6 +13334,8 @@
         dy: p.y - s.y,
         startClientX: evt.clientX,
         startClientY: evt.clientY,
+        lastClientX: evt.clientX,
+        lastClientY: evt.clientY,
         touch: isTouchPointer(evt),
         moved: false
       };
@@ -22058,13 +22086,6 @@
       modalAlert("Neue Presets werden zentral im Product Contract angelegt, nicht im Canvas gespeichert.", "Contract-Presets");
     }
 
-    function addStateTemplateFromState(s) {
-      modalAlert("Zustände werden nicht mehr als lokale Presets gespeichert. Presets kommen ausschließlich aus dem Product Contract.", "Contract-Presets");
-    }
-
-
-
-
     function simpleContentPresetComponent(template) {
       if (!template?.builtIn) return null;
       const copy = snapshotStateTemplates([template])[0];
@@ -23062,6 +23083,7 @@
     }
 
     function pointInElement(clientX, clientY, el) {
+      if (!el || !Number.isFinite(clientX) || !Number.isFinite(clientY)) return false;
       const r = el.getBoundingClientRect();
       return clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom;
     }
@@ -23503,6 +23525,8 @@
         stopRuntimeLayerFollow();
         const s = byId(dragging.id);
         if (!s) return;
+        dragging.lastClientX = evt.clientX;
+        dragging.lastClientY = evt.clientY;
         const wasMoved = dragging.moved;
         dragging.moved = dragging.moved || Math.hypot(evt.clientX - dragging.startClientX, evt.clientY - dragging.startClientY) > 4;
         const p = screenToWorld(evt);
@@ -23557,14 +23581,22 @@
       }
       if (dragging) {
         const s = byId(dragging.id);
-        const wasClick = !dragging.moved && Math.hypot(evt.clientX - dragging.startClientX, evt.clientY - dragging.startClientY) <= 4;
+        const endClientX = Number.isFinite(evt.clientX) ? evt.clientX : dragging.lastClientX;
+        const endClientY = Number.isFinite(evt.clientY) ? evt.clientY : dragging.lastClientY;
+        const wasClick = !dragging.moved && Math.hypot(endClientX - dragging.startClientX, endClientY - dragging.startClientY) <= 4;
         const didMove = dragging.moved;
         const dragId = dragging.id;
         const shiftClick = dragging.shiftKey;
         const originalX = dragging.originalX;
         const originalY = dragging.originalY;
         const touchClick = dragging.touch;
-        const dropTarget = s && didMove ? stateDragDropTargetAtClientPoint(evt.clientX, evt.clientY, s) || byId(stateDragOverStateId) : null;
+        const droppedOnStateExplorer = Boolean(s && didMove && (
+          stateExplorerEl.classList.contains("drag-over") ||
+          pointInElement(endClientX, endClientY, stateExplorerEl)
+        ));
+        const dropTarget = s && didMove && !droppedOnStateExplorer
+          ? stateDragDropTargetAtClientPoint(endClientX, endClientY, s) || byId(stateDragOverStateId)
+          : null;
         dragging = null;
         mapEl.classList.remove("dragging-state");
         stateExplorerEl.classList.remove("drag-over");
@@ -23608,10 +23640,9 @@
         if (didMove) {
           blockLayerEntryAfterPointerAction(1000);
           suppressRuntimeLayerFollowUntil = Date.now() + 1200;
-          if (s && pointInElement(evt.clientX, evt.clientY, stateExplorerEl)) {
+          if (s && droppedOnStateExplorer) {
             s.x = originalX;
             s.y = originalY;
-            addStateTemplateFromState(s);
             draw();
             return;
           }
