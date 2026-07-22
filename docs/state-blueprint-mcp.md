@@ -31,7 +31,9 @@ curl -X POST https://realtime.digitalisierungsplanung.de/mcp \
 
 Der HTTPS-Endpunkt verwendet denselben MCP-Core wie stdio. Er persistiert nur
 die `state-blueprint.workspace`-Datei aus `STATE_BLUEPRINT_MODEL_PATH` und
-akzeptiert Requests nur mit Bearer-Secret.
+akzeptiert Requests nur mit Bearer-Secret. Primär ist `REALTIME_MCP_SECRET`;
+bei bewusst gemeinsamem Server-Secret funktionieren auch `REALTIME_ADMIN_SECRET`
+oder `REALTIME_EMIT_SECRET`.
 
 Persistiert wird ausschließlich `state-blueprint.workspace` in
 `schemaVersion: 1`. Nackte Modelle und formale Definitionen sind keine

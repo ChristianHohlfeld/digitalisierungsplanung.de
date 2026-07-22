@@ -272,7 +272,9 @@ STATE_BLUEPRINT_MODEL_PATH=./state-blueprint.workspace.json npm run mcp:state
 ```
 
 Auf dem Realtime-Server ist derselbe MCP-Handler als secret-geschützter
-JSON-RPC-Endpunkt verfügbar:
+JSON-RPC-Endpunkt verfügbar. Akzeptiert wird `REALTIME_MCP_SECRET`; falls der
+Server bewusst mit einem gemeinsamen Secret betrieben wird, auch
+`REALTIME_ADMIN_SECRET` oder `REALTIME_EMIT_SECRET`:
 
 ```bash
 curl -X POST https://realtime.digitalisierungsplanung.de/mcp \

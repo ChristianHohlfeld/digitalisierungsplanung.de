@@ -695,6 +695,14 @@ function bearerToken(request) {
   return match ? match[1].trim() : "";
 }
 
+function mcpAuthSecrets(config) {
+  return [...new Set([
+    config.mcpSecret,
+    config.adminSecret,
+    config.emitSecret
+  ].map(secret => String(secret || "")).filter(Boolean))];
+}
+
 function readJsonBody(request, maxBytes = MAX_EMIT_BODY_BYTES) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -1123,11 +1131,13 @@ function createRealtimeServer(options = {}) {
       response.end();
       return { done: true };
     }
-    if (!config.mcpSecret) {
+    const secrets = mcpAuthSecrets(config);
+    if (!secrets.length) {
       writeJson(response, 503, { error: "mcp_secret_required" }, mcpHeaders);
       return { done: true };
     }
-    if (!timingSafeEqualString(bearerToken(request), config.mcpSecret)) {
+    const token = bearerToken(request);
+    if (!secrets.some(secret => timingSafeEqualString(token, secret))) {
       writeJson(response, 401, { error: "unauthorized" }, mcpHeaders);
       return { done: true };
     }

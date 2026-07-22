@@ -516,7 +516,7 @@ test("serves secret-protected State Blueprint MCP JSON-RPC over HTTP", async () 
   const mcpModelPath = path.join(tempDir, "state-blueprint.workspace.json");
   const rpc = (id, method, params = {}) => ({ jsonrpc: "2.0", id, method, params });
   try {
-    await withRealtimeServer({ roomSecret: SECRET, mcpSecret: "mcp-secret", mcpModelPath }, async realtime => {
+    await withRealtimeServer({ roomSecret: SECRET, emitSecret: "shared-secret", mcpSecret: "mcp-secret", mcpModelPath }, async realtime => {
       const unauthorized = await fetch(httpUrl(realtime, "/mcp"), {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -548,6 +548,18 @@ test("serves secret-protected State Blueprint MCP JSON-RPC over HTTP", async () 
       assert.equal(toolsResponse.status, 200);
       const toolsPayload = await toolsResponse.json();
       assert.ok(toolsPayload.result.tools.some(tool => tool.name === "state_blueprint_get_model"));
+
+      const sharedSecretResponse = await fetch(httpUrl(realtime, "/mcp"), {
+        method: "POST",
+        headers: {
+          authorization: "Bearer shared-secret",
+          "content-type": "application/json"
+        },
+        body: JSON.stringify(rpc(33, "tools/list"))
+      });
+      assert.equal(sharedSecretResponse.status, 200);
+      const sharedSecretPayload = await sharedSecretResponse.json();
+      assert.ok(sharedSecretPayload.result.tools.some(tool => tool.name === "state_blueprint_validate"));
 
       const modelResponse = await fetch(httpUrl(realtime, "/mcp"), {
         method: "POST",
