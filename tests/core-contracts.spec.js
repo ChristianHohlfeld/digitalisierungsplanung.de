@@ -2004,6 +2004,13 @@ test.describe("Core source contracts", () => {
     expect(appHtml).toContain("function runtimeRecorderCaptureFrame");
     expect(appHtml).toContain("function runtimeRecorderExportPayload");
     expect(appHtml).toContain("function runtimeRecorderRestoreFrame");
+    expect(appHtml).toContain("function runtimeRecorderNotifyFrame");
+    expect(appHtml).toContain("function runtimeRecorderDownloadGif");
+    expect(appHtml).toContain("runtime-record-marker");
+    expect(appHtml).not.toContain("runtimeReplayPrevButton");
+    expect(appHtml).not.toContain("runtimeReplayNextButton");
+    expect(appHtml).not.toContain("runtimeReplayReverseButton");
+    expect(appHtml).not.toContain("function runtimeRecorderStep");
     expect(appHtml).not.toContain("runtime.path");
     expect(appHtml).not.toContain("runtime.pathName");
     expect(appHtml).not.toContain("runtimeProtocolBuildPdfBytes");
@@ -2060,7 +2067,8 @@ test.describe("Core source contracts", () => {
     const app = appFrame(page);
     await expect(app.locator("#runtimeRecordButton")).toBeVisible();
     await app.locator("#runtimeRecordButton").click();
-    await expect(app.locator("#runtimeRecordButton")).toHaveText("Stop");
+    await expect(app.locator("#runtimeRecordButton")).toHaveText("Aufnahme läuft");
+    await expect(app.locator("#runtimeReplayStopButton")).toBeVisible();
     const startedRecording = await app.locator("body").evaluate(() => runtimeRecorderSnapshot());
     expect(startedRecording.active).toBe(true);
     expect(startedRecording.frameCount).toBe(1);
@@ -2073,7 +2081,7 @@ test.describe("Core source contracts", () => {
     await expect.poll(async () => (await runtimeContext(page)).states?.start?.form?.value).toBe("42.5");
     await app.getByRole("button", { name: "Zur Pruefung" }).click();
     await expect(app.locator("#statePill")).toHaveText("check");
-    await app.locator("#runtimeRecordButton").click();
+    await app.locator("#runtimeReplayStopButton").click();
 
     const recording = await app.locator("body").evaluate(() => runtimeRecorderSnapshot());
     expect(recording.active).toBe(false);
@@ -2084,33 +2092,60 @@ test.describe("Core source contracts", () => {
     expect(recording.currentFrame.screen.html).toContain("Sachliche Pruefung laeuft.");
     expect(recording.model.states.map(state => state.id)).toEqual(["start", "check"]);
     expect(recording.frames.some(frame => frame.kind === "event" && frame.eventName === "button.to.check.clicked")).toBe(true);
+    expect(recording.frames.some(frame => frame.kind === "click" && frame.screen.html.includes("runtime-record-marker"))).toBe(true);
+    expect(recording.frames.some(frame => frame.kind === "input" && frame.screen.html.includes("runtime-record-marker input"))).toBe(true);
     expect(recording.currentFrame.context.runtime.path).toBeUndefined();
     const exported = await app.locator("body").evaluate(() => runtimeRecorderExportPayload());
     expect(exported.kind).toBe("state-blueprint-runtime-recording");
     expect(exported.model.initial).toBe("start");
     expect(exported.frames[0].screen.html).toContain("Betrag");
+    const gifHeader = await app.locator("body").evaluate(() => {
+      const bytes = runtimeRecorderGifBytes(runtimeRecorderExportPayload());
+      return {
+        length: bytes.length,
+        header: Array.from(bytes.slice(0, 6)).map(value => String.fromCharCode(value)).join("")
+      };
+    });
+    expect(gifHeader.length).toBeGreaterThan(100);
+    expect(gifHeader.header).toBe("GIF89a");
 
-    await app.locator("#runtimeReplayPrevButton").click();
+    await expect(app.locator("#runtimeReplayPrevButton")).toHaveCount(0);
+    await expect(app.locator("#runtimeReplayNextButton")).toHaveCount(0);
+    await expect(app.locator("#runtimeReplayReverseButton")).toHaveCount(0);
+    await app.locator("#runtimeReplayPlayButton").click();
+    await expect(app.locator("#runtimeReplayPlayButton")).toHaveText("Pause");
     await expect(app.locator("#statePill")).toHaveText("start");
-    await expect(app.locator("input.input")).toHaveValue("42.5");
     await expect(app.locator("#screen")).toHaveAttribute("data-replay-frame", "true");
+    await expect.poll(() => page.evaluate(() => hostRuntimeStateView())).toBe("start");
+    await app.locator("#runtimeReplayStopButton").click();
+    await app.locator("body").evaluate(() => {
+      const snapshot = runtimeRecorderSnapshot();
+      const inputFrameIndex = snapshot.frames.findIndex(frame =>
+        frame.current === "start" &&
+        frame.context?.states?.start?.form?.value === "42.5"
+      );
+      if (inputFrameIndex < 0) throw new Error("recorded input frame missing");
+      runtimeRecorderRestoreFrame(inputFrameIndex);
+    });
+    await expect(app.locator("input.input")).toHaveValue("42.5");
     await app.locator("#runtimeReplayLoopButton").click();
     await expect(app.locator("#runtimeReplayLoopButton")).toHaveAttribute("aria-pressed", "true");
-    await app.locator("#runtimeReplayNextButton").click();
-    await expect(app.locator("#statePill")).toHaveText("check");
+    await app.locator("#runtimeReplayPlayButton").click();
+    await expect.poll(async () => app.locator("#statePill").textContent()).toBe("check");
+    await app.locator("#runtimeReplayStopButton").click();
     await app.locator("body").evaluate(() => {
       eval("model").states.find(state => state.id === "check").components = [{ id: "c_check_new", type: "text", text: "Nachtraeglich geaendert.", url: "" }];
       eval("render")();
     });
     await expect(app.getByText("Nachtraeglich geaendert.")).toBeVisible();
-    await app.locator("#runtimeReplayPrevButton").click();
-    await app.locator("#runtimeReplayNextButton").click();
+    await app.locator("body").evaluate(() => {
+      const snapshot = runtimeRecorderSnapshot();
+      const checkFrameIndex = snapshot.frames.findIndex(frame => frame.current === "check");
+      if (checkFrameIndex < 0) throw new Error("recorded target frame missing");
+      runtimeRecorderRestoreFrame(checkFrameIndex);
+    });
     await expect(app.getByText("Sachliche Pruefung laeuft.")).toBeVisible();
     await expect(app.getByText("Nachtraeglich geaendert.")).toHaveCount(0);
-    await app.locator("#runtimeReplayReverseButton").click();
-    await expect.poll(async () => app.locator("#statePill").textContent()).toBe("start");
-    await app.locator("#runtimeReplayPlayButton").click();
-    await expect.poll(async () => app.locator("#statePill").textContent()).toBe("check");
     expect(await app.locator("#processProtocolButton, #processProtocolOverlay").count()).toBe(0);
   });
 

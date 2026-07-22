@@ -238,14 +238,16 @@ Ein API-Ereignis ist ein echter Trigger und kein `change`-Alias. Ein generischer
 - Jeder Frame enthält eine Kopie des globalen Bus-Zustands und den aktiven
   State genau für diese Wiedergabe. Die Aufnahme darf niemals Conditions,
   Trigger, Transitions oder Contract-Validierung beeinflussen.
-- Replay und Rücklauf stellen ausschließlich die isolierten Frames für die
-  sichtbare Vorschau wieder her. Bei neuer echter Nutzereingabe oder echtem
-  Klick verlässt die Runtime den Replay-Modus und arbeitet wieder mit dem
-  aktuellen globalen Bus.
+- Replay stellt ausschließlich die isolierten Frames für die sichtbare
+  Vorschau wieder her und meldet den angezeigten State read-only an den
+  Editor, damit Canvas und Inspector folgen. Bei neuer echter Nutzereingabe
+  oder echtem Klick verlässt die Runtime den Replay-Modus und arbeitet wieder
+  mit dem aktuellen globalen Bus.
 - Reset oder neues Modell verwirft die Aufnahme. Standalone-Export und Preview
   verwenden dieselbe Recorder-Logik.
-- Prozessbericht, PDF-Druckansicht, JSON-Report, `runtime.path` und
-  `runtime.pathName` gehören nicht zum Vertrag.
+- Der Export enthält JSON vollständig self-contained und optional einen
+  kompakten GIF-Ablaufclip. Prozessbericht, PDF-Druckansicht, JSON-Report,
+  `runtime.path` und `runtime.pathName` gehören nicht zum Vertrag.
 
 ## 11. Realtime und Server
 
