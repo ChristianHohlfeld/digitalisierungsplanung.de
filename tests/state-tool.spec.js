@@ -1102,15 +1102,8 @@ async function traverseWebsiteDemoShard(page, shardIndex, shardCount) {
   };
   const prepare = async transition => {
     const shortId = String(transition.from || "").replace(/^site_/, "");
-    if (transition.id === "site_login_submit") {
-      await typeInto('input[type="email"]', "mira@example.test");
-      await typeInto('input[type="password"]', "demo-password");
-    } else if (transition.id === "site_checkout_complete") {
+    if (transition.id === "site_checkout_complete") {
       await typeInto("input", `${shortId}@example.test`);
-    } else if (transition.id === "site_contact_send") {
-      await typeInto("input", "Mira Keller", 0);
-      await typeInto("input", "mira@example.test", 1);
-      await typeInto("textarea", "Bitte den Prozess prüfen.");
     }
   };
 
@@ -2512,12 +2505,14 @@ test.describe("State Blueprint tool", () => {
       return {
         name: model?.name || "",
         initial: model?.initial || "",
-        loginHeroTransitionId: model?.states?.find(state => state.id === "site_login")?.data?.hero?.transitionId || ""
+        stateIds: model?.states?.map(state => state.id).sort() || [],
+        userTransitions: userTransitions(model).length
       };
     }).toEqual({
       name: "Digitalisierungsplanung",
       initial: "site_home",
-      loginHeroTransitionId: "site_login_submit"
+      stateIds: ["site_checkout", "site_checkout_flow", "site_features", "site_home", "site_pricing", "site_thanks"],
+      userTransitions: 6
     });
 
     await page.goto("/state.html?demo=zustand");
@@ -2556,13 +2551,15 @@ test.describe("State Blueprint tool", () => {
         name: model?.name || "",
         initial: model?.initial || "",
         hasStarterOnly: Boolean(model?.states?.some(state => state.id === "start")) && model?.states?.length === 1,
-        loginHeroTransitionId: model?.states?.find(state => state.id === "site_login")?.data?.hero?.transitionId || ""
+        stateIds: model?.states?.map(state => state.id).sort() || [],
+        userTransitions: userTransitions(model).length
       };
     }).toEqual({
       name: "Digitalisierungsplanung",
       initial: "site_home",
       hasStarterOnly: false,
-      loginHeroTransitionId: "site_login_submit"
+      stateIds: ["site_checkout", "site_checkout_flow", "site_features", "site_home", "site_pricing", "site_thanks"],
+      userTransitions: 6
     });
   });
 
@@ -2632,10 +2629,9 @@ test.describe("State Blueprint tool", () => {
       await expect(app.getByRole("heading", { name: "Anfrage", exact: true })).toHaveCount(1);
       await expect(app.locator(".navbar")).toHaveCount(1);
       await expect(app.locator(".navbar")).toContainText("Digitalisierungsplanung");
-      await expect(app.locator(".navbar")).toContainText("Start");
       await expect(app.locator(".navbar")).not.toContainText("Kopf-Navigation");
       await expect(app.getByText("Starter")).toBeVisible();
-      await expect(app.getByText("249 EUR")).toBeVisible();
+      await expect(app.getByText("499 EUR")).toBeVisible();
       await expect(app.getByRole("button", { name: "Anfrage senden", exact: true })).toHaveCount(1);
     };
 
@@ -2749,17 +2745,19 @@ test.describe("State Blueprint tool", () => {
         name: model?.name || "",
         initial: model?.initial || "",
         hasOldLocalModel: Boolean(model?.states?.some(state => state.id === "auth_start")),
-        loginHeroTransitionId: model?.states?.find(state => state.id === "site_login")?.data?.hero?.transitionId || ""
+        stateIds: model?.states?.map(state => state.id).sort() || [],
+        userTransitions: userTransitions(model).length
       };
     }).toEqual({
       name: "Digitalisierungsplanung",
       initial: "site_home",
       hasOldLocalModel: false,
-      loginHeroTransitionId: "site_login_submit"
+      stateIds: ["site_checkout", "site_checkout_flow", "site_features", "site_home", "site_pricing", "site_thanks"],
+      userTransitions: 6
     });
   });
 
-  test("loads a clean website demo scene with real FSM navigation @smoke", async ({ page }) => {
+  test("loads a clean website demo scene with a simple buyer funnel @smoke", async ({ page }) => {
     test.setTimeout(45000);
     await openTool(page);
 
@@ -2767,21 +2765,19 @@ test.describe("State Blueprint tool", () => {
     await page.getByRole("button", { name: "Beispielablauf laden" }).click();
     await page.getByRole("button", { name: "Mit Beispiel neu starten" }).click();
 
-    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(8);
+    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(5);
     await expect(page.locator('[data-id="site_home"]')).toBeVisible();
-    await expect(page.locator('[data-id="site_login"]')).toBeVisible();
-    await expect(page.locator('[data-id="site_profile"]')).toBeVisible();
+    await expect(page.locator('[data-id="site_checkout_flow"]')).toBeVisible();
+    await expect(page.locator('[data-id="site_checkout_flow"]')).toHaveClass(/has-children/);
     await expect(page.locator('[data-id="site_thanks"]')).toBeVisible();
 
     await expect.poll(async () => {
       const model = await savedModel(page);
-      const loginState = model.states.find(state => state.id === "site_login");
       return {
         name: model.name,
         initial: model.initial,
         stateIds: model.states.map(state => state.id).sort(),
         userTransitions: userTransitions(model).length,
-        loginHeroTransitionId: loginState?.data?.hero?.transitionId || "",
         boundary: {
           entryId: model.boundary?.entryId || "",
           exitId: model.boundary?.exitId || ""
@@ -2789,7 +2785,7 @@ test.describe("State Blueprint tool", () => {
         scopedDataOnly: model.states.every(state =>
           Object.keys(state.data || {}).every(key => /^[A-Za-z_][A-Za-z0-9_]*$/.test(key))
         ),
-        hasOldAuthDemoData: JSON.stringify(model).includes("user@example.com") || JSON.stringify(model).includes("secret123")
+        hasOldDemoRoutes: /site_contact|site_login|site_profile/.test(JSON.stringify(model))
       };
     }).toEqual({
       name: "Digitalisierungsplanung",
@@ -2797,19 +2793,15 @@ test.describe("State Blueprint tool", () => {
       stateIds: [
         "site_checkout",
         "site_checkout_flow",
-        "site_contact",
         "site_features",
         "site_home",
-        "site_login",
         "site_pricing",
-        "site_profile",
         "site_thanks"
       ],
-      userTransitions: 54,
-      loginHeroTransitionId: "site_login_submit",
+      userTransitions: 6,
       boundary: { entryId: "site_home", exitId: "site_thanks" },
       scopedDataOnly: true,
-      hasOldAuthDemoData: false
+      hasOldDemoRoutes: false
     });
 
     const [routeReport, routeModel, layerFrame] = await Promise.all([
@@ -2848,16 +2840,12 @@ test.describe("State Blueprint tool", () => {
     expect(layerRouteViolations).toEqual([]);
 
     const app = appFrame(page);
-    const expectedNavLabels = ["Digitalisierungsplanung", "Start", "Nutzen", "Pakete", "Kontakt", "Konto"];
     const expectedTitles = {
       site_home: "Start",
       site_features: "Nutzen",
       site_pricing: "Pakete",
       site_checkout: "Anfrage",
-      site_contact: "Kontakt",
-      site_thanks: "Danke",
-      site_login: "Konto",
-      site_profile: "Profil"
+      site_thanks: "Danke"
     };
     const expectDemoShell = async stateId => {
       await expect.poll(async () => app.locator("body").evaluate(() => {
@@ -2866,24 +2854,21 @@ test.describe("State Blueprint tool", () => {
           state: text(document.querySelector("#statePill")),
           title: text(document.querySelector("#screen > h1")),
           navbarCount: document.querySelectorAll(".navbar").length,
+          navbarHasBrand: text(document.querySelector(".navbar")).includes("Digitalisierungsplanung"),
           breadcrumbsCount: document.querySelectorAll(".breadcrumbs").length,
           footerHasBrand: text(document.querySelector(".footer")).includes("Digitalisierungsplanung.de"),
-          footerButtons: document.querySelectorAll(".footer button[data-transition-id]").length,
-          navLabels: [...document.querySelectorAll(".navbar button,.navbar a")]
-            .map(item => text(item))
-            .filter(Boolean)
+          footerButtons: document.querySelectorAll(".footer button[data-transition-id]").length
         };
       })).toEqual({
         state: stateId,
         title: expectedTitles[stateId],
         navbarCount: 1,
+        navbarHasBrand: true,
         breadcrumbsCount: 0,
         footerHasBrand: true,
-        footerButtons: 5,
-        navLabels: expectedNavLabels
+        footerButtons: 0
       });
     };
-    const navButton = label => app.locator(".navbar").getByRole("button", { name: label, exact: true });
     const expectNoHorizontalOverflow = async () => {
       await expect.poll(async () => app.locator("body").evaluate(body =>
         Math.round(body.scrollWidth - body.clientWidth)
@@ -2891,89 +2876,55 @@ test.describe("State Blueprint tool", () => {
     };
 
     await expectDemoShell("site_home");
-    await expect(app.getByRole("heading", { name: "Aus Erfahrungswissen wird Software.", exact: true })).toBeVisible();
+    await expect(app.getByRole("heading", { name: "Aus verborgenem Prozesswissen wird ein klickbarer Ablauf.", exact: true })).toBeVisible();
     await expect(app.locator('.hero[style*="photo-1556761175-b413da4baf72"]')).toBeVisible();
     await expect(app.locator(".daisy-feature-grid")).toHaveCount(1);
     await expect(app.locator(".daisy-feature-cards > .card")).toHaveCount(3);
     await expect(app.locator(".daisy-feature-image")).toHaveCount(3);
-    await expect.poll(async () => app.locator(".daisy-feature-image").evaluateAll(images =>
-      images.map(image => image.getAttribute("src") || "")
-    )).toEqual([
-      expect.stringContaining("images.unsplash.com"),
-      expect.stringContaining("images.unsplash.com"),
-      expect.stringContaining("images.unsplash.com")
-    ]);
-    await expect(app.locator(".daisy-feature-grid button[data-transition-id]")).toHaveCount(3);
+    await expect(app.locator(".daisy-feature-grid button[data-transition-id]")).toHaveCount(0);
+    await expect.poll(async () => app.locator(".daisy-transition-button[data-transition-id]").evaluateAll(buttons =>
+      [...new Set(buttons.map(button => button.dataset.transitionId))].sort()
+    )).toEqual(["site_home_view_value"]);
+    await expect(app.locator(".actions [data-transition-id]")).toHaveCount(0);
     await expectNoHorizontalOverflow();
 
-    const homeTransitionIds = await app.locator(".daisy-transition-button[data-transition-id]").evaluateAll(buttons =>
-      buttons.map(button => button.dataset.transitionId)
-    );
-    expect(homeTransitionIds.length).toBeGreaterThanOrEqual(7);
-    await expect(app.locator(".actions [data-transition-id]")).toHaveCount(0);
-
-    await app.locator('.footer button[data-transition-id="site_home_nav_pricing"]').click();
-    await expectDemoShell("site_pricing");
-    await navButton("Start").click();
-    await expectDemoShell("site_home");
-
-    await expect(navButton("Nutzen")).toHaveCount(1);
-    await navButton("Nutzen").click();
+    await app.getByRole("button", { name: "Ablauf ansehen", exact: true }).click();
     await expectDemoShell("site_features");
-    await expect(app.getByText("Was Ihr Unternehmen gewinnt")).toBeVisible();
-    await expect(app.getByText("Direkt nutzbar statt nur dokumentiert")).toBeVisible();
+    await expect(app.getByText("Warum das f\u00fcr K\u00e4ufer z\u00e4hlt")).toBeVisible();
+    await expect(app.getByText("Autopiloten der Menschen")).toBeVisible();
     await expect(app.locator(".daisy-feature-grid")).toHaveCount(1);
     await expect(app.locator(".daisy-feature-cards > .card")).toHaveCount(3);
     await expect(app.locator(".daisy-feature-image")).toHaveCount(3);
-    await expect(app.locator(".daisy-feature-grid button[data-transition-id]")).toHaveCount(3);
-    await expect(app.locator(".steps button[data-transition-id] .daisy-step-label")).toHaveText([
+    await expect(app.locator(".daisy-feature-grid button[data-transition-id]")).toHaveCount(1);
+    await expect(app.locator(".steps button[data-transition-id]")).toHaveCount(0);
+    await expect(app.locator(".steps .daisy-step-label")).toHaveText([
       "Aufnehmen",
-      "Prüfen",
+      "Pr\u00fcfen",
       "Nutzen"
     ]);
     await expect(app.locator(".steps .daisy-step-copy")).toContainText([
-      "Den echten Ablauf mit Menschen erfassen, die ihn täglich leben.",
-      "Entscheidungen, Ausnahmen und Daten gemeinsam sichtbar testen.",
-      "Als klickbare Anwendung exportieren und Schritt für Schritt verbessern."
+      "Den echten Ablauf mit Menschen erfassen, die ihn t\u00e4glich leben.",
+      "Entscheidungen, Ausnahmen und Daten sichtbar testen.",
+      "Als klickbare Anwendung verwenden und verbessern."
     ]);
-    await expect(app.locator("li.step-primary")).toContainText("Prüfen");
+    await expect(app.locator("li.step-primary")).toContainText("Pr\u00fcfen");
     await expect(app.locator("li.step-primary")).toHaveAttribute("aria-current", "step");
-    await expect(app.locator('.steps button[data-transition-id="site_features_step_capture"]')).toHaveCount(1);
-    await expect(app.locator('.steps button[data-transition-id="site_features_step_check"]')).toHaveCount(1);
-    await expect(app.locator('.steps button[data-transition-id="site_features_step_use"]')).toHaveCount(1);
     await expectStepContentInsideCards(app);
-    await app.locator('.steps button[data-transition-id="site_features_step_capture"]').click();
-    await expectDemoShell("site_contact");
-    await navButton("Nutzen").click();
-    await expectDemoShell("site_features");
-    await app.locator('.steps button[data-transition-id="site_features_step_check"]').click();
-    await expectDemoShell("site_features");
-    await expect.poll(async () => (await runtimeContext(page)).states?.site_features?.steps?.current).toBe("Prüfen");
-    await app.locator('.steps button[data-transition-id="site_features_step_use"]').click();
+    await app.getByRole("button", { name: "Pakete ansehen", exact: true }).click();
     await expectDemoShell("site_pricing");
-    await navButton("Nutzen").click();
-    await expectDemoShell("site_features");
-    await expect(navButton("Nutzen")).toHaveCount(1);
     await expectNoHorizontalOverflow();
 
-    await expect(navButton("Pakete")).toHaveCount(1);
-    await navButton("Pakete").click();
-    await expectDemoShell("site_pricing");
-    await expect(app.getByText("Wählen Sie ein Abo")).toBeVisible();
+    await expect(app.getByText("Abo-Kern plus optionale Pakete")).toBeVisible();
     await expect(app.locator(".daisy-pricing")).toHaveCount(1);
     await expect(app.locator(".daisy-pricing > .card")).toHaveCount(3);
     await expect(app.locator(".daisy-pricing .card .card-title")).toContainText(["Starter", "Business", "Scale"]);
-    await expect(app.locator(".daisy-pricing .daisy-card-price")).toContainText(["249 EUR", "749 EUR", "1.990 EUR"]);
+    await expect(app.locator(".daisy-pricing .daisy-card-price")).toContainText(["499 EUR", "1.490 EUR", "3.900 EUR"]);
     await expect(app.locator(".daisy-pricing button[data-transition-id]")).toHaveCount(3);
     await expect(app.locator('[data-default-action="true"]')).toHaveCount(0);
-    await expect(app.locator(".daisy-feature-grid").filter({ hasText: "Zubuchbare Pakete" })).toHaveCount(1);
-    await expect(app.locator(".daisy-feature-grid").filter({ hasText: "Zubuchbare Pakete" }).locator(".daisy-feature-cards > .card")).toHaveCount(4);
-    await expect(app.locator(".daisy-feature-grid").filter({ hasText: "Zubuchbare Pakete" }).locator("button[data-transition-id]")).toHaveCount(4);
+    await expect(app.locator(".daisy-feature-grid").filter({ hasText: "Optionale Pakete" })).toHaveCount(1);
+    await expect(app.locator(".daisy-feature-grid").filter({ hasText: "Optionale Pakete" }).locator(".daisy-feature-cards > .card")).toHaveCount(4);
+    await expect(app.locator(".daisy-feature-grid").filter({ hasText: "Optionale Pakete" }).locator("button[data-transition-id]")).toHaveCount(0);
     await expect(app.locator(".actions [data-transition-id]")).toHaveCount(0);
-    await expect(app.getByRole("button", { name: "Starter anfragen", exact: true })).toHaveCount(1);
-    await expect(app.getByRole("button", { name: "Business anfragen", exact: true })).toHaveCount(1);
-    await expect(app.getByRole("button", { name: "Scale anfragen", exact: true })).toHaveCount(1);
-    await expect(app.getByRole("button", { name: "BI zubuchen", exact: true })).toHaveCount(1);
     await expectNoHorizontalOverflow();
     await expect.poll(async () => app.locator("body").evaluate(() => {
       window.scrollTo(0, document.body.scrollHeight);
@@ -2985,7 +2936,7 @@ test.describe("State Blueprint tool", () => {
       Math.round(window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0)
     )).toBe(0);
     await expect(app.getByText("Business")).toBeVisible();
-    await expect(app.getByText("749 EUR")).toBeVisible();
+    await expect(app.getByText("1.490 EUR")).toBeVisible();
     await expect.poll(async () => {
       const context = await runtimeContext(page);
       return {
@@ -3000,46 +2951,18 @@ test.describe("State Blueprint tool", () => {
       lastTransition: "site_pricing_buy_business",
       selectedPlan: "Business",
       plan: "Business",
-      price: "749 EUR"
+      price: "1.490 EUR"
     });
-    await app.locator('input').fill("billing@example.test");
+    await app.locator("input").fill("billing@example.test");
     await expect(app.getByRole("button", { name: "Anfrage senden", exact: true })).toHaveCount(1);
     await app.getByRole("button", { name: "Anfrage senden", exact: true }).click();
     await expectDemoShell("site_thanks");
     await expect.poll(async () => (await runtimeContext(page)).states?.site_thanks?.order).toMatchObject({
       plan: "Business",
-      price: "749 EUR",
+      price: "1.490 EUR",
       completed: true
     });
-
-    await navButton("Kontakt").click();
-    await expectDemoShell("site_contact");
-    await expect(app.getByText("Nennen Sie uns den Ablauf")).toBeVisible();
-
-    await expect(app.getByRole("button", { name: "Anfrage senden", exact: true })).toHaveCount(1);
-    await app.getByRole("button", { name: "Anfrage senden", exact: true }).click();
-    await expectDemoShell("site_thanks");
-    await expect(app.getByText("Anfrage erhalten")).toBeVisible();
-
-    await expect(navButton("Konto")).toHaveCount(1);
-    await navButton("Konto").click();
-    await expectDemoShell("site_login");
-    await expect(app.getByText("Kundenbereich")).toBeVisible();
-    await app.locator('input[type="email"]').fill("mira@example.test");
-    await app.locator('input[type="password"]').fill("demo-password");
-
-    const signInButton = app.locator('.hero button[data-transition-id="site_login_submit"]').filter({ hasText: "Anmelden" });
-    await expect(signInButton).toHaveCount(1);
-    await signInButton.click();
-    await expectDemoShell("site_profile");
-    await expect(app.getByText("Willkommen zurück")).toBeVisible();
-    await expect(app.locator('.avatar img[alt="Mira Keller"]')).toBeVisible();
-    await expect(app.getByText("Parent")).toHaveCount(0);
-
-    await expect(app.getByRole("button", { name: "Abmelden", exact: true })).toHaveCount(1);
-    await app.getByRole("button", { name: "Abmelden", exact: true }).click();
-    await expectDemoShell("site_login");
-    await expect(app.getByText("Kundenbereich")).toBeVisible();
+    await expect(app.locator("[data-transition-id]")).toHaveCount(0);
   });
 
   test("website demo graph reaches every state and binds every transition by contract id @smoke", async ({ page }) => {
@@ -3049,8 +2972,8 @@ test.describe("State Blueprint tool", () => {
     const transitionIds = transitions.map(transition => transition.id);
     const allEntityIds = [...stateIds, ...transitionIds];
     expect(new Set(allEntityIds).size).toBe(allEntityIds.length);
-    expect(stateIds).toHaveLength(9);
-    expect(transitionIds).toHaveLength(54);
+    expect(stateIds).toHaveLength(6);
+    expect(transitionIds).toHaveLength(6);
 
     const stateIdSet = new Set(stateIds);
     for (const transition of transitions) {
@@ -3083,13 +3006,11 @@ test.describe("State Blueprint tool", () => {
     expect([...reachable].sort()).toEqual([...stateIds].sort());
   });
 
-  for (let shardIndex = 0; shardIndex < 8; shardIndex += 1) {
-    test(`website demo transitions fire deterministically on first click, shard ${shardIndex + 1}/8 @smoke`, async ({ page }) => {
-      await traverseWebsiteDemoShard(page, shardIndex, 8);
-    });
-  }
+  test("website demo transitions fire deterministically on first click @smoke", async ({ page }) => {
+    await traverseWebsiteDemoShard(page, 0, 1);
+  });
 
-  test("edits and reorders navbar widget data through the render editor @smoke", async ({ page }) => {
+  test("edits simplified navbar brand through the render editor @smoke", async ({ page }) => {
     await openTool(page);
 
     await page.locator("#topbarMore summary").click();
@@ -3099,26 +3020,7 @@ test.describe("State Blueprint tool", () => {
 
     const editor = await expandComponentEditor(page, "Baustein: Kopf-Navigation");
     await editor.getByLabel("Marke").fill("Site Header");
-    await editor.getByLabel("Menüpunkte Eintrag 3").fill("Plans");
     await editor.getByLabel("Bausteinname").fill("Site Header");
-
-    await expect.poll(async () => (await savedModel(page)).states.find(state => state.id === "site_home")?.data?.nav?.brand).toBe("Site Header");
-    await expect(appFrame(page).locator(".navbar")).toContainText("Site Header");
-    await page.getByRole("button", { name: "App zurücksetzen", exact: true }).click();
-    await expect(appFrame(page).locator(".navbar")).toContainText("Site Header");
-    await expect(appFrame(page).locator(".navbar")).not.toContainText("Zustand");
-    await expect.poll(async () => (await runtimeContext(page)).states?.site_home?.nav?.brand).toBe("Site Header");
-
-    const itemRows = page.locator('.component-editor[open] .widget-list-row[data-widget-list-key="items"]');
-    const sourceHandleBox = await itemRows.nth(2).locator(".widget-list-drag-handle").boundingBox();
-    const targetRowBox = await itemRows.nth(1).boundingBox();
-    expect(sourceHandleBox).toBeTruthy();
-    expect(targetRowBox).toBeTruthy();
-    await page.mouse.move(sourceHandleBox.x + sourceHandleBox.width / 2, sourceHandleBox.y + sourceHandleBox.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(sourceHandleBox.x + sourceHandleBox.width / 2, sourceHandleBox.y + sourceHandleBox.height / 2 + 12);
-    await page.mouse.move(targetRowBox.x + 8, targetRowBox.y + 2, { steps: 8 });
-    await page.mouse.up();
 
     await expect.poll(async () => {
       const model = await savedModel(page);
@@ -3127,31 +3029,22 @@ test.describe("State Blueprint tool", () => {
       return {
         componentLabel: state?.components.find(component => component.id === "site_home_nav")?.dataLabel || "",
         brand: navData.brand || "",
-        labels: Array.isArray(navData.items) ? navData.items.map(item => item.label) : [],
-        transitionIds: Array.isArray(navData.items) ? navData.items.map(item => item.transitionId) : [],
-        pricingLabel: model.transitions.find(transition => transition.id === "site_home_nav_pricing")?.label || ""
+        layout: navData.layout || "",
+        items: Array.isArray(navData.items) ? navData.items : []
       };
     }).toEqual({
       componentLabel: "Site Header",
       brand: "Site Header",
-      labels: ["Start", "Plans", "Nutzen", "Kontakt", "Konto"],
-      transitionIds: [
-        "site_home_nav_home",
-        "site_home_nav_pricing",
-        "site_home_nav_features",
-        "site_home_nav_contact",
-        "site_home_nav_login"
-      ],
-      pricingLabel: "Plans"
+      layout: "title-only",
+      items: []
     });
+    await expect(appFrame(page).locator(".navbar")).toContainText("Site Header");
+    await expect(appFrame(page).locator(".navbar button[data-transition-id]")).toHaveCount(0);
 
-    await page.getByRole("button", { name: "App zurücksetzen", exact: true }).click();
-    await expect.poll(async () => appFrame(page).locator(".navbar button,.navbar a").evaluateAll(items =>
-      items.map(item => item.textContent.trim()).filter(Boolean)
-    )).toEqual(["Site Header", "Start", "Plans", "Nutzen", "Kontakt", "Konto"]);
-
-    await appFrame(page).locator(".navbar").getByRole("button", { name: "Plans", exact: true }).click();
-    await expect(appFrame(page).locator("#statePill")).toHaveText("site_pricing");
+    await page.getByRole("button", { name: "App zur\u00fccksetzen", exact: true }).click();
+    await expect(appFrame(page).locator(".navbar")).toContainText("Site Header");
+    await expect(appFrame(page).locator(".navbar")).not.toContainText("Zustand");
+    await expect.poll(async () => (await runtimeContext(page)).states?.site_home?.nav?.brand).toBe("Site Header");
   });
 
   test("inlines image URLs into standalone HTML exports without changing the editor model", async ({ page }) => {
@@ -3262,10 +3155,14 @@ test.describe("State Blueprint tool", () => {
     expect(html).not.toContain('id="btnExport"');
     expect(html).not.toContain("state-blueprint-definition");
 
-    const standalone = await page.context().newPage();
+    let standalone = null;
     const pageErrors = [];
-    standalone.on("pageerror", error => pageErrors.push(error.message));
-    await standalone.setContent(html, { waitUntil: "domcontentloaded" });
+    const openStandalonePage = async () => {
+      standalone = await page.context().newPage();
+      standalone.on("pageerror", error => pageErrors.push(error.message));
+      await standalone.setContent(html, { waitUntil: "domcontentloaded" });
+    };
+    await openStandalonePage();
 
     const expectStandaloneShell = async (stateId, title) => {
       await expect.poll(async () => standalone.locator("body").evaluate(() => {
@@ -3274,6 +3171,7 @@ test.describe("State Blueprint tool", () => {
           state: text(document.querySelector("#statePill")),
           title: text(document.querySelector("#screen > h1")),
           navbarCount: document.querySelectorAll(".navbar").length,
+          navbarHasBrand: text(document.querySelector(".navbar")).includes("Digitalisierungsplanung"),
           footerHasBrand: text(document.querySelector(".footer")).includes("Digitalisierungsplanung.de"),
           footerButtons: document.querySelectorAll(".footer button[data-transition-id]").length,
           editorExportButtons: document.querySelectorAll("#btnExport").length
@@ -3282,103 +3180,87 @@ test.describe("State Blueprint tool", () => {
         state: stateId,
         title,
         navbarCount: 1,
+        navbarHasBrand: true,
         footerHasBrand: true,
-        footerButtons: 5,
+        footerButtons: 0,
         editorExportButtons: 0
       });
     };
-    const navButton = label => standalone.locator(".navbar").getByRole("button", { name: label, exact: true });
-    const footerButton = label => standalone.locator(".footer").getByRole("button", { name: label, exact: true });
     const expectStandaloneNoHorizontalOverflow = async () => {
       await expect.poll(async () => standalone.locator("body").evaluate(body =>
         Math.round(body.scrollWidth - body.clientWidth)
       )).toBeLessThanOrEqual(2);
     };
     const openPricing = async () => {
-      await navButton("Pakete").click();
+      const stateId = await standalone.locator("#statePill").textContent();
+      if ((stateId || "").trim() === "site_home") {
+        await standalone.getByRole("button", { name: "Ablauf ansehen", exact: true }).click();
+        await expectStandaloneShell("site_features", "Nutzen");
+      }
+      await standalone.getByRole("button", { name: "Pakete ansehen", exact: true }).first().click();
       await expectStandaloneShell("site_pricing", "Pakete");
       await expect(standalone.locator(".daisy-pricing > .card")).toHaveCount(3);
       await expect(standalone.locator(".daisy-pricing .card .card-title")).toContainText(["Starter", "Business", "Scale"]);
+      await expect(standalone.locator(".daisy-pricing .daisy-card-price")).toContainText(["499 EUR", "1.490 EUR", "3.900 EUR"]);
       await expect(standalone.locator(".daisy-pricing button[data-transition-id]")).toHaveCount(3);
-      await expect(standalone.locator(".daisy-feature-grid").filter({ hasText: "Zubuchbare Pakete" }).locator(".daisy-feature-cards > .card")).toHaveCount(4);
-      await expect(standalone.locator(".daisy-feature-grid").filter({ hasText: "Zubuchbare Pakete" }).locator("button[data-transition-id]")).toHaveCount(4);
+      await expect(standalone.locator(".daisy-feature-grid").filter({ hasText: "Optionale Pakete" }).locator(".daisy-feature-cards > .card")).toHaveCount(4);
+      await expect(standalone.locator(".daisy-feature-grid").filter({ hasText: "Optionale Pakete" }).locator("button[data-transition-id]")).toHaveCount(0);
       await expect(standalone.locator(".actions [data-transition-id]")).toHaveCount(0);
       await expectStandaloneNoHorizontalOverflow();
     };
 
     await expectStandaloneShell("site_home", "Start");
-    await expect(standalone.getByRole("heading", { name: "Aus Erfahrungswissen wird Software.", exact: true })).toBeVisible();
+    await expect(standalone.getByRole("heading", { name: "Aus verborgenem Prozesswissen wird ein klickbarer Ablauf.", exact: true })).toBeVisible();
     await expect(standalone.locator(".daisy-feature-grid")).toHaveCount(1);
     await expect(standalone.locator(".daisy-feature-cards > .card")).toHaveCount(3);
-    await expect(standalone.locator(".daisy-feature-grid button[data-transition-id]")).toHaveCount(3);
-    await expectStandaloneNoHorizontalOverflow();
-    await expect.poll(async () => standalone.locator(".daisy-transition-button[data-transition-id]").count()).toBeGreaterThanOrEqual(7);
+    await expect(standalone.locator(".daisy-feature-grid button[data-transition-id]")).toHaveCount(0);
+    await expect.poll(async () => standalone.locator(".daisy-transition-button[data-transition-id]").evaluateAll(buttons =>
+      [...new Set(buttons.map(button => button.dataset.transitionId))].sort()
+    )).toEqual(["site_home_view_value"]);
     await expect(standalone.locator(".actions [data-transition-id]")).toHaveCount(0);
     await expect(standalone.locator("#flowDebug")).toHaveCount(0);
+    await expectStandaloneNoHorizontalOverflow();
 
-    await navButton("Nutzen").click();
+    await standalone.getByRole("button", { name: "Ablauf ansehen", exact: true }).click();
     await expectStandaloneShell("site_features", "Nutzen");
-    await expect(standalone.getByText("Direkt nutzbar statt nur dokumentiert")).toBeVisible();
+    await expect(standalone.getByText("Warum das f\u00fcr K\u00e4ufer z\u00e4hlt")).toBeVisible();
     await expect(standalone.locator(".daisy-feature-grid")).toHaveCount(1);
     await expect(standalone.locator(".daisy-feature-cards > .card")).toHaveCount(3);
-    await expect(standalone.locator(".daisy-feature-grid button[data-transition-id]")).toHaveCount(3);
-    await expect(standalone.locator(".steps button[data-transition-id] .daisy-step-label")).toHaveText([
+    await expect(standalone.locator(".daisy-feature-grid button[data-transition-id]")).toHaveCount(1);
+    await expect(standalone.locator(".steps button[data-transition-id]")).toHaveCount(0);
+    await expect(standalone.locator(".steps .daisy-step-label")).toHaveText([
       "Aufnehmen",
-      "Prüfen",
+      "Pr\u00fcfen",
       "Nutzen"
     ]);
     await standalone.setViewportSize({ width: 711, height: 900 });
     await expectStepContentInsideCards(standalone);
     await expectStandaloneNoHorizontalOverflow();
     await standalone.setViewportSize({ width: 1280, height: 720 });
-    await navButton("Start").click();
-    await expectStandaloneShell("site_home", "Start");
 
-    await footerButton("Pakete").click();
-    await expectStandaloneShell("site_pricing", "Pakete");
-    await openPricing();
-    for (const plan of [
-      { label: "Starter", action: "Starter anfragen", stateId: "site_checkout", title: "Anfrage", price: "249 EUR" },
-      { label: "Business", action: "Business anfragen", stateId: "site_checkout", title: "Anfrage", price: "749 EUR" },
-      { label: "Scale", action: "Scale anfragen", stateId: "site_checkout", title: "Anfrage", price: "1.990 EUR" },
-      { label: "BI & Analyse", action: "BI zubuchen", stateId: "site_checkout", title: "Anfrage", price: "+249 EUR" }
-    ]) {
+    const plans = [
+      { label: "Starter", action: "Starter anfragen", price: "499 EUR" },
+      { label: "Business", action: "Business anfragen", price: "1.490 EUR" },
+      { label: "Scale", action: "Scale anfragen", price: "3.900 EUR" }
+    ];
+    for (const [index, plan] of plans.entries()) {
+      if (index > 0) {
+        await standalone.close();
+        await openStandalonePage();
+        await expectStandaloneShell("site_home", "Start");
+      }
+      await openPricing();
       await expect(standalone.getByRole("button", { name: plan.action, exact: true })).toBeVisible();
       await standalone.getByRole("button", { name: plan.action, exact: true }).click();
-      await expectStandaloneShell(plan.stateId, plan.title);
+      await expectStandaloneShell("site_checkout", "Anfrage");
       await expect(standalone.getByText(plan.label)).toBeVisible();
       await expect(standalone.getByText(plan.price)).toBeVisible();
-      await standalone.locator('input').fill(`${plan.label.toLowerCase()}@example.test`);
+      await standalone.locator("input").fill(plan.label.toLowerCase() + "@example.test");
       await standalone.getByRole("button", { name: "Anfrage senden", exact: true }).click();
       await expectStandaloneShell("site_thanks", "Danke");
       await expect(standalone.getByText("Anfrage erhalten")).toBeVisible();
-      await openPricing();
+      await expect(standalone.locator("[data-transition-id]")).toHaveCount(0);
     }
-
-    await navButton("Kontakt").click();
-    await expectStandaloneShell("site_contact", "Kontakt");
-    await expect(standalone.getByText("Nennen Sie uns den Ablauf")).toBeVisible();
-    await standalone.getByRole("button", { name: "Anfrage senden", exact: true }).click();
-    await expectStandaloneShell("site_thanks", "Danke");
-    await expect(standalone.getByText("Anfrage erhalten")).toBeVisible();
-
-    await footerButton("Konto").click();
-    await expectStandaloneShell("site_login", "Konto");
-    await expect(standalone.getByText("Kundenbereich")).toBeVisible();
-    await standalone.locator('input[type="email"]').fill("mira@example.test");
-    await standalone.locator('input[type="password"]').fill("demo-password");
-    const standaloneSignInButton = standalone.locator('.hero button[data-transition-id="site_login_submit"]').filter({ hasText: "Anmelden" });
-    await expect(standaloneSignInButton).toHaveCount(1);
-    await standaloneSignInButton.click();
-    await expectStandaloneShell("site_profile", "Profil");
-    await expect(standalone.getByText("Willkommen zurück")).toBeVisible();
-    await expect(standalone.locator('.avatar img[alt="Mira Keller"]')).toBeVisible();
-    await standalone.getByRole("button", { name: "Abmelden", exact: true }).click();
-    await expectStandaloneShell("site_login", "Konto");
-    await expect(standalone.getByText("Kundenbereich")).toBeVisible();
-
-    await footerButton("Start").click();
-    await expectStandaloneShell("site_home", "Start");
 
     expect(pageErrors).toEqual([]);
     await standalone.close();
@@ -10504,57 +10386,44 @@ test.describe("State Blueprint tool", () => {
     }).toBe("error");
   });
 
-  test("reroutes demo logout onto an existing home edge without losing its event @smoke", async ({ page }) => {
+  test("reroutes simplified demo entry edge without losing its event @smoke", async ({ page }) => {
     await openTool(page);
     await page.locator("#topbarMore summary").click();
     await page.getByRole("button", { name: "Beispielablauf laden" }).click();
     await page.getByRole("button", { name: "Mit Beispiel neu starten" }).click();
 
-    const logoutEdgeId = "site_profile_logout";
-    const arrowTip = page.locator(`circle.edge-tip-hit[data-edge-id="${logoutEdgeId}"]`);
+    const requestEdgeId = "site_home_view_value";
+    const arrowTip = page.locator(`circle.edge-tip-hit[data-edge-id="${requestEdgeId}"]`);
     await expect(arrowTip).toBeVisible();
     const start = await centerOf(arrowTip);
-    const homeInput = await centerOf(statePort(page, "site_home", "in"));
+    const pricingInput = await centerOf(statePort(page, "site_pricing", "in"));
 
     await page.mouse.move(start.x, start.y);
     await page.mouse.down();
-    await page.mouse.move(homeInput.x, homeInput.y, { steps: 14 });
+    await page.mouse.move(pricingInput.x, pricingInput.y, { steps: 14 });
     await page.mouse.up();
 
     await expect.poll(async () => {
       const model = await savedModel(page);
-      const logout = model.transitions.find(transition => transition.id === logoutEdgeId);
+      const request = model.transitions.find(transition => transition.id === requestEdgeId);
       return {
-        logoutTo: logout?.to || "",
-        logoutSet: logout?.set || {},
-        profileHomeEdges: model.transitions
-          .filter(transition => transition.from === "site_profile" && transition.to === "site_home")
+        requestTo: request?.to || "",
+        requestEvent: request?.triggerEvent || "",
+        homePricingEdges: model.transitions
+          .filter(transition => transition.from === "site_home" && transition.to === "site_pricing")
           .map(transition => transition.id)
           .sort()
       };
     }).toEqual({
-      logoutTo: "site_home",
-      logoutSet: {
-        "states.site_profile.account.loggedIn": false,
-        "states.site_profile.logout.clicked": true
-      },
-      profileHomeEdges: ["site_profile_logout", "site_profile_nav_home"]
+      requestTo: "site_pricing",
+      requestEvent: "button.site_home_view_value.clicked",
+      homePricingEdges: ["site_home_view_value"]
     });
 
     const app = appFrame(page);
     await expect(app.locator("#statePill")).toHaveText("site_home");
-    await app.locator(".navbar").getByRole("button", { name: "Konto", exact: true }).click();
-    await expect(app.locator("#statePill")).toHaveText("site_login");
-    await app.locator('input[type="email"]').fill("mira@example.test");
-    await app.locator('input[type="password"]').fill("demo-password");
-    await app.getByRole("button", { name: "Anmelden", exact: true }).click();
-    await expect(app.locator("#statePill")).toHaveText("site_profile");
-
-    await expect(app.getByRole("button", { name: "Abmelden", exact: true })).toHaveCount(1);
-    await app.getByRole("button", { name: "Abmelden", exact: true }).click();
-    await expect(app.locator("#statePill")).toHaveText("site_home");
-    await expect.poll(async () => (await runtimeContext(page)).states?.site_profile?.account?.loggedIn).toBe(false);
-    await expect.poll(async () => (await runtimeContext(page)).states?.site_profile?.logout?.clicked).toBe(true);
+    await app.getByRole("button", { name: "Ablauf ansehen" }).first().click();
+    await expect(app.locator("#statePill")).toHaveText("site_pricing");
   });
 
   test("reroutes an existing transition into a self-loop from the arrowhead", async ({ page }) => {

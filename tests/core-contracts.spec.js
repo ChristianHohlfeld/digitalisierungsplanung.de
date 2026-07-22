@@ -2067,8 +2067,13 @@ test.describe("Core source contracts", () => {
     const app = appFrame(page);
     await expect(app.locator("#runtimeRecordButton")).toBeVisible();
     await app.locator("#runtimeRecordButton").click();
-    await expect(app.locator("#runtimeRecordButton")).toHaveText("Aufnahme läuft");
-    await expect(app.locator("#runtimeReplayStopButton")).toBeVisible();
+    await expect(app.locator("#runtimeRecordButton")).toHaveText("Stoppen");
+    await expect(app.locator("#runtimeRecordButton")).toBeEnabled();
+    await expect(app.locator("#runtimeRecordButton")).toHaveAttribute("aria-pressed", "true");
+    await expect(app.locator("#runtimeReplayStopButton")).toBeHidden();
+    await expect(app.locator("#runtimeReplayPlayButton")).toBeHidden();
+    await expect(app.locator("#runtimeReplayLoopButton")).toBeHidden();
+    await expect(app.locator("#runtimeReplayExportButton")).toBeHidden();
     const startedRecording = await app.locator("body").evaluate(() => runtimeRecorderSnapshot());
     expect(startedRecording.active).toBe(true);
     expect(startedRecording.frameCount).toBe(1);
@@ -2081,7 +2086,11 @@ test.describe("Core source contracts", () => {
     await expect.poll(async () => (await runtimeContext(page)).states?.start?.form?.value).toBe("42.5");
     await app.getByRole("button", { name: "Zur Pruefung" }).click();
     await expect(app.locator("#statePill")).toHaveText("check");
-    await app.locator("#runtimeReplayStopButton").click();
+    await app.locator("#runtimeRecordButton").click();
+    await expect(app.locator("#runtimeRecordButton")).toHaveText("Aufnehmen");
+    await expect(app.locator("#runtimeRecordButton")).toHaveAttribute("aria-pressed", "false");
+    await expect(app.locator("#runtimeReplayPlayButton")).toBeVisible();
+    await expect(app.locator("#runtimeReplayStopButton")).toBeHidden();
 
     const recording = await app.locator("body").evaluate(() => runtimeRecorderSnapshot());
     expect(recording.active).toBe(false);

@@ -66,10 +66,10 @@ test.describe("Root demo export", () => {
     await expect(page.getByRole("button", { name: "Neu" })).toHaveCount(0);
     await expect(page.locator("#flowDebug")).toHaveCount(0);
     await expect(page.locator("#statePill")).toHaveText("site_home");
-    await expect(page.getByRole("heading", { name: "Aus Erfahrungswissen wird Software.", exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Erstgespräch anfragen" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Aus verborgenem Prozesswissen wird ein klickbarer Ablauf.", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Ablauf ansehen" }).first()).toBeVisible();
     await expect(page.locator(".hero .card-actions.justify-center")).toHaveCSS("justify-content", "center");
-    await expect(page.locator(".navbar").getByRole("button", { name: "Pakete", exact: true })).toBeVisible();
+    await expect(page.locator(".navbar")).toContainText("Digitalisierungsplanung");
 
     const footerGeometry = () => page.locator(".footer").evaluate(footer => {
       const style = getComputedStyle(footer);
@@ -125,22 +125,19 @@ test.describe("Root demo export", () => {
     expect(manifest.ok()).toBe(true);
     expect((await manifest.json()).name).toBe("Digitalisierungsplanung.de");
 
-    await page.locator(".navbar").getByRole("button", { name: "Nutzen", exact: true }).click();
+    await page.getByRole("button", { name: "Ablauf ansehen", exact: true }).click();
     await expect(page.locator("#statePill")).toHaveText("site_features");
-    await expect(page.getByRole("heading", { name: "Was Ihr Unternehmen gewinnt" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Warum das f\u00fcr K\u00e4ufer z\u00e4hlt" })).toBeVisible();
 
-    await page.locator(".navbar").getByRole("button", { name: "Pakete", exact: true }).click();
+    await page.getByRole("button", { name: "Pakete ansehen", exact: true }).first().click();
     await expect(page.locator("#statePill")).toHaveText("site_pricing");
     await expect(page.getByRole("heading", { name: "Pakete", exact: true })).toBeVisible();
     await expect(page.locator(".daisy-pricing .card-title")).toContainText(["Starter", "Business", "Scale"]);
-    await expect(page.getByRole("button", { name: "BI zubuchen", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Business anfragen" }).click();
     await expect(page.locator("#statePill")).toHaveText("site_checkout");
     await expect(page.getByRole("heading", { name: "Anfrage" })).toBeVisible();
-    await expect(page.getByText("749 EUR")).toBeVisible();
+    await expect(page.getByText("1.490 EUR")).toBeVisible();
 
-    await page.locator(".navbar").getByRole("button", { name: "Kontakt", exact: true }).click();
-    await expect(page.locator("#statePill")).toHaveText("site_contact");
     await page.getByRole("button", { name: "Anfrage senden" }).click();
     await expect(page.locator("#statePill")).toHaveText("site_thanks");
 
