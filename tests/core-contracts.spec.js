@@ -1682,11 +1682,7 @@ test.describe("Core source contracts", () => {
     const { DEFAULT_EVENT_CATALOG } = require("../server/event-catalog");
     const productContract = productContractResponse(DEFAULT_EVENT_CATALOG);
 
-    expect(html).toContain(".global-state-json");
-    expect(html).toContain(".global-state-json-toggle");
     expect(html).toContain(".global-state-key-card");
-    expect(html).toContain("toggleSubscriptionPath");
-    expect(html).toContain("toggleRenderPath");
     expect(html).toContain("pTransitionKeyGrid");
     expect(productContract.triggerTypes.some(type => type.id === "change" && type.label === "Daten ändern sich")).toBe(true);
     expect(productContract.triggerTypes.some(type =>
@@ -1696,8 +1692,10 @@ test.describe("Core source contracts", () => {
     )).toBe(true);
     expect(html).not.toContain(['label: "Daten aen', 'dern sich"'].join(""));
     expect(html).toContain(".data-wire-row");
-    expect(html).toContain("Anzeige aus Daten");
-    expect(html).toContain("Alle Pfade");
+    expect(html).toContain("Sichtbare Felder");
+    expect(html).not.toContain('id="pSubscriptionPaths"');
+    expect(html).not.toContain('id="pStateTreeCard"');
+    expect(html).not.toContain("Alle Pfade");
     expect(html).toContain(".component-editor input");
     expect(html).toContain("function normalizeBindingPath");
     expect(html).toContain("function dataWireDisplayValue");
@@ -1740,7 +1738,7 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("function dataWiresFromRepeatSample");
     expect(html).toContain("generatedFromDataWire");
     expect(html).not.toContain("Auto data part");
-    expect(html).toContain("Anzeige aus Daten");
+    expect(html).toContain("Sichtbare Felder");
     expect(html).toContain("applyDerivedDataWires");
     expect(html).toContain("upsertDataWire");
     expect(html).toContain("runtimeDataWireComponentsForState");
@@ -1870,8 +1868,7 @@ test.describe("Core source contracts", () => {
     expect(html).not.toContain("function dataWireComponentsForState");
     expect(html).toContain("function applyDerivedDataWires");
     expect(html).toContain("dataWires: normalizeDataWires");
-    expect(html).toContain("Anzeige aus Daten");
-    expect(html).toContain("Anzeige aus Daten");
+    expect(html).toContain("Sichtbare Felder");
     expect(html).toContain("components: [],");
     expect(html).toContain("function dataWireDisplayValue");
     expect(html).toContain("function dataWireUrlValue");
@@ -3950,18 +3947,17 @@ test.describe("Core browser contracts", () => {
     await expect(app.getByRole("button", { name: "Finish", exact: true })).toHaveCount(1);
   });
 
-  test("state editor exposes global-state path subscriptions without output editing @smoke", async ({ page }) => {
+  test("state editor keeps the generic bus explorer out of the data workflow @smoke", async ({ page }) => {
     await openTool(page);
 
     await openStateInspector(page, "login");
     await openInspectorDetails(page, "#pDataCard");
 
-    await expect(page.locator(".global-state-subscribe-head").filter({ hasText: "Anzeige aus Daten" }).first()).toBeVisible();
-    await expect(page.getByText("Alle Pfade")).toBeVisible();
-    await expect.poll(() => page.locator("#pSubscriptionPaths .global-state-key-card").count()).toBeGreaterThan(0);
-    await openInspectorDetails(page, "#pStateTreeCard");
-    await expect(page.locator("#pSubscriptionTree")).toBeVisible();
-    await expect(page.locator("#pSubscriptionAdd")).toBeHidden();
+    await expect(page.locator("#pDataCard")).toBeVisible();
+    await expect(page.locator("#pSubscriptionPaths")).toHaveCount(0);
+    await expect(page.locator("#pStateTreeCard")).toHaveCount(0);
+    await expect(page.locator("#pSubscriptionTree")).toHaveCount(0);
+    await expect(page.locator("#pSubscriptionAdd")).toHaveCount(0);
     await expect(page.locator("#pOutputs")).toHaveCount(0);
   });
 
@@ -3976,7 +3972,7 @@ test.describe("Core browser contracts", () => {
     expect(html).toContain('<details class="inspector-collapse inspector-subcollapse" id="pAdvancedDataCard">');
     expect(html).toContain('<details class="inspector-collapse inspector-subcollapse" id="pFetchCard">');
     expect(html).toContain('<details class="inspector-collapse inspector-subcollapse" id="pRepeatCard">');
-    expect(html).toContain('<details class="inspector-collapse inspector-subcollapse" id="pStateTreeCard">');
+    expect(html).not.toContain('<details class="inspector-collapse inspector-subcollapse" id="pStateTreeCard">');
     expect(html).toContain('<summary class="inspector-collapse-summary">');
     expect(html).toContain('<div class="inspector-collapse-body">');
     expect(html).toContain('id="pStateVariableList"');
@@ -3989,46 +3985,55 @@ test.describe("Core browser contracts", () => {
     expect(html).toContain('el.closest("details:not([open])")');
   });
 
-  test("global-state json paths create data-wire render mappings @smoke", async ({ page }) => {
-    await openTool(page);
+  test("render field picker creates data-wire render mappings @smoke", async ({ page }) => {
+    const model = {
+      version: 2,
+      name: "Render picker",
+      initial: "state_3",
+      states: [{
+        id: "state_3",
+        title: "State 3",
+        body: "",
+        x: 220,
+        y: 220,
+        data: { customer: { name: "Ada" } },
+        dataTypes: { customer: "object", "customer.name": "text" },
+        components: [],
+        dataWires: []
+      }],
+      transitions: []
+    };
+    await openWithModel(page, model, "/state.html", "state_3");
 
-    await openStateInspector(page, "auth_start");
-    await openInspectorDetails(page, "#pDataCard");
-    await openInspectorDetails(page, "#pStateTreeCard");
+    await openStateInspector(page, "state_3");
+    await expect(page.locator("#pStateTreeCard")).toHaveCount(0);
 
-    const stateCurrent = page.locator('#pSubscriptionTree [data-path="state.current"]');
-    await expect(stateCurrent).toBeVisible();
-    await stateCurrent.locator(".global-state-json-toggle").click();
-
+    const sourcePath = "states.state_3.customer.name";
+    const panel = page.locator(".data-wire-render-panel");
+    const picker = panel.locator('select[aria-label="Datenfeld auswählen"]');
+    await expect(picker.locator(`option[value="${sourcePath}"]`)).toHaveCount(1);
+    await picker.selectOption(sourcePath);
+    await panel.getByRole("button", { name: "In Vorschau anzeigen" }).click();
     const sourceSelect = page.locator('#pComponents .component-editor select[aria-label="Quellpfad"]').first();
-    await expect(page.locator("#pComponents .component-editor").filter({ hasText: "Feld: Aktueller Zustand" })).toBeVisible();
-    await expect(sourceSelect).toHaveValue("state.current");
+    await expect(page.locator("#pComponents .component-editor").filter({ hasText: "Feld: Name" })).toBeVisible();
+    await expect(sourceSelect).toHaveValue(sourcePath);
     await expect(page.locator("#pComponents .template-binding-picker")).toHaveCount(0);
     await expect.poll(async () => page.evaluate(key => {
       const stored = JSON.parse(localStorage.getItem(`${key}.editor`) || localStorage.getItem(key) || "null");
       const model = stored?.model || stored;
-      return model.states.find(state => state.id === "auth_start")?.subscriptions || [];
+      return model.states.find(state => state.id === "state_3")?.subscriptions || [];
     }, STORAGE_KEY)).toEqual([]);
   });
 
-  test("global state json tree branches can collapse and expand @smoke", async ({ page }) => {
+  test("state data workflow no longer exposes a raw global-state tree @smoke", async ({ page }) => {
     await openTool(page);
 
     await openStateInspector(page, "auth_start");
     await openInspectorDetails(page, "#pDataCard");
-    await openInspectorDetails(page, "#pStateTreeCard");
 
-    const tree = page.locator("#pSubscriptionTree");
-    const before = await tree.locator(".global-state-json-line").count();
-    const toggle = tree.locator(".global-state-json-collapse").first();
-    await expect(toggle).toBeVisible();
-
-    await toggle.click();
-    await expect.poll(async () => tree.locator(".global-state-json-line").count()).toBeLessThan(before);
-    const collapsed = await tree.locator(".global-state-json-line").count();
-
-    await tree.locator(".global-state-json-collapse").first().click();
-    await expect.poll(async () => tree.locator(".global-state-json-line").count()).toBeGreaterThan(collapsed);
+    await expect(page.locator("#pStateTreeCard")).toHaveCount(0);
+    await expect(page.locator("#pSubscriptionTree")).toHaveCount(0);
+    await expect(page.locator(".global-state-json-line")).toHaveCount(0);
   });
 
   test("repeat over is selected from derived candidates, not typed as free text @smoke", async ({ page }) => {

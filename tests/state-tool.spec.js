@@ -1428,7 +1428,7 @@ test.describe("State Blueprint tool", () => {
     await expect.poll(async () => (await runtimeContext(page)).states?.start?.name?.value).toBe("Runtime Name");
   });
 
-  test("state explorer exposes declared bus paths without persisting runtime values into defaults @smoke", async ({ page }) => {
+  test("state data inspector stays focused without persisting runtime values into defaults @smoke", async ({ page }) => {
     const { model, emailPath } = addExplicitLoginForm(defaultTestModel());
     await openTool(page, { model });
     const app = appFrame(page);
@@ -1438,11 +1438,9 @@ test.describe("State Blueprint tool", () => {
     await openStateInspector(page, "login");
     await openInspectorDetails(page, "#pDataCard");
 
-    const emailCard = page.locator(`#pSubscriptionPaths .global-state-key-card[data-path="${emailPath}"]`).first();
-    await expect(emailCard).toBeVisible();
-    await expect(emailCard.locator(".global-state-key-meta")).toContainText("E-Mail");
-    await expect(emailCard.locator(".global-state-key-meta")).not.toContainText("preview");
-    await expect(emailCard.getByRole("button", { name: "Variable" })).toHaveCount(0);
+    await expect(page.locator("#pSubscriptionPaths")).toHaveCount(0);
+    await expect(page.locator("#pSubscriptionTree")).toHaveCount(0);
+    await expect(page.locator("#pSubscriptionsPreview")).toHaveCount(0);
 
     const emailRow = page.locator(`.state-variable-row[data-variable-path="${emailPath}"]`);
     await expect(emailRow.locator('[data-state-variable-name="true"]')).toHaveValue("email.value");
@@ -1475,7 +1473,7 @@ test.describe("State Blueprint tool", () => {
       dataWires: []
     });
 
-    await expect(page.locator(`#pSubscriptionPaths .global-state-key-card[data-path="${emailPath}"]`).first().getByRole("button", { name: "Variable" })).toHaveCount(0);
+    await expect(page.locator("#pSubscriptionPaths")).toHaveCount(0);
   });
 
   test("state and transition editors hide raw bus jargon from the main workflow @smoke", async ({ page }) => {
@@ -1484,17 +1482,13 @@ test.describe("State Blueprint tool", () => {
     await openInspectorDetails(page, "#pDataCard");
 
     const inspector = page.locator("#stateInspectorBody");
-    await expect(inspector).toContainText("Anzeige aus Daten");
     await expect(inspector).toContainText("Daten laden");
     await expect(inspector).toContainText("Liste anzeigen");
+    await expect(inspector).not.toContainText("Anzeige aus Daten");
     await expect(inspector).not.toContainText(/globalState|React|Watch|Own var/i);
+    await expect(page.locator("#pSubscriptionPaths")).toHaveCount(0);
+    await expect(page.locator("#pStateTreeCard")).toHaveCount(0);
     await expect(page.locator("#pData")).toBeHidden();
-
-    const currentScreenCard = page.locator('#pSubscriptionPaths .global-state-key-card[data-path="state.current"]').first();
-    await expect(currentScreenCard).toContainText("Aktueller Zustand");
-    await expect(currentScreenCard.locator(".global-state-key-path")).toHaveText("Aktiver Zustand");
-    await expect(currentScreenCard).toContainText("Text");
-    await expect(currentScreenCard).not.toContainText(/state\.current|runtime|mapped|already|shown|live update|saved|app flow/i);
 
     await page.keyboard.press("Escape");
     await page.locator("svg text.edge-label").filter({ hasText: /^Einloggen/ }).click();
@@ -6657,7 +6651,7 @@ test.describe("State Blueprint tool", () => {
     await expect.poll(() => page.locator("#pRepeatAdvancedCard > summary").evaluate(el => document.activeElement === el)).toBe(true);
 
     await page.keyboard.press("Tab");
-    await expect.poll(() => page.locator("#pSubscriptionPaths button").first().evaluate(el => document.activeElement === el)).toBe(true);
+    await expect.poll(() => page.locator("#pActionsCard > summary").evaluate(el => document.activeElement === el)).toBe(true);
   });
 
   test("keeps transition editor focus, tab order, and Enter commit close predictable", async ({ page }) => {
@@ -8416,8 +8410,7 @@ test.describe("State Blueprint tool", () => {
     await expect(addRenderSelect.locator(`option[value="${scopePath}.selected"]`)).toHaveCount(1);
     await expect(addRenderSelect.locator(`option[value="${scopePath}.items"]`)).toHaveCount(1);
 
-    const stateBranchButton = page.locator(`.global-state-json-line[data-path="${scopePath}"] .global-state-json-toggle`);
-    await expect(stateBranchButton).toHaveText("Nutzen");
+    await expect(page.locator("#pSubscriptionTree")).toHaveCount(0);
 
     await addRenderSelect.selectOption(`${scopePath}.selected`);
     await page.locator(".data-wire-render-panel").getByRole("button", { name: "In Vorschau anzeigen" }).click();
@@ -8446,8 +8439,8 @@ test.describe("State Blueprint tool", () => {
     await expect(panel.getByRole("button", { name: "In Vorschau anzeigen" })).toBeVisible();
     await panel.getByRole("button", { name: "In Vorschau anzeigen" }).click();
     await expect(panel.getByRole("button", { name: "Aus Anzeige entfernen" })).toBeVisible();
-    await expect(page.locator(`.global-state-key-card[data-path="${selectedPath}"] .global-state-key-status`)).toContainText("In der Darstellung");
-    await expect(page.locator(`.global-state-json-line[data-path="${selectedPath}"]`)).toHaveClass(/wired/);
+    await expect(page.locator("#pSubscriptionPaths")).toHaveCount(0);
+    await expect(page.locator("#pSubscriptionTree")).toHaveCount(0);
     await expect.poll(async () => {
       const stored = await savedModel(page);
       return stored.states.find(state => state.id === tabsState.id).dataWires.map(wire => wire.sourcePath);
@@ -14196,7 +14189,7 @@ test.describe("State Blueprint tool", () => {
     }
   });
 
-  test("drag-wires data choices into render mappings without copying source data @smoke", async ({ page }) => {
+  test("adds data choices into render mappings without copying source data @smoke", async ({ page }) => {
     const model = {
       version: 2,
       name: "Visual data wiring",
@@ -14231,20 +14224,11 @@ test.describe("State Blueprint tool", () => {
     await openStateInspector(page, "state_3");
 
     const sourcePath = "states.state_3.catalog.item.title";
-    const source = page.locator(`.global-state-key-card[data-path="${sourcePath}"]`);
-    const target = page.locator(".data-wire-render-panel");
-    await expect(source).toHaveClass(/draggable-data-path/);
-    await expect(target).toBeVisible();
-    const dataTransfer = await page.evaluateHandle(() => {
-      const transfer = new DataTransfer();
-      transfer.setData("application/x-state-blueprint-data-path", "states.state_3.catalog.item.title");
-      transfer.setData("text/plain", "states.state_3.catalog.item.title");
-      return transfer;
-    });
-    await source.dispatchEvent("dragstart", { dataTransfer });
-    await target.dispatchEvent("dragover", { dataTransfer });
-    await target.dispatchEvent("drop", { dataTransfer });
-    await dataTransfer.dispose();
+    const panel = page.locator(".data-wire-render-panel");
+    const source = panel.locator('select[aria-label="Datenfeld auswählen"]');
+    await expect(source.locator(`option[value="${sourcePath}"]`)).toHaveCount(1);
+    await source.selectOption(sourcePath);
+    await panel.getByRole("button", { name: "In Vorschau anzeigen" }).click();
 
     await expect(dataRenderRows(page)).toHaveCount(1);
     await expect(appFrame(page).locator("#screen")).toContainText("Ada Chair");

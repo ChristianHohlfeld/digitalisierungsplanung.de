@@ -2369,44 +2369,6 @@
       padding: 7px 10px;
     }
 
-    .global-state-subscribe {
-      display: grid;
-      gap: 9px;
-      padding: 10px;
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      background: rgba(15, 23, 42, .44);
-    }
-
-    .global-state-subscribe-head {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 10px;
-      color: var(--text);
-      font-size: 12px;
-      font-weight: 900;
-    }
-
-    .global-state-subscribe-head span {
-      display: block;
-      margin-top: 2px;
-      color: var(--muted);
-      font-size: 11px;
-      font-weight: 700;
-      line-height: 1.35;
-    }
-
-    .global-state-subscribe-count {
-      flex: 0 0 auto;
-      padding: 3px 7px;
-      border: 1px solid rgba(56, 189, 248, .24);
-      border-radius: 999px;
-      color: #bfe8ff;
-      font-size: 10px;
-      font-weight: 900;
-    }
-
     .global-state-path-grid {
       display: flex;
       flex-wrap: wrap;
@@ -5518,7 +5480,6 @@
       display: none !important;
     }
 
-    .global-state-subscribe,
     .data-source-panel,
     .component-list {
       gap: 8px !important;
@@ -17184,7 +17145,7 @@
         title.className = "data-wire-render-title";
         title.innerHTML = repeatPath
           ? `<strong>Listeninhalt</strong><span>Eine Karte pro ${escapeHtml(dataPathLabel(repeatPath, "Listeneintrag"))}; wähle, was darin erscheint.</span>`
-          : "<strong>Anzeige aus Daten</strong><span>Wähle Werte, die dieser Zustand sichtbar rendern soll.</span>";
+          : "<strong>Sichtbare Felder</strong><span>Wähle Felder, die dieser Zustand zeigt.</span>";
         panel.append(title);
         if (quickWires.length) {
           const quick = document.createElement("div");
@@ -17257,16 +17218,18 @@
         const empty = document.createElement("div");
         empty.className = "component-empty";
         const text = document.createElement("div");
-        text.textContent = "Noch keine Datenanzeige. Wähle ein Feld und stelle es als Bild, Überschrift, Text, Preis oder Hinweis dar.";
+        text.textContent = "Noch keine sichtbaren Felder. Lege zuerst Variablen, API-Daten oder eine Liste an.";
         const action = document.createElement("button");
         action.type = "button";
         action.className = "component-editor-action";
-        action.textContent = "Feld wählen";
+        action.textContent = "Daten anlegen";
         action.onclick = () => {
           const card = root.querySelector("#pDataCard");
           if (card) card.open = true;
-          const tree = root.querySelector("#pSubscriptionTree");
-          if (tree) tree.scrollIntoView({ block: "nearest", behavior: "smooth" });
+          const defaults = root.querySelector("#pDefaultsCard");
+          if (defaults) defaults.open = true;
+          const field = root.querySelector("#pStateVariableName");
+          if (field) field.focus();
         };
         empty.append(text, action);
         list.appendChild(empty);
@@ -18712,7 +18675,6 @@
               <span>Daten</span>
               <span>Variablen, API und Listen für diesen Zustand</span>
             </span>
-            <span id="pSubscriptionCount" class="global-state-subscribe-count">0</span>
           </summary>
           <div class="inspector-collapse-body">
             <div class="inspector-status-grid">
@@ -18802,27 +18764,6 @@
                 </div>
               </div>
             </details>
-            <div class="global-state-subscribe">
-              <div class="global-state-subscribe-head">
-                <div>Anzeige aus Daten<span>Werte anzeigen oder als Variablen speichern</span></div>
-              </div>
-              <div id="pSubscriptionPaths" class="global-state-key-grid"></div>
-              <details class="inspector-collapse inspector-subcollapse" id="pStateTreeCard">
-                <summary class="inspector-collapse-summary">
-                  <span class="inspector-collapse-title">
-                  <span>Alle Pfade</span>
-                  <span>erweiterter Datenbaum</span>
-                  </span>
-                </summary>
-                <div class="inspector-collapse-body">
-                  <div id="pSubscriptionTree" class="global-state-json"></div>
-                </div>
-              </details>
-              <input id="pSubscriptionCustom" list="pSubscriptionList" hidden><datalist id="pSubscriptionList"></datalist><button id="pSubscriptionAdd" type="button" hidden>Hinzufügen</button>
-              <textarea id="pSubscriptions" hidden></textarea>
-              <div class="hint">Alle Werte bleiben im geteilten Datenbus. Dieses Panel entscheidet nur, wie dieser Zustand sie nutzt.</div>
-            </div>
-            <div id="pSubscriptionsPreview" class="condition-preview empty"></div>
           </div>
         </details>
         <details class="inspector-collapse state-actions-card" id="pActionsCard" open>
@@ -18904,7 +18845,7 @@
       title.addEventListener("focus", () => title.select());
       data.value = JSON.stringify(normalizeStateDataObject(s.data), null, 2);
       appendStateVariableTypeOptions(stateVariableType, "text");
-      subscriptions.value = normalizeSubscriptions(s.subscriptions).join("\n");
+      if (subscriptions) subscriptions.value = normalizeSubscriptions(s.subscriptions).join("\n");
       const dataCard = root.querySelector("#pDataCard");
       const defaultsCard = root.querySelector("#pDefaultsCard");
       const fetchCard = root.querySelector("#pFetchCard");
@@ -18912,7 +18853,7 @@
       const hasInitialValues = Object.keys(normalizeStateDataObject(s.data)).length > 0;
       const hasFetchSource = Boolean(String(normalizeDataSource(s.dataSource).url || "").trim());
       const hasRepeatSource = Boolean(normalizeRepeatConfig(s.repeat).path);
-      if (hasInitialValues || hasFetchSource || hasRepeatSource || normalizeDataWires(s.dataWires).length || normalizeSubscriptions(s.subscriptions).length) {
+      if (hasInitialValues || hasFetchSource || hasRepeatSource || normalizeDataWires(s.dataWires).length) {
         if (dataCard) dataCard.open = true;
       }
       if (hasInitialValues && defaultsCard) defaultsCard.open = true;
@@ -19078,24 +19019,6 @@
         renderGlobalStateSubscribeMap();
         setupEditorAccessibility(root, false);
       };
-      const addOwnStateVariableFromSuggestion = item => {
-        const sourcePath = normalizeBindingPath(item?.path || "", "");
-        if (!sourcePath || sourcePath === "*" || sourcePath === "state.current" || isRuntimeBookkeepingPath(sourcePath)) return false;
-        const path = stateVariableLocalPath(s, sourcePath);
-        if (!path) return false;
-        const next = normalizeStateDataObject(s.data);
-        if (dataObjectHasPath(next, path)) return false;
-        const type = stateVariableTypeFromSuggestion(sourcePath, item?.type, item?.value);
-        const nextTypes = normalizeDataTypes(s.dataTypes, next);
-        const sourceValue = item?.value === undefined ? defaultStateVariableValue(type) : JSON.parse(JSON.stringify(item.value));
-        const nextData = setDataObjectPath(next, path, coerceStateVariableValue(sourceValue, type));
-        nextTypes[path] = type;
-        if (defaultsCard) defaultsCard.open = true;
-        syncStateDataObject(nextData, "state:data-variable-own:" + s.id + ":" + path, true, nextTypes);
-        renderGlobalStateSubscribeMap();
-        setupEditorAccessibility(root, false);
-        return true;
-      };
       const updateDataPreview = (persist = true, opts = {}) => {
         try {
           const parsed = JSON.parse(data.value || "{}");
@@ -19136,13 +19059,15 @@
         renderGlobalStateSubscribeMap();
       };
       const updateSubscriptionsPreview = (persist = true) => {
-        const paths = normalizeSubscriptions(subscriptions.value.split(/[\n,]+/));
+        const paths = normalizeSubscriptions(subscriptions ? subscriptions.value.split(/[\n,]+/) : s.subscriptions);
         s.subscriptions = paths;
-        subscriptions.value = paths.join("\n");
-        subscriptionsPreview.className = "condition-preview" + (paths.length ? " ok" : " empty");
-        subscriptionsPreview.textContent = paths.length
-          ? (paths.includes("*") ? "Aktualisiert durch alle geteilten Daten." : "Aktualisiert durch: " + paths.join(", "))
-          : "Keine Aktualisierung ausgewählt.";
+        if (subscriptions) subscriptions.value = paths.join("\n");
+        if (subscriptionsPreview) {
+          subscriptionsPreview.className = "condition-preview" + (paths.length ? " ok" : " empty");
+          subscriptionsPreview.textContent = paths.length
+            ? (paths.includes("*") ? "Aktualisiert durch alle geteilten Daten." : "Aktualisiert durch: " + paths.join(", "))
+            : "Keine Aktualisierung ausgewählt.";
+        }
         renderGlobalStateSubscribeMap();
         if (!persist) return;
         saveModel("state:subscriptions:" + s.id);
@@ -19572,7 +19497,8 @@
         });
       };
       const setSubscriptionsFromPaths = paths => {
-        subscriptions.value = normalizeSubscriptions(paths).join("\n");
+        s.subscriptions = normalizeSubscriptions(paths);
+        if (subscriptions) subscriptions.value = s.subscriptions.join("\n");
         updateSubscriptionsPreview(true);
       };
       const collapsedGlobalJsonPaths = new Set();
@@ -19624,7 +19550,7 @@
         }
         const title = document.createElement("div");
         title.className = "data-wire-render-title";
-        title.innerHTML = "<strong>Anzeige aus Daten</strong><span>In der Darstellung sortieren</span>";
+        title.innerHTML = "<strong>Sichtbare Felder</strong><span>Reihenfolge und Darstellung</span>";
         dataWireList.appendChild(title);
         let draggingWireId = null;
         const clearMarks = () => dataWireList.querySelectorAll(".data-wire-row.drop-before,.data-wire-row.drop-after").forEach(row => row.classList.remove("drop-before", "drop-after"));
@@ -19888,27 +19814,33 @@
       function renderGlobalStateSubscribeMap(runtimeEventContext = null) {
         const active = new Set(normalizeSubscriptions(s.subscriptions));
         const wired = dataWireSet();
-        const activeCount = active.has("*") ? "all" : String(active.size);
-        subscriptionCount.textContent = activeCount;
-        subscriptionPaths.innerHTML = "";
-        subscriptionTree.innerHTML = "";
-        subscriptionList.innerHTML = "";
         if (stateVariableNameList) stateVariableNameList.innerHTML = "";
+        if (subscriptionList) subscriptionList.innerHTML = "";
         const suggestions = collectKnownGlobalStatePaths();
         for (const item of suggestions.slice(0, 200)) {
-          const option = document.createElement("option");
-          option.value = item.path;
-          option.label = item.path === "state.current"
+          const optionLabel = item.path === "state.current"
             ? "Aktueller Zustand"
             : `${friendlyDataSourceLabel(item.source)} - ${stateVariableTypeLabel(stateVariableTypeFromSuggestion(item.path, item.type, item.value))}`;
-          subscriptionList.appendChild(option);
+          if (subscriptionList) {
+            const option = document.createElement("option");
+            option.value = item.path;
+            option.label = optionLabel;
+            subscriptionList.appendChild(option);
+          }
           if (stateVariableNameList && item.path !== "*" && !isRuntimeBookkeepingPath(item.path) && stateVariableActualPath(s, item.path)) {
             const variableOption = document.createElement("option");
             variableOption.value = item.path;
-            variableOption.label = option.label;
+            variableOption.label = optionLabel;
             stateVariableNameList.appendChild(variableOption);
           }
         }
+        renderDataWireList();
+        refreshInspectorGlobalStateTree = renderGlobalStateSubscribeMap;
+        if (!subscriptionPaths || !subscriptionTree) return;
+        const activeCount = active.has("*") ? "all" : String(active.size);
+        if (subscriptionCount) subscriptionCount.textContent = activeCount;
+        subscriptionPaths.innerHTML = "";
+        subscriptionTree.innerHTML = "";
         renderBusKeyCards(suggestions, active, wired);
 
         const previewValueFor = item => {
@@ -20070,8 +20002,6 @@
           appendJsonLine(depth, prefix + jsonValue(value) + comma, path, { value });
         };
         renderAny(preview);
-        renderDataWireList();
-        refreshInspectorGlobalStateTree = renderGlobalStateSubscribeMap;
       }
       title.oninput = () => {
         s.title = title.value;
@@ -20107,21 +20037,23 @@
         stateVariableName.classList.remove("invalid");
         refreshStateVariableTypeOptions();
       });
-      subscriptionAdd.onclick = () => {
-        toggleGlobalStatePath(subscriptionCustom.value);
-        subscriptionCustom.value = "";
-      };
-      subscriptionCustom.addEventListener("keydown", evt => {
-        if (evt.key !== "Enter") return;
-        evt.preventDefault();
-        toggleGlobalStatePath(subscriptionCustom.value);
-        subscriptionCustom.value = "";
-      });
-      subscriptionCustom.addEventListener("change", () => {
-        toggleGlobalStatePath(subscriptionCustom.value);
-        subscriptionCustom.value = "";
-      });
-      subscriptions.oninput = () => updateSubscriptionsPreview(true);
+      if (subscriptionAdd && subscriptionCustom) {
+        subscriptionAdd.onclick = () => {
+          toggleGlobalStatePath(subscriptionCustom.value);
+          subscriptionCustom.value = "";
+        };
+        subscriptionCustom.addEventListener("keydown", evt => {
+          if (evt.key !== "Enter") return;
+          evt.preventDefault();
+          toggleGlobalStatePath(subscriptionCustom.value);
+          subscriptionCustom.value = "";
+        });
+        subscriptionCustom.addEventListener("change", () => {
+          toggleGlobalStatePath(subscriptionCustom.value);
+          subscriptionCustom.value = "";
+        });
+      }
+      if (subscriptions) subscriptions.oninput = () => updateSubscriptionsPreview(true);
       const pulseSelectedStateFlowTransition = () => pulseInspectorTransition(flowTransitionSelect.value);
       flowTransitionSelect.onchange = () => {
         renderStateFlowTriggerEditor();
