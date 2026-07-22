@@ -649,7 +649,7 @@ und Parent-Ausgänge an ihrem `groupExitId`.
 - **ED-009 Undo/Redo:** Historie MUSS deterministisch sein, unveränderte Saves
   dürfen keine zusätzlichen Schritte erzeugen, und Wiederherstellung MUSS
   Modell, sichtbare Ebene sowie relevante Auswahl atomar rekonstruieren. Bis die
-  Runtime genau diesen Modellstand bestätigt hat, DÜRFEN ältere Runtime-Reports
+  Runtime genau diesen Modellstand bestätigt hat, DÜRFEN ältere Runtime-State-Meldungen
   die wiederhergestellte Ebene oder Auswahl nicht überschreiben. Undo und Redo
   DÜRFEN als sichtbare Aktionen genau einmal erscheinen: oben rechts im Canvas. Die
   Desktop-Topbar, das Mehr-Menü und die mobile Navigation DÜRFEN keine

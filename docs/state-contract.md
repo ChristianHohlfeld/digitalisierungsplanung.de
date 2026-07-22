@@ -96,8 +96,6 @@ Lesbare Wurzeln sind:
 states.<id>.*
 state.current
 runtime.paused
-runtime.path
-runtime.pathName
 events.*
 emitters.*
 realtime.*
@@ -223,32 +221,23 @@ Ein API-Ereignis ist ein echter Trigger und kein `change`-Alias. Ein generischer
 - Pause ist ein globaler Runtime-Wert für den Editor. Standalone-Seiten haben
   keinen Editor-Pause-Shortcut.
 
-## 10. Prozessprotokoll
+## 10. Replay-Aufnahme
 
-- Die Runtime darf den tatsächlich ausgeführten Durchlauf ausschließlich unter
-  `runtime.path` im globalen Bus protokollieren.
-- Ein Protokollschritt entsteht nur nach einer ausgeführten Transition, nie beim
-  Selektieren, Rendern, Exportieren oder durch Editor-Host-Sync.
-- Jeder Schritt enthält mindestens Index, Zeitpunkt, Quelle, Ziel, Transition,
-  Trigger-Typ und Trigger-Ereignis.
-- Zusätzlich speichert jeder Schritt den aktiven Zustandspfad (`fromPath`,
-  `activePath`), die vor dem Wechsel erfassten Eingaben/Werte (`inputs`) und
-  die durch `transition.set` geschriebenen Daten (`changes`). Werte stammen
-  aus dem globalen Bus und sichtbaren Screen-Eingaben zum Zeitpunkt des
-  Wechsels; Secret-Felder werden redacted.
-- `runtime.pathName` ist eine optionale Fallbezeichnung des aktuellen
-  Durchlaufs. Sie ist Laufzeit-Buswert, kein Modellfeld.
-- Reset startet ein neues leeres Protokoll. Normale Modellupdates erhalten den
-  bestehenden Buspfad.
-- Schrittzahl, Startzeit und letzte Änderung werden aus `runtime.path`
-  abgeleitet. Bericht, JSON-Download und PDF-Druckansicht sind reine
-  Projektionen aus Modell plus globalem Bus. Sie persistieren kein zweites
-  Prozessmodell und sind kein Undo/Redo.
-- Der PDF-Bericht ist eine erzeugte Datei (kein Browser-Druckdialog) und
-  zeigt einen menschenlesbaren Durchlauf: Verlauf, nummerierte Schritte mit
-  Aktion, nur echte Nutzereingaben, optionale Ladeergebnisse und relevante
-  gesetzte Werte. Layout-/Widget-Chrom und technische IDs gehören nicht in
-  den Bericht; sie bleiben im JSON-Export unter `runtime.path`.
+- Die Runtime kann einen geklickten Durchlauf als isolierte Replay-Aufnahme
+  erfassen. Diese Aufnahme ist kein Modellfeld und kein globaler Buswert.
+- Ein Frame entsteht beim Start der Aufnahme, nach echten Nutzereingaben und
+  nach vollständig committed Transitionen.
+- Jeder Frame enthält eine Kopie des globalen Bus-Zustands und den aktiven
+  State genau für diese Wiedergabe. Die Aufnahme darf niemals Conditions,
+  Trigger, Transitions oder Contract-Validierung beeinflussen.
+- Replay und Rücklauf stellen ausschließlich die isolierten Frames für die
+  sichtbare Vorschau wieder her. Bei neuer echter Nutzereingabe oder echtem
+  Klick verlässt die Runtime den Replay-Modus und arbeitet wieder mit dem
+  aktuellen globalen Bus.
+- Reset oder neues Modell verwirft die Aufnahme. Standalone-Export und Preview
+  verwenden dieselbe Recorder-Logik.
+- Prozessbericht, PDF-Druckansicht, JSON-Report, `runtime.path` und
+  `runtime.pathName` gehören nicht zum Vertrag.
 
 ## 11. Realtime und Server
 

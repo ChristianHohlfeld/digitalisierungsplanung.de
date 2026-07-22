@@ -6341,16 +6341,6 @@ test.describe("State Blueprint tool", () => {
       }
     }, STORAGE_KEY);
     await page.goto("/state.html?demo=zustand");
-    const requestRuntimeReport = () => page.evaluate(() => new Promise(resolve => {
-      const runtimeWindow = document.getElementById("appFrame").contentWindow;
-      const onMessage = event => {
-        if (event.source !== runtimeWindow || event.data?.type !== "STATE_BLUEPRINT_RUNTIME_STATE") return;
-        window.removeEventListener("message", onMessage);
-        resolve();
-      };
-      window.addEventListener("message", onMessage);
-      requestRuntimeStateEvent();
-    }));
     const editorContext = () => page.evaluate(() => ({
       layerId: currentLayerId || "",
       selectedNodes: selected?.nodes || [],
@@ -6368,7 +6358,6 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator("#btnCanvasUndo").click();
     await expect.poll(() => page.evaluate(() => pendingHistoryRestoreSyncId)).toBe("");
-    await requestRuntimeReport();
     await expect.poll(editorContext).toEqual({
       layerId: "",
       selectedNodes: [],
@@ -6378,7 +6367,6 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator("#btnCanvasRedo").click();
     await expect.poll(() => page.evaluate(() => pendingHistoryRestoreSyncId)).toBe("");
-    await requestRuntimeReport();
     await expect.poll(editorContext).toEqual({
       layerId: "site_checkout_flow",
       selectedNodes: ["site_checkout"],

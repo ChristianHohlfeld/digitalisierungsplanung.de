@@ -1980,7 +1980,7 @@ test.describe("Core source contracts", () => {
     expect(appHtml).not.toContain('setValueAtPath(context, "state.current"');
   });
 
-  test("generated runtime records process path after committed state", () => {
+  test("generated runtime captures replay snapshots after committed state", () => {
     const appHtml = generatedAppHtml();
     const followStart = appHtml.indexOf("function followTransition");
     const followEnd = appHtml.indexOf("function log", followStart);
@@ -1990,11 +1990,14 @@ test.describe("Core source contracts", () => {
 
     expect(followBody.indexOf("applyTransitionSet(transition)")).toBeLessThan(followBody.indexOf("enterState(runtimeTarget, transition)"));
     expect(followBody.indexOf("enterState(runtimeTarget, transition)")).toBeLessThan(followBody.indexOf('runtimeSet("state.current", runtimeTarget || ""'));
-    expect(followBody.indexOf('runtimeSet("state.current", runtimeTarget || ""')).toBeLessThan(followBody.indexOf("recordProcessPathStep(transition"));
+    expect(followBody.indexOf('runtimeSet("state.current", runtimeTarget || ""')).toBeLessThan(followBody.indexOf('runtimeRecorderCaptureFrame("transition"'));
     expect(followBody).toContain("if (!findState(runtimeTarget)) return false;");
     expect(followBody).toContain("if (!enterState(runtimeTarget, transition)) return false;");
-    expect(appHtml).toContain("function appendRuntimePathStep");
-    expect(appHtml).toContain("function setRuntimePathName");
+    expect(appHtml).toContain("function runtimeRecorderCaptureFrame");
+    expect(appHtml).toContain("function runtimeRecorderRestoreFrame");
+    expect(appHtml).not.toContain("runtime.path");
+    expect(appHtml).not.toContain("runtime.pathName");
+    expect(appHtml).not.toContain("runtimeProtocolBuildPdfBytes");
   });
 
   test("editor desktop panels use real resize handles and a docked preset explorer", () => {
@@ -2011,7 +2014,7 @@ test.describe("Core source contracts", () => {
     expect(html).not.toContain("const mobilePreviewResize = false;");
   });
 
-  test("generated runtime renders a human-readable printable process protocol @smoke", async ({ page }) => {
+  test("generated runtime records isolated replay frames without process report state @smoke", async ({ page }) => {
     await openWithModel(page, {
       version: 2,
       name: "Rechnungseingang",
@@ -2021,8 +2024,9 @@ test.describe("Core source contracts", () => {
           id: "start",
           title: "Eingang",
           body: "",
-          data: { betrag: "0", notiz: "" },
-          components: [{ id: "c_start", type: "text", text: "Neue Rechnung ist eingegangen.", url: "" }],
+          data: { form: { label: "Betrag", value: "" }, notiz: "" },
+          dataTypes: { form: "object", notiz: "text" },
+          components: [{ id: "c_start", type: "daisy", variant: "input", dataPath: "states.start.form", dataRole: "widget", dataLabel: "Betrag" }],
           x: 120,
           y: 160
         },
@@ -2042,61 +2046,34 @@ test.describe("Core source contracts", () => {
     });
 
     const app = appFrame(page);
-    await app.locator("body").evaluate(() => {
-      const label = document.createElement("label");
-      label.textContent = "Betrag";
-      const input = document.createElement("input");
-      input.id = "states.start.betrag";
-      input.name = "states.start.betrag";
-      input.value = "42.5";
-      label.appendChild(input);
-      document.getElementById("screen")?.appendChild(label);
-    });
+    await expect(app.locator("#runtimeRecordButton")).toBeVisible();
+    await app.locator("#runtimeRecordButton").click();
+    await expect(app.locator("#runtimeRecordButton")).toHaveText("Stop");
+    await app.locator("input.input").click();
+    await app.locator("input.input").pressSequentially("42.5");
+    await expect.poll(async () => (await runtimeContext(page)).states?.start?.form?.value).toBe("42.5");
     await app.getByRole("button", { name: "Zur Pruefung" }).click();
     await expect(app.locator("#statePill")).toHaveText("check");
-    await expect(app.locator("#processProtocolButton")).toBeVisible();
+    await app.locator("#runtimeRecordButton").click();
 
-    await app.locator("#processProtocolButton").click();
-    await app.locator("#processProtocolName").fill("Rechnung 1042");
-    await expect(app.locator(".protocol-summary-title")).toContainText("Eingang");
-    await expect(app.locator(".protocol-summary-title")).toContainText("Pruefung");
-    await expect(app.locator(".protocol-summary-text")).toContainText("Fall: Rechnung 1042");
-    await expect(app.locator(".protocol-step-title")).toContainText("Zur Pruefung");
-    await expect(app.locator(".protocol-step-title")).toContainText("Pruefung");
-    await expect(app.locator(".protocol-values").filter({ hasText: "Ihre Eingaben" })).toContainText("Betrag");
-    await expect(app.locator(".protocol-values").filter({ hasText: "Ihre Eingaben" })).toContainText("42.5");
-    await expect(app.locator(".protocol-values").filter({ hasText: "Ergebnis" })).toContainText("Notiz");
-    await expect(app.locator(".protocol-values").filter({ hasText: "Ergebnis" })).toContainText("geprueft");
-    await expect(app.locator("#processProtocolPrint")).toContainText("PDF");
+    const recording = await app.locator("body").evaluate(() => runtimeRecorderSnapshot());
+    expect(recording.active).toBe(false);
+    expect(recording.frameCount).toBeGreaterThanOrEqual(3);
+    expect(recording.currentFrame.current).toBe("check");
+    expect(recording.currentFrame.context.states.start.form.value).toBe("42.5");
+    expect(recording.currentFrame.context.states.start.notiz).toBe("geprueft");
+    expect(recording.currentFrame.context.runtime.path).toBeUndefined();
 
-    const pdfHead = await app.locator("body").evaluate(() => {
-      const snapshot = runtimeProtocolSnapshot();
-      const pdf = runtimeProtocolBuildPdfBytes(snapshot);
-      return pdf.slice(0, 8);
-    });
-    expect(pdfHead).toBe("%PDF-1.4");
-    expect(await app.locator("body").evaluate(() => typeof saveRuntimeProtocolPdf === "function")).toBe(true);
-
-    await app.locator("body").evaluate(body => body.classList.add("protocol-printing"));
-    await page.emulateMedia({ media: "print" });
-    const printSnapshot = await app.locator("html").evaluate(() => {
-      const appRoot = document.querySelector(".app");
-      const overlay = document.getElementById("processProtocolOverlay");
-      const screen = document.getElementById("screen");
-      return {
-        appDisplay: getComputedStyle(appRoot).display,
-        overlayDisplay: getComputedStyle(overlay).display,
-        screenDisplay: getComputedStyle(screen).display,
-        overlayWidth: overlay.getBoundingClientRect().width,
-        overlayHeight: overlay.getBoundingClientRect().height
-      };
-    });
-    await page.emulateMedia({ media: null });
-    expect(printSnapshot.appDisplay).toBe("block");
-    expect(printSnapshot.overlayDisplay).toBe("block");
-    expect(printSnapshot.screenDisplay).toBe("none");
-    expect(printSnapshot.overlayWidth).toBeGreaterThan(0);
-    expect(printSnapshot.overlayHeight).toBeGreaterThan(0);
+    await app.locator("#runtimeReplayPrevButton").click();
+    await expect(app.locator("#statePill")).toHaveText("start");
+    await expect(app.locator("input.input")).toHaveValue("42.5");
+    await app.locator("#runtimeReplayNextButton").click();
+    await expect(app.locator("#statePill")).toHaveText("check");
+    await app.locator("#runtimeReplayReverseButton").click();
+    await expect.poll(async () => app.locator("#statePill").textContent()).toBe("start");
+    await app.locator("#runtimeReplayPlayButton").click();
+    await expect.poll(async () => app.locator("#statePill").textContent()).toBe("check");
+    expect(await app.locator("#processProtocolButton, #processProtocolOverlay").count()).toBe(0);
   });
 
   test("generated runtime guards bus writes against unauthorized sources @smoke", async ({ page }) => {
@@ -2640,7 +2617,7 @@ test.describe("Core source contracts", () => {
     expect(hostHtml).not.toContain("setEditorContextPath");
     expect(hostHtml).toContain('const runtimeEventContext = isPlainObject(data.context) ? data.context : {};');
     expect(hostHtml).toContain('refreshInspectorGlobalStateTree(runtimeEventContext);');
-    expect(hostHtml).toContain('postRuntimePayload({ type: "STATE_BLUEPRINT_RUNTIME_REPORT" });');
+    expect(hostHtml).not.toContain("STATE_BLUEPRINT_RUNTIME_REPORT");
     expect(hostHtml).not.toMatch(/JSON\.parse\(JSON\.stringify\(data\.context\)\)/);
   });
 
