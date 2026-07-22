@@ -4007,10 +4007,15 @@ test.describe("Core browser contracts", () => {
     expect(html).toContain('<details class="inspector-collapse data-card" id="pDataCard">');
     expect(html).toContain('<details class="inspector-collapse state-actions-card" id="pActionsCard" open>');
     expect(html).toContain('<details class="inspector-collapse inspector-subcollapse" id="pDefaultsCard">');
-    expect(html).toContain('<details class="inspector-collapse inspector-subcollapse" id="pAdvancedDataCard">');
     expect(html).toContain('<details class="inspector-collapse inspector-subcollapse" id="pFetchCard">');
     expect(html).toContain('<details class="inspector-collapse inspector-subcollapse" id="pRepeatCard">');
     expect(html).not.toContain('<details class="inspector-collapse inspector-subcollapse" id="pStateTreeCard">');
+    expect(html).not.toContain('id="pAdvancedDataCard"');
+    expect(html).not.toContain('id="pData"');
+    expect(html).not.toContain('Rohdaten');
+    expect(html).not.toContain('Rohobjekt');
+    expect(html).not.toContain('id="pTransitionRawSetCard"');
+    expect(html).not.toContain('id="pSet"');
     expect(html).toContain('<summary class="inspector-collapse-summary">');
     expect(html).toContain('<div class="inspector-collapse-body">');
     expect(html).toContain('id="pStateVariableList"');

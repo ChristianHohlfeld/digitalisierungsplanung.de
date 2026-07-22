@@ -210,7 +210,33 @@ async function openInspectorDetails(page, selector) {
 async function openInitialValuesEditor(page) {
   await openInspectorDetails(page, "#pDataCard");
   await openInspectorDetails(page, "#pDefaultsCard");
-  await openInspectorDetails(page, "#pAdvancedDataCard");
+}
+
+function stateVariableTypeForValue(value, fallback = "text") {
+  if (typeof value === "boolean") return "boolean";
+  if (typeof value === "number") return "number";
+  return fallback;
+}
+
+async function setStateVariable(page, stateId, localPath, value, type = stateVariableTypeForValue(value)) {
+  const fullPath = `states.${stateId}.${localPath}`;
+  let row = page.locator(`.state-variable-row[data-variable-path="${fullPath}"]`);
+  if (!await row.count()) {
+    await page.locator("#pStateVariableName").fill(localPath);
+    await page.locator("#pStateVariableType").selectOption(type);
+    await page.locator("#pStateVariableAdd").click();
+    row = page.locator(`.state-variable-row[data-variable-path="${fullPath}"]`);
+    await expect(row).toHaveCount(1);
+  } else if (type) {
+    await row.locator('[data-state-variable-type="true"]').selectOption(type);
+  }
+  const valueControl = row.locator('[data-state-variable-value="true"]');
+  if (type === "boolean") {
+    if (value) await valueControl.check();
+    else await valueControl.uncheck();
+  } else {
+    await valueControl.fill(String(value ?? ""));
+  }
 }
 
 async function openFetchEditor(page) {
@@ -1126,7 +1152,11 @@ test.describe("State Blueprint tool", () => {
     await page.locator('[data-id="start"]').click();
     await page.locator("#pTitle").fill("Collect details");
     await openInitialValuesEditor(page);
-    await page.locator("#pData").fill('{"userName":"Ada","profile":{"tier":"starter"},"email":"","accepted_terms":false,"role":""}');
+    await setStateVariable(page, "start", "userName", "Ada", "text");
+    await setStateVariable(page, "start", "profile.tier", "starter", "text");
+    await setStateVariable(page, "start", "email", "", "email");
+    await setStateVariable(page, "start", "accepted_terms", false, "boolean");
+    await setStateVariable(page, "start", "role", "", "text");
     await expect.poll(async () => {
       const model = await savedModel(page);
       return model.states.find(state => state.id === "start").data.profile?.tier;
@@ -1216,7 +1246,7 @@ test.describe("State Blueprint tool", () => {
 
     await openStateInspector(page, "start");
     await openInitialValuesEditor(page);
-    await page.locator("#pData").fill('{"userName":"Ada","profile":{"tier":"starter"},"email":"","accepted_terms":true,"role":""}');
+    await setStateVariable(page, "start", "accepted_terms", true, "boolean");
     await page.locator("#btnRun").click();
     await expect(app.locator("#statePill")).toHaveText("start");
     await app.getByRole("button", { name: "Submit" }).click();
@@ -1341,7 +1371,8 @@ test.describe("State Blueprint tool", () => {
     await expect(passwordRow.locator('[data-state-variable-name="true"]')).toHaveValue("password");
     await expect(passwordRow.locator('[data-state-variable-type="true"]')).toHaveValue("password");
     await expect(passwordRow.locator('[data-state-variable-value="true"]')).toHaveValue("secret123");
-    await expect(page.locator("#pData")).toHaveValue(/"email": "user@example.com"/);
+    await expect(page.locator("#pData")).toHaveCount(0);
+    await expect(page.locator("#pInitialDataStatus")).toHaveText("Variablen: 2");
 
     await page.locator("#pStateVariableName").fill("avatar");
     await page.locator("#pStateVariableType").selectOption("image");
@@ -1488,7 +1519,7 @@ test.describe("State Blueprint tool", () => {
     await expect(inspector).not.toContainText(/globalState|React|Watch|Own var/i);
     await expect(page.locator("#pSubscriptionPaths")).toHaveCount(0);
     await expect(page.locator("#pStateTreeCard")).toHaveCount(0);
-    await expect(page.locator("#pData")).toBeHidden();
+    await expect(page.locator("#pData")).toHaveCount(0);
 
     await page.keyboard.press("Escape");
     await page.locator("svg text.edge-label").filter({ hasText: /^Einloggen/ }).click();
@@ -1496,7 +1527,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#stateInspectorBody")).toContainText("Regel");
     await expect(page.locator("#stateInspectorBody")).toContainText("Werte schreiben");
     await expect(page.locator("#pSetVariableName")).toBeVisible();
-    await expect(page.locator("#pSet")).toBeHidden();
+    await expect(page.locator("#pSet")).toHaveCount(0);
     await expect(page.locator("#pCond")).toBeHidden();
 
     await expect(page.locator('#pRuleField option[value="state.current"]')).toHaveCount(0);
@@ -4822,23 +4853,24 @@ test.describe("State Blueprint tool", () => {
     }).toEqual({ localTemplates: [], childText: "Reusable nested child" });
   });
 
-  test("keeps invalid data and transition set JSON out of the saved model", async ({ page }) => {
-    await openTool(page);
+  test("keeps state data and transition writes on the typed variable path", async ({ page }) => {
+    const model = defaultTestModel();
+    const login = model.states.find(state => state.id === "login");
+    login.data = {};
+    login.dataTypes = {};
+    await openTool(page, { model });
 
     await page.locator('[data-id="login"] .node-edit').click();
     await openInitialValuesEditor(page);
-    await expect(page.locator("#pData")).toBeVisible();
-    await page.locator("#pData").click();
-    await page.locator("#pData").fill('{"userName":"Ada"}');
+    await expect(page.locator("#pData")).toHaveCount(0);
+    await setStateVariable(page, "login", "userName", "Ada", "text");
     await expect.poll(async () => {
       const model = await savedModel(page);
       return model.states.find(state => state.id === "login").data.userName;
     }).toBe("Ada");
-    await page.locator("#pData").fill('{"userName":');
-    await expect(page.locator("#pDataPreview")).toContainText("Unexpected end of JSON input");
 
-    let model = await savedModel(page);
-    expect(model.states.find(state => state.id === "login").data).toEqual({ userName: "Ada" });
+    let saved = await savedModel(page);
+    expect(saved.states.find(state => state.id === "login").data).toEqual({ userName: "Ada" });
 
     await page.keyboard.press("Escape");
     await page.locator("svg text.edge-label").filter({ hasText: /^Einloggen/ }).click();
@@ -4851,12 +4883,11 @@ test.describe("State Blueprint tool", () => {
       const nextModel = await savedModel(page);
       return nextModel.transitions.find(transition => transition.label === "Einloggen").set;
     }).toEqual({ "states.logged_in.role": "admin" });
-    await openInspectorDetails(page, "#pTransitionRawSetCard");
-    await page.locator("#pSet").fill('{"role":');
-    await expect(page.locator("#pSetPreview")).toContainText("Unexpected end of JSON input");
+    await expect(page.locator("#pTransitionRawSetCard")).toHaveCount(0);
+    await expect(page.locator("#pSet")).toHaveCount(0);
 
-    model = await savedModel(page);
-    expect(model.transitions.find(transition => transition.label === "Einloggen").set).toEqual({ "states.logged_in.role": "admin" });
+    saved = await savedModel(page);
+    expect(saved.transitions.find(transition => transition.label === "Einloggen").set).toEqual({ "states.logged_in.role": "admin" });
   });
 
   test("persists newly added component text immediately and renders it in preview", async ({ page }) => {
@@ -4864,7 +4895,7 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator('[data-id="login"] .node-edit').click();
     await openInitialValuesEditor(page);
-    await page.locator("#pData").fill('{"userName":"Ada"}');
+    await setStateVariable(page, "login", "userName", "Ada", "text");
     await expect.poll(async () => {
       const model = await savedModel(page);
       return model.states.find(state => state.id === "login").data.userName;
@@ -5068,8 +5099,8 @@ test.describe("State Blueprint tool", () => {
     await page.evaluate(() => refreshInspectorForSelection());
     await expect(page.locator("#pDataCard")).toHaveJSProperty("open", true);
     await expect(page.locator("#pDefaultsCard")).toHaveJSProperty("open", true);
-    await expect(page.locator("#pAdvancedDataCard")).toHaveJSProperty("open", true);
-    await page.locator("#pData").fill('{"userName":"Ada"}');
+    await expect(page.locator("#pAdvancedDataCard")).toHaveCount(0);
+    await setStateVariable(page, "login", "userName", "Ada", "text");
     await expect.poll(async () => {
       const model = await savedModel(page);
       return model.states.find(state => state.id === "login").data.userName;
@@ -5238,8 +5269,8 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator('[data-id="login"] .node-edit').click();
     await openInitialValuesEditor(page);
-    await expect(page.locator("#pData")).toBeVisible();
-    await page.locator("#pData").fill('{"email":{"label":"E-Mail","value":""},"password":{"label":"Passwort","value":""},"helperText":"Resume safely"}');
+    await expect(page.locator("#pData")).toHaveCount(0);
+    await setStateVariable(page, "login", "helperText", "Resume safely", "text");
     await openStateLayer(page, "login");
     await addComponentState(page, "Note");
     await componentEditor(page, "Note").locator("textarea").fill("Helper: Resume safely");
@@ -6612,7 +6643,8 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator('[data-id="login"] .node-edit').click();
     await expect(page.locator("#pTitle")).toHaveAttribute("tabindex", "0");
-    await expect(page.locator("#pData")).toHaveAttribute("tabindex", "-1");
+    await expect(page.locator("#pData")).toHaveCount(0);
+    await expect(page.locator("#pStateVariableName")).toHaveAttribute("tabindex", "0");
     await expect(page.locator("#pDataSourceUrl")).toHaveAttribute("tabindex", "-1");
     await expect(page.locator("#pRepeatPath")).toHaveAttribute("tabindex", "-1");
     await expect(componentEditor(page, "Text").getByRole("button", { name: "Löschen" })).toHaveAttribute("tabindex", "0");
@@ -6621,13 +6653,21 @@ test.describe("State Blueprint tool", () => {
     await openInitialValuesEditor(page);
     await openFetchEditor(page);
     await openRepeatEditor(page);
-    await expect(page.locator("#pData")).toHaveAttribute("tabindex", "0");
+    await expect(page.locator("#pStateVariableName")).toHaveAttribute("tabindex", "0");
+    await expect(page.locator("#pStateVariableType")).toHaveAttribute("tabindex", "0");
+    await expect(page.locator("#pStateVariableAdd")).toHaveAttribute("tabindex", "0");
     await expect(page.locator("#pDataSourceUrl")).toHaveAttribute("tabindex", "0");
     await expect(page.locator("#pRepeatPath")).toHaveAttribute("tabindex", "0");
     await expect(page.locator("#pRepeatAs")).toHaveAttribute("tabindex", "-1");
     await expect(page.locator("#pRepeatIndex")).toHaveAttribute("tabindex", "-1");
-    await page.locator("#pData").focus();
-    await expect.poll(() => page.locator("#pData").evaluate(el => document.activeElement === el)).toBe(true);
+    await page.locator("#pStateVariableName").focus();
+    await expect.poll(() => page.locator("#pStateVariableName").evaluate(el => document.activeElement === el)).toBe(true);
+
+    await page.keyboard.press("Tab");
+    await expect.poll(() => page.locator("#pStateVariableType").evaluate(el => document.activeElement === el)).toBe(true);
+
+    await page.keyboard.press("Tab");
+    await expect.poll(() => page.locator("#pStateVariableAdd").evaluate(el => document.activeElement === el)).toBe(true);
 
     await page.keyboard.press("Tab");
     await expect.poll(() => page.locator("#pFetchCard > summary").evaluate(el => document.activeElement === el)).toBe(true);
@@ -6646,12 +6686,6 @@ test.describe("State Blueprint tool", () => {
 
     await page.keyboard.press("Tab");
     await expect.poll(() => page.locator("#pRepeatPath").evaluate(el => document.activeElement === el)).toBe(true);
-
-    await page.keyboard.press("Tab");
-    await expect.poll(() => page.locator("#pRepeatAdvancedCard > summary").evaluate(el => document.activeElement === el)).toBe(true);
-
-    await page.keyboard.press("Tab");
-    await expect.poll(() => page.locator("#pActionsCard > summary").evaluate(el => document.activeElement === el)).toBe(true);
   });
 
   test("keeps transition editor focus, tab order, and Enter commit close predictable", async ({ page }) => {
@@ -13561,7 +13595,7 @@ test.describe("State Blueprint tool", () => {
     await expandComponentEditor(page, "Text");
     await componentEditor(page, "Text").locator("textarea").fill("A reusable sign-in screen");
     await openInitialValuesEditor(page);
-    await page.locator("#pData").fill('{"role":"member"}');
+    await setStateVariable(page, "login", "role", "member", "text");
     const originalPosition = await savedModel(page).then(model => {
       const state = model.states.find(item => item.id === "login");
       return { x: state?.x, y: state?.y, parentId: state?.parentId || null };

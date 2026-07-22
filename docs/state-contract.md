@@ -23,7 +23,7 @@ ist aber keine zweite Grammatik.
 
 ## 2. Eingabegrenze
 
-- Rohdaten werden vor Normalisierung validiert.
+- Eingehende Definitionen werden vor Normalisierung validiert.
 - Ungültige Daten werden abgelehnt, niemals repariert, migriert, umbenannt oder
   still entfernt.
 - Schema 2 besitzt keine Legacy-Aliasse oder Origin-Fallbacks.
