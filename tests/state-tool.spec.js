@@ -68,6 +68,22 @@ function appFrame(page) {
   return page.frameLocator("#appFrame");
 }
 
+async function waitForAppImages(page) {
+  await appFrame(page).locator("body").evaluate(async () => {
+    const images = [...document.images]
+      .filter(image => /^data:image\//.test(image.currentSrc || image.src || ""));
+    await Promise.all(images.map(image => {
+      if (image.complete) return Promise.resolve();
+      return new Promise(resolve => {
+        const done = () => resolve();
+        image.addEventListener("load", done, { once: true });
+        image.addEventListener("error", done, { once: true });
+        setTimeout(done, 1000);
+      });
+    }));
+  });
+}
+
 async function expectStepContentInsideCards(root) {
   await expect.poll(async () => root.locator(".steps").evaluate(list => {
     const footer = document.querySelector(".footer");
@@ -7370,6 +7386,7 @@ test.describe("State Blueprint tool", () => {
       } else {
         await expect(screen).toContainText(template.title);
       }
+      await waitForAppImages(page);
       const metrics = await appFrame(page).locator("body").evaluate(body => {
         const brokenImages = [...document.images]
           .filter(img => !img.complete || img.naturalWidth === 0)
