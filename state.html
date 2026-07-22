@@ -11345,7 +11345,16 @@
     function removeStatesById(ids) {
       const removeSet = descendantStateIds(ids);
       if (!removeSet.size) return false;
-      if (removeSet.has(model.initial) && model.states.some(state => !removeSet.has(state.id))) return false;
+      const initialRemoved = removeSet.has(model.initial);
+      const initialState = byId(model.initial);
+      const initialLayerId = stateParentId(initialState);
+      const remainingStates = model.states.filter(state => !removeSet.has(state.id));
+      const nextInitial = initialRemoved ? (
+        remainingStates.find(state => stateParentId(state) === initialLayerId)?.id ||
+        remainingStates.find(state => !stateParentId(state))?.id ||
+        remainingStates[0]?.id ||
+        ""
+      ) : model.initial;
       const currentLayerRemoved = currentLayerId && removeSet.has(currentLayerId);
       const currentParent = byId(currentLayerId)?.parentId || null;
       model.states = model.states.filter(state => !removeSet.has(state.id));
@@ -11361,7 +11370,7 @@
         pendingAppStartSuppressLayerFollow = false;
         return true;
       }
-      if (removeSet.has(model.initial)) model.initial = "";
+      if (initialRemoved) model.initial = nextInitial;
       if (currentLayerRemoved) currentLayerId = currentParent && byId(currentParent) ? currentParent : null;
       return true;
     }
@@ -15014,7 +15023,6 @@
       }
       if (!parent) return;
       ensureDefaultBoundaryTransitions(parent, states);
-      const boundary = normalizeBoundaryConfig(parent.rootLayer ? model.boundary : parent.boundary);
       const fallbackCenter = viewportCenterWorld();
       const childParentId = layerChildParentId(parent);
       const layerTransitionCount = model.transitions.filter(transition => transitionInLayer(transition, childParentId)).length;
@@ -15054,8 +15062,8 @@
           }
         });
       };
-      if (!boundary.entryDisabled) addProxy("input");
-      if (!boundary.exitDisabled) addProxy("output");
+      addProxy("input");
+      addProxy("output");
     }
 
     function layerFrameBox() {

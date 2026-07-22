@@ -668,16 +668,11 @@ test.describe("State Blueprint MCP", () => {
       stateIds: ["left", "right"]
     }])).toThrow(/needs entry and exit states/i);
 
-    expect(() => applyCommands(disconnected, [
-      { command: "state.delete", id: "left" }
-    ])).toThrow(/surviving initial state/i);
-
-    const explicitInitial = applyCommands(disconnected, [
-      { command: "state.set_initial", stateId: "right" },
+    const deletedInitial = applyCommands(disconnected, [
       { command: "state.delete", id: "left" }
     ]);
-    expect(explicitInitial.workspace.model.initial).toBe("right");
-    expect(explicitInitial.workspace.model.states.map(state => state.id)).toEqual(["right"]);
+    expect(deletedInitial.workspace.model.initial).toBe("right");
+    expect(deletedInitial.workspace.model.states.map(state => state.id)).toEqual(["right"]);
 
     const explicit = applyCommands(disconnected, [{
       command: "graph.collapse_to_parent",

@@ -1563,13 +1563,24 @@ function descendantStateIds(model, rootIds) {
   return ids;
 }
 
+function fallbackInitialAfterDelete(model, ids) {
+  const initialState = byModelId(model, model.initial);
+  const initialLayerId = stateParentId(initialState);
+  const survivors = model.states.filter(state => !ids.has(state.id));
+  if (!survivors.length) return "";
+  return (
+    survivors.find(state => stateParentId(state) === initialLayerId) ||
+    survivors.find(state => !stateParentId(state)) ||
+    survivors[0]
+  )?.id || "";
+}
+
 function deleteState(model, args) {
   const id = String(args.id || "");
   if (!id) throw new Error("delete_state requires id.");
   const ids = args.deleteDescendants === false ? new Set([id]) : descendantStateIds(model, [id]);
-  if (ids.has(model.initial) && model.states.some(state => !ids.has(state.id))) {
-    throw new Error("Set a surviving initial state before deleting the current initial state.");
-  }
+  const initialRemoved = ids.has(model.initial);
+  const nextInitial = initialRemoved ? fallbackInitialAfterDelete(model, ids) : model.initial;
   model.states = model.states.filter(state => !ids.has(state.id));
   model.transitions = model.transitions.filter(transition =>
     !ids.has(transition.from) &&
@@ -1594,6 +1605,7 @@ function deleteState(model, args) {
     if (ids.has(transition.groupExitId)) transition.groupExitId = "";
   }
   if (!model.states.length) model.initial = "";
+  else if (initialRemoved) model.initial = nextInitial;
   return { deleted: [...ids] };
 }
 

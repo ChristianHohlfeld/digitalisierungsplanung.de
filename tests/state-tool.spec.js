@@ -2115,8 +2115,10 @@ test.describe("State Blueprint tool", () => {
       entryDisabled: true,
       exitDisabled: true
     }));
-    await expect(page.locator(".node")).toHaveCount(2);
-    await expect(page.locator(".node.boundary-proxy")).toHaveCount(0);
+    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(2);
+    await expect(page.locator(".node.boundary-proxy")).toHaveCount(2);
+    await expect(page.locator('svg#ports .svg-port[data-state-id="proxy:__root__:input:__boundary_input"][data-port-side="out"]')).toHaveCount(1);
+    await expect(page.locator('svg#ports .svg-port[data-state-id="proxy:__root__:output:__boundary_output"][data-port-side="in"]')).toHaveCount(1);
     await expect(page.locator('.edge[data-edge-id="left_to_right"]')).toHaveCount(1);
     await expect(page.locator('[data-edge-id^="boundary-flow:"]')).toHaveCount(0);
   });
@@ -2239,16 +2241,24 @@ test.describe("State Blueprint tool", () => {
     });
   });
 
-  test("requires an explicit new initial state before deleting the current one @smoke", async ({ page }) => {
+  test("deletes the current initial state and promotes a surviving initial @smoke", async ({ page }) => {
     await openTool(page);
 
     const result = await page.evaluate(() => {
       const initial = model.initial;
+      const initialLayerId = byId(initial)?.parentId || null;
       const count = model.states.length;
+      const survivors = model.states.filter(state => state.id !== initial);
+      const expectedInitial = (
+        survivors.find(state => (state.parentId || null) === initialLayerId) ||
+        survivors.find(state => !(state.parentId || null)) ||
+        survivors[0]
+      )?.id || "";
       selected = selectionFromParts([initial], []);
       return {
         deleted: deleteSelectedItems(),
         originalInitial: initial,
+        expectedInitial,
         initial: model.initial,
         count: model.states.length,
         stillExists: model.states.some(state => state.id === initial),
@@ -2257,13 +2267,16 @@ test.describe("State Blueprint tool", () => {
     });
 
     expect(result).toEqual({
-      deleted: false,
+      deleted: true,
       originalInitial: result.originalInitial,
-      initial: result.originalInitial,
-      count: result.previousCount,
-      stillExists: true,
+      expectedInitial: result.expectedInitial,
+      initial: result.expectedInitial,
+      count: result.previousCount - 1,
+      stillExists: false,
       previousCount: result.previousCount
     });
+    await expect(page.locator(`[data-id="${result.originalInitial}"]`)).toHaveCount(0);
+    await expect(page.locator(`[data-id="${result.initial}"]`)).toHaveClass(/initial/);
   });
 
   test("starts new canvases from the fresh starter flow without demo shortcuts @smoke", async ({ page }) => {
@@ -3632,9 +3645,9 @@ test.describe("State Blueprint tool", () => {
 
     await expect(page.locator(`[data-id="${firstChildId}"]`)).toHaveCount(0);
     await expect(page.locator(`[data-id="${secondChildId}"]`)).toBeVisible();
-    await expect(page.locator(".node.boundary-proxy")).toHaveCount(0);
-    await expect(page.locator(`svg#ports .svg-port[data-state-id="${inputProxyId}"][data-port-side="out"]`)).toHaveCount(0);
-    await expect(page.locator(`svg#ports .svg-port[data-state-id="${outputProxyId}"][data-port-side="in"]`)).toHaveCount(0);
+    await expect(page.locator(".node.boundary-proxy")).toHaveCount(2);
+    await expect(page.locator(`svg#ports .svg-port[data-state-id="${inputProxyId}"][data-port-side="out"]`)).toHaveCount(1);
+    await expect(page.locator(`svg#ports .svg-port[data-state-id="${outputProxyId}"][data-port-side="in"]`)).toHaveCount(1);
     await expect(page.locator(`svg#ports .svg-port[data-state-id="${secondChildId}"][data-port-side="in"]`)).toHaveCount(1);
     await expect(page.locator(`svg#ports .svg-port[data-state-id="${secondChildId}"][data-port-side="out"]`)).toHaveCount(1);
     await expect.poll(async () => {

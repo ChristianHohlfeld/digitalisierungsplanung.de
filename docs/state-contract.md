@@ -56,6 +56,9 @@ Product Contract. Interne Boundary-Projektionen werden nicht exportiert.
 
 Das Modell besitzt `version: 2`, `name`, `initial`, `boundary`, `states` und
 `transitions`. Eine leere Szene mit `initial: ""` ist gültig.
+Wenn der aktuelle Initial-State in einer nicht leeren Szene gelöscht wird,
+wählt Editor/API deterministisch einen überlebenden State derselben Ebene,
+sonst einen Root-State, sonst den ersten überlebenden State.
 
 Ein State besitzt die kanonischen Felder:
 
@@ -192,8 +195,9 @@ Ein API-Ereignis ist ein echter Trigger und kein `change`-Alias. Ein generischer
 - Wird ein deklarierter Boundary-State gelöscht oder aus dem Layer verschoben,
   wählt der Editor keinen Ersatz. Bei verbleibenden Children wird die betroffene
   Boundary geleert und explizit deaktiviert.
-- Ein Initial-State kann bei verbleibenden States erst gelöscht werden, nachdem
-  ein anderer Initial-State ausdrücklich gesetzt wurde.
+- Ein Initial-State kann gelöscht werden. Bei verbleibenden States wird der neue
+  Initial-State deterministisch aus derselben Ebene, sonst Root, sonst der
+  ersten überlebenden Position gewählt.
 - Gruppieren ohne explizite Boundary ist nur erlaubt, wenn der ausgewählte Graph
   genau eine Quelle und genau eine Senke besitzt.
 - Eine generische Enter-Aktion feuert nur bei genau einer sichtbaren
