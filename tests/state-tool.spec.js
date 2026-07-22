@@ -41,7 +41,7 @@ async function openTool(page, options = {}) {
   const model = options.model || defaultTestModel();
   const stateTemplates = Array.isArray(options.stateTemplates) ? options.stateTemplates : [];
   const presetCategories = Array.isArray(options.presetCategories) ? options.presetCategories : null;
-  if (stateTemplates.length || presetCategories) {
+  if (options.routeContract !== false) {
     await routeProductContract(page, { presets: stateTemplates, presetCategories });
   }
   await page.addInitScript(({ key, model }) => {
@@ -7970,7 +7970,7 @@ test.describe("State Blueprint tool", () => {
       contentType: "application/json",
       body: JSON.stringify(contractPayload())
     }));
-    await openTool(page);
+    await openTool(page, { routeContract: false });
     await page.evaluate(() => clearSelection());
     await expect(page.locator("#pRealtimeCatalogCard")).toHaveCount(0);
     await expect(page.locator("#pRealtimeServerEvents")).toHaveCount(0);
