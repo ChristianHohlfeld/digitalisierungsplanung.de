@@ -11,12 +11,27 @@ UI-zu-API-Zuordnung steht in [`state-blueprint-api.md`](./state-blueprint-api.md
 
 ## Start
 
+Lokal über stdio:
+
 ```bash
 STATE_BLUEPRINT_MODEL_PATH=./state-blueprint.workspace.json npm run mcp:state
 ```
 
 Ohne `STATE_BLUEPRINT_MODEL_PATH` nutzt der Server
 `./state-blueprint.workspace.json`.
+
+Remote über den Realtime-Server:
+
+```bash
+curl -X POST https://realtime.digitalisierungsplanung.de/mcp \
+  -H "authorization: Bearer $REALTIME_MCP_SECRET" \
+  -H "content-type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+```
+
+Der HTTPS-Endpunkt verwendet denselben MCP-Core wie stdio. Er persistiert nur
+die `state-blueprint.workspace`-Datei aus `STATE_BLUEPRINT_MODEL_PATH` und
+akzeptiert Requests nur mit Bearer-Secret.
 
 Persistiert wird ausschließlich `state-blueprint.workspace` in
 `schemaVersion: 1`. Nackte Modelle und formale Definitionen sind keine

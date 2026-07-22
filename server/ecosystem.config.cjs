@@ -3,6 +3,7 @@
 const appDir = process.env.APP_DIR || "/var/www/digitalisierungsplanung.de";
 const envFile = process.env.ENV_FILE || "/etc/digitalisierungsplanung-realtime.env";
 const appName = process.env.PM2_APP || "digitalisierungsplanung-realtime";
+const stateDir = process.env.STATE_BLUEPRINT_STATE_DIR || "/var/lib/digitalisierungsplanung";
 
 module.exports = {
   apps: [
@@ -27,6 +28,8 @@ module.exports = {
         REALTIME_EVENT_CATALOG_PATH: process.env.REALTIME_EVENT_CATALOG_PATH || `${appDir}/server/event-catalog.json`,
         REALTIME_PRESET_LIBRARY_PATH: process.env.REALTIME_PRESET_LIBRARY_PATH || `${appDir}/server/preset-library.json`,
         REALTIME_PRESETS_ADMIN_IMPORT_PATH: "/presets-admin/import",
+        REALTIME_MCP_PATH: "/mcp",
+        STATE_BLUEPRINT_MODEL_PATH: process.env.STATE_BLUEPRINT_MODEL_PATH || `${stateDir}/state-blueprint.workspace.json`,
         REALTIME_REPO_DIR: process.env.REALTIME_REPO_DIR || appDir,
         REALTIME_MAX_PAYLOAD_BYTES: "65536",
         REALTIME_RATE_LIMIT: "360",

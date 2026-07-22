@@ -15,6 +15,7 @@ GitHub Pages, not by this server deploy.
 - Preset designer: `https://realtime.digitalisierungsplanung.de/presets-admin.html`
 - Product contract: `https://realtime.digitalisierungsplanung.de/contract`
 - Event definitions: `https://realtime.digitalisierungsplanung.de/events`
+- MCP JSON-RPC: `https://realtime.digitalisierungsplanung.de/mcp`
 - Shared release: `https://realtime.digitalisierungsplanung.de/version`
 - Local process: `127.0.0.1:8788`
 - Allowed browser origin: `https://digitalisierungsplanung.de`
@@ -87,6 +88,16 @@ The event catalog is the server-side source of truth for offered realtime events
 - `/presets-admin/import`: admin-only import of one exact canonical preset definition from a public HTTPS JSON endpoint; URL and response are never persisted.
 - `/presets-admin/catalog`: load, validate, commit, and push the complete managed preset library.
 - `/assets/inline-image`: stateless runtime helper for standalone HTML exports. It accepts one public image URL and returns a Data URI; it stores no asset and rejects private targets, redirects, non-images, and oversized responses.
+- `/mcp`: secret-protected State Blueprint MCP JSON-RPC endpoint. It uses the same MCP core as `npm run mcp:state` and persists only the canonical workspace file from `STATE_BLUEPRINT_MODEL_PATH`.
+
+Example:
+
+```bash
+curl -X POST https://realtime.digitalisierungsplanung.de/mcp \
+  -H "authorization: Bearer $REALTIME_MCP_SECRET" \
+  -H "content-type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+```
 
 Default connector sources are deliberately practical:
 

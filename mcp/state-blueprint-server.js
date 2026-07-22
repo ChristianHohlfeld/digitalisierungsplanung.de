@@ -22,7 +22,10 @@ const {
 const SERVER_VERSION = "0.1.0";
 const PROTOCOL_VERSION = "2025-11-25";
 const DEFAULT_MODEL_PATH = path.resolve(process.cwd(), "state-blueprint.workspace.json");
-const modelPath = path.resolve(process.env.STATE_BLUEPRINT_MODEL_PATH || DEFAULT_MODEL_PATH);
+
+function currentModelPath(options = {}) {
+  return path.resolve(options.modelPath || process.env.STATE_BLUEPRINT_MODEL_PATH || DEFAULT_MODEL_PATH);
+}
 
 function readJsonFile(filePath, fallback = null) {
   try {
@@ -84,7 +87,8 @@ function buildStandaloneAppHtml(appHtml, payload) {
   return html;
 }
 
-function loadWorkspace() {
+function loadWorkspace(options = {}) {
+  const modelPath = currentModelPath(options);
   const stored = readJsonFile(modelPath, null);
   if (!stored) return normalizeWorkspace({ model: blankModel("State App") });
   const canonicalModel = input => {
@@ -108,7 +112,8 @@ function loadWorkspace() {
   });
 }
 
-function saveWorkspace(workspace) {
+function saveWorkspace(workspace, options = {}) {
+  const modelPath = currentModelPath(options);
   const normalized = normalizeWorkspace(workspace);
   const payload = {
     kind: "state-blueprint.workspace",
@@ -293,15 +298,16 @@ function toolResult(value, isError = false) {
   };
 }
 
-function callTool(name, args = {}) {
+function callTool(name, args = {}, options = {}) {
+  const modelPath = currentModelPath(options);
   if (name === "state_blueprint_get_model") {
-    const workspace = loadWorkspace();
+    const workspace = loadWorkspace(options);
     const result = { modelPath, model: workspace.model };
     if (args.includeValidation) result.validation = validateModel(workspace.model);
     return result;
   }
   if (name === "state_blueprint_replace_model") {
-    const workspace = loadWorkspace();
+    const workspace = loadWorkspace(options);
     const validation = validateModel(args.model);
     if (!validation.ok && !args.allowInvalid) {
       const error = new Error("Model contract validation failed.");
@@ -309,26 +315,26 @@ function callTool(name, args = {}) {
       throw error;
     }
     workspace.model = validation.model;
-    if (!args.allowInvalid) saveWorkspace(workspace);
+    if (!args.allowInvalid) saveWorkspace(workspace, options);
     return { modelPath, dryRun: Boolean(args.allowInvalid), validation, model: workspace.model };
   }
   if (name === "state_blueprint_apply_actions") {
-    const workspace = loadWorkspace();
+    const workspace = loadWorkspace(options);
     const result = applyActions(workspace.model, args.actions || [], { allowInvalid: Boolean(args.allowInvalid) });
     if (!args.dryRun) {
       workspace.model = result.model;
-      saveWorkspace(workspace);
+      saveWorkspace(workspace, options);
     }
     return { modelPath, dryRun: Boolean(args.dryRun), ...result };
   }
   if (name === "state_blueprint_apply_commands") {
-    const workspace = loadWorkspace();
+    const workspace = loadWorkspace(options);
     const result = applyCommands(workspace, args.commands || [], { allowInvalid: Boolean(args.allowInvalid) });
-    if (!args.dryRun) saveWorkspace(result.workspace);
+    if (!args.dryRun) saveWorkspace(result.workspace, options);
     return { modelPath, dryRun: Boolean(args.dryRun), ...result };
   }
   if (name === "state_blueprint_plan_prompt") {
-    const workspace = loadWorkspace();
+    const workspace = loadWorkspace(options);
     const plan = planPrompt(workspace.model, args);
     const dryRun = plan.actions.length
       ? applyActions(workspace.model, plan.actions, { allowInvalid: true })
@@ -341,7 +347,7 @@ function callTool(name, args = {}) {
     };
   }
   if (name === "state_blueprint_apply_prompt") {
-    const workspace = loadWorkspace();
+    const workspace = loadWorkspace(options);
     const plan = planPrompt(workspace.model, args);
     if (!plan.understood && !args.allowUnknown) throw new Error(plan.explanation || "Prompt could not be mapped to State Blueprint actions.");
     const result = plan.actions.length
@@ -349,19 +355,19 @@ function callTool(name, args = {}) {
       : { model: workspace.model, results: [], validation: validateModel(workspace.model) };
     if (!args.dryRun) {
       workspace.model = result.model;
-      saveWorkspace(workspace);
+      saveWorkspace(workspace, options);
     }
     return { modelPath, dryRun: Boolean(args.dryRun), plan, ...result };
   }
   if (name === "state_blueprint_validate") {
-    return { modelPath, ...validateModel(loadWorkspace().model) };
+    return { modelPath, ...validateModel(loadWorkspace(options).model) };
   }
   if (name === "state_blueprint_export_definition") {
-    const workspace = loadWorkspace();
+    const workspace = loadWorkspace(options);
     return definitionPayload(workspace.model, [], workspace.editor);
   }
   if (name === "state_blueprint_export_html") {
-    const workspace = loadWorkspace();
+    const workspace = loadWorkspace(options);
     const payload = definitionPayload(workspace.model, [], workspace.editor);
     const html = buildStandaloneAppHtml(extractGeneratedAppHtml(), payload);
     const includeHtml = Object.prototype.hasOwnProperty.call(args, "includeHtml")
@@ -399,7 +405,7 @@ function callTool(name, args = {}) {
       model: validation.model,
       editor: { camera: definition.camera, previewCollapsed: definition.previewCollapsed }
     };
-    saveWorkspace(workspace);
+    saveWorkspace(workspace, options);
     return { modelPath, validation, summary: modelSummary(workspace.model) };
   }
   if (name === "state_blueprint_action_catalog") {
@@ -446,13 +452,13 @@ function listResources() {
   ];
 }
 
-function readResource(uri) {
+function readResource(uri, options = {}) {
   if (uri === "state-blueprint://model") {
     return {
       contents: [{
         uri,
         mimeType: "application/json",
-        text: JSON.stringify(loadWorkspace().model, null, 2)
+        text: JSON.stringify(loadWorkspace(options).model, null, 2)
       }]
     };
   }
@@ -527,7 +533,7 @@ function errorResponse(id, error) {
   };
 }
 
-function handleMessage(message) {
+function handleMessage(message, options = {}) {
   const { id, method, params = {} } = message || {};
   if (method === "notifications/initialized" || id === undefined || id === null && String(method || "").startsWith("notifications/")) return null;
   try {
@@ -542,9 +548,9 @@ function handleMessage(message) {
       });
     }
     if (method === "tools/list") return response(id, { tools });
-    if (method === "tools/call") return response(id, toolResult(callTool(params.name, params.arguments || {})));
+    if (method === "tools/call") return response(id, toolResult(callTool(params.name, params.arguments || {}, options)));
     if (method === "resources/list") return response(id, { resources: listResources() });
-    if (method === "resources/read") return response(id, readResource(params.uri));
+    if (method === "resources/read") return response(id, readResource(params.uri, options));
     if (method === "ping") return response(id, {});
     return errorResponse(id, new Error(`Unsupported MCP method: ${method}`));
   } catch (error) {
@@ -557,26 +563,48 @@ function writeMessage(message) {
   process.stdout.write(JSON.stringify(message) + "\n");
 }
 
-let buffer = "";
-process.stdin.setEncoding("utf8");
-process.stdin.on("data", chunk => {
-  buffer += chunk;
-  let newlineIndex = buffer.indexOf("\n");
-  while (newlineIndex >= 0) {
-    const line = buffer.slice(0, newlineIndex).trim();
-    buffer = buffer.slice(newlineIndex + 1);
-    if (line) {
-      try {
-        const result = handleMessage(JSON.parse(line));
-        if (result) writeMessage(result);
-      } catch (error) {
-        writeMessage(errorResponse(null, error));
+function startStdioServer() {
+  let buffer = "";
+  process.stdin.setEncoding("utf8");
+  process.stdin.on("data", chunk => {
+    buffer += chunk;
+    let newlineIndex = buffer.indexOf("\n");
+    while (newlineIndex >= 0) {
+      const line = buffer.slice(0, newlineIndex).trim();
+      buffer = buffer.slice(newlineIndex + 1);
+      if (line) {
+        try {
+          const result = handleMessage(JSON.parse(line));
+          if (result) writeMessage(result);
+        } catch (error) {
+          writeMessage(errorResponse(null, error));
+        }
       }
+      newlineIndex = buffer.indexOf("\n");
     }
-    newlineIndex = buffer.indexOf("\n");
-  }
-});
+  });
 
-process.stdin.on("end", () => {
-  process.exit(0);
-});
+  process.stdin.on("end", () => {
+    process.exit(0);
+  });
+}
+
+if (require.main === module) {
+  startStdioServer();
+}
+
+module.exports = {
+  SERVER_VERSION,
+  PROTOCOL_VERSION,
+  tools,
+  actionCatalog,
+  promptExamples,
+  currentModelPath,
+  loadWorkspace,
+  saveWorkspace,
+  callTool,
+  listResources,
+  readResource,
+  handleMessage,
+  startStdioServer
+};

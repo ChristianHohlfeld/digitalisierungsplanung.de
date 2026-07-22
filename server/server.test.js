@@ -462,7 +462,7 @@ test("serves one central admin hub from the server route index", async () => {
     const index = await indexResponse.json();
     assert.equal(index.schemaVersion, 1);
     assert.equal(index.release.releaseId, "release-60");
-    assert.deepEqual(index.tools.map(tool => tool.id), ["events", "presets", "console", "contract", "system"]);
+    assert.deepEqual(index.tools.map(tool => tool.id), ["events", "presets", "console", "contract", "mcp", "system"]);
     const germanText = JSON.stringify({ tools: index.tools, endpoints: index.endpoints });
     const asciiUmlautSpellings = [
       ["f", "uer"].join(""),
@@ -481,6 +481,7 @@ test("serves one central admin hub from the server route index", async () => {
     assert.ok(index.endpoints.some(endpoint => endpoint.method === "WSS" && endpoint.path === "/ws"));
     assert.ok(index.endpoints.some(endpoint => endpoint.method === "POST" && endpoint.path === "/emit"));
     assert.ok(index.endpoints.some(endpoint => endpoint.method === "POST" && endpoint.path === "/assets/inline-image"));
+    assert.ok(index.endpoints.some(endpoint => endpoint.method === "POST" && endpoint.path === "/mcp"));
     for (const endpoint of index.endpoints.filter(endpoint => endpoint.method !== "WSS")) {
       const method = endpoint.method.includes("GET") ? "GET" : "POST";
       const response = await fetch(httpUrl(realtime, endpoint.path), {
@@ -508,6 +509,66 @@ test("nginx proxies only lean public realtime routes", () => {
   assert.doesNotMatch(normalized, /\/process\//);
   assert.doesNotMatch(serverSource, /PROCESS_RECORDER|OPENAI_API_KEY|\/process\/analyze/);
   assert.match(nginx, /proxy_pass\s+http:\/\/127\.0\.0\.1:8788;/);
+});
+
+test("serves secret-protected State Blueprint MCP JSON-RPC over HTTP", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "realtime-mcp-"));
+  const mcpModelPath = path.join(tempDir, "state-blueprint.workspace.json");
+  const rpc = (id, method, params = {}) => ({ jsonrpc: "2.0", id, method, params });
+  try {
+    await withRealtimeServer({ roomSecret: SECRET, mcpSecret: "mcp-secret", mcpModelPath }, async realtime => {
+      const unauthorized = await fetch(httpUrl(realtime, "/mcp"), {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(rpc(1, "tools/list"))
+      });
+      assert.equal(unauthorized.status, 401);
+      assert.deepEqual(await unauthorized.json(), { error: "unauthorized" });
+
+      const initialize = await fetch(httpUrl(realtime, "/mcp"), {
+        method: "POST",
+        headers: {
+          authorization: "Bearer mcp-secret",
+          "content-type": "application/json"
+        },
+        body: JSON.stringify(rpc(2, "initialize", { protocolVersion: "2025-11-25" }))
+      });
+      assert.equal(initialize.status, 200);
+      const initPayload = await initialize.json();
+      assert.equal(initPayload.result.serverInfo.name, "state-blueprint-mcp");
+
+      const toolsResponse = await fetch(httpUrl(realtime, "/mcp"), {
+        method: "POST",
+        headers: {
+          authorization: "Bearer mcp-secret",
+          "content-type": "application/json"
+        },
+        body: JSON.stringify(rpc(3, "tools/list"))
+      });
+      assert.equal(toolsResponse.status, 200);
+      const toolsPayload = await toolsResponse.json();
+      assert.ok(toolsPayload.result.tools.some(tool => tool.name === "state_blueprint_get_model"));
+
+      const modelResponse = await fetch(httpUrl(realtime, "/mcp"), {
+        method: "POST",
+        headers: {
+          authorization: "Bearer mcp-secret",
+          "content-type": "application/json"
+        },
+        body: JSON.stringify(rpc(4, "tools/call", {
+          name: "state_blueprint_get_model",
+          arguments: { includeValidation: true }
+        }))
+      });
+      assert.equal(modelResponse.status, 200);
+      const modelPayload = await modelResponse.json();
+      assert.equal(modelPayload.result.structuredContent.modelPath, path.resolve(mcpModelPath));
+      assert.equal(modelPayload.result.structuredContent.validation.ok, true);
+      assert.equal(modelPayload.result.structuredContent.model.name, "State App");
+    });
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
 });
 
 test("serves an admin event designer that validates, commits, and pushes the catalog", async () => {

@@ -36,6 +36,9 @@ Befehls- und Feldnamen sind exakt; es gibt keine Aliasnamen oder Migration.
 Der Server spricht MCP JSON-RPC über stdio. Jede Antwort liefert JSON-Text in
 `content[0].text` und denselben Wert in `structuredContent`.
 
+Remote ist derselbe Handler über `POST https://realtime.digitalisierungsplanung.de/mcp`
+mit `authorization: Bearer $REALTIME_MCP_SECRET` erreichbar.
+
 Minimaler JSON-RPC-Aufruf:
 
 ```json

@@ -120,6 +120,10 @@ fi
 if ! grep -q '^REALTIME_ADMIN_SECRET=' "$ENV_FILE"; then
   printf 'REALTIME_ADMIN_SECRET=%s\n' "$(openssl rand -base64 48)" >> "$ENV_FILE"
 fi
+if ! grep -q '^REALTIME_MCP_SECRET=' "$ENV_FILE"; then
+  printf 'REALTIME_MCP_SECRET=%s\n' "$(openssl rand -base64 48)" >> "$ENV_FILE"
+fi
+install -d -m 700 /var/lib/digitalisierungsplanung
 
 pm2 startOrReload server/ecosystem.config.cjs --update-env
 pm2 save

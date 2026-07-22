@@ -15,6 +15,7 @@ const presetLibrary = require("./preset-library");
 const adminTools = require("./admin-tools");
 const productContract = require("./product-contract");
 const { loadReleaseInfo, parseReleaseSource } = require("./release");
+const stateBlueprintMcp = require("../mcp/state-blueprint-server");
 
 const DEFAULT_ALLOWED_ORIGINS = ["https://digitalisierungsplanung.de"];
 const DEFAULT_PATH = "/ws";
@@ -32,6 +33,7 @@ const DEFAULT_PRESETS_ADMIN_CATALOG_PATH = "/presets-admin/catalog";
 const DEFAULT_PRESETS_ADMIN_PARSE_PATH = "/presets-admin/parse";
 const DEFAULT_PRESETS_ADMIN_IMPORT_PATH = "/presets-admin/import";
 const DEFAULT_IMAGE_INLINE_PATH = "/assets/inline-image";
+const DEFAULT_MCP_PATH = "/mcp";
 const DEFAULT_VERSION_PATH = "/version";
 const DEFAULT_ADMIN_COMMIT_MESSAGE = "Update realtime event catalog";
 const DEFAULT_PRESET_ADMIN_COMMIT_MESSAGE = "Update preset library";
@@ -42,6 +44,7 @@ const MAX_EVENT_NAME_LENGTH = 160;
 const MAX_EMIT_BODY_BYTES = 64 * 1024;
 const MAX_PRESET_API_RESPONSE_BYTES = 64 * 1024;
 const MAX_IMAGE_INLINE_BODY_BYTES = 4 * 1024;
+const MAX_MCP_BODY_BYTES = 1024 * 1024;
 const MAX_IMAGE_INLINE_BYTES = 12 * 1024 * 1024;
 const PRESET_API_TIMEOUT_MS = 8000;
 const IMAGE_INLINE_TIMEOUT_MS = 12000;
@@ -549,6 +552,7 @@ function loadConfig(options = {}) {
     presetsAdminParsePath: options.presetsAdminParsePath || env.REALTIME_PRESETS_ADMIN_PARSE_PATH || DEFAULT_PRESETS_ADMIN_PARSE_PATH,
     presetsAdminImportPath: options.presetsAdminImportPath || env.REALTIME_PRESETS_ADMIN_IMPORT_PATH || DEFAULT_PRESETS_ADMIN_IMPORT_PATH,
     imageInlinePath: options.imageInlinePath || env.REALTIME_IMAGE_INLINE_PATH || DEFAULT_IMAGE_INLINE_PATH,
+    mcpPath: options.mcpPath || env.REALTIME_MCP_PATH || DEFAULT_MCP_PATH,
     versionPath: options.versionPath || env.REALTIME_VERSION_PATH || DEFAULT_VERSION_PATH,
     eventCatalogPath: path.resolve(options.eventCatalogPath || env.REALTIME_EVENT_CATALOG_PATH || eventCatalog.DEFAULT_EVENT_CATALOG_PATH),
     adminHtmlPath: path.resolve(options.adminHtmlPath || env.REALTIME_ADMIN_HTML_PATH || path.join(__dirname, "admin.html")),
@@ -558,6 +562,7 @@ function loadConfig(options = {}) {
     repoDir,
     releaseFile,
     adminSecret: options.adminSecret ?? env.REALTIME_ADMIN_SECRET ?? "",
+    mcpSecret: options.mcpSecret ?? env.REALTIME_MCP_SECRET ?? env.MCP_SECRET ?? "",
     gitPushToken: options.gitPushToken ?? env.REALTIME_GIT_PUSH_TOKEN ?? "",
     gitRunner: options.gitRunner || defaultGitRunner,
     presetApiFetcher: options.presetApiFetcher || fetchPresetApiDefinition,
@@ -577,6 +582,7 @@ function loadConfig(options = {}) {
     release: options.release || loadReleaseInfo({ env, path: releaseFile }),
     eventCatalog: loadEventCatalog(options, env),
     presetLibrary: options.presetLibrary || presetLibrary.loadPresetLibraryFile(presetLibraryPath),
+    mcpModelPath: path.resolve(options.mcpModelPath || env.STATE_BLUEPRINT_MODEL_PATH || path.join(repoDir, "state-blueprint.workspace.json")),
     allowUnsignedRooms: Boolean(allowUnsignedRooms),
     requireRoomSecret: options.requireRoomSecret ?? (nodeEnv === "production" && !allowUnsignedRooms)
   };
@@ -1100,6 +1106,33 @@ function createRealtimeServer(options = {}) {
     }
     return { done: false, headers };
   };
+  const prepareMcpResponse = (request, response) => {
+    const origin = request.headers.origin || "";
+    const headers = origin ? adminHeadersForRequest(request) : {};
+    if (!headers) {
+      writeJson(response, 403, { error: "origin_not_allowed" });
+      return { done: true };
+    }
+    const mcpHeaders = {
+      ...headers,
+      "access-control-allow-methods": "POST, OPTIONS",
+      "access-control-allow-headers": "authorization, content-type, mcp-protocol-version, mcp-session-id"
+    };
+    if (request.method === "OPTIONS") {
+      response.writeHead(204, mcpHeaders);
+      response.end();
+      return { done: true };
+    }
+    if (!config.mcpSecret) {
+      writeJson(response, 503, { error: "mcp_secret_required" }, mcpHeaders);
+      return { done: true };
+    }
+    if (!timingSafeEqualString(bearerToken(request), config.mcpSecret)) {
+      writeJson(response, 401, { error: "unauthorized" }, mcpHeaders);
+      return { done: true };
+    }
+    return { done: false, headers: mcpHeaders };
+  };
 
   const server = options.server || http.createServer((request, response) => {
     const url = new URL(request.url || "/", "http://localhost");
@@ -1157,6 +1190,10 @@ function createRealtimeServer(options = {}) {
     }
     if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.imageInlinePath) {
       void handleImageInlineRequest(request, response);
+      return;
+    }
+    if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.mcpPath) {
+      void handleMcpRequest(request, response);
       return;
     }
     if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.eventsPath) {
@@ -1428,6 +1465,45 @@ function createRealtimeServer(options = {}) {
       }, headers);
     } catch (error) {
       writeJson(response, error.status || 400, { error: error.code || "image_inline_failed" }, headers);
+    }
+  }
+
+  async function handleMcpRequest(request, response) {
+    const prepared = prepareMcpResponse(request, response);
+    if (prepared.done) return;
+
+    let payload;
+    try {
+      payload = await readJsonBody(request, MAX_MCP_BODY_BYTES);
+    } catch (error) {
+      const status = error.code === "payload_too_large" ? 413 : 400;
+      writeJson(response, status, { error: error.code || "invalid_json" }, prepared.headers);
+      return;
+    }
+
+    try {
+      const options = { modelPath: config.mcpModelPath };
+      if (Array.isArray(payload)) {
+        const batch = payload
+          .map(message => stateBlueprintMcp.handleMessage(message, options))
+          .filter(Boolean);
+        if (!batch.length) {
+          response.writeHead(202, { "cache-control": "no-store", ...prepared.headers });
+          response.end();
+          return;
+        }
+        writeJson(response, 200, batch, prepared.headers);
+        return;
+      }
+      const result = stateBlueprintMcp.handleMessage(payload, options);
+      if (!result) {
+        response.writeHead(202, { "cache-control": "no-store", ...prepared.headers });
+        response.end();
+        return;
+      }
+      writeJson(response, 200, result, prepared.headers);
+    } catch (error) {
+      writeJson(response, 500, { error: error.code || "mcp_request_failed", message: error.message }, prepared.headers);
     }
   }
 

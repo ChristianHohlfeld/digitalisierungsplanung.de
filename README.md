@@ -18,6 +18,7 @@ Der wichtigste Gedanke: Nur verstandene Prozesse lassen sich sauber digitalisier
 | Echtzeit-Konsole | `https://realtime.digitalisierungsplanung.de/console.html?room=<raum-id>` |
 | Echtzeit-Event-Designer | `https://realtime.digitalisierungsplanung.de/events-admin.html` |
 | Ereigniskatalog | `https://realtime.digitalisierungsplanung.de/events` |
+| MCP JSON-RPC | `https://realtime.digitalisierungsplanung.de/mcp` |
 | Release-ID | `https://realtime.digitalisierungsplanung.de/version` |
 | WebSocket | `wss://realtime.digitalisierungsplanung.de/ws` |
 
@@ -268,6 +269,16 @@ Start:
 
 ```bash
 STATE_BLUEPRINT_MODEL_PATH=./state-blueprint.workspace.json npm run mcp:state
+```
+
+Auf dem Realtime-Server ist derselbe MCP-Handler als secret-geschützter
+JSON-RPC-Endpunkt verfügbar:
+
+```bash
+curl -X POST https://realtime.digitalisierungsplanung.de/mcp \
+  -H "authorization: Bearer $REALTIME_MCP_SECRET" \
+  -H "content-type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
 ```
 
 Wichtige Werkzeuge:
