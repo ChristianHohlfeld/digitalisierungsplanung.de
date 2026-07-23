@@ -309,13 +309,14 @@
       library = catalogPayload.library;
       supportedVariants = Array.isArray(catalogPayload.supportedVariants) ? catalogPayload.supportedVariants : [];
       const contractPresets = Array.isArray(contractPayload.presets) ? contractPayload.presets : [];
-      const customIds = new Set(library.presets.map(p => p.id));
+      const libraryIds = new Set(library.presets.map(p => p.id));
       allPresets = [
-        ...contractPresets.map(p => ({ ...p, _builtin: true, _custom: false })),
-        ...library.presets.filter(p => !contractPresets.some(cp => cp.id === p.id)).map(p => ({ ...p, _builtin: false, _custom: true }))
+        ...contractPresets.filter(p => !libraryIds.has(p.id)).map(p => ({ ...p, _builtin: true, _custom: false })),
+        ...library.presets.map(p => ({ ...p, _builtin: false, _custom: true }))
       ];
       renderCatalog();
-      setStatus(`${allPresets.length} Presets geladen (${contractPresets.length} Built-in, ${library.presets.length} Custom).`, "ok");
+      const builtinCount = allPresets.filter(p => p._builtin).length;
+      setStatus(`${allPresets.length} Presets geladen (${builtinCount} Built-in, ${library.presets.length} Custom).`, "ok");
     }
 
     function ensureCategory() {
@@ -505,7 +506,11 @@
         if (next.data?.title) next.data.title = next.data.title + " Kopie";
       }
       setDefinition(next);
-      el("snippet").value = "";
+      try {
+        el("snippet").value = generatePresetHtml(next.variant, next.data);
+      } catch (_) {
+        el("snippet").value = "";
+      }
       el("apiUrl").value = "";
       renderCatalog();
       if (!opts.duplicate) el("existingPreset").value = next.id;
