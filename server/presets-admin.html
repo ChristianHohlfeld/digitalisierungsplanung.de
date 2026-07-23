@@ -69,6 +69,7 @@
           <label>Importquelle<select id="sourceMode"><option value="snippet">HTML-Snippet einlesen</option><option value="api">Preset-JSON von URL laden</option></select></label>
           <div id="snippetSource">
             <textarea id="snippet" spellcheck="false" placeholder="DaisyUI-HTML hier einfuegen, z. B. &lt;div class=&quot;alert alert-info&quot;&gt;...&lt;/div&gt;"></textarea>
+            <div id="preview" class="preview-frame"></div>
           </div>
           <div id="apiSource" hidden>
             <label>Preset-JSON-URL<input id="apiUrl" type="url" inputmode="url" autocomplete="url" placeholder="https://api.example.com/preset.json"></label>
@@ -97,7 +98,6 @@
             <button id="parse" type="button">Snippet einlesen</button>
             <button id="clear" class="secondary" type="button">Leeres neues Preset</button>
           </div>
-          <div id="preview" class="preview-frame"></div>
         </section>
 
         <section class="panel">
