@@ -6391,7 +6391,7 @@
         makeState("site_features", "Nutzen", 408, 240, [
           ...shell("site_features"),
           daisy("features_overview", "feature-grid", "states.site_features.overview", "Nutzen-Übersicht"),
-          daisy("features_cta", "alert", "states.site_features.cta", "Pakete-CTA"),
+          daisy("features_cta", "button", "states.site_features.cta", "Pakete ansehen"),
           daisy("features_steps", "steps", "states.site_features.steps", "Drei Schritte"),
           ...footer("site_features")
         ], {
@@ -6426,8 +6426,9 @@
             ]
           },
           cta: {
-            tone: "info",
-            message: "Bereit, den eigenen Ablauf sichtbar zu machen? Die Pakete zeigen, wie einfach der Start ist."
+            label: "Pakete ansehen",
+            clicked: false,
+            transitionId: "site_features_view_pricing"
           },
           steps: {
             current: "Prüfen",
