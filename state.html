@@ -6391,6 +6391,7 @@
         makeState("site_features", "Nutzen", 408, 240, [
           ...shell("site_features"),
           daisy("features_overview", "feature-grid", "states.site_features.overview", "Nutzen-Übersicht"),
+          daisy("features_cta", "alert", "states.site_features.cta", "Pakete-CTA"),
           daisy("features_steps", "steps", "states.site_features.steps", "Drei Schritte"),
           ...footer("site_features")
         ], {
@@ -6402,29 +6403,31 @@
             selected: "",
             items: [
               {
-                title: "Weniger Abhängigkeit von Einzelnen",
+                title: "Wissen sichern",
                 body: "Kritisches Wissen wird dokumentierbar, testbar und für neue Mitarbeiter nachvollziehbar.",
                 image: featureImages.knowledge,
                 imageAlt: "Prozesswissen wird im Team geklärt",
                 features: ["Einarbeitung", "Vertretung", "Übergabe"]
               },
               {
-                title: "Weniger stille Reibung",
+                title: "Reibung los",
                 body: "Unklare Entscheidungen, Rückfragen und Medienbrüche werden sichtbar, bevor sie im Alltag Kosten erzeugen.",
                 image: featureImages.clarity,
                 imageAlt: "Prozessprüfung im Unternehmen",
                 features: ["Klarheit", "Fehlerreduktion", "Tempo"]
               },
               {
-                title: "Schneller zur ersten Lösung",
+                title: "Sofort klickbar",
                 body: "Der Ablauf bleibt nicht als Folie liegen, sondern kann direkt als Web-Pilot ausprobiert werden.",
                 image: featureImages.pilot,
                 imageAlt: "Klickbarer Prozess-Pilot",
-                features: ["Pilot", "Feedback", "Export"],
-                actionLabel: "Pakete ansehen",
-                transitionId: "site_features_view_pricing"
+                features: ["Pilot", "Feedback", "Export"]
               }
             ]
+          },
+          cta: {
+            tone: "info",
+            message: "Bereit, den eigenen Ablauf sichtbar zu machen? Die Pakete zeigen, wie einfach der Start ist."
           },
           steps: {
             current: "Prüfen",
