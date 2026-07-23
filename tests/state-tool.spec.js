@@ -2895,7 +2895,7 @@ test.describe("State Blueprint tool", () => {
     await expect(app.locator(".daisy-feature-grid")).toHaveCount(1);
     await expect(app.locator(".daisy-feature-cards > .card")).toHaveCount(3);
     await expect(app.locator(".daisy-feature-image")).toHaveCount(3);
-    await expect(app.locator(".daisy-feature-grid button[data-transition-id]")).toHaveCount(1);
+    await expect(app.locator("button[data-transition-id]")).toHaveCount(1);
     await expect(app.locator(".steps button[data-transition-id]")).toHaveCount(0);
     await expect(app.locator(".steps .daisy-step-label")).toHaveText([
       "Aufnehmen",
@@ -3226,7 +3226,7 @@ test.describe("State Blueprint tool", () => {
     await expect(standalone.getByText("Warum das f\u00fcr K\u00e4ufer z\u00e4hlt")).toBeVisible();
     await expect(standalone.locator(".daisy-feature-grid")).toHaveCount(1);
     await expect(standalone.locator(".daisy-feature-cards > .card")).toHaveCount(3);
-    await expect(standalone.locator(".daisy-feature-grid button[data-transition-id]")).toHaveCount(1);
+    await expect(standalone.locator("button[data-transition-id]")).toHaveCount(1);
     await expect(standalone.locator(".steps button[data-transition-id]")).toHaveCount(0);
     await expect(standalone.locator(".steps .daisy-step-label")).toHaveText([
       "Aufnehmen",

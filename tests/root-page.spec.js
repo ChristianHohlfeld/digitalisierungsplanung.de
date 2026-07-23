@@ -163,7 +163,7 @@ test.describe("Preset designer", () => {
     await page.goto("/presets-admin.html");
 
     await expect(page.getByRole("heading", { name: /Preset Designer/ })).toBeVisible();
-    await expect(page.locator("#status")).toContainText(/\d+ eigene Presets/);
+    await expect(page.locator("#status")).toContainText(/Presets geladen/);
     await expect(page.locator("#category")).toHaveValue("websuite-builder");
 
     await page.locator("#snippet").fill('<footer class="footer sm:footer-horizontal bg-base-200 text-base-content p-10"><aside><p class="footer-title">ACME</p><p>Aus Erfahrung wird Software.</p></aside><nav><h6 class="footer-title">Produkt</h6><a class="link link-hover">Start</a></nav></footer>');
