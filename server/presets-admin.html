@@ -17,7 +17,7 @@
     h2 { font-size: 15px; font-weight: 850; color: #bfdbfe; }
     a { color: var(--accent); text-decoration: none; font-weight: 800; }
     .workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
-    .stack { display: grid; gap: 12px; align-content: start; }
+    .stack { display: grid; gap: 12px; align-content: start; overflow-y: auto; max-height: calc(100vh - 120px); }
     .panel { display: grid; gap: 12px; padding: 15px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
     .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
     label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 800; text-transform: uppercase; }
@@ -37,7 +37,7 @@
     .ok { color: var(--ok); }
     .bad { color: var(--bad); }
     [hidden] { display: none !important; }
-    .preview-frame { border: 1px solid var(--line); border-radius: 8px; background: oklch(var(--b1)); padding: 24px; min-height: 160px; max-height: 500px; overflow: auto; }
+    .preview-frame { border: 1px solid var(--line); border-radius: 8px; background: oklch(var(--b1)); padding: 24px; min-height: 120px; max-height: 280px; overflow: auto; }
     .preview-frame:empty::after { content: "Keine Vorschau — Preset laden oder Snippet einlesen"; color: var(--muted); font-size: 13px; }
     .preview-frame > * { max-width: 100%; }
     .preview-label { font-size: 11px; font-weight: 800; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; letter-spacing: .04em; }
@@ -120,7 +120,7 @@
       </div>
 
       <div class="stack">
-        <section class="panel" style="overflow:hidden">
+        <section class="panel">
           <h2>Live-Vorschau</h2>
           <div id="preview" class="preview-frame"></div>
           <div class="hint">DaisyUI-Rendering des aktuellen Presets. Aktualisiert sich automatisch bei jeder Aenderung.</div>
