@@ -94,11 +94,11 @@
         "website.builder"
       ],
       "data": {
-        "title": "Premium",
-        "body": "",
+        "title": "Karte",
+        "body": "This card has holo aura",
         "image": "",
         "imageAlt": "",
-        "actionLabel": "Subscribe"
+        "actionLabel": "Weiter"
       }
     }
   ]
