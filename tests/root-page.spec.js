@@ -185,7 +185,10 @@ test.describe("Preset designer", () => {
       packageIds: ["portal.pro"],
       data: { brand: "ACME" }
     });
-    expect(JSON.stringify(definition)).not.toContain("<footer");
+    const { _snippet, ...structuredData } = definition.data;
+    expect(JSON.stringify(structuredData)).not.toContain("<footer");
+    expect(typeof _snippet).toBe("string");
+    expect(_snippet).toContain("<footer");
 
     await page.getByRole("button", { name: "In Contract speichern" }).click();
     await expect(page.locator("#status")).toContainText("Gespeichert und gepusht: browser-test");
