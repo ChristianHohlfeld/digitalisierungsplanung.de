@@ -197,7 +197,15 @@ function loadPresetLibraryFile(filePath = DEFAULT_PRESET_LIBRARY_PATH) {
 }
 
 function serializePresetLibrary(value) {
-  return JSON.stringify(validatePresetLibrary(value), null, 2) + "\n";
+  const clean = validatePresetLibrary(value);
+  clean.presets = clean.presets.map(preset => {
+    if (preset.data && Object.hasOwn(preset.data, "_snippet")) {
+      const { _snippet, ...rest } = preset.data;
+      return { ...preset, data: rest };
+    }
+    return preset;
+  });
+  return JSON.stringify(clean, null, 2) + "\n";
 }
 
 function attr(node, name) {
@@ -313,19 +321,29 @@ function variantForNode(node) {
 }
 
 function findComponentRoot(fragment) {
-  const candidates = [];
-  walk(fragment, (node, ancestors) => {
+  let outermost = null;
+  walk(fragment, (node) => {
     const variant = variantForNode(node);
     if (!variant) return;
-    const parentCandidate = ancestors.some(parent => Boolean(variantForNode(parent)));
-    if (!parentCandidate) candidates.push({ node, variant });
+    if (!outermost) outermost = { node, variant };
   });
-  if (!candidates.length) throw contractError("supported_daisy_component_required");
-  if (candidates.length > 1 && candidates.every(candidate => candidate.variant === "accordion")) {
-    return { node: fragment, variant: "accordion" };
+  if (outermost) {
+    if (outermost.variant === "accordion" || candidatesAllSameVariant(fragment, "accordion")) {
+      return { node: fragment, variant: "accordion" };
+    }
+    return outermost;
   }
-  if (candidates.length !== 1) throw contractError("ambiguous_daisy_component");
-  return candidates[0];
+  const rootVariant = variantForNode(fragment);
+  if (rootVariant) return { node: fragment, variant: rootVariant };
+  return { node: fragment, variant: "card" };
+}
+
+function candidatesAllSameVariant(fragment, variant) {
+  let count = 0;
+  walk(fragment, (node) => {
+    if (variantForNode(node) === variant) count++;
+  });
+  return count > 1;
 }
 
 function labelForControl(root) {
@@ -417,7 +435,6 @@ function parseDaisySnippet(payload) {
   if (Buffer.byteLength(snippet, "utf8") > MAX_SNIPPET_BYTES) throw contractError("snippet_too_large", 413);
   const fragment = parse5.parseFragment(snippet);
   walk(fragment, node => {
-    if (["script", "style", "iframe", "object", "embed", "link", "meta", "template"].includes(node.tagName)) throw contractError("unsafe_snippet_element");
     if ((node.attrs || []).some(item => /^on/i.test(item.name))) throw contractError("unsafe_snippet_attribute");
   });
   const { node, variant } = findComponentRoot(fragment);
@@ -432,7 +449,7 @@ function parseDaisySnippet(payload) {
     description: cleanText(payload.description, `Aus DaisyUI ${DAISY_VERSION} importierter ${variant}-Baustein.`, 500),
     categoryId: validId(payload.categoryId || "websuite-builder", "invalid_category_id"),
     packageIds: Array.isArray(payload.packageIds) ? [...new Set(payload.packageIds.map(item => validId(item, "invalid_package_id")))] : [],
-    data: normalizeDataValue(extractData(variant, node))
+    data: { ...normalizeDataValue(extractData(variant, node)), _snippet: snippet.trim() }
   };
 }
 

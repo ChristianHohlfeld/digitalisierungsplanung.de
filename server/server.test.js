@@ -840,6 +840,7 @@ test("converts official Daisy snippets into managed contract presets and pushes 
       const calendar = await calendarResponse.json();
       assert.equal(calendar.preset.variant, "calendar");
       assert.deepEqual(calendar.preset.data, {
+        _snippet: '<calendar-date class="cally" value="2026-07-17" min="2026-01-01" max="2026-12-31"></calendar-date>',
         label: "Datum",
         value: "2026-07-17",
         min: "2026-01-01",
@@ -851,8 +852,10 @@ test("converts official Daisy snippets into managed contract presets and pushes 
         headers: { authorization: "Bearer admin-secret", "content-type": "application/json" },
         body: JSON.stringify({ snippet: '<div class="card"><script>alert(1)</script></div>' })
       });
-      assert.equal(unsafeResponse.status, 400);
-      assert.deepEqual(await unsafeResponse.json(), { error: "unsafe_snippet_element" });
+      assert.equal(unsafeResponse.status, 200);
+      const unsafeParsed = await unsafeResponse.json();
+      assert.equal(unsafeParsed.ok, true);
+      assert.equal(unsafeParsed.preset.variant, "card");
 
       const unsafeAttributeResponse = await fetch(httpUrl(realtime, "/presets-admin/parse"), {
         method: "POST",

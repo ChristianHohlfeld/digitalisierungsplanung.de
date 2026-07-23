@@ -153,7 +153,6 @@
 
     function friendlyError(message) {
       const text = String(message || "Fehler");
-      if (text === "supported_daisy_component_required") return "Kein unterstuetzter DaisyUI-Root erkannt. Fuer Kalender: <calendar-date class=\"cally\"></calendar-date> verwenden.";
       if (text === "unsupported_daisy_variant") return "Dieser Preset-Typ ist nicht im Server-Contract erlaubt.";
       if (text === "invalid_custom_preset_id") return "Preset-ID muss custom_... sein und nur kleine Buchstaben, Zahlen oder Unterstriche enthalten.";
       return text;
@@ -502,7 +501,7 @@
       }
       setDefinition(next);
       try {
-        el("snippet").value = generatePresetHtml(next.variant, next.data);
+        el("snippet").value = next.data?._snippet || generatePresetHtml(next.variant, next.data);
       } catch (_) {
         el("snippet").value = "";
       }
@@ -572,7 +571,8 @@
       const preview = el("preview");
       if (!draft || !draft.data) { preview.innerHTML = ""; return; }
       try {
-        preview.innerHTML = '<div data-theme="light" style="background:oklch(var(--b1));border-radius:8px;padding:20px;">' + generatePresetHtml(draft.variant, draft.data) + '</div>';
+        const html = draft.data._snippet || generatePresetHtml(draft.variant, draft.data);
+        preview.innerHTML = '<div data-theme="light" style="background:oklch(var(--b1));border-radius:8px;padding:20px;">' + html + '</div>';
       } catch (_) {
         preview.innerHTML = '<span style="color:var(--bad)">Vorschau nicht moeglich</span>';
       }
@@ -588,6 +588,7 @@
 
     function generatePresetHtml(variant, data) {
       const d = data || {};
+      if (d._snippet) return d._snippet;
       switch (variant) {
         case "alert": return `<div class="alert alert-${d.tone || 'info'}">${h("span", {}, d.message || "Hinweis")}</div>`;
         case "badge": return `<div class="badge badge-${d.tone || 'primary'}">${h("span", {}, d.label || "Badge")}</div>`;
