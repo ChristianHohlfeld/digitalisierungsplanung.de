@@ -102,6 +102,20 @@
       }
     },
     {
+      "id": "custom_email_password_validated",
+      "variant": "input",
+      "title": "input Preset",
+      "description": "Passwort & Username including validation of fields.",
+      "categoryId": "websuite-builder",
+      "packageIds": [
+        "website.builder"
+      ],
+      "data": {
+        "label": "Email",
+        "value": ""
+      }
+    },
+    {
       "id": "custom_premium",
       "variant": "card",
       "title": "Premium",
