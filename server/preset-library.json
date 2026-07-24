@@ -1,11 +1,11 @@
 {
-  "schemaVersion": 1,
-  "daisyVersion": "5.6.18",
+  "schemaVersion": 2,
+  "daisyVersion": "5.7.0",
   "categories": [
     {
       "id": "websuite-builder",
       "label": "Websuite Builder",
-      "description": "Alle bestehenden Bausteine für Seiten, Formulare, Datenansichten und Prozess-Apps.",
+      "description": "Echte DaisyUI-Komponenten als einfache Vorlagen für Seiten, Formulare und Prozess-Apps.",
       "sort": 10
     }
   ],
@@ -14,7 +14,7 @@
       "id": "core.process",
       "label": "Process Core",
       "category": "base",
-      "description": "Grundbausteine für Prozessaufnahme, Formulare, Entscheidungen und einfache Apps.",
+      "description": "Schaltflächen, Eingaben und Zustandsfelder für einfache Prozesse.",
       "buyerValue": "Startet jeden Digitalisierungsprozess ohne Zusatzpaket.",
       "upsell": false,
       "sort": 10
@@ -23,8 +23,8 @@
       "id": "website.builder",
       "label": "Website Builder",
       "category": "package",
-      "description": "Landingpages, Portale, Navigation, Angebotsseiten und exportierbare Web-Apps.",
-      "buyerValue": "Macht aus geklärten Abläufen sofort sichtbare Web-Oberflächen.",
+      "description": "Hero, Karten, Navigation, Footer und exportierbare Web-App-Bausteine.",
+      "buyerValue": "Macht aus geklärten Abläufen sichtbare Web-Oberflächen.",
       "upsell": false,
       "sort": 20
     },
@@ -50,7 +50,7 @@
       "id": "bi.analytics",
       "label": "BI & Analyse",
       "category": "addon",
-      "description": "KPI-Karten, Tabellen, Charts, Pipeline- und Management-Auswertungen.",
+      "description": "Tabellen, Fortschritt und Management-Auswertungen.",
       "buyerValue": "Macht Prozessdaten für Geschäftsführung und Bereichsleitung entscheidbar.",
       "upsell": true,
       "sort": 50
@@ -83,54 +83,5 @@
       "sort": 80
     }
   ],
-  "presets": [
-    {
-      "id": "custom_daisyui_aura_pricing",
-      "variant": "card",
-      "title": "Aura Pricing Card",
-      "description": "Aura rainbow around a pricing card",
-      "categoryId": "websuite-builder",
-      "packageIds": [
-        "website.builder"
-      ],
-      "data": {
-        "title": "Premium",
-        "body": "",
-        "image": "",
-        "imageAlt": "",
-        "actionLabel": "Subscribe"
-      }
-    },
-    {
-      "id": "custom_email_password_validated",
-      "variant": "input",
-      "title": "input Preset",
-      "description": "Passwort & Username including validation of fields.",
-      "categoryId": "websuite-builder",
-      "packageIds": [
-        "website.builder"
-      ],
-      "data": {
-        "label": "Email",
-        "value": ""
-      }
-    },
-    {
-      "id": "custom_premium",
-      "variant": "card",
-      "title": "Premium",
-      "description": "",
-      "categoryId": "websuite-builder",
-      "packageIds": [
-        "website.builder"
-      ],
-      "data": {
-        "title": "Premium",
-        "body": "",
-        "image": "",
-        "imageAlt": "",
-        "actionLabel": "Subscribe"
-      }
-    }
-  ]
+  "presets": []
 }
