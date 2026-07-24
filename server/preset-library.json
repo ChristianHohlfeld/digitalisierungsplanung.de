@@ -83,5 +83,21 @@
       "sort": 80
     }
   ],
-  "presets": []
+  "presets": [
+    {
+      "id": "custom_svg_icon_button",
+      "variant": "button",
+      "title": "SVG Icon Button",
+      "description": "Minimaler DaisyUI-Button-Seed, damit die verwaltete Preset-Library nach Löschaktionen nicht leer läuft.",
+      "categoryId": "websuite-builder",
+      "packageIds": [
+        "website.builder"
+      ],
+      "data": {
+        "label": "Weiter",
+        "clicked": false,
+        "clickedAt": 0
+      }
+    }
+  ]
 }
