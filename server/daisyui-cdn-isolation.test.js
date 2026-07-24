@@ -24,7 +24,6 @@ function loadHookApi() {
     window: null,
     navigator: {},
     document: undefined,
-    MutationObserver: undefined,
     Blob: NativeBlob,
     Object,
     String,
@@ -70,7 +69,10 @@ test("DaisyUI CDN is opt-in for marked render documents only", () => {
   assert.match(hook, /function injectDaisyUiCdn/);
   assert.match(hook, /function ensureDaisyUiInMarkedDocument/);
   assert.match(hook, /data-zustand-daisyui-render/);
-  assert.match(hook, /querySelectorAll\("iframe"\)/);
+  assert.match(hook, /data-zustand-daisyui-frame/);
+  assert.match(hook, /iframe\[" \+ FRAME_MARKER \+ "\]/);
+  assert.doesNotMatch(hook, /querySelectorAll\("iframe"\)/);
+  assert.doesNotMatch(hook, /new MutationObserver/);
   assert.doesNotMatch(hook, /iframe#appFrame/);
   assert.doesNotMatch(hook, /document\.head\.append/, "CDN tags must not be appended to the editor document head");
 
@@ -82,7 +84,7 @@ test("DaisyUI CDN is opt-in for marked render documents only", () => {
   }
 });
 
-test("DaisyUI CDN injection leaves unmarked runtime HTML and frames untouched", () => {
+test("DaisyUI CDN injection leaves unmarked runtime HTML and documents untouched", () => {
   const api = loadHookApi();
   const runtimeHtml = '<!doctype html><html><head></head><body><button class="btn">Runtime</button></body></html>';
   assert.equal(api.injectDaisyUiCdn(runtimeHtml), runtimeHtml);
@@ -92,7 +94,7 @@ test("DaisyUI CDN injection leaves unmarked runtime HTML and frames untouched", 
   assert.equal(unmarked.nodes.length, 0);
 });
 
-test("DaisyUI CDN injection styles marked render HTML and frames", () => {
+test("DaisyUI CDN injection styles marked render HTML and documents", () => {
   const api = loadHookApi();
   const renderHtml = '<!doctype html><html><head></head><body><div data-zustand-daisyui-render><button class="btn btn-primary">Preset</button></div></body></html>';
   const injected = api.injectDaisyUiCdn(renderHtml);
