@@ -4,22 +4,31 @@ const fs = require("node:fs");
 const path = require("node:path");
 const parse5 = require("parse5");
 
-const DAISY_VERSION = "5.6.18";
-const PRESET_LIBRARY_SCHEMA_VERSION = 1;
+const DAISY_VERSION = "5.7.0";
+const PRESET_LIBRARY_SCHEMA_VERSION = 2;
 const DEFAULT_PRESET_LIBRARY_PATH = path.join(__dirname, "preset-library.json");
 const MAX_SNIPPET_BYTES = 64 * 1024;
 const ID_PATTERN = /^[a-z][a-z0-9_.-]{0,63}$/;
 const CUSTOM_PRESET_ID_PATTERN = /^custom_[a-z0-9_]{1,56}$/;
 const LOCAL_KEY_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
-const REQUIRED_PACKAGE_IDS = new Set(["core.process", "website.builder", "approval.compliance", "service.operations", "bi.analytics", "sales.crm", "knowledge.portal", "integration.automation"]);
+const REQUIRED_PACKAGE_IDS = new Set([
+  "core.process",
+  "website.builder",
+  "approval.compliance",
+  "service.operations",
+  "bi.analytics",
+  "sales.crm",
+  "knowledge.portal",
+  "integration.automation"
+]);
 const SUPPORTED_VARIANTS = new Set([
   "accordion", "alert", "avatar", "badge", "bottom-navigation", "breadcrumbs",
-  "button", "calendar", "card", "carousel", "checkbox", "countdown", "drawer", "dropdown",
-  "feature-grid", "file-input", "footer", "hero", "indicator", "input", "loading",
-  "mask", "menu", "modal", "navbar", "pricing", "progress", "radial-progress",
-  "radio", "range", "rating", "select", "stat", "steps", "table", "tabs",
-  "textarea", "timeline", "toast", "toggle", "chart"
+  "button", "card", "checkbox", "drawer", "dropdown", "footer", "hero", "input",
+  "menu", "modal", "navbar", "progress", "radio", "select", "steps", "table",
+  "tabs", "textarea", "toggle"
 ]);
+const UNSAFE_TAGS = new Set(["script", "style", "iframe", "object", "embed", "link", "meta", "template"]);
+const SAFE_ATTR_URL = /^(?:#|\/|\.\/|\.\.\/|https:\/\/|mailto:|tel:|data:image\/)/i;
 
 function contractError(code, status = 400) {
   const error = new Error(code);
@@ -66,7 +75,7 @@ function normalizeDataValue(value, depth = 0) {
   if (!isPlainObject(value)) throw contractError("invalid_preset_data");
   const out = {};
   for (const [key, child] of Object.entries(value)) {
-    if (!LOCAL_KEY_PATTERN.test(key)) throw contractError("invalid_preset_data_key");
+    if (!LOCAL_KEY_PATTERN.test(key) || key === "_snippet") throw contractError("invalid_preset_data_key");
     out[key] = normalizeDataValue(child, depth + 1);
   }
   return out;
@@ -84,14 +93,137 @@ function assertUnmaterializedTransitionBindings(value) {
       const urlKeys = prefix
         ? [`${prefix}Url`, `${prefix}Href`, ...(prefix.toLowerCase() === "primary" ? ["url", "href"] : [])]
         : ["url", "href"];
-      if (String(child || "").trim() && urlKeys.some(urlKey => String(value[urlKey] || "").trim())) {
-        throw contractError("preset_action_target_conflict");
-      }
+      if (String(child || "").trim() && urlKeys.some(urlKey => String(value[urlKey] || "").trim())) throw contractError("preset_action_target_conflict");
       if (child !== "") throw contractError("preset_transition_binding_must_be_empty");
       continue;
     }
     assertUnmaterializedTransitionBindings(child);
   }
+}
+
+function walk(node, visit) {
+  if (node?.tagName) visit(node);
+  for (const child of node?.childNodes || []) walk(child, visit);
+}
+
+function attr(node, name) {
+  return node?.attrs?.find(item => item.name === name)?.value || "";
+}
+
+function classSet(node) {
+  return new Set(attr(node, "class").split(/\s+/).filter(Boolean));
+}
+
+function textContent(node) {
+  if (!node) return "";
+  if (node.nodeName === "#text") return node.value || "";
+  return cleanText((node.childNodes || []).map(textContent).join(" ").replace(/\s+/g, " "), "", 2000);
+}
+
+function first(node, predicate) {
+  let found = null;
+  walk(node, child => { if (!found && predicate(child)) found = child; });
+  return found;
+}
+
+function findAll(node, predicate) {
+  const out = [];
+  walk(node, child => { if (predicate(child)) out.push(child); });
+  return out;
+}
+
+function variantForNode(node) {
+  const classes = classSet(node);
+  const has = name => classes.has(name);
+  if (has("navbar")) return "navbar";
+  if (has("hero")) return "hero";
+  if (has("modal")) return "modal";
+  if (has("drawer")) return "drawer";
+  if (has("dropdown")) return "dropdown";
+  if (has("collapse")) return "accordion";
+  if (has("steps")) return "steps";
+  if (has("tabs")) return "tabs";
+  if (has("table")) return "table";
+  if (has("footer")) return "footer";
+  if (has("alert")) return "alert";
+  if (has("card")) return "card";
+  if (has("btn")) return "button";
+  if (has("input")) return "input";
+  if (has("textarea")) return "textarea";
+  if (has("select")) return "select";
+  if (has("checkbox")) return "checkbox";
+  if (has("toggle")) return "toggle";
+  if (has("radio")) return "radio";
+  if (has("progress")) return "progress";
+  if (has("badge")) return "badge";
+  if (has("avatar")) return "avatar";
+  if (has("menu")) return "menu";
+  if (has("breadcrumbs")) return "breadcrumbs";
+  if (has("btm-nav") || has("dock")) return "bottom-navigation";
+  return "";
+}
+
+function validateTemplateHtml(html) {
+  const snippet = String(html || "");
+  if (!snippet.trim()) throw contractError("template_required");
+  if (Buffer.byteLength(snippet, "utf8") > MAX_SNIPPET_BYTES) throw contractError("snippet_too_large", 413);
+  const fragment = parse5.parseFragment(snippet);
+  walk(fragment, node => {
+    const tag = String(node.tagName || "").toLowerCase();
+    if (UNSAFE_TAGS.has(tag)) throw contractError("unsafe_snippet_element");
+    for (const item of node.attrs || []) {
+      const name = String(item.name || "").toLowerCase();
+      const value = String(item.value || "").trim();
+      if (/^on/.test(name)) throw contractError("unsafe_snippet_attribute");
+      if ((name === "href" || name === "src" || name === "action" || name === "formaction") && value && !SAFE_ATTR_URL.test(value)) throw contractError("unsafe_snippet_url");
+      if (name === "style" && /url\s*\(/i.test(value)) throw contractError("unsafe_snippet_style");
+    }
+  });
+  return { fragment, html: snippet.trim() };
+}
+
+function findComponentRoot(fragment) {
+  let out = null;
+  walk(fragment, node => {
+    if (out) return;
+    const variant = variantForNode(node);
+    if (variant) out = { node, variant };
+  });
+  if (!out) throw contractError("unsupported_daisy_variant");
+  if (!SUPPORTED_VARIANTS.has(out.variant)) throw contractError("unsupported_daisy_variant");
+  return out;
+}
+
+function normalizeTemplate(value, variant) {
+  if (!isPlainObject(value)) throw contractError("invalid_template");
+  assertOnlyFields(value, new Set(["source", "version", "docsPath", "html"]));
+  const source = cleanText(value.source || "daisyui", "daisyui", 40);
+  if (source !== "daisyui") throw contractError("invalid_template_source");
+  const checked = validateTemplateHtml(value.html);
+  const root = findComponentRoot(checked.fragment);
+  if (variant && root.variant !== variant && !(variant === "button" && root.variant === "button")) throw contractError("template_variant_mismatch");
+  return {
+    source,
+    version: cleanText(value.version || DAISY_VERSION, DAISY_VERSION, 40),
+    docsPath: cleanText(value.docsPath || "", "", 300),
+    html: checked.html
+  };
+}
+
+function extractData(variant, root) {
+  const heading = textContent(first(root, node => /^h[1-6]$/.test(node.tagName)));
+  const paragraph = textContent(first(root, node => node.tagName === "p"));
+  const buttons = findAll(root, node => node.tagName === "button" || classSet(node).has("btn")).map(textContent).filter(Boolean);
+  const input = first(root, node => ["input", "textarea", "select"].includes(node.tagName));
+  if (variant === "button") return { label: textContent(root) || "Button", clicked: false, clickedAt: 0 };
+  if (variant === "card") return { title: heading || "Card Title", body: paragraph, actionLabel: buttons.at(-1) || "Buy Now" };
+  if (variant === "alert") return { message: textContent(root) || "Alert" };
+  if (variant === "input" || variant === "textarea" || variant === "select") return { label: attr(input, "aria-label") || attr(input, "placeholder") || "Field", value: attr(input, "value") || "" };
+  if (variant === "checkbox" || variant === "toggle" || variant === "radio") return { label: attr(input, "aria-label") || textContent(root) || "Option", checked: Boolean(attr(input, "checked")) };
+  if (variant === "navbar") return { brand: heading || textContent(first(root, node => classSet(node).has("text-xl"))) || "Brand" };
+  if (variant === "hero") return { title: heading || "Hero", body: paragraph, actionLabel: buttons[0] || "Get started" };
+  if (variant === "footer") return { brand: textContent(root) || "Footer" };
+  return { title: heading || textContent(root) || `${variant} Preset`, body: paragraph };
 }
 
 function validateCategory(value) {
@@ -121,16 +253,14 @@ function validatePackage(value) {
 
 function validatePreset(value, categoryIds, packageIds) {
   if (!isPlainObject(value)) throw contractError("invalid_preset");
-  assertOnlyFields(value, new Set(["id", "variant", "title", "description", "categoryId", "packageIds", "data"]));
+  assertOnlyFields(value, new Set(["id", "variant", "title", "description", "categoryId", "packageIds", "template", "data"]));
   const id = cleanText(value.id, "", 64);
   if (!CUSTOM_PRESET_ID_PATTERN.test(id)) throw contractError("invalid_custom_preset_id");
   const variant = cleanText(value.variant, "", 40);
   if (!SUPPORTED_VARIANTS.has(variant)) throw contractError("unsupported_daisy_variant");
   const categoryId = validId(value.categoryId, "invalid_category_id");
   if (!categoryIds.has(categoryId)) throw contractError("unknown_category");
-  const assignedPackages = Array.isArray(value.packageIds)
-    ? [...new Set(value.packageIds.map(item => validId(item, "invalid_package_id")))]
-    : [];
+  const assignedPackages = Array.isArray(value.packageIds) ? [...new Set(value.packageIds.map(item => validId(item, "invalid_package_id")))] : [];
   if (!assignedPackages.length) throw contractError("preset_package_required");
   if (assignedPackages.some(packageId => !packageIds.has(packageId))) throw contractError("unknown_package");
   const data = normalizeDataValue(value.data);
@@ -143,6 +273,7 @@ function validatePreset(value, categoryIds, packageIds) {
     description: cleanText(value.description, "", 500),
     categoryId,
     packageIds: assignedPackages,
+    template: normalizeTemplate(value.template, variant),
     data
   };
 }
@@ -150,13 +281,12 @@ function validatePreset(value, categoryIds, packageIds) {
 function validatePresetLibrary(value) {
   if (!isPlainObject(value)) throw contractError("invalid_preset_library");
   assertOnlyFields(value, new Set(["schemaVersion", "daisyVersion", "categories", "packages", "presets"]));
-  if (value.schemaVersion !== PRESET_LIBRARY_SCHEMA_VERSION) throw contractError("invalid_schema_version");
+  if (![1, PRESET_LIBRARY_SCHEMA_VERSION].includes(value.schemaVersion)) throw contractError("invalid_schema_version");
   if (value.daisyVersion !== DAISY_VERSION) throw contractError("invalid_daisy_version");
   if (!Array.isArray(value.categories) || !value.categories.length) throw contractError("categories_required");
   if (!Array.isArray(value.packages) || !value.packages.length) throw contractError("packages_required");
   if (!Array.isArray(value.presets)) throw contractError("invalid_presets");
   if (value.categories.length > 40 || value.packages.length > 80 || value.presets.length > 500) throw contractError("preset_library_too_large", 413);
-
   const categories = value.categories.map(validateCategory);
   const packages = value.packages.map(validatePackage);
   const categoryIds = new Set(categories.map(item => item.id));
@@ -167,7 +297,6 @@ function validatePresetLibrary(value) {
   if ([...REQUIRED_PACKAGE_IDS].some(id => !packageIds.has(id))) throw contractError("core_package_required");
   const presets = value.presets.map(item => validatePreset(item, categoryIds, packageIds));
   if (new Set(presets.map(item => item.id)).size !== presets.length) throw contractError("duplicate_preset_id");
-
   return {
     schemaVersion: PRESET_LIBRARY_SCHEMA_VERSION,
     daisyVersion: DAISY_VERSION,
@@ -187,239 +316,16 @@ function validatePresetDefinition(value, library) {
 }
 
 function loadPresetLibraryFile(filePath = DEFAULT_PRESET_LIBRARY_PATH) {
-  let parsed;
   try {
-    parsed = JSON.parse(fs.readFileSync(filePath, "utf8"));
-  } catch (_) {
+    return validatePresetLibrary(JSON.parse(fs.readFileSync(filePath, "utf8")));
+  } catch (error) {
+    if (error?.code) throw error;
     throw contractError("preset_library_load_failed", 500);
   }
-  return validatePresetLibrary(parsed);
 }
 
 function serializePresetLibrary(value) {
-  const clean = validatePresetLibrary(value);
-  clean.presets = clean.presets.map(preset => {
-    if (preset.data && Object.hasOwn(preset.data, "_snippet")) {
-      const { _snippet, ...rest } = preset.data;
-      return { ...preset, data: rest };
-    }
-    return preset;
-  });
-  return JSON.stringify(clean, null, 2) + "\n";
-}
-
-function attr(node, name) {
-  return node?.attrs?.find(item => item.name === name)?.value || "";
-}
-
-function hasAttr(node, name) {
-  return Boolean(node?.attrs?.some(item => item.name === name));
-}
-
-function classSet(node) {
-  return new Set(attr(node, "class").split(/\s+/).filter(Boolean));
-}
-
-function elementChildren(node) {
-  return (node?.childNodes || []).filter(child => Boolean(child.tagName));
-}
-
-function walk(node, visit, ancestors = []) {
-  if (node?.tagName) visit(node, ancestors);
-  for (const child of node?.childNodes || []) walk(child, visit, node?.tagName ? [...ancestors, node] : ancestors);
-}
-
-function textContent(node) {
-  if (!node) return "";
-  if (node.nodeName === "#text") return node.value || "";
-  return cleanText((node.childNodes || []).map(textContent).join(" ").replace(/\s+/g, " "), "", 2000);
-}
-
-function hasClass(node, name) {
-  return classSet(node).has(name);
-}
-
-function findAll(node, predicate) {
-  const out = [];
-  walk(node, child => { if (predicate(child)) out.push(child); });
-  return out;
-}
-
-function first(node, predicate) {
-  return findAll(node, predicate)[0] || null;
-}
-
-function byClass(node, name) {
-  return first(node, child => hasClass(child, name));
-}
-
-function allByClass(node, name) {
-  return findAll(node, child => hasClass(child, name));
-}
-
-function firstTag(node, ...names) {
-  const accepted = new Set(names);
-  return first(node, child => accepted.has(child.tagName));
-}
-
-function texts(nodes) {
-  return nodes.map(textContent).filter(Boolean);
-}
-
-function safeImageUrl(value) {
-  const url = cleanText(value, "", 1000);
-  return /^https:\/\/[^\s<>"']+$/i.test(url) ? url : "";
-}
-
-function toneFromClasses(node, prefix, fallback = "primary") {
-  const value = [...classSet(node)].find(name => name.startsWith(prefix));
-  return value ? value.slice(prefix.length) : fallback;
-}
-
-function variantForNode(node) {
-  const classes = classSet(node);
-  const has = name => classes.has(name);
-  if (node.tagName === "calendar-date" || has("cally")) return "calendar";
-  if (has("toast")) return "toast";
-  if (has("footer")) return "footer";
-  if (has("navbar")) return "navbar";
-  if (has("hero")) return "hero";
-  if (has("modal")) return "modal";
-  if (has("drawer")) return "drawer";
-  if (has("carousel")) return "carousel";
-  if (has("breadcrumbs")) return "breadcrumbs";
-  if (has("dropdown")) return "dropdown";
-  if (has("collapse")) return "accordion";
-  if (has("timeline")) return "timeline";
-  if (has("steps")) return "steps";
-  if (has("tabs")) return "tabs";
-  if (has("stats") || has("stat")) return "stat";
-  if (has("rating")) return "rating";
-  if (has("radial-progress")) return "radial-progress";
-  if (has("progress")) return "progress";
-  if (has("countdown")) return "countdown";
-  if (has("loading")) return "loading";
-  if (has("indicator")) return "indicator";
-  if (has("dock") || has("btm-nav") || has("bottom-nav")) return "bottom-navigation";
-  if (has("file-input")) return "file-input";
-  if (has("toggle")) return "toggle";
-  if (has("checkbox")) return "checkbox";
-  if (has("radio")) return "radio";
-  if (has("range")) return "range";
-  if (has("select")) return "select";
-  if (has("textarea")) return "textarea";
-  if (has("input")) return "input";
-  if (has("table")) return "table";
-  if (has("menu")) return "menu";
-  if (has("alert")) return "alert";
-  if (has("avatar")) return "avatar";
-  if (has("badge")) return "badge";
-  if (has("mask")) return "mask";
-  if (has("card")) return "card";
-  if (has("btn")) return "button";
-  return "";
-}
-
-function findComponentRoot(fragment) {
-  let outermost = null;
-  walk(fragment, (node) => {
-    const variant = variantForNode(node);
-    if (!variant) return;
-    if (!outermost) outermost = { node, variant };
-  });
-  if (outermost) {
-    if (outermost.variant === "accordion" || candidatesAllSameVariant(fragment, "accordion")) {
-      return { node: fragment, variant: "accordion" };
-    }
-    return outermost;
-  }
-  const rootVariant = variantForNode(fragment);
-  if (rootVariant) return { node: fragment, variant: rootVariant };
-  return { node: fragment, variant: "card" };
-}
-
-function candidatesAllSameVariant(fragment, variant) {
-  let count = 0;
-  walk(fragment, (node) => {
-    if (variantForNode(node) === variant) count++;
-  });
-  return count > 1;
-}
-
-function labelForControl(root) {
-  const label = first(root, node => node.tagName === "label");
-  return textContent(label) || attr(root, "aria-label") || attr(root, "placeholder") || "Wert";
-}
-
-function buttonLabels(root) {
-  return texts(findAll(root, node => node.tagName === "button" || hasClass(node, "btn")));
-}
-
-function linkItems(root) {
-  return texts(findAll(root, node => ["a", "button", "li"].includes(node.tagName)))
-    .filter((item, index, values) => values.indexOf(item) === index);
-}
-
-function extractData(variant, root) {
-  const heading = textContent(firstTag(root, "h1", "h2", "h3", "h4", "h5", "h6"));
-  const paragraph = textContent(firstTag(root, "p"));
-  const buttons = buttonLabels(root);
-  const image = firstTag(root, "img");
-  if (variant === "footer") {
-    const aside = first(root, node => node.tagName === "aside");
-    const columns = findAll(root, node => node.tagName === "nav").map(nav => ({
-      title: textContent(byClass(nav, "footer-title")) || "Links",
-      items: findAll(nav, node => node.tagName === "a" || node.tagName === "button")
-        .map(node => ({ label: textContent(node), transitionId: "" })).filter(item => item.label)
-    }));
-    const asideParagraphs = aside ? findAll(aside, node => node.tagName === "p") : [];
-    return { brand: textContent(byClass(aside, "footer-title")) || textContent(asideParagraphs[0]) || "Marke", note: textContent(asideParagraphs[1]) || "", columns };
-  }
-  if (variant === "navbar") {
-    const search = first(root, node => node.tagName === "input" && (attr(node, "type") || "text") === "text");
-    const dropdowns = allByClass(root, "dropdown");
-    const items = texts(findAll(root, node => node.tagName === "li"));
-    return { layout: search ? "search-dropdown" : dropdowns.length > 1 ? "cart-profile" : items.length ? "menu-submenu" : "title-only", brand: textContent(byClass(root, "text-xl")) || buttons[0] || heading || "Marke", selected: items[0] || "", items, search: attr(search, "value"), submenu: [], submenuOpen: false, profileOpen: false, cartOpen: false };
-  }
-  if (variant === "hero") return { layout: image ? "figure" : "centered", title: heading || "Titelbereich", body: paragraph, actionLabel: buttons[0] || "Weiter", image: safeImageUrl(attr(image, "src")) };
-  if (variant === "card") return { title: heading || "Karte", body: paragraph, image: safeImageUrl(attr(image, "src")), imageAlt: attr(image, "alt"), actionLabel: buttons.at(-1) || "Weiter" };
-  if (variant === "accordion") return { open: textContent(byClass(root, "collapse-title")), items: allByClass(root, "collapse").map(section => ({ label: textContent(byClass(section, "collapse-title")), body: textContent(byClass(section, "collapse-content")) })).filter(item => item.label) };
-  if (variant === "alert") return { tone: toneFromClasses(root, "alert-", "info"), message: textContent(root) };
-  if (variant === "toast") { const alert = byClass(root, "alert") || root; return { visible: true, tone: toneFromClasses(alert, "alert-", "info"), message: textContent(alert) }; }
-  if (variant === "avatar") return { name: attr(image, "alt") || "Avatar", image: safeImageUrl(attr(image, "src")), status: hasClass(root, "online") ? "online" : hasClass(root, "offline") ? "offline" : "", initials: textContent(byClass(root, "placeholder")), placeholder: !image };
-  if (variant === "badge") return { label: textContent(root), tone: toneFromClasses(root, "badge-", "primary") };
-  if (variant === "bottom-navigation") { const items = linkItems(root); return { selected: items[0] || "Start", items }; }
-  if (variant === "breadcrumbs") return { items: findAll(root, node => node.tagName === "li").map(node => ({ label: textContent(node), transitionId: "" })).filter(item => item.label) };
-  if (variant === "button") return { label: textContent(root) || "Weiter", clicked: false, clickedAt: 0 };
-  if (variant === "calendar") return {
-    label: attr(root, "aria-label") || heading || "Datum",
-    value: cleanText(attr(root, "value") || attr(root, "default-value") || "", "", 40),
-    min: cleanText(attr(root, "min") || "", "", 40),
-    max: cleanText(attr(root, "max") || "", "", 40)
-  };
-  if (variant === "carousel") return { index: 0, images: findAll(root, node => node.tagName === "img").map(node => safeImageUrl(attr(node, "src"))).filter(Boolean) };
-  if (variant === "checkbox" || variant === "toggle") { const controls = findAll(root, node => hasClass(node, variant)); return { legend: heading || "Einstellungen", label: labelForControl(root), checked: controls.some(node => hasAttr(node, "checked")), items: controls.map(node => ({ label: textContent(node.parentNode) || labelForControl(node), checked: hasAttr(node, "checked") })) }; }
-  if (variant === "countdown") return { duration: Number(attr(root, "style").match(/--value:\s*(\d+)/)?.[1] || 20), value: Number(attr(root, "style").match(/--value:\s*(\d+)/)?.[1] || 20), label: paragraph || "Sekunden übrig", running: true, finished: false, startedAt: 0, endsAt: 0 };
-  if (variant === "drawer") return { open: Boolean(first(root, node => node.tagName === "input" && hasAttr(node, "checked"))), title: heading || "Menü", selected: linkItems(root)[0] || "", items: linkItems(root) };
-  if (variant === "dropdown") { const items = texts(findAll(root, node => node.tagName === "li")); return { selected: buttons[0] || items[0] || "Auswählen", options: items, open: false }; }
-  if (variant === "file-input") return { label: labelForControl(root), filename: "" };
-  if (variant === "indicator") return { label: buttons.at(-1) || paragraph || "Element", count: Number(textContent(byClass(root, "indicator-item"))) || 0 };
-  if (variant === "input" || variant === "textarea") return { label: labelForControl(root), value: attr(root, "value") || textContent(root) };
-  if (variant === "loading") return { label: attr(root, "aria-label") || paragraph || "Lädt...", active: true, durationMs: 2000, nextLabel: "Weiter" };
-  if (variant === "mask") return { image: safeImageUrl(attr(image || root, "src")), alt: attr(image || root, "alt"), shape: [...classSet(root)].find(name => name.startsWith("mask-") && name !== "mask")?.slice(5) || "squircle" };
-  if (variant === "menu") { const items = texts(findAll(root, node => node.tagName === "li")); return { selected: items[0] || "", items }; }
-  if (variant === "modal") return { open: hasAttr(root, "open"), confirmed: false, openLabel: "Dialog öffnen", title: heading || "Dialog", body: paragraph, actionLabel: buttons[0] || "Bestätigen", closeLabel: buttons[1] || "Schließen" };
-  if (variant === "progress" || variant === "radial-progress") return { value: Number(attr(root, "value") || attr(root, "style").match(/--value:\s*(\d+)/)?.[1] || 0), max: Number(attr(root, "max") || 100), label: attr(root, "aria-label") || paragraph || "Fortschritt" };
-  if (variant === "radio") { const controls = findAll(root, node => hasClass(node, "radio")); const options = controls.map(node => attr(node, "aria-label") || attr(node, "value") || textContent(node.parentNode)).filter(Boolean); return { label: labelForControl(root), value: attr(controls.find(node => hasAttr(node, "checked")), "value") || options[0] || "", options }; }
-  if (variant === "range") return { label: labelForControl(root), value: Number(attr(root, "value") || 0), min: Number(attr(root, "min") || 0), max: Number(attr(root, "max") || 100) };
-  if (variant === "rating") { const controls = findAll(root, node => node.tagName === "input"); const selected = Math.max(0, controls.findIndex(node => hasAttr(node, "checked")) + 1); return { label: attr(root, "aria-label") || "Bewertung", value: selected || 1, max: controls.length || 5 }; }
-  if (variant === "select") { const options = findAll(root, node => node.tagName === "option"); return { label: labelForControl(root), value: textContent(options.find(node => hasAttr(node, "selected"))) || textContent(options[0]), options: texts(options) }; }
-  if (variant === "stat") return { title: textContent(byClass(root, "stat-title")) || heading || "Kennzahl", value: textContent(byClass(root, "stat-value")) || "0", description: textContent(byClass(root, "stat-desc")) || paragraph };
-  if (variant === "steps") { const items = texts(allByClass(root, "step")); return { current: textContent(first(root, node => hasClass(node, "step-primary"))) || items[0] || "", items: items.map(label => ({ label, description: "" })) }; }
-  if (variant === "table") { const headers = texts(findAll(root, node => node.tagName === "th")); const rows = findAll(root, node => node.tagName === "tr").map(row => texts(elementChildren(row).filter(node => node.tagName === "td"))).filter(row => row.length); return { columns: headers, rows }; }
-  if (variant === "tabs") { const items = texts(allByClass(root, "tab")); return { selected: textContent(first(root, node => hasClass(node, "tab-active"))) || items[0] || "", items }; }
-  if (variant === "timeline") return { current: "", items: findAll(root, node => node.tagName === "li").map(item => ({ title: textContent(firstTag(item, "h1", "h2", "h3", "div")) || textContent(item), body: textContent(firstTag(item, "p")) })).filter(item => item.title) };
-  return { title: heading || "Baustein", body: paragraph };
+  return JSON.stringify(validatePresetLibrary(value), null, 2) + "\n";
 }
 
 function slug(value) {
@@ -431,14 +337,9 @@ function slug(value) {
 function parseDaisySnippet(payload) {
   if (!isPlainObject(payload)) throw contractError("invalid_json");
   const snippet = String(payload.snippet || "");
-  if (!snippet.trim()) throw contractError("snippet_required");
-  if (Buffer.byteLength(snippet, "utf8") > MAX_SNIPPET_BYTES) throw contractError("snippet_too_large", 413);
-  const fragment = parse5.parseFragment(snippet);
-  walk(fragment, node => {
-    if ((node.attrs || []).some(item => /^on/i.test(item.name))) throw contractError("unsafe_snippet_attribute");
-  });
-  const { node, variant } = findComponentRoot(fragment);
-  const title = cleanText(payload.title, "", 120) || textContent(firstTag(node, "h1", "h2", "h3", "h4", "h5", "h6")) || `${variant} Preset`;
+  const checked = validateTemplateHtml(snippet);
+  const { node, variant } = findComponentRoot(checked.fragment);
+  const title = cleanText(payload.title, "", 120) || textContent(first(node, child => /^h[1-6]$/.test(child.tagName))) || `${variant} Preset`;
   const requestedId = cleanText(payload.id, "", 64);
   const id = requestedId || `custom_${slug(title)}`;
   if (!CUSTOM_PRESET_ID_PATTERN.test(id)) throw contractError("invalid_custom_preset_id");
@@ -446,10 +347,16 @@ function parseDaisySnippet(payload) {
     id,
     variant,
     title,
-    description: cleanText(payload.description, `Aus DaisyUI ${DAISY_VERSION} importierter ${variant}-Baustein.`, 500),
+    description: cleanText(payload.description, `Original DaisyUI ${DAISY_VERSION} ${variant} template.`, 500),
     categoryId: validId(payload.categoryId || "websuite-builder", "invalid_category_id"),
     packageIds: Array.isArray(payload.packageIds) ? [...new Set(payload.packageIds.map(item => validId(item, "invalid_package_id")))] : [],
-    data: { ...normalizeDataValue(extractData(variant, node)), _snippet: snippet.trim() }
+    template: {
+      source: "daisyui",
+      version: DAISY_VERSION,
+      docsPath: cleanText(payload.docsPath || "", "", 300),
+      html: checked.html
+    },
+    data: normalizeDataValue(extractData(variant, node))
   };
 }
 
