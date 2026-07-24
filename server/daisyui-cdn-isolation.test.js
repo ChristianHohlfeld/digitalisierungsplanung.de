@@ -24,6 +24,7 @@ function loadHookApi() {
     window: null,
     navigator: {},
     document: undefined,
+    MutationObserver: undefined,
     Blob: NativeBlob,
     Object,
     String,
@@ -35,11 +36,41 @@ function loadHookApi() {
   return sandbox.window.__zustandDaisyUiCdn;
 }
 
-test("DaisyUI CDN is opt-in for isolated render documents only", () => {
+function fakeDocument(marked = false) {
+  const nodes = [];
+  const doc = {
+    documentElement: {
+      attrs: {},
+      getAttribute(name) { return this.attrs[name] || ""; },
+      setAttribute(name, value) { this.attrs[name] = String(value); }
+    },
+    head: {
+      appended: nodes,
+      appendChild(node) { nodes.push(node); }
+    },
+    querySelector(selector) {
+      if (selector === "[data-zustand-daisyui-render]") return marked ? {} : null;
+      const match = selector.match(/^\[data-zustand-daisyui-cdn="([^"]+)"\]$/);
+      return match ? nodes.find(node => node.attrs?.["data-zustand-daisyui-cdn"] === match[1]) || null : null;
+    },
+    createElement(tagName) {
+      return {
+        tagName,
+        attrs: {},
+        setAttribute(name, value) { this.attrs[name] = String(value); }
+      };
+    }
+  };
+  return { doc, nodes };
+}
+
+test("DaisyUI CDN is opt-in for marked render documents only", () => {
   const hook = read("disable-sw.js");
   for (const pattern of CDN_PATTERNS) assert.match(hook, pattern);
   assert.match(hook, /function injectDaisyUiCdn/);
+  assert.match(hook, /function ensureDaisyUiInMarkedDocument/);
   assert.match(hook, /data-zustand-daisyui-render/);
+  assert.match(hook, /querySelectorAll\("iframe"\)/);
   assert.doesNotMatch(hook, /iframe#appFrame/);
   assert.doesNotMatch(hook, /document\.head\.append/, "CDN tags must not be appended to the editor document head");
 
@@ -51,15 +82,27 @@ test("DaisyUI CDN is opt-in for isolated render documents only", () => {
   }
 });
 
-test("DaisyUI CDN injection leaves normal runtime HTML untouched", () => {
+test("DaisyUI CDN injection leaves unmarked runtime HTML and frames untouched", () => {
   const api = loadHookApi();
   const runtimeHtml = '<!doctype html><html><head></head><body><button class="btn">Runtime</button></body></html>';
   assert.equal(api.injectDaisyUiCdn(runtimeHtml), runtimeHtml);
 
-  const renderHtml = '<!doctype html><html data-zustand-daisyui-render><head></head><body><button class="btn btn-primary">Preset</button></body></html>';
+  const unmarked = fakeDocument(false);
+  api.ensureDaisyUiInMarkedDocument(unmarked.doc);
+  assert.equal(unmarked.nodes.length, 0);
+});
+
+test("DaisyUI CDN injection styles marked render HTML and frames", () => {
+  const api = loadHookApi();
+  const renderHtml = '<!doctype html><html><head></head><body><div data-zustand-daisyui-render><button class="btn btn-primary">Preset</button></div></body></html>';
   const injected = api.injectDaisyUiCdn(renderHtml);
   assert.notEqual(injected, renderHtml);
   assert.match(injected, /daisyui@5\/themes\.css/);
   assert.match(injected, /daisyui@5/);
   assert.match(injected, /@tailwindcss\/browser@4/);
+
+  const marked = fakeDocument(true);
+  api.ensureDaisyUiInMarkedDocument(marked.doc);
+  assert.deepEqual(marked.nodes.map(node => node.attrs["data-zustand-daisyui-cdn"]), ["themes", "components", "tailwind"]);
+  assert.equal(marked.doc.documentElement.getAttribute("data-theme"), "light");
 });
