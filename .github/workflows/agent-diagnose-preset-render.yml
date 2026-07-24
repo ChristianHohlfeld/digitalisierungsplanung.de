@@ -58,6 +58,16 @@ jobs:
           print('\n'.join(out[:800]))
       - uses: actions/upload-artifact@v4
         with:
-          name: preset-render-diagnostics
-          path: preset-render-diagnostics.txt
+          name: preset-render-sources
+          path: |
+            preset-render-diagnostics.txt
+            state.html
+            server/server.js
+            server/preset-library.js
+            server/presets-admin.html
+            server/server.test.js
+            package.json
+            package-lock.json
+            playwright.config.js
+            tests
           retention-days: 1
