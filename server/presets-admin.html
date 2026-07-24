@@ -37,6 +37,10 @@
     .bad { color: var(--bad); }
     [hidden] { display: none !important; }
     .preview-frame { width: 100%; min-height: 280px; max-height: 420px; border: 1px solid var(--line); border-radius: 8px; background: #f8fafc; overflow: auto; }
+    .binding-list { display: grid; gap: 6px; padding: 10px; border: 1px dashed var(--line); border-radius: 8px; background: rgba(4,16,28,.62); }
+    .binding-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; color: var(--muted); font-size: 12px; }
+    .binding-row code { color: #bfdbfe; overflow-wrap: anywhere; }
+    .binding-row button { width: auto; min-height: 30px; padding: 0 9px; }
     .preset-tag { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 800; margin-left: 4px; vertical-align: middle; }
     .preset-tag.builtin { background: rgba(56,189,248,.15); color: #7dd3fc; }
     .preset-tag.custom { background: rgba(245,158,11,.15); color: #fde68a; }
@@ -66,6 +70,8 @@
           <div id="snippetSource">
             <textarea id="snippet" spellcheck="false" placeholder="DaisyUI-HTML hier einfuegen, z. B. &lt;div data-zustand-daisyui-render class=&quot;card&quot;&gt;...&lt;/div&gt;"></textarea>
             <iframe id="preview" class="preview-frame" sandbox="allow-scripts"></iframe>
+            <div id="bindingList" class="binding-list"></div>
+            <div class="hint">Text, Labels, Buttons oder Links in der Vorschau anklicken: erster Klick erzeugt ein editierbares State-Feld, zweiter Klick entfernt es wieder.</div>
           </div>
           <div id="apiSource" hidden>
             <label>Preset-JSON-URL<input id="apiUrl" type="url" inputmode="url" autocomplete="url" placeholder="https://api.example.com/preset.json"></label>
@@ -139,6 +145,7 @@
     const DAISYUI_CSS = "https://cdn.jsdelivr.net/npm/daisyui@5";
     const TAILWIND_BROWSER = "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4";
     const RENDER_MARKER = "data-zustand-daisyui-render";
+    const TEXT_BINDINGS_KEY = "_textBindings";
     const el = id => document.getElementById(id);
     let library = null;
     let allPresets = [];
@@ -149,7 +156,7 @@
     function clone(value) { return JSON.parse(JSON.stringify(value)); }
     function authHeaders() { return { authorization: "Bearer " + el("secret").value.trim(), "content-type": "application/json" }; }
     function setStatus(message, type = "") { el("status").className = "status " + type; el("status").textContent = message; }
-    function nextSort(items) { return Math.max(0, ...items.map(item => Number(item.sort) || 0)) + 10; }
+    function nextSort(items) { return Math.max(0, ...(items || []).map(item => Number(item.sort) || 0)) + 10; }
 
     function friendlyError(message) {
       const text = String(message || "Fehler");
@@ -211,6 +218,7 @@
         el("description").value = "";
       }
       syncFormFields();
+      renderBindingList();
       renderPreview();
     }
 
@@ -277,19 +285,23 @@
       meta.innerHTML = tag + ' <span class="hint">' + variantLabel(preset.variant) + '</span>' + desc;
     }
 
-    function escapeHtml(text) {
-      return String(text || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    function escapeHtml(text) { return String(text || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+    function sanitizePreviewHtml(html) { return String(html || "").replace(/<script\b[\s\S]*?<\/script>/gi, "").replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, ""); }
+    function slugText(value, fallback = "text") {
+      return String(value || fallback).toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 36) || fallback;
     }
-
-    function sanitizePreviewHtml(html) {
-      return String(html || "")
-        .replace(/<script\b[\s\S]*?<\/script>/gi, "")
-        .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+    function textBindings(data = draft?.data) { return Array.isArray(data?.[TEXT_BINDINGS_KEY]) ? data[TEXT_BINDINGS_KEY] : []; }
+    function textBindingValues(data = draft?.data) {
+      const values = {};
+      for (const binding of textBindings(data)) if (binding?.key && binding?.field) values[binding.key] = String(data?.[binding.field] ?? binding.text ?? "");
+      return values;
     }
 
     function previewDocument(componentHtml) {
       const cleaned = sanitizePreviewHtml(componentHtml);
       const marked = cleaned.includes(RENDER_MARKER) ? cleaned : '<div data-zustand-daisyui-render>' + cleaned + '</div>';
+      const selectedKeys = textBindings().map(binding => binding.key).filter(Boolean);
+      const values = textBindingValues();
       return `<!doctype html>
 <html data-zustand-daisyui-render data-theme="light">
 <head>
@@ -304,6 +316,9 @@
     body { padding: 20px; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     body > * { max-width: 100%; }
     img, svg { max-width: 100%; height: auto; }
+    [data-zustand-edit-key] { cursor: pointer; outline: 1px dashed rgba(14,165,233,.55); outline-offset: 2px; border-radius: .25rem; }
+    [data-zustand-edit-key]:hover { outline-color: rgba(245,158,11,.95); background: rgba(245,158,11,.10); }
+    [data-zustand-edit-selected] { outline: 2px solid rgba(52,211,153,.95); background: rgba(52,211,153,.12); }
     .w-60 { width: 15rem; } .w-64 { width: 16rem; } .w-96 { width: 24rem; } .w-full { width: 100%; } .max-w-xs { max-width: 20rem; }
     .flex { display: flex; } .inline-block { display: inline-block; } .grid { display: grid; } .flex-wrap { flex-wrap: wrap; }
     .flex-col { flex-direction: column; } .justify-between { justify-content: space-between; } .justify-center { justify-content: center; } .items-center { align-items: center; }
@@ -325,7 +340,37 @@
     .hover-3d > div { grid-area: 1 / 1; min-height: 1px; pointer-events: none; }
   </style>
 </head>
-<body>${marked}</body>
+<body>${marked}
+<script>
+(() => {
+  const selected = new Set(${JSON.stringify(selectedKeys)});
+  const values = ${JSON.stringify(values).replace(/<\//g, '<\\/')};
+  const tags = "p,h1,h2,h3,h4,h5,h6,span,button,a,label,li,figcaption,legend,th,td";
+  function slug(value) { return String(value || "text").toLowerCase().normalize("NFKD").replace(/[\\u0300-\\u036f]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 36) || "text"; }
+  function directText(node) { return [...node.childNodes].filter(child => child.nodeType === Node.TEXT_NODE).map(child => child.textContent).join(" ").replace(/\\s+/g, " ").trim(); }
+  const counters = Object.create(null);
+  document.querySelectorAll(tags).forEach(node => {
+    if (node.closest("script,style,template")) return;
+    const text = (directText(node) || node.innerText || node.textContent || "").replace(/\\s+/g, " ").trim();
+    if (!text || text.length > 160) return;
+    const base = node.tagName.toLowerCase() + "_" + slug(text);
+    const index = (counters[base] = (counters[base] || 0) + 1);
+    const key = base + "_" + index;
+    node.dataset.zustandEditKey = key;
+    node.dataset.zustandEditText = text;
+    node.title = selected.has(key) ? "Editierbares State-Feld entfernen" : "Als editierbares State-Feld markieren";
+    if (Object.prototype.hasOwnProperty.call(values, key)) node.textContent = values[key];
+    if (selected.has(key)) node.setAttribute("data-zustand-edit-selected", "true");
+  });
+  document.addEventListener("click", event => {
+    const target = event.target.closest("[data-zustand-edit-key]");
+    if (!target) return;
+    event.preventDefault();
+    event.stopPropagation();
+    parent.postMessage({ type: "zustand-preset-toggle-text-binding", key: target.dataset.zustandEditKey, text: target.dataset.zustandEditText || target.textContent.trim(), tag: target.tagName.toLowerCase() }, "*");
+  }, true);
+})();
+<\/script></body>
 </html>`;
     }
 
@@ -353,6 +398,57 @@
       if (!html) { clearPreview(preview); return; }
       try { setPreviewDocument(preview, previewDocument(html)); }
       catch (_) { setPreviewDocument(preview, '<!doctype html><html><body style="font-family:sans-serif;color:#b91c1c;padding:16px">Vorschau nicht moeglich</body></html>'); }
+    }
+
+    function renderBindingList() {
+      const list = el("bindingList");
+      const bindings = textBindings();
+      if (!bindings.length) {
+        list.innerHTML = '<div class="hint">Noch keine editierbaren Textfelder markiert.</div>';
+        return;
+      }
+      list.innerHTML = bindings.map(binding => '<div class="binding-row"><span>' + escapeHtml(binding.label || binding.text || binding.field) + '<br><code>states.&lt;preset&gt;.' + escapeHtml(binding.field) + '</code></span><button class="secondary" type="button" data-remove-binding="' + escapeHtml(binding.key) + '">Entfernen</button></div>').join("");
+    }
+
+    async function ensureDraftForBinding() {
+      if (draft) return;
+      if (el("sourceMode").value === "snippet" && el("snippet").value.trim()) await parseSnippet();
+      else createBlankPreset();
+    }
+
+    function fieldForBinding(message, data) {
+      const existing = textBindings(data).find(binding => binding.key === message.key);
+      if (existing?.field) return existing.field;
+      const topLevelMatch = Object.entries(data || {}).find(([key, value]) => key !== TEXT_BINDINGS_KEY && !key.startsWith("_") && typeof value === "string" && value.trim() === String(message.text || "").trim());
+      if (topLevelMatch) return topLevelMatch[0];
+      const used = new Set(Object.keys(data || {}));
+      const stem = "text_" + slugText(message.text || message.tag || "field");
+      let field = stem;
+      let index = 2;
+      while (used.has(field)) field = stem.slice(0, 48) + "_" + index++;
+      return field;
+    }
+
+    async function toggleTextBinding(message) {
+      if (!message?.key || !message.text) return;
+      await ensureDraftForBinding();
+      const next = clone(definitionValue() || draft);
+      next.data = isPlainObject(next.data) ? next.data : {};
+      const bindings = textBindings(next.data);
+      const existingIndex = bindings.findIndex(binding => binding.key === message.key);
+      if (existingIndex >= 0) {
+        const [removed] = bindings.splice(existingIndex, 1);
+        if (removed?.field && bindings.every(binding => binding.field !== removed.field)) delete next.data[removed.field];
+        setStatus(`Textfeld ${removed?.field || message.key} entfernt.`, "ok");
+      } else {
+        const field = fieldForBinding(message, next.data);
+        next.data[field] = String(message.text).trim();
+        bindings.push({ key: message.key, field, label: String(message.text).trim().slice(0, 80), tag: message.tag || "", text: String(message.text).trim() });
+        setStatus(`Textfeld ${field} angelegt. Im Editor erscheint es als states.${next.id || "preset"}.${field}.`, "ok");
+      }
+      if (bindings.length) next.data[TEXT_BINDINGS_KEY] = bindings;
+      else delete next.data[TEXT_BINDINGS_KEY];
+      setDefinition(next);
     }
 
     async function requestJson(url, options = {}) {
@@ -457,11 +553,7 @@
       if (!el("snippet").value.trim()) throw new Error("Snippet fehlt.");
       const categoryId = ensureCategory();
       const packageId = ensurePackage();
-      const payload = await requestJson("/presets-admin/parse", {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify({ snippet: el("snippet").value, id: el("presetId").value, title: el("title").value, description: el("description").value, categoryId, packageIds: [packageId] })
-      });
+      const payload = await requestJson("/presets-admin/parse", { method: "POST", headers: authHeaders(), body: JSON.stringify({ snippet: el("snippet").value, id: el("presetId").value, title: el("title").value, description: el("description").value, categoryId, packageIds: [packageId] }) });
       setDefinition(payload.preset);
       renderCatalog();
       setStatus(`Definition fuer ${draft.variant} aus Snippet gelesen.`, "ok");
@@ -625,7 +717,13 @@
     el("managedPackage").addEventListener("change", syncDeleteButtons);
     el("existingPreset").addEventListener("change", syncDeleteButtons);
     el("snippet").addEventListener("input", renderPreview);
-    el("definition").addEventListener("input", () => { try { draft = JSON.parse(el("definition").value) || null; syncFormFields(); renderPreview(); } catch (_) {} });
+    el("bindingList").addEventListener("click", event => {
+      const key = event.target?.dataset?.removeBinding;
+      if (!key) return;
+      const binding = textBindings().find(item => item.key === key);
+      toggleTextBinding({ key, text: binding?.text || binding?.label || key, tag: binding?.tag || "" }).catch(showError);
+    });
+    el("definition").addEventListener("input", () => { try { draft = JSON.parse(el("definition").value) || null; syncFormFields(); renderBindingList(); renderPreview(); } catch (_) {} });
 
     function syncDraftFromForm() {
       if (!draft) return;
@@ -640,6 +738,10 @@
     }
     ["presetId", "title", "description"].forEach(id => el(id).addEventListener("input", syncDraftFromForm));
     ["variant", "category", "package"].forEach(id => el(id).addEventListener("change", syncDraftFromForm));
+    window.addEventListener("message", event => {
+      if (event.data?.type !== "zustand-preset-toggle-text-binding") return;
+      toggleTextBinding(event.data).catch(showError);
+    });
     el("parse").onclick = () => parseSource().catch(showError);
     el("save").onclick = () => savePreset().catch(showError);
     el("validate").onclick = () => validateLibrary().catch(showError);
