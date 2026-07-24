@@ -4,7 +4,6 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Preset Designer</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@4.12.23/dist/full.min.css">
   <style>
     :root { color-scheme: dark; --bg:#06111d; --panel:#0a1a29; --field:#04101c; --line:#24435e; --text:#e7f2ff; --muted:#9cb3c9; --accent:#38bdf8; --ok:#34d399; --bad:#fb7185; --warn:#f59e0b; }
     * { box-sizing: border-box; }
@@ -37,10 +36,7 @@
     .ok { color: var(--ok); }
     .bad { color: var(--bad); }
     [hidden] { display: none !important; }
-    .preview-frame { border: 1px solid var(--line); border-radius: 8px; background: oklch(var(--b1)); padding: 24px; min-height: 120px; max-height: 280px; overflow: auto; }
-    .preview-frame:empty::after { content: "Keine Vorschau — Preset laden oder Snippet einlesen"; color: var(--muted); font-size: 13px; }
-    .preview-frame > * { max-width: 100%; }
-    .preview-label { font-size: 11px; font-weight: 800; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; letter-spacing: .04em; }
+    .preview-frame { width: 100%; min-height: 280px; max-height: 420px; border: 1px solid var(--line); border-radius: 8px; background: #f8fafc; overflow: auto; }
     .preset-tag { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 800; margin-left: 4px; vertical-align: middle; }
     .preset-tag.builtin { background: rgba(56,189,248,.15); color: #7dd3fc; }
     .preset-tag.custom { background: rgba(245,158,11,.15); color: #fde68a; }
@@ -68,8 +64,8 @@
           <h2>Preset erstellen oder bearbeiten</h2>
           <label>Importquelle<select id="sourceMode"><option value="snippet">HTML-Snippet einlesen</option><option value="api">Preset-JSON von URL laden</option></select></label>
           <div id="snippetSource">
-            <textarea id="snippet" spellcheck="false" placeholder="DaisyUI-HTML hier einfuegen, z. B. &lt;div class=&quot;alert alert-info&quot;&gt;...&lt;/div&gt;"></textarea>
-            <div id="preview" class="preview-frame"></div>
+            <textarea id="snippet" spellcheck="false" placeholder="DaisyUI-HTML hier einfuegen, z. B. &lt;div data-zustand-daisyui-render class=&quot;card&quot;&gt;...&lt;/div&gt;"></textarea>
+            <iframe id="preview" class="preview-frame" sandbox="allow-scripts"></iframe>
           </div>
           <div id="apiSource" hidden>
             <label>Preset-JSON-URL<input id="apiUrl" type="url" inputmode="url" autocomplete="url" placeholder="https://api.example.com/preset.json"></label>
@@ -139,6 +135,10 @@
     const ADMIN_SECRET_STORAGE_KEY = "digitalisierungsplanung.realtime.adminSecret";
     const PROTECTED_CATEGORY_IDS = new Set(["websuite-builder"]);
     const PROTECTED_PACKAGE_IDS = new Set(["core.process", "website.builder", "approval.compliance", "service.operations", "bi.analytics", "sales.crm", "knowledge.portal", "integration.automation"]);
+    const DAISYUI_THEME_CSS = "https://cdn.jsdelivr.net/npm/daisyui@5/themes.css";
+    const DAISYUI_CSS = "https://cdn.jsdelivr.net/npm/daisyui@5";
+    const TAILWIND_BROWSER = "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4";
+    const RENDER_MARKER = "data-zustand-daisyui-render";
     const el = id => document.getElementById(id);
     let library = null;
     let allPresets = [];
@@ -165,6 +165,7 @@
       el("snippetSource").hidden = api;
       el("apiSource").hidden = !api;
       el("parse").textContent = api ? "URL einlesen" : "Snippet einlesen";
+      renderPreview();
     }
 
     try { el("secret").value = localStorage.getItem(ADMIN_SECRET_STORAGE_KEY) || ""; } catch (_) {}
@@ -189,13 +190,8 @@
       select.value = [...select.options].some(option => option.value === selected) ? selected : select.options[0]?.value || "";
     }
 
-    function variantLabel(id) {
-      return String(id || "").replace(/-/g, " ").replace(/\b\w/g, char => char.toUpperCase());
-    }
-
-    function variantOptions() {
-      return supportedVariants.map(id => ({ id, label: variantLabel(id) }));
-    }
+    function variantLabel(id) { return String(id || "").replace(/-/g, " ").replace(/\b\w/g, char => char.toUpperCase()); }
+    function variantOptions() { return supportedVariants.map(id => ({ id, label: variantLabel(id) })); }
 
     function syncFormFields() {
       if (!draft) return;
@@ -284,6 +280,63 @@
       return String(text || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     }
 
+    function sanitizePreviewHtml(html) {
+      return String(html || "")
+        .replace(/<script\b[\s\S]*?<\/script>/gi, "")
+        .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+    }
+
+    function previewDocument(componentHtml) {
+      const cleaned = sanitizePreviewHtml(componentHtml);
+      const marked = cleaned.includes(RENDER_MARKER) ? cleaned : '<div data-zustand-daisyui-render>' + cleaned + '</div>';
+      return `<!doctype html>
+<html data-zustand-daisyui-render data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link data-zustand-daisyui-cdn="themes" href="${DAISYUI_THEME_CSS}" rel="stylesheet" type="text/css">
+  <link data-zustand-daisyui-cdn="components" href="${DAISYUI_CSS}" rel="stylesheet" type="text/css">
+  <script data-zustand-daisyui-cdn="tailwind" src="${TAILWIND_BROWSER}"><\/script>
+  <style>
+    html, body { margin: 0; min-height: 100%; background: oklch(var(--b1)); color: oklch(var(--bc)); }
+    body { padding: 20px; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body > * { max-width: 100%; }
+    .w-96 { width: 24rem; } .w-full { width: 100%; } .max-w-xs { max-width: 20rem; }
+    .flex { display: flex; } .inline-block { display: inline-block; } .grid { display: grid; }
+    .flex-col { flex-direction: column; } .justify-between { justify-content: space-between; } .items-center { align-items: center; }
+    .gap-1 { gap: .25rem; } .gap-2 { gap: .5rem; } .gap-4 { gap: 1rem; }
+    .mt-3 { margin-top: .75rem; } .mt-4 { margin-top: 1rem; } .mt-6 { margin-top: 1.5rem; }
+    .me-2 { margin-inline-end: .5rem; } .p-2 { padding: .5rem; } .p-4 { padding: 1rem; } .p-10 { padding: 2.5rem; }
+    .text-xs { font-size: .75rem; line-height: 1rem; } .text-sm { font-size: .875rem; line-height: 1.25rem; }
+    .text-xl { font-size: 1.25rem; line-height: 1.75rem; } .text-2xl { font-size: 1.5rem; line-height: 2rem; } .text-3xl { font-size: 1.875rem; line-height: 2.25rem; }
+    .font-bold { font-weight: 700; } .line-through { text-decoration-line: line-through; } .opacity-50 { opacity: .5; }
+    .size-4 { width: 1rem; height: 1rem; } .h-5 { height: 1.25rem; } .w-5 { width: 1.25rem; }
+    .h-40 { height: 10rem; } .max-h-48 { max-height: 12rem; } .max-h-64 { max-height: 16rem; }
+    .object-cover { object-fit: cover; } .rounded-box { border-radius: var(--radius-box, 1rem); } .shadow-sm { box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+    .text-success { color: oklch(var(--su)); } .text-primary { color: oklch(var(--p)); } .text-base-content\/50 { color: color-mix(in oklch, oklch(var(--bc)) 50%, transparent); }
+    .btn-block { width: 100%; }
+  </style>
+</head>
+<body>${marked}</body>
+</html>`;
+    }
+
+    function renderPreview() {
+      const preview = el("preview");
+      let html = "";
+      if (el("sourceMode").value === "snippet" && el("snippet").value.trim()) html = el("snippet").value;
+      else if (draft?.data) html = draft.data._snippet || generatePresetHtml(draft.variant, draft.data);
+      if (!html) {
+        preview.removeAttribute("srcdoc");
+        return;
+      }
+      try {
+        preview.srcdoc = previewDocument(html);
+      } catch (_) {
+        preview.srcdoc = '<!doctype html><html><body style="font-family:sans-serif;color:#b91c1c;padding:16px">Vorschau nicht moeglich</body></html>';
+      }
+    }
+
     async function requestJson(url, options = {}) {
       const response = await fetch(url, { cache: "no-store", ...options });
       const payload = await response.json().catch(() => ({}));
@@ -311,6 +364,7 @@
       renderCatalog();
       const builtinCount = allPresets.filter(p => p._builtin).length;
       setStatus(`${allPresets.length} Presets geladen (${builtinCount} Built-in, ${library.presets.length} Custom).`, "ok");
+      renderPreview();
     }
 
     function ensureCategory() {
@@ -354,8 +408,8 @@
     function defaultDataForVariant(variant) {
       if (variant === "button") return { label: "Weiter", clicked: false, clickedAt: 0 };
       if (variant === "calendar") return { label: "Datum", value: "", min: "", max: "" };
-      if (variant === "checkbox" || variant === "toggle") return { legend: "Auswahl", label: "Option", checked: false, items: [] };
-      if (variant === "input" || variant === "textarea") return { label: "Feld", value: "" };
+      if (["checkbox", "toggle"].includes(variant)) return { legend: "Auswahl", label: "Option", checked: false, items: [] };
+      if (["input", "textarea"].includes(variant)) return { label: "Feld", value: "" };
       if (variant === "select") return { label: "Auswahl", value: "Option A", options: ["Option A", "Option B"] };
       return { title: "Neues Preset", body: "", image: "", imageAlt: "", actionLabel: "" };
     }
@@ -388,14 +442,7 @@
       const payload = await requestJson("/presets-admin/parse", {
         method: "POST",
         headers: authHeaders(),
-        body: JSON.stringify({
-          snippet: el("snippet").value,
-          id: el("presetId").value,
-          title: el("title").value,
-          description: el("description").value,
-          categoryId,
-          packageIds: [packageId]
-        })
+        body: JSON.stringify({ snippet: el("snippet").value, id: el("presetId").value, title: el("title").value, description: el("description").value, categoryId, packageIds: [packageId] })
       });
       setDefinition(payload.preset);
       renderCatalog();
@@ -417,9 +464,7 @@
       return draft;
     }
 
-    function parseSource() {
-      return el("sourceMode").value === "api" ? importApiPreset() : parseSnippet();
-    }
+    function parseSource() { return el("sourceMode").value === "api" ? importApiPreset() : parseSnippet(); }
 
     function definitionValue() {
       const text = el("definition").value.trim();
@@ -473,41 +518,26 @@
       setStatus(message, "ok");
     }
 
-    async function savePreset() {
-      upsertCurrentDraft();
-      await submitLibrary(false);
-    }
-
-    async function validateLibrary() {
-      if (el("definition").value.trim() || draft) upsertCurrentDraft();
-      await submitLibrary(true);
-    }
-
-    function selectedPreset() {
-      const id = el("existingPreset").value;
-      return allPresets.find(item => item.id === id) || null;
-    }
+    async function savePreset() { upsertCurrentDraft(); await submitLibrary(false); }
+    async function validateLibrary() { if (el("definition").value.trim() || draft) upsertCurrentDraft(); await submitLibrary(true); }
+    function selectedPreset() { return allPresets.find(item => item.id === el("existingPreset").value) || null; }
 
     function applyPreset(preset, opts = {}) {
       if (!preset) throw new Error("Kein Preset ausgewaehlt.");
       const next = clone(preset);
-      delete next._builtin;
-      delete next._custom;
-      delete next._builtinStateTemplates;
+      delete next._builtin; delete next._custom; delete next._builtinStateTemplates;
       if (opts.duplicate) {
         next.id = uniqueCustomId(next.id + "_copy");
         next.title = `${next.title || "Preset"} Kopie`;
         if (next.data?.title) next.data.title = next.data.title + " Kopie";
       }
       setDefinition(next);
-      try {
-        el("snippet").value = next.data?._snippet || generatePresetHtml(next.variant, next.data);
-      } catch (_) {
-        el("snippet").value = "";
-      }
+      try { el("snippet").value = next.data?._snippet || generatePresetHtml(next.variant, next.data); }
+      catch (_) { el("snippet").value = ""; }
       el("apiUrl").value = "";
       renderCatalog();
       if (!opts.duplicate) el("existingPreset").value = next.id;
+      renderPreview();
       setStatus(opts.duplicate ? "Preset dupliziert. Neue ID pruefen und speichern." : "Preset geladen.", "ok");
     }
 
@@ -521,15 +551,8 @@
       library.presets = library.presets.filter(item => item.id !== preset.id);
       setDefinition(null);
       renderCatalog();
-      try {
-        await submitLibrary(false);
-      } catch (error) {
-        library = previousLibrary;
-        draft = previousDraft;
-        renderCatalog();
-        syncFormFields();
-        throw error;
-      }
+      try { await submitLibrary(false); }
+      catch (error) { library = previousLibrary; draft = previousDraft; renderCatalog(); syncFormFields(); throw error; }
     }
 
     async function deleteSelectedCategory() {
@@ -539,14 +562,8 @@
       const previousLibrary = clone(library);
       library.categories = library.categories.filter(item => item.id !== id);
       renderCatalog();
-      try {
-        await submitLibrary(false);
-      } catch (error) {
-        library = previousLibrary;
-        renderCatalog();
-        syncFormFields();
-        throw error;
-      }
+      try { await submitLibrary(false); }
+      catch (error) { library = previousLibrary; renderCatalog(); syncFormFields(); throw error; }
     }
 
     async function deleteSelectedPackage() {
@@ -556,26 +573,8 @@
       const previousLibrary = clone(library);
       library.packages = library.packages.filter(item => item.id !== id);
       renderCatalog();
-      try {
-        await submitLibrary(false);
-      } catch (error) {
-        library = previousLibrary;
-        renderCatalog();
-        syncFormFields();
-        throw error;
-      }
-    }
-
-    // --- HTML Preview Generation ---
-    function renderPreview() {
-      const preview = el("preview");
-      if (!draft || !draft.data) { preview.innerHTML = ""; return; }
-      try {
-        const html = draft.data._snippet || generatePresetHtml(draft.variant, draft.data);
-        preview.innerHTML = '<div data-theme="light" style="background:oklch(var(--b1));border-radius:8px;padding:20px;">' + html + '</div>';
-      } catch (_) {
-        preview.innerHTML = '<span style="color:var(--bad)">Vorschau nicht moeglich</span>';
-      }
+      try { await submitLibrary(false); }
+      catch (error) { library = previousLibrary; renderCatalog(); syncFormFields(); throw error; }
     }
 
     function h(tag, attrs, ...children) {
@@ -590,50 +589,24 @@
       const d = data || {};
       if (d._snippet) return d._snippet;
       switch (variant) {
-        case "alert": return `<div class="alert alert-${d.tone || 'info'}">${h("span", {}, d.message || "Hinweis")}</div>`;
-        case "badge": return `<div class="badge badge-${d.tone || 'primary'}">${h("span", {}, d.label || "Badge")}</div>`;
-        case "button": return `<button class="btn btn-primary">${h("span", {}, d.label || "Button")}</button>`;
-        case "input": return `<div class="fieldset"><label class="fieldset-legend">${escapeHtml(d.label || "Feld")}</label><input class="input w-64" type="text" value="${escapeHtml(d.value || "")}" readonly></div>`;
-        case "textarea": return `<div class="fieldset"><label class="fieldset-legend">${escapeHtml(d.label || "Feld")}</label><textarea class="textarea w-96" readonly>${escapeHtml(d.value || "")}</textarea></div>`;
-        case "select": {
-          const opts = (d.options || []).map(o => `<option${o === d.value ? " selected" : ""}>${escapeHtml(o)}</option>`).join("");
-          return `<div class="fieldset"><label class="fieldset-legend">${escapeHtml(d.label || "Auswahl")}</label><select class="select w-64">${opts}</select></div>`;
-        }
-        case "checkbox": {
-          const items = (d.items || []).map(item => `<label class="flex items-center gap-2"><input type="checkbox" class="checkbox checkbox-sm"${item.checked ? " checked" : ""} disabled> ${escapeHtml(item.label || d.label || "Option")}</label>`).join("");
-          return `<fieldset class="fieldset"><legend class="fieldset-legend">${escapeHtml(d.legend || "Auswahl")}</legend>${items}</fieldset>`;
-        }
-        case "toggle": {
-          const items = (d.items || []).map(item => `<label class="flex items-center gap-2"><input type="checkbox" class="toggle toggle-sm"${item.checked !== false ? " checked" : ""} disabled> ${escapeHtml(item.label || d.label || "Option")}</label>`).join("");
-          return `<fieldset class="fieldset"><legend class="fieldset-legend">${escapeHtml(d.legend || "Einstellungen")}</legend>${items}</fieldset>`;
-        }
-        case "radio": {
-          const opts = (d.options || []).map(o => `<label class="flex items-center gap-2"><input type="radio" class="radio radio-sm" name="radio-preview"${o === d.value ? " checked" : ""} disabled> ${escapeHtml(o)}</label>`).join("");
-          return `<fieldset class="fieldset"><legend class="fieldset-legend">${escapeHtml(d.label || "Auswahl")}</legend>${opts}</fieldset>`;
-        }
-        case "range": return `<div class="fieldset"><label class="fieldset-legend">${escapeHtml(d.label || "Wert")}</label><input type="range" class="range" min="${d.min || 0}" max="${d.max || 100}" value="${d.value || 0}" disabled></div>`;
-        case "progress": return `<div class="fieldset"><span class="text-sm font-bold">${escapeHtml(d.label || "Fortschritt")}</span><progress class="progress progress-primary w-56" value="${d.value || 0}" max="${d.max || 100}"></progress></div>`;
-        case "radial-progress": return `<div class="radial-progress text-primary" style="--value:${Math.round(((d.value || 0) / (d.max || 100)) * 100)}" role="progressbar">${d.label || ""}</div>`;
-        case "rating": {
-          const stars = Array.from({ length: d.max || 5 }, (_, i) => `<input type="radio" class="mask mask-star-2"${i < (d.value || 0) ? " checked" : ""} disabled>`).join("");
-          return `<div class="fieldset"><label class="fieldset-legend">${escapeHtml(d.label || "Bewertung")}</label><div class="rating rating-sm">${stars}</div></div>`;
-        }
-        case "stat": return `<div class="stat"><div class="stat-title">${escapeHtml(d.title || "Kennzahl")}</div><div class="stat-value text-primary">${escapeHtml(d.value || "0")}</div><div class="stat-desc">${escapeHtml(d.description || "")}</div></div>`;
-        case "steps": {
-          const steps = (d.items || []).map(item => `<li class="step${item.label === d.current ? " step-primary" : ""}">${escapeHtml(item.label || "")}</li>`).join("");
-          return `<ul class="steps steps-${(d.items || []).length}">${steps}</ul>`;
-        }
-        case "tabs": {
-          const tabs = (d.items || []).map(item => `<a class="tab${item === d.selected ? " tab-active" : ""}">${escapeHtml(item)}</a>`).join("");
-          return `<div role="tablist" class="tabs tabs-border">${tabs}</div>`;
-        }
-        case "table": {
-          const ths = (d.columns || []).map(c => `<th>${escapeHtml(c)}</th>`).join("");
-          const rows = (d.rows || []).map(row => `<tr>${row.map(cell => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("");
-          return `<table class="table table-zebra"><thead><tr>${ths}</tr></thead><tbody>${rows}</tbody></table>`;
-        }
-        case "card": {
-          let card = '<div class="card bg-base-200 shadow-sm w-72">';
+        case "alert": return `<div data-zustand-daisyui-render class="alert alert-${d.tone || 'info'}"><span>${escapeHtml(d.message || "Hinweis")}</span></div>`;
+        case "badge": return `<div data-zustand-daisyui-render class="badge badge-${d.tone || 'primary'}">${escapeHtml(d.label || "Badge")}</div>`;
+        case "button": return `<button data-zustand-daisyui-render class="btn btn-primary">${escapeHtml(d.label || "Button")}</button>`;
+        case "input": return `<div data-zustand-daisyui-render class="fieldset"><label class="fieldset-legend">${escapeHtml(d.label || "Feld")}</label><input class="input w-64" type="text" value="${escapeHtml(d.value || "")}" readonly></div>`;
+        case "textarea": return `<div data-zustand-daisyui-render class="fieldset"><label class="fieldset-legend">${escapeHtml(d.label || "Feld")}</label><textarea class="textarea w-96" readonly>${escapeHtml(d.value || "")}</textarea></div>`;
+        case "select": return `<div data-zustand-daisyui-render class="fieldset"><label class="fieldset-legend">${escapeHtml(d.label || "Auswahl")}</label><select class="select w-64">${(d.options || []).map(o => `<option${o === d.value ? " selected" : ""}>${escapeHtml(o)}</option>`).join("")}</select></div>`;
+        case "checkbox": return `<fieldset data-zustand-daisyui-render class="fieldset"><legend class="fieldset-legend">${escapeHtml(d.legend || "Auswahl")}</legend>${(d.items || []).map(item => `<label class="flex items-center gap-2"><input type="checkbox" class="checkbox checkbox-sm"${item.checked ? " checked" : ""} disabled> ${escapeHtml(item.label || d.label || "Option")}</label>`).join("")}</fieldset>`;
+        case "toggle": return `<fieldset data-zustand-daisyui-render class="fieldset"><legend class="fieldset-legend">${escapeHtml(d.legend || "Einstellungen")}</legend>${(d.items || [{ label: d.label || "Option", checked: d.checked !== false }]).map(item => `<label class="flex items-center gap-2"><input type="checkbox" class="toggle toggle-sm"${item.checked !== false ? " checked" : ""} disabled> ${escapeHtml(item.label || "Option")}</label>`).join("")}</fieldset>`;
+        case "table": return `<table data-zustand-daisyui-render class="table table-zebra"><thead><tr>${(d.columns || []).map(c => `<th>${escapeHtml(c)}</th>`).join("")}</tr></thead><tbody>${(d.rows || []).map(row => `<tr>${row.map(cell => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+        case "hero": return `<div data-zustand-daisyui-render class="hero min-h-48"><div class="hero-content text-center"><div>${d.title ? `<h1 class="text-3xl font-bold">${escapeHtml(d.title)}</h1>` : ""}${d.body ? `<p class="py-4">${escapeHtml(d.body)}</p>` : ""}${d.actionLabel ? `<button class="btn btn-primary">${escapeHtml(d.actionLabel)}</button>` : ""}</div></div></div>`;
+        case "navbar": return `<div data-zustand-daisyui-render class="navbar bg-base-200"><div class="flex-1"><a class="btn btn-ghost text-xl">${escapeHtml(d.brand || "Marke")}</a></div>${(d.items || []).length ? `<div class="flex-none"><ul class="menu menu-horizontal px-1">${d.items.map(item => `<li><a>${escapeHtml(item)}</a></li>`).join("")}</ul></div>` : ""}</div>`;
+        case "footer": return `<footer data-zustand-daisyui-render class="footer footer-horizontal footer-center p-10 bg-base-200"><div>${escapeHtml(d.brand || "")}</div><p>${escapeHtml(d.note || "")}</p></footer>`;
+        case "dropdown": return `<div data-zustand-daisyui-render class="dropdown"><div tabindex="0" role="button" class="btn m-1">${escapeHtml(d.selected || "Auswaehlen")}</div><ul tabindex="0" class="dropdown-content menu bg-base-200 rounded-box z-1 w-52 p-2 shadow-sm">${(d.options || []).map(item => `<li><a>${escapeHtml(item)}</a></li>`).join("")}</ul></div>`;
+        case "pricing": return `<div data-zustand-daisyui-render class="flex flex-wrap gap-4 justify-center">${(d.plans || []).map(plan => `<div class="card bg-base-100 shadow-sm w-96"><div class="card-body">${plan.badge ? `<span class="badge badge-xs badge-warning">${escapeHtml(plan.badge)}</span>` : ""}<div class="flex justify-between"><h2 class="text-3xl font-bold">${escapeHtml(plan.title || "Plan")}</h2><span class="text-xl">${escapeHtml(plan.price || "")}</span></div>${plan.body ? `<p>${escapeHtml(plan.body)}</p>` : ""}<div class="mt-6"><button class="btn btn-primary btn-block">${escapeHtml(plan.actionLabel || "Auswählen")}</button></div></div></div>`).join("")}</div>`;
+        case "feature-grid": return `<div data-zustand-daisyui-render class="grid gap-4">${d.heading ? `<h2 class="text-2xl font-bold">${escapeHtml(d.heading)}</h2>` : ""}${(d.items || []).map(item => `<div class="card bg-base-100 shadow-sm"><div class="card-body"><h3 class="card-title">${escapeHtml(item.title || "")}</h3><p>${escapeHtml(item.body || "")}</p></div></div>`).join("")}</div>`;
+        case "card":
+        default: {
+          let card = '<div data-zustand-daisyui-render class="card bg-base-100 shadow-sm w-96">';
           if (d.image) card += `<figure><img class="max-h-48 object-cover w-full" src="${escapeHtml(d.image)}" alt="${escapeHtml(d.imageAlt || "")}"></figure>`;
           card += '<div class="card-body">';
           if (d.title) card += `<h3 class="card-title">${escapeHtml(d.title)}</h3>`;
@@ -642,139 +615,6 @@
           card += '</div></div>';
           return card;
         }
-        case "hero": {
-          const layout = d.layout || "centered";
-          let hero = `<div class="hero min-h-48 ${layout === 'overlay' ? 'bg-base-200' : ''}">`;
-          if (layout === "overlay" && d.image) hero += `<div class="hero-overlay" style="background-image:url('${escapeHtml(d.image)}');background-size:cover;background-position:center;"></div>`;
-          hero += '<div class="hero-content text-center">';
-          hero += '<div>';
-          if (d.title) hero += `<h1 class="text-3xl font-bold">${escapeHtml(d.title)}</h1>`;
-          if (d.body) hero += `<p class="py-4">${escapeHtml(d.body)}</p>`;
-          if (d.actionLabel) hero += `<button class="btn btn-primary">${escapeHtml(d.actionLabel)}</button>`;
-          hero += '</div></div></div>';
-          return hero;
-        }
-        case "navbar": {
-          const items = (d.items || []).map(item => `<li><a>${escapeHtml(item)}</a></li>`).join("");
-          return `<div class="navbar bg-base-200"><div class="flex-1"><a class="btn btn-ghost text-xl">${escapeHtml(d.brand || "Marke")}</a></div>${items ? `<div class="flex-none"><ul class="menu menu-horizontal px-1">${items}</ul></div>` : ""}</div>`;
-        }
-        case "footer": {
-          const cols = (d.columns || []).map(col => {
-            const links = (col.items || []).map(item => {
-              const label = typeof item === "string" ? item : item.label || "";
-              return `<li><a>${escapeHtml(label)}</a></li>`;
-            }).join("");
-            return `<div><span class="footer-title">${escapeHtml(col.title || "")}</span>${links}</div>`;
-          }).join("");
-          return `<footer class="footer footer-horizontal footer-center p-10 bg-base-200"><div class="grid grid-flow-col gap-4">${cols}</div><div><div class="grid grid-flow-col gap-4"><a class="link link-primary">${escapeHtml(d.brand || "")}</a></div><p>${escapeHtml(d.note || "")}</p></div></footer>`;
-        }
-        case "accordion": {
-          const items = (d.items || []).map((item, i) => `<div class="collapse bg-base-200 border border-base-300"><input type="radio" name="accordion" ${i === 0 ? "checked" : ""}><div class="collapse-title font-semibold">${escapeHtml(item.label || "")}</div><div class="collapse-content text-sm">${escapeHtml(item.body || "")}</div></div>`).join("");
-          return `<div class="flex flex-col gap-2">${items}</div>`;
-        }
-        case "avatar": return `<div class="avatar placeholder"><div class="bg-neutral text-neutral-content w-16 rounded-full"><span>${escapeHtml(d.initials || d.name?.charAt(0) || "A")}</span></div></div>`;
-        case "badge": return `<div class="badge badge-${d.tone || 'primary'}">${escapeHtml(d.label || "Badge")}</div>`;
-        case "bottom-navigation": {
-          const items = (d.items || []).map(item => `<a class="gap-0${item === d.selected ? " text-primary" : ""}"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg><span class="text-xs">${escapeHtml(item)}</span></a>`).join("");
-          return `<div class="btm-nav">${items}</div>`;
-        }
-        case "breadcrumbs": {
-          const items = (d.items || []).map(item => `<li><a>${escapeHtml(item.label || "")}</a></li>`).join("");
-          return `<div class="text-sm breadcrumbs"><ul>${items}</ul></div>`;
-        }
-        case "calendar": return `<div class="fieldset"><label class="fieldset-legend">${escapeHtml(d.label || "Datum")}</label><calendar-date class="cally" value="${escapeHtml(d.value || "")}"></calendar-date></div>`;
-        case "carousel": {
-          const imgs = (d.images || []).map((url, i) => `<div id="slide${i}" class="carousel-item w-full"><img src="${escapeHtml(url)}" class="w-full object-cover max-h-64"></div>`).join("");
-          return `<div class="carousel w-full">${imgs}</div>`;
-        }
-        case "countdown": return `<div class="radial-progress text-primary" style="--value:${Math.round(((d.value || d.duration || 20) / (d.duration || 20)) * 100)}" role="progressbar">${d.label || ""}</div>`;
-        case "drawer": return `<div class="drawer"><input id="drawer-toggle" type="checkbox" class="drawer-toggle"${d.open ? " checked" : ""} disabled><div class="drawer-content"><label for="drawer-toggle" class="btn btn-primary btn-sm">${escapeHtml(d.title || "Menue")}</label></div><div class="drawer-side"><label for="drawer-toggle" class="drawer-overlay"></label><ul class="menu p-4 w-64 min-h-full bg-base-200">${(d.items || []).map(item => `<li><a class="${item === d.selected ? "active" : ""}">${escapeHtml(item)}</a></li>`).join("")}</ul></div></div>`;
-        case "dropdown": {
-          const items = (d.options || []).map(item => `<li><a>${escapeHtml(item)}</a></li>`).join("");
-          return `<div class="dropdown"><div tabindex="0" role="button" class="btn m-1">${escapeHtml(d.selected || "Auswaehlen")}</div><ul tabindex="0" class="dropdown-content menu bg-base-200 rounded-box z-1 w-52 p-2 shadow-sm">${items}</ul></div>`;
-        }
-        case "file-input": return `<div class="fieldset"><label class="fieldset-legend">${escapeHtml(d.label || "Datei")}</label><input type="file" class="file-input file-input-bordered w-full max-w-xs" disabled></div>`;
-        case "indicator": return `<div class="indicator"><span class="indicator-item badge badge-primary">${d.count || 0}</span><div class="grid place-items-center p-4 bg-base-200 rounded-box">${escapeHtml(d.label || "Element")}</div></div>`;
-        case "loading": return `<div class="loading loading-spinner loading-lg text-primary"></div>`;
-        case "mask": return `<img class="mask mask-squircle w-24 h-24 object-cover" src="${escapeHtml(d.image || "")}" alt="${escapeHtml(d.alt || "")}">`;
-        case "menu": {
-          const items = (d.items || []).map(item => `<li><a class="${item === d.selected ? "active" : ""}">${escapeHtml(item)}</a></li>`).join("");
-          return `<ul class="menu bg-base-200 rounded-box w-56">${items}</ul>`;
-        }
-        case "modal": return `<dialog class="modal"><div class="modal-box"><h3 class="text-lg font-bold">${escapeHtml(d.title || "Dialog")}</h3><p class="py-4">${escapeHtml(d.body || "")}</p><div class="modal-action"><button class="btn">${escapeHtml(d.actionLabel || "OK")}</button></div></div><form method="dialog" class="modal-backdrop"><button>close</button></form></dialog>`;
-        case "progress": return `<progress class="progress progress-primary w-56" value="${d.value || 0}" max="${d.max || 100}"></progress>`;
-        case "radial-progress": return `<div class="radial-progress text-primary" style="--value:${Math.round(((d.value || 0) / (d.max || 100)) * 100)}" role="progressbar">${d.label || ""}</div>`;
-        case "rating": {
-          const stars = Array.from({ length: d.max || 5 }, (_, i) => `<input type="radio" class="mask mask-star-2"${i < (d.value || 0) ? " checked" : ""} disabled>`).join("");
-          return `<div class="rating rating-sm">${stars}</div>`;
-        }
-        case "select": {
-          const opts = (d.options || []).map(o => `<option${o === d.value ? " selected" : ""}>${escapeHtml(o)}</option>`).join("");
-          return `<select class="select select-bordered w-full max-w-xs">${opts}</select>`;
-        }
-        case "stat": return `<div class="stat"><div class="stat-title">${escapeHtml(d.title || "")}</div><div class="stat-value text-primary">${escapeHtml(d.value || "0")}</div><div class="stat-desc">${escapeHtml(d.description || "")}</div></div>`;
-        case "steps": {
-          const items = (d.items || []).map(item => `<li class="step${item.label === d.current ? " step-primary" : ""}">${escapeHtml(item.label || "")}</li>`).join("");
-          return `<ul class="steps steps-${(d.items || []).length}">${items}</ul>`;
-        }
-        case "table": {
-          const ths = (d.columns || []).map(c => `<th>${escapeHtml(c)}</th>`).join("");
-          const rows = (d.rows || []).map(row => `<tr>${row.map(cell => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("");
-          return `<table class="table table-zebra"><thead><tr>${ths}</tr></thead><tbody>${rows}</tbody></table>`;
-        }
-        case "tabs": {
-          const tabs = (d.items || []).map(item => `<a class="tab${item === d.selected ? " tab-active" : ""}">${escapeHtml(item)}</a>`).join("");
-          return `<div role="tablist" class="tabs tabs-border">${tabs}</div>`;
-        }
-        case "textarea": return `<textarea class="textarea textarea-bordered w-full" readonly>${escapeHtml(d.value || "")}</textarea>`;
-        case "timeline": {
-          const items = (d.items || []).map(item => `<li><div class="timeline-start">${escapeHtml(item.title || "")}</div><div class="timeline-middle"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="text-primary h-5 w-5"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg></div><div class="timeline-end timeline-box">${escapeHtml(item.body || "")}</div><hr></li>`).join("");
-          return `<ul class="timeline">${items}</ul>`;
-        }
-        case "toast": return `<div class="alert alert-${d.tone || 'info'}"><span>${escapeHtml(d.message || "")}</span></div>`;
-        case "toggle": return `<label class="toggle text-primary"><input type="checkbox" checked${d.checked === false ? "" : " checked"} disabled></label>`;
-        case "chart": {
-          const metrics = (d.metrics || []).map(m => `<div class="stat"><div class="stat-title">${escapeHtml(m.label || "")}</div><div class="stat-value text-primary">${escapeHtml(m.value || "0")}</div>${m.delta ? `<div class="stat-desc">${escapeHtml(m.delta)}</div>` : ""}</div>`).join("");
-          const bars = (d.items || []).map(item => {
-            const maxVal = Math.max(1, ...d.items.map(i => i.value || 0));
-            const pct = Math.round(((item.value || 0) / maxVal) * 100);
-            return `<div class="flex items-center gap-2"><span class="w-20 text-right text-sm">${escapeHtml(item.label || "")}</span><progress class="progress progress-primary flex-1" value="${item.value || 0}" max="${maxVal}"></progress><span class="w-12 text-sm">${item.value || 0}</span></div>`;
-          }).join("");
-          return `<div class="card bg-base-200"><div class="card-body"><h3 class="card-title">${escapeHtml(d.title || "")}</h3>${d.subtitle ? `<p class="text-sm text-base-content/70">${escapeHtml(d.subtitle)}</p>` : ""}<div class="stats stats-vertical lg:stats-horizontal shadow">${metrics}</div><div class="flex flex-col gap-1 mt-4">${bars}</div></div></div>`;
-        }
-        case "feature-grid": {
-          const items = (d.items || []).map(item => {
-            let card = '<div class="card bg-base-200 shadow-sm">';
-            if (item.image) card += `<figure><img class="h-40 w-full object-cover" src="${escapeHtml(item.image)}" alt="${escapeHtml(item.imageAlt || "")}"></figure>`;
-            card += '<div class="card-body">';
-            if (item.title) card += `<h3 class="card-title text-base">${escapeHtml(item.title)}</h3>`;
-            if (item.body) card += `<p class="text-sm">${escapeHtml(item.body)}</p>`;
-            if (item.features?.length) card += `<ul class="text-xs list-disc list-inside">${item.features.map(f => `<li>${escapeHtml(f)}</li>`).join("")}</ul>`;
-            if (item.actionLabel) card += `<div class="card-actions justify-end"><button class="btn btn-primary btn-sm">${escapeHtml(item.actionLabel)}</button></div>`;
-            card += '</div></div>';
-            return card;
-          }).join("");
-          return `<div class="flex flex-col gap-4">${d.eyebrow ? `<div class="text-sm font-bold text-primary">${escapeHtml(d.eyebrow)}</div>` : ""}${d.heading ? `<h2 class="text-2xl font-bold">${escapeHtml(d.heading)}</h2>` : ""}${d.body ? `<p class="text-base-content/70">${escapeHtml(d.body)}</p>` : ""}<div class="grid grid-cols-1 md:grid-cols-3 gap-4">${items}</div></div>`;
-        }
-        case "pricing": {
-          const plans = (d.plans || []).map(plan => {
-            let card = `<div class="card bg-base-200 ${plan.highlight ? 'border border-primary shadow-lg' : 'shadow-sm'} w-64">`;
-            card += '<div class="card-body">';
-            if (plan.badge) card += `<div class="badge badge-primary self-start">${escapeHtml(plan.badge)}</div>`;
-            if (plan.title) card += `<h3 class="card-title">${escapeHtml(plan.title)}</h3>`;
-            if (plan.price) card += `<div class="text-3xl font-bold">${escapeHtml(plan.price)}</div>`;
-            if (plan.period) card += `<div class="text-sm text-base-content/60">${escapeHtml(plan.period)}</div>`;
-            if (plan.body) card += `<p class="text-sm">${escapeHtml(plan.body)}</p>`;
-            if (plan.features?.length) card += `<ul class="text-sm list-disc list-inside">${plan.features.map(f => `<li>${escapeHtml(f)}</li>`).join("")}</ul>`;
-            if (plan.actionLabel) card += `<div class="card-actions"><button class="btn ${plan.highlight ? 'btn-primary' : 'btn-outline btn-primary'} w-full">${escapeHtml(plan.actionLabel)}</button></div>`;
-            card += '</div></div>';
-            return card;
-          }).join("");
-          return `<div class="flex flex-col gap-4 items-center">${d.title ? `<h2 class="text-2xl font-bold">${escapeHtml(d.title)}</h2>` : ""}${d.body ? `<p class="text-base-content/70">${escapeHtml(d.body)}</p>` : ""}<div class="flex flex-wrap gap-4 justify-center">${plans}</div></div>`;
-        }
-        default:
-          if (d.title) return `<div class="card bg-base-200 shadow-sm w-72"><div class="card-body"><h3 class="card-title">${escapeHtml(d.title)}</h3>${d.body ? `<p>${escapeHtml(d.body)}</p>` : ""}</div></div>`;
-          return `<pre class="text-xs bg-base-200 p-4 rounded">${escapeHtml(JSON.stringify(d, null, 2))}</pre>`;
       }
     }
 
@@ -784,6 +624,7 @@
     el("managedCategory").addEventListener("change", syncDeleteButtons);
     el("managedPackage").addEventListener("change", syncDeleteButtons);
     el("existingPreset").addEventListener("change", syncDeleteButtons);
+    el("snippet").addEventListener("input", renderPreview);
     el("definition").addEventListener("input", () => {
       try { draft = JSON.parse(el("definition").value) || null; syncFormFields(); renderPreview(); } catch (_) {}
     });
