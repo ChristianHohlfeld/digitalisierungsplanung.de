@@ -119,7 +119,7 @@
       "id": "custom_premium",
       "variant": "card",
       "title": "Premium",
-      "description": "",
+      "description": "Premium",
       "categoryId": "websuite-builder",
       "packageIds": [
         "website.builder"
