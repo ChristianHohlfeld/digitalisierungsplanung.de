@@ -85,40 +85,6 @@
   ],
   "presets": [
     {
-      "id": "custom_daisyui_aura_pricing",
-      "variant": "pricing",
-      "title": "Aura Pricing Card",
-      "description": "Aura rainbow around a pricing card",
-      "categoryId": "websuite-builder",
-      "packageIds": [
-        "website.builder"
-      ],
-      "data": {
-        "title": "",
-        "body": "",
-        "plans": [
-          {
-            "title": "Premium",
-            "badge": "Most Popular",
-            "price": "$29/mo",
-            "period": "",
-            "body": "",
-            "features": [
-              "High-resolution image generation",
-              "Customizable style templates",
-              "Batch processing capabilities",
-              "AI-driven image enhancements",
-              "Seamless cloud integration",
-              "Real-time collaboration tools"
-            ],
-            "actionLabel": "Subscribe",
-            "highlight": true,
-            "transitionId": ""
-          }
-        ]
-      }
-    },
-    {
       "id": "custom_premium",
       "variant": "pricing",
       "title": "Premium",
