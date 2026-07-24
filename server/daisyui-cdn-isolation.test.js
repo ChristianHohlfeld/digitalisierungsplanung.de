@@ -16,28 +16,21 @@ const CDN_PATTERNS = [
 ];
 
 function loadHookApi() {
-  const calls = [];
-  const NativeBlob = function Blob(parts, options) {
+  function NativeBlob(parts, options) {
     this.parts = parts;
     this.options = options;
-  };
+  }
   const sandbox = {
-    window: {},
+    window: null,
     navigator: {},
-    caches: undefined,
     document: undefined,
     Blob: NativeBlob,
     Object,
     String,
     Array,
-    Promise,
     console
   };
   sandbox.window = sandbox;
-  sandbox.Promise.all = values => {
-    calls.push(values);
-    return { then() {}, catch() {} };
-  };
   vm.runInNewContext(read("disable-sw.js"), sandbox);
   return sandbox.window.__zustandDaisyUiCdn;
 }
