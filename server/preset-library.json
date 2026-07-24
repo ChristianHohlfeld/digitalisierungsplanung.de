@@ -119,40 +119,6 @@
       }
     },
     {
-      "id": "custom_aurora_pricingcard",
-      "variant": "pricing",
-      "title": "Aurora Pricing22",
-      "description": "",
-      "categoryId": "websuite-builder",
-      "packageIds": [
-        "website.builder"
-      ],
-      "data": {
-        "title": "",
-        "body": "",
-        "plans": [
-          {
-            "title": "Premium",
-            "badge": "Most Popular",
-            "price": "$29/mo",
-            "period": "",
-            "body": "",
-            "features": [
-              "High-resolution image generation",
-              "Customizable style templates",
-              "Batch processing capabilities",
-              "AI-driven image enhancements",
-              "Seamless cloud integration",
-              "Real-time collaboration tools"
-            ],
-            "actionLabel": "Subscribe",
-            "highlight": true,
-            "transitionId": ""
-          }
-        ]
-      }
-    },
-    {
       "id": "custom_email_pw_validator",
       "variant": "input",
       "title": "card Preset",
