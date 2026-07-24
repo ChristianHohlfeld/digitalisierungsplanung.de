@@ -23,6 +23,32 @@
     return themed.replace(/<\/head>/i, daisyUiCdnMarkup() + "\n</head>");
   }
 
+  function appendStylesheet(doc, key, href) {
+    if (!doc?.head || doc.querySelector('[data-zustand-daisyui-cdn="' + key + '"]')) return;
+    const link = doc.createElement("link");
+    link.setAttribute("data-zustand-daisyui-cdn", key);
+    link.href = href;
+    link.rel = "stylesheet";
+    link.type = "text/css";
+    doc.head.appendChild(link);
+  }
+
+  function appendScript(doc, key, src) {
+    if (!doc?.head || doc.querySelector('[data-zustand-daisyui-cdn="' + key + '"]')) return;
+    const script = doc.createElement("script");
+    script.setAttribute("data-zustand-daisyui-cdn", key);
+    script.src = src;
+    doc.head.appendChild(script);
+  }
+
+  function ensureDaisyUiInMarkedDocument(doc) {
+    if (!doc || !doc.documentElement || !doc.querySelector("[" + RENDER_MARKER + "]")) return;
+    if (!doc.documentElement.getAttribute("data-theme")) doc.documentElement.setAttribute("data-theme", "light");
+    appendStylesheet(doc, "themes", DAISYUI_THEME_CSS);
+    appendStylesheet(doc, "components", DAISYUI_CSS);
+    appendScript(doc, "tailwind", TAILWIND_BROWSER);
+  }
+
   function installRenderedAppBlobHook() {
     if (typeof window.Blob !== "function" || window.Blob.__zustandDaisyUiHooked) return;
     const NativeBlob = window.Blob;
@@ -40,8 +66,25 @@
     window.Blob = ZustandDaisyUiBlob;
   }
 
+  function installMarkedFrameHook() {
+    if (typeof document === "undefined" || typeof MutationObserver !== "function") return;
+    const wire = frame => {
+      if (!frame || frame.__zustandDaisyUiFrameHooked) return;
+      frame.__zustandDaisyUiFrameHooked = true;
+      frame.addEventListener("load", () => {
+        try { ensureDaisyUiInMarkedDocument(frame.contentDocument); } catch (_) {}
+      });
+      try { ensureDaisyUiInMarkedDocument(frame.contentDocument); } catch (_) {}
+    };
+    const scan = () => document.querySelectorAll("iframe").forEach(wire);
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", scan, { once: true });
+    else scan();
+    new MutationObserver(scan).observe(document.documentElement, { childList: true, subtree: true });
+  }
+
   installRenderedAppBlobHook();
-  window.__zustandDaisyUiCdn = Object.freeze({ DAISYUI_THEME_CSS, DAISYUI_CSS, TAILWIND_BROWSER, injectDaisyUiCdn });
+  installMarkedFrameHook();
+  window.__zustandDaisyUiCdn = Object.freeze({ DAISYUI_THEME_CSS, DAISYUI_CSS, TAILWIND_BROWSER, injectDaisyUiCdn, ensureDaisyUiInMarkedDocument });
 
   (async () => {
     if ("serviceWorker" in navigator) {
