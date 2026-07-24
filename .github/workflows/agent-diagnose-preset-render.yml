@@ -1,0 +1,59 @@
+name: Agent diagnose preset render
+
+on:
+  push:
+    branches: [agent/embed-preset-assets]
+    paths:
+      - .github/workflows/agent-diagnose-preset-render.yml
+
+permissions:
+  contents: read
+
+env:
+  CI: true
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Collect render contexts
+        shell: python
+        run: |
+          from pathlib import Path
+          text = Path('state.html').read_text(encoding='utf-8')
+          terms = [
+              '_snippet',
+              'renderDaisy',
+              'daisy',
+              '/assets/inline-image',
+              'inline-image',
+              'exportHtml',
+              'exportHTML',
+              'buildExport',
+              'renderPreview',
+              'data-zustand-daisyui-render',
+          ]
+          lines = text.splitlines()
+          out = []
+          seen = set()
+          for term in terms:
+              out.append(f'===== TERM {term} =====')
+              matches = [i for i, line in enumerate(lines) if term.lower() in line.lower()]
+              out.append(f'matches={len(matches)}')
+              for i in matches[:30]:
+                  key = (term, i)
+                  if key in seen:
+                      continue
+                  seen.add(key)
+                  start = max(0, i - 12)
+                  end = min(len(lines), i + 20)
+                  out.append(f'--- lines {start + 1}-{end} ---')
+                  out.extend(f'{n + 1}: {lines[n]}' for n in range(start, end))
+          Path('preset-render-diagnostics.txt').write_text('\n'.join(out), encoding='utf-8')
+          print('\n'.join(out[:800]))
+      - uses: actions/upload-artifact@v4
+        with:
+          name: preset-render-diagnostics
+          path: preset-render-diagnostics.txt
+          retention-days: 1
