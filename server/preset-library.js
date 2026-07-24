@@ -274,7 +274,8 @@ function toneFromClasses(node, prefix, fallback = "primary") {
 
 function priceText(root) {
   return texts(findAll(root, node => ["span", "div", "p"].includes(node.tagName)))
-    .find(text => /(?:[$€£¥]|\b(?:mo|month|monat|jahr|year|\/mo|\/month)\b|\d+\s*\/)/i.test(text)) || "";
+    .filter(text => /(?:[$€£¥]|\b(?:mo|month|monat|jahr|year|\/mo|\/month)\b|\d+\s*\/)/i.test(text))
+    .sort((a, b) => a.length - b.length)[0] || "";
 }
 
 function pricingCards(root) {
@@ -379,14 +380,14 @@ function extractPricingData(root) {
   const plans = planNodes.map((card, index) => {
     const heading = textContent(firstTag(card, "h1", "h2", "h3", "h4", "h5", "h6"));
     const badge = textContent(byClass(card, "badge"));
-    const features = texts(findAll(card, node => node.tagName === "li")).map(label => ({ label, included: !hasClass(first(card, child => child === node), "opacity-50") }));
+    const features = texts(findAll(card, node => node.tagName === "li"));
     return {
       title: heading || `Plan ${index + 1}`,
       badge,
       price: priceText(card) || "",
       period: "",
       body: textContent(firstTag(card, "p")),
-      features: features.map(item => item.label),
+      features,
       actionLabel: buttonLabels(card).at(-1) || "Weiter",
       highlight: Boolean(badge) || hasClass(card, "border-primary") || hasClass(card, "shadow-lg")
     };
@@ -443,8 +444,7 @@ function extractData(variant, root) {
   if (variant === "radio") { const controls = findAll(root, node => hasClass(node, "radio")); const options = controls.map(node => attr(node, "aria-label") || attr(node, "value") || textContent(node.parentNode)).filter(Boolean); return { label: labelForControl(root), value: attr(controls.find(node => hasAttr(node, "checked")), "value") || options[0] || "", options }; }
   if (variant === "range") return { label: labelForControl(root), value: Number(attr(root, "value") || 0), min: Number(attr(root, "min") || 0), max: Number(attr(root, "max") || 100) };
   if (variant === "rating") { const controls = findAll(root, node => node.tagName === "input"); const selected = Math.max(0, controls.findIndex(node => hasAttr(node, "checked")) + 1); return { label: attr(root, "aria-label") || "Bewertung", value: selected || 1, max: controls.length || 5 }; }
-  if (variant === "select") { const options = findAll(root, node => node.tagName === "option"); return { label: labelForControl(root), value: textContent(options.find(node => hasAttr(node, "selected"))) || textContent(options[0]), options: texts(options) };
-  }
+  if (variant === "select") { const options = findAll(root, node => node.tagName === "option"); return { label: labelForControl(root), value: textContent(options.find(node => hasAttr(node, "selected"))) || textContent(options[0]), options: texts(options) }; }
   if (variant === "stat") return { title: textContent(byClass(root, "stat-title")) || heading || "Kennzahl", value: textContent(byClass(root, "stat-value")) || "0", description: textContent(byClass(root, "stat-desc")) || paragraph };
   if (variant === "steps") { const items = texts(allByClass(root, "step")); return { current: textContent(first(root, node => hasClass(node, "step-primary"))) || items[0] || "", items: items.map(label => ({ label, description: "" })) }; }
   if (variant === "table") { const headers = texts(findAll(root, node => node.tagName === "th")); const rows = findAll(root, node => node.tagName === "tr").map(row => texts(elementChildren(row).filter(node => node.tagName === "td"))).filter(row => row.length); return { columns: headers, rows }; }
