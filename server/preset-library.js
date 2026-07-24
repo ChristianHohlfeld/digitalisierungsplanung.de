@@ -32,10 +32,6 @@ function isPlainObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-function cloneJson(value) {
-  return JSON.parse(JSON.stringify(value));
-}
-
 function assertOnlyFields(value, fields) {
   for (const key of Object.keys(value)) {
     if (!fields.has(key)) throw contractError("unknown_field");
@@ -276,9 +272,24 @@ function toneFromClasses(node, prefix, fallback = "primary") {
   return value ? value.slice(prefix.length) : fallback;
 }
 
+function priceText(root) {
+  return texts(findAll(root, node => ["span", "div", "p"].includes(node.tagName)))
+    .find(text => /(?:[$€£¥]|\b(?:mo|month|monat|jahr|year|\/mo|\/month)\b|\d+\s*\/)/i.test(text)) || "";
+}
+
+function pricingCards(root) {
+  const cards = allByClass(root, "card").filter(card => {
+    const listItems = findAll(card, node => node.tagName === "li").length;
+    return listItems > 0 && buttonLabels(card).length > 0 && priceText(card);
+  });
+  if (cards.length) return cards;
+  return findAll(root, node => node.tagName === "li").length > 0 && buttonLabels(root).length > 0 && priceText(root) ? [root] : [];
+}
+
 function variantForNode(node) {
   const classes = classSet(node);
   const has = name => classes.has(name);
+  if (pricingCards(node).length) return "pricing";
   if (node.tagName === "calendar-date" || has("cally")) return "calendar";
   if (has("toast")) return "toast";
   if (has("footer")) return "footer";
@@ -321,6 +332,8 @@ function variantForNode(node) {
 }
 
 function findComponentRoot(fragment) {
+  const pricing = pricingCards(fragment)[0];
+  if (pricing) return { node: pricing, variant: "pricing" };
   let outermost = null;
   walk(fragment, (node) => {
     const variant = variantForNode(node);
@@ -360,11 +373,33 @@ function linkItems(root) {
     .filter((item, index, values) => values.indexOf(item) === index);
 }
 
+function extractPricingData(root) {
+  const cards = pricingCards(root);
+  const planNodes = cards.length ? cards : [root];
+  const plans = planNodes.map((card, index) => {
+    const heading = textContent(firstTag(card, "h1", "h2", "h3", "h4", "h5", "h6"));
+    const badge = textContent(byClass(card, "badge"));
+    const features = texts(findAll(card, node => node.tagName === "li")).map(label => ({ label, included: !hasClass(first(card, child => child === node), "opacity-50") }));
+    return {
+      title: heading || `Plan ${index + 1}`,
+      badge,
+      price: priceText(card) || "",
+      period: "",
+      body: textContent(firstTag(card, "p")),
+      features: features.map(item => item.label),
+      actionLabel: buttonLabels(card).at(-1) || "Weiter",
+      highlight: Boolean(badge) || hasClass(card, "border-primary") || hasClass(card, "shadow-lg")
+    };
+  }).filter(plan => plan.title || plan.price || plan.features.length || plan.actionLabel);
+  return { title: "", body: "", plans };
+}
+
 function extractData(variant, root) {
   const heading = textContent(firstTag(root, "h1", "h2", "h3", "h4", "h5", "h6"));
   const paragraph = textContent(firstTag(root, "p"));
   const buttons = buttonLabels(root);
   const image = firstTag(root, "img");
+  if (variant === "pricing") return extractPricingData(root);
   if (variant === "footer") {
     const aside = first(root, node => node.tagName === "aside");
     const columns = findAll(root, node => node.tagName === "nav").map(nav => ({
@@ -391,12 +426,7 @@ function extractData(variant, root) {
   if (variant === "bottom-navigation") { const items = linkItems(root); return { selected: items[0] || "Start", items }; }
   if (variant === "breadcrumbs") return { items: findAll(root, node => node.tagName === "li").map(node => ({ label: textContent(node), transitionId: "" })).filter(item => item.label) };
   if (variant === "button") return { label: textContent(root) || "Weiter", clicked: false, clickedAt: 0 };
-  if (variant === "calendar") return {
-    label: attr(root, "aria-label") || heading || "Datum",
-    value: cleanText(attr(root, "value") || attr(root, "default-value") || "", "", 40),
-    min: cleanText(attr(root, "min") || "", "", 40),
-    max: cleanText(attr(root, "max") || "", "", 40)
-  };
+  if (variant === "calendar") return { label: attr(root, "aria-label") || heading || "Datum", value: cleanText(attr(root, "value") || attr(root, "default-value") || "", "", 40), min: cleanText(attr(root, "min") || "", "", 40), max: cleanText(attr(root, "max") || "", "", 40) };
   if (variant === "carousel") return { index: 0, images: findAll(root, node => node.tagName === "img").map(node => safeImageUrl(attr(node, "src"))).filter(Boolean) };
   if (variant === "checkbox" || variant === "toggle") { const controls = findAll(root, node => hasClass(node, variant)); return { legend: heading || "Einstellungen", label: labelForControl(root), checked: controls.some(node => hasAttr(node, "checked")), items: controls.map(node => ({ label: textContent(node.parentNode) || labelForControl(node), checked: hasAttr(node, "checked") })) }; }
   if (variant === "countdown") return { duration: Number(attr(root, "style").match(/--value:\s*(\d+)/)?.[1] || 20), value: Number(attr(root, "style").match(/--value:\s*(\d+)/)?.[1] || 20), label: paragraph || "Sekunden übrig", running: true, finished: false, startedAt: 0, endsAt: 0 };
@@ -413,7 +443,8 @@ function extractData(variant, root) {
   if (variant === "radio") { const controls = findAll(root, node => hasClass(node, "radio")); const options = controls.map(node => attr(node, "aria-label") || attr(node, "value") || textContent(node.parentNode)).filter(Boolean); return { label: labelForControl(root), value: attr(controls.find(node => hasAttr(node, "checked")), "value") || options[0] || "", options }; }
   if (variant === "range") return { label: labelForControl(root), value: Number(attr(root, "value") || 0), min: Number(attr(root, "min") || 0), max: Number(attr(root, "max") || 100) };
   if (variant === "rating") { const controls = findAll(root, node => node.tagName === "input"); const selected = Math.max(0, controls.findIndex(node => hasAttr(node, "checked")) + 1); return { label: attr(root, "aria-label") || "Bewertung", value: selected || 1, max: controls.length || 5 }; }
-  if (variant === "select") { const options = findAll(root, node => node.tagName === "option"); return { label: labelForControl(root), value: textContent(options.find(node => hasAttr(node, "selected"))) || textContent(options[0]), options: texts(options) }; }
+  if (variant === "select") { const options = findAll(root, node => node.tagName === "option"); return { label: labelForControl(root), value: textContent(options.find(node => hasAttr(node, "selected"))) || textContent(options[0]), options: texts(options) };
+  }
   if (variant === "stat") return { title: textContent(byClass(root, "stat-title")) || heading || "Kennzahl", value: textContent(byClass(root, "stat-value")) || "0", description: textContent(byClass(root, "stat-desc")) || paragraph };
   if (variant === "steps") { const items = texts(allByClass(root, "step")); return { current: textContent(first(root, node => hasClass(node, "step-primary"))) || items[0] || "", items: items.map(label => ({ label, description: "" })) }; }
   if (variant === "table") { const headers = texts(findAll(root, node => node.tagName === "th")); const rows = findAll(root, node => node.tagName === "tr").map(row => texts(elementChildren(row).filter(node => node.tagName === "td"))).filter(row => row.length); return { columns: headers, rows }; }
