@@ -1,0 +1,59 @@
+name: Agent apply preset fix
+
+on:
+  push:
+    branches: [agent/embed-preset-assets]
+    paths:
+      - .github/agent/apply-preset-fix.py
+      - .github/workflows/agent-apply-preset-fix.yml
+
+permissions:
+  contents: write
+
+env:
+  CI: true
+
+jobs:
+  apply-test-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/embed-preset-assets
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply fix
+        run: python .github/agent/apply-preset-fix.py
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Server regression tests
+        run: npm run test:server
+      - name: Static runtime checks
+        run: |
+          node --check server/server.js
+          node --check server/preset-library.js
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          text = Path('state.html').read_text()
+          start = text.index('    const APP_HTML = ') + len('    const APP_HTML = ')
+          end = text.index(';\n    const GENERATED_APP_HTML', start)
+          app = json.loads(text[start:end])
+          assert 'function createDaisySnippetElement(component)' in app
+          assert '.daisy-snippet .hover-3d:hover > figure' in app
+          assert 'function inlineExportSnippetImages(value, path = "")' in text
+          PY
+      - name: Remove temporary agent files
+        run: |
+          rm -rf .github/preset-fix-payload .github/agent
+          rm -f .github/workflows/agent-diagnose-preset-render.yml .github/workflows/agent-apply-preset-fix.yml
+      - name: Commit and push fix
+        run: |
+          git config user.name "Preset Render Fix"
+          git config user.email "preset-render-fix@digitalisierungsplanung.de"
+          git add -A
+          git commit -m "Render canonical preset snippets everywhere"
+          git push origin HEAD:agent/embed-preset-assets
