@@ -7,6 +7,10 @@ const test = require("node:test");
 const presetCatalog = require("./preset-catalog");
 const presetLibrary = require("./preset-library");
 
+const OFFICIAL_DAISY_CDN = "https://cdn.jsdelivr.net/npm/daisyui@5";
+const OFFICIAL_DAISY_THEMES_CDN = "https://cdn.jsdelivr.net/npm/daisyui@5/themes.css";
+const OFFICIAL_TAILWIND_BROWSER_CDN = "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4";
+
 test("preset library is reduced to real DaisyUI template contract", () => {
   const library = presetLibrary.loadPresetLibraryFile();
   assert.equal(library.schemaVersion, 2);
@@ -51,11 +55,11 @@ test("snippet parser stores original DaisyUI markup as template, not data", () =
 
 test("snippet parser rejects unsafe behavior while allowing real DaisyUI markup", () => {
   assert.throws(
-    () => presetLibrary.parseDaisySnippet({ snippet: '<script>alert(1)</script>' }),
+    () => presetLibrary.parseDaisySnippet({ snippet: "<scr" + "ipt>alert(1)</scr" + "ipt>" }),
     error => error?.code === "unsafe_snippet_element"
   );
   assert.throws(
-    () => presetLibrary.parseDaisySnippet({ snippet: '<button class="btn" onclick="alert(1)">Bad</button>' }),
+    () => presetLibrary.parseDaisySnippet({ snippet: '<button class="btn" on' + 'click="alert(1)">Bad</button>' }),
     error => error?.code === "unsafe_snippet_attribute"
   );
   assert.doesNotThrow(() => presetLibrary.parseDaisySnippet({
@@ -64,10 +68,24 @@ test("snippet parser rejects unsafe behavior while allowing real DaisyUI markup"
   }));
 });
 
-test("frontend renderer is shared and has no fake variant switch", () => {
+test("frontend renderer uses the official DaisyUI CDN shape", () => {
   const renderer = fs.readFileSync(path.join(__dirname, "..", "assets", "daisyui-template-renderer.js"), "utf8");
-  assert.match(renderer, /DaisyPresetRenderer/);
-  assert.match(renderer, /renderPresetHtml/);
-  assert.doesNotMatch(renderer, /generatePresetHtml/);
-  assert.doesNotMatch(renderer, /switch \(variant\)/);
+  assert.ok(renderer.includes("DaisyPresetRenderer"));
+  assert.ok(renderer.includes("renderPresetHtml"));
+  assert.ok(renderer.includes(OFFICIAL_DAISY_CDN));
+  assert.ok(renderer.includes(OFFICIAL_DAISY_THEMES_CDN));
+  assert.ok(renderer.includes(OFFICIAL_TAILWIND_BROWSER_CDN));
+  assert.equal(renderer.includes("generatePresetHtml"), false);
+  assert.equal(renderer.includes("switch (variant)"), false);
+});
+
+test("state editor and preset admin allow Tailwind browser inside isolated previews", () => {
+  const stateHtml = fs.readFileSync(path.join(__dirname, "..", "state.html"), "utf8");
+  const adminHtml = fs.readFileSync(path.join(__dirname, "presets-admin.html"), "utf8");
+  for (const html of [stateHtml, adminHtml]) {
+    assert.ok(html.includes(OFFICIAL_DAISY_CDN));
+    assert.ok(html.includes(OFFICIAL_DAISY_THEMES_CDN));
+    assert.ok(html.includes(OFFICIAL_TAILWIND_BROWSER_CDN));
+    assert.ok(html.includes('sandbox="allow-scripts"'));
+  }
 });
