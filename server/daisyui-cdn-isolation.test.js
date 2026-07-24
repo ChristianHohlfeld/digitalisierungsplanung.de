@@ -2,6 +2,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const vm = require("node:vm");
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
@@ -14,12 +15,40 @@ const CDN_PATTERNS = [
   /https:\/\/cdn\.jsdelivr\.net\/npm\/@tailwindcss\/browser@4/
 ];
 
-test("DaisyUI CDN is injected only into rendered app documents", () => {
+function loadHookApi() {
+  const calls = [];
+  const NativeBlob = function Blob(parts, options) {
+    this.parts = parts;
+    this.options = options;
+  };
+  const sandbox = {
+    window: {},
+    navigator: {},
+    caches: undefined,
+    document: undefined,
+    Blob: NativeBlob,
+    Object,
+    String,
+    Array,
+    Promise,
+    console
+  };
+  sandbox.window = sandbox;
+  sandbox.Promise.all = values => {
+    calls.push(values);
+    return { then() {}, catch() {} };
+  };
+  vm.runInNewContext(read("disable-sw.js"), sandbox);
+  return sandbox.window.__zustandDaisyUiCdn;
+}
+
+test("DaisyUI CDN is opt-in for isolated render documents only", () => {
   const hook = read("disable-sw.js");
   for (const pattern of CDN_PATTERNS) assert.match(hook, pattern);
   assert.match(hook, /function injectDaisyUiCdn/);
-  assert.match(hook, /window\.Blob\s*=/);
-  assert.match(hook, /iframe#appFrame/);
+  assert.match(hook, /data-zustand-daisyui-render/);
+  assert.doesNotMatch(hook, /iframe#appFrame/);
+  assert.doesNotMatch(hook, /document\.head\.append/, "CDN tags must not be appended to the editor document head");
 
   const stateHtml = read("state.html");
   const indexHtml = read("index.html");
@@ -29,11 +58,15 @@ test("DaisyUI CDN is injected only into rendered app documents", () => {
   }
 });
 
-test("render document injection keeps editor markup untouched", () => {
-  const hook = read("disable-sw.js");
-  const marker = "injectDaisyUiCdn(html)";
-  assert.ok(hook.includes(marker));
-  assert.match(hook, /data-zustand-daisyui-cdn="components"/);
-  assert.match(hook, /data-theme="light"/);
-  assert.doesNotMatch(hook, /document\.head\.append\(/, "CDN tags must not be appended to the editor document head");
+test("DaisyUI CDN injection leaves normal runtime HTML untouched", () => {
+  const api = loadHookApi();
+  const runtimeHtml = '<!doctype html><html><head></head><body><button class="btn">Runtime</button></body></html>';
+  assert.equal(api.injectDaisyUiCdn(runtimeHtml), runtimeHtml);
+
+  const renderHtml = '<!doctype html><html data-zustand-daisyui-render><head></head><body><button class="btn btn-primary">Preset</button></body></html>';
+  const injected = api.injectDaisyUiCdn(renderHtml);
+  assert.notEqual(injected, renderHtml);
+  assert.match(injected, /daisyui@5\/themes\.css/);
+  assert.match(injected, /daisyui@5/);
+  assert.match(injected, /@tailwindcss\/browser@4/);
 });
