@@ -86,7 +86,7 @@
   "presets": [
     {
       "id": "custom_daisyui_aura_pricing",
-      "variant": "card",
+      "variant": "pricing",
       "title": "Aura Pricing Card",
       "description": "Aura rainbow around a pricing card",
       "categoryId": "websuite-builder",
@@ -94,16 +94,33 @@
         "website.builder"
       ],
       "data": {
-        "title": "Premium",
+        "title": "",
         "body": "",
-        "image": "",
-        "imageAlt": "",
-        "actionLabel": "Subscribe"
+        "plans": [
+          {
+            "title": "Premium",
+            "badge": "Most Popular",
+            "price": "$29/mo",
+            "period": "",
+            "body": "",
+            "features": [
+              "High-resolution image generation",
+              "Customizable style templates",
+              "Batch processing capabilities",
+              "AI-driven image enhancements",
+              "Seamless cloud integration",
+              "Real-time collaboration tools"
+            ],
+            "actionLabel": "Subscribe",
+            "highlight": true,
+            "transitionId": ""
+          }
+        ]
       }
     },
     {
       "id": "custom_aurora_pricingcard",
-      "variant": "card",
+      "variant": "pricing",
       "title": "Aurora Pricing22",
       "description": "",
       "categoryId": "websuite-builder",
@@ -111,11 +128,28 @@
         "website.builder"
       ],
       "data": {
-        "title": "Premium",
+        "title": "",
         "body": "",
-        "image": "",
-        "imageAlt": "",
-        "actionLabel": "Subscribe"
+        "plans": [
+          {
+            "title": "Premium",
+            "badge": "Most Popular",
+            "price": "$29/mo",
+            "period": "",
+            "body": "",
+            "features": [
+              "High-resolution image generation",
+              "Customizable style templates",
+              "Batch processing capabilities",
+              "AI-driven image enhancements",
+              "Seamless cloud integration",
+              "Real-time collaboration tools"
+            ],
+            "actionLabel": "Subscribe",
+            "highlight": true,
+            "transitionId": ""
+          }
+        ]
       }
     },
     {
@@ -134,7 +168,7 @@
     },
     {
       "id": "custom_premium",
-      "variant": "card",
+      "variant": "pricing",
       "title": "Premium",
       "description": "Premium",
       "categoryId": "websuite-builder",
@@ -142,11 +176,28 @@
         "website.builder"
       ],
       "data": {
-        "title": "Premium",
+        "title": "",
         "body": "",
-        "image": "",
-        "imageAlt": "",
-        "actionLabel": "Subscribe"
+        "plans": [
+          {
+            "title": "Premium",
+            "badge": "Most Popular",
+            "price": "$29/mo",
+            "period": "",
+            "body": "",
+            "features": [
+              "High-resolution image generation",
+              "Customizable style templates",
+              "Batch processing capabilities",
+              "AI-driven image enhancements",
+              "Seamless cloud integration",
+              "Real-time collaboration tools"
+            ],
+            "actionLabel": "Subscribe",
+            "highlight": true,
+            "transitionId": ""
+          }
+        ]
       }
     }
   ]
