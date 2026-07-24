@@ -35,12 +35,32 @@
     window.Blob = ZustandDaisyUiBlob;
   }
 
+  function appendStylesheet(doc, key, href) {
+    if (doc.querySelector('[data-zustand-daisyui-cdn="' + key + '"]')) return;
+    const link = doc.createElement("link");
+    link.dataset.zustandDaisyuiCdn = key;
+    link.setAttribute("data-zustand-daisyui-cdn", key);
+    link.href = href;
+    link.rel = "stylesheet";
+    link.type = "text/css";
+    doc.head.appendChild(link);
+  }
+
+  function appendScript(doc, key, src) {
+    if (doc.querySelector('[data-zustand-daisyui-cdn="' + key + '"]')) return;
+    const script = doc.createElement("script");
+    script.dataset.zustandDaisyuiCdn = key;
+    script.setAttribute("data-zustand-daisyui-cdn", key);
+    script.src = src;
+    doc.head.appendChild(script);
+  }
+
   function ensureDaisyUiInDocument(doc) {
-    if (!doc || !doc.head || doc.querySelector('[data-zustand-daisyui-cdn="components"]')) return;
+    if (!doc || !doc.head) return;
     if (!doc.documentElement.getAttribute("data-theme")) doc.documentElement.setAttribute("data-theme", "light");
-    const container = doc.createElement("template");
-    container.innerHTML = daisyUiCdnMarkup();
-    doc.head.append(...container.content.childNodes);
+    appendStylesheet(doc, "themes", DAISYUI_THEME_CSS);
+    appendStylesheet(doc, "components", DAISYUI_CSS);
+    appendScript(doc, "tailwind", TAILWIND_BROWSER);
   }
 
   function installRenderedAppFrameHook() {
