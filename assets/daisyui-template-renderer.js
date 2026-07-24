@@ -1,9 +1,10 @@
 (function (global) {
   "use strict";
 
-  const DAISY_VERSION = "5.7.0";
-  const DAISY_CSS_URL = "https://cdn.jsdelivr.net/npm/daisyui@5.7.0/daisyui.css";
-  const DAISY_THEMES_CSS_URL = "https://cdn.jsdelivr.net/npm/daisyui@5.7.0/themes.css";
+  const DAISY_VERSION = "5";
+  const DAISY_CSS_URL = "https://cdn.jsdelivr.net/npm/daisyui@5";
+  const DAISY_THEMES_CSS_URL = "https://cdn.jsdelivr.net/npm/daisyui@5/themes.css";
+  const TAILWIND_BROWSER_URL = "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4";
 
   function isObject(value) {
     return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -69,8 +70,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${title}</title>
-  <link rel="stylesheet" href="${DAISY_THEMES_CSS_URL}">
-  <link rel="stylesheet" href="${DAISY_CSS_URL}">
+  <link href="${DAISY_THEMES_CSS_URL}" rel="stylesheet" type="text/css">
+  <link href="${DAISY_CSS_URL}" rel="stylesheet" type="text/css">
+  <script src="${TAILWIND_BROWSER_URL}"></script>
   <style>
     html, body { min-height: 100%; margin: 0; background: var(--color-base-200, #f5f5f5); color: var(--color-base-content, #1f2937); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     body { padding: 24px; }
@@ -105,6 +107,7 @@
     version: DAISY_VERSION,
     cssUrl: DAISY_CSS_URL,
     themesCssUrl: DAISY_THEMES_CSS_URL,
+    tailwindBrowserUrl: TAILWIND_BROWSER_URL,
     escapeHtml,
     renderTemplateHtml,
     renderPresetHtml,
