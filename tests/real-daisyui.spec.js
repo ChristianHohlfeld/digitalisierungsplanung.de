@@ -9,7 +9,7 @@ test("@smoke state editor renders official DaisyUI preview and export", async ({
   expect(options.some(option => /Button/.test(option))).toBe(true);
   expect(options.some(option => /Card/.test(option))).toBe(true);
 
-  await page.locator("#presetSelect").selectOption({ label: /Card/ });
+  await page.locator("#presetSelect").selectOption("builtin_daisy_card");
   await page.locator("#applyData").click();
 
   const srcdoc = await page.locator("#preview").getAttribute("srcdoc");
