@@ -153,6 +153,20 @@
       }
     },
     {
+      "id": "custom_email_pw_validator",
+      "variant": "input",
+      "title": "card Preset",
+      "description": "",
+      "categoryId": "websuite-builder",
+      "packageIds": [
+        "website.builder"
+      ],
+      "data": {
+        "label": "Email",
+        "value": ""
+      }
+    },
+    {
       "id": "custom_email_password_validated",
       "variant": "input",
       "title": "input Preset",
