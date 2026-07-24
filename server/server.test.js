@@ -1261,3 +1261,32 @@ test("rejects removed presence and never broadcasts peer lifecycle messages", as
     await assertNoMessage(alice, message => message.type === "peer.leave");
   });
 });
+
+
+test("preset admin CSP allows blob previews and canonical snippets persist", () => {
+  const source = fs.readFileSync(path.join(__dirname, "server.js"), "utf8");
+  assert.match(source, /frame-src 'self' blob: data:/);
+  assert.match(source, /img-src 'self' https: data: blob:/);
+
+  const snippet = '<div class="hover-3d"><figure class="w-60 rounded-2xl"><img src="https://img.daisyui.com/images/stock/card-1.webp?x" alt="Tailwind CSS 3D card"></figure><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>';
+  const parsed = presetLibrary.parseDaisySnippet({
+    snippet,
+    id: "custom_hover_3d",
+    title: "Hover 3D",
+    categoryId: "websuite-builder",
+    packageIds: ["website.builder"]
+  });
+  const base = presetLibrary.loadPresetLibraryFile();
+  const serialized = presetLibrary.serializePresetLibrary({ ...base, presets: [...base.presets, parsed] });
+  const saved = JSON.parse(serialized).presets.find(item => item.id === "custom_hover_3d");
+  assert.equal(saved.data._snippet, snippet);
+});
+
+test("shared runtime renders canonical snippets and self-contained export inlines their images", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "state.html"), "utf8");
+  assert.match(html, /function createDaisySnippetElement\(component\)/);
+  assert.match(html, /const snippetElement = createDaisySnippetElement\(component\)/);
+  assert.match(html, /function inlineExportSnippetImages\(value, path = ""\)/);
+  assert.match(html, /_snippet\$\/\.test\(path\)/);
+  assert.match(html, /\.daisy-snippet \.hover-3d:hover > figure/);
+});

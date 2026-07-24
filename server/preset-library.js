@@ -193,15 +193,7 @@ function loadPresetLibraryFile(filePath = DEFAULT_PRESET_LIBRARY_PATH) {
 }
 
 function serializePresetLibrary(value) {
-  const clean = validatePresetLibrary(value);
-  clean.presets = clean.presets.map(preset => {
-    if (preset.data && Object.hasOwn(preset.data, "_snippet")) {
-      const { _snippet, ...rest } = preset.data;
-      return { ...preset, data: rest };
-    }
-    return preset;
-  });
-  return JSON.stringify(clean, null, 2) + "\n";
+  return JSON.stringify(validatePresetLibrary(value), null, 2) + "\n";
 }
 
 function attr(node, name) {
@@ -263,8 +255,8 @@ function texts(nodes) {
 }
 
 function safeImageUrl(value) {
-  const url = cleanText(value, "", 1000);
-  return /^https:\/\/[^\s<>"']+$/i.test(url) ? url : "";
+  const url = cleanText(value, "", 16 * 1024 * 1024);
+  return /^(?:https:\/\/[^\s<>"']+|data:image\/[a-z0-9.+-]+;base64,[a-z0-9+/=]+)$/i.test(url) ? url : "";
 }
 
 function toneFromClasses(node, prefix, fallback = "primary") {
