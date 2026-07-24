@@ -680,7 +680,7 @@ function writeHtml(response, statusCode, body, headers = {}) {
   response.writeHead(statusCode, {
     "content-type": "text/html; charset=utf-8",
     "cache-control": "no-store",
-    "content-security-policy": "default-src 'none'; connect-src 'self' https://cdn.jsdelivr.net; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://cdn.jsdelivr.net; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    "content-security-policy": "default-src 'none'; connect-src 'self' https://cdn.jsdelivr.net; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' https: data: blob:; frame-src 'self' blob: data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
     "x-content-type-options": "nosniff",
     "referrer-policy": "no-referrer",
     "content-length": Buffer.byteLength(body),
