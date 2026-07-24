@@ -4,8 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Digitalisierungsplanung</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@5.7.0/themes.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@5.7.0/daisyui.css">
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css">
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css">
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   <style>
     :root { color-scheme: dark; }
     body { margin: 0; min-height: 100vh; background: #020617; color: #e5eefb; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
@@ -23,7 +24,7 @@
     .app-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
     .app-preview { width: 100%; min-height: 520px; border: 1px solid #284767; border-radius: 18px; background: white; overflow: hidden; }
     .app-state-list { display: grid; gap: 8px; }
-    .app-state-item { display: grid; gap: 2px; padding: 10px; border: 1px solid #284767; border-radius: 12px; background: #020b16; cursor: pointer; }
+    .app-state-item { display: grid; gap: 2px; padding: 10px; border: 1px solid #284767; border-radius: 12px; background: #020b16; color: #e5eefb; text-align: left; cursor: pointer; }
     .app-state-item[aria-current="true"] { border-color: #38bdf8; box-shadow: 0 0 0 2px rgba(56,189,248,.16); }
     .app-status { color: #9fb3c8; min-height: 22px; white-space: pre-wrap; font-size: 13px; }
     @media (max-width: 880px) { .app-grid, .app-hero { display: grid; grid-template-columns: 1fr; } }
@@ -34,9 +35,12 @@
     <header class="app-hero">
       <div>
         <h1 class="app-title">Digitalisierungsplanung</h1>
-        <p class="app-copy">State-Editor mit echten DaisyUI-Komponenten. Preset-Explorer, Vorschau und Export nutzen dieselbe Template-Renderbasis.</p>
+        <p class="app-copy">State-Editor mit echten DaisyUI-Komponenten. Preset-Explorer, Vorschau und Export nutzen dieselbe offizielle DaisyUI-CDN-Renderbasis.</p>
       </div>
-      <div class="app-actions"><button id="exportCurrent" class="btn btn-primary">Aktuelles HTML exportieren</button><button id="exportFlow" class="btn">Alle States exportieren</button></div>
+      <div class="app-actions">
+        <button id="exportCurrent" class="btn btn-primary">Aktuelles HTML exportieren</button>
+        <button id="exportFlow" class="btn">Alle States exportieren</button>
+      </div>
     </header>
     <div class="app-grid">
       <section class="app-panel">
@@ -44,19 +48,26 @@
         <label class="app-field">Preset<select id="presetSelect"></select></label>
         <label class="app-field">State-Titel<input id="stateTitle" placeholder="Neuer State"></label>
         <label class="app-field">State-Daten JSON<textarea id="dataEditor" spellcheck="false"></textarea></label>
-        <div class="app-actions"><button id="applyData" class="btn btn-primary">Vorschau aktualisieren</button><button id="addState" class="btn btn-success">Als State übernehmen</button></div>
+        <div class="app-actions">
+          <button id="applyData" class="btn btn-primary">Vorschau aktualisieren</button>
+          <button id="addState" class="btn btn-success">Als State übernehmen</button>
+        </div>
         <div id="status" class="app-status">Lade Presets...</div>
         <h2 class="app-panel-title">States</h2>
         <div id="stateList" class="app-state-list"></div>
       </section>
-      <section class="app-panel"><h2 class="app-panel-title">Echte DaisyUI App-Vorschau</h2><iframe id="preview" class="app-preview" title="DaisyUI Preview" sandbox="allow-same-origin"></iframe></section>
+      <section class="app-panel">
+        <h2 class="app-panel-title">Echte DaisyUI App-Vorschau</h2>
+        <iframe id="preview" class="app-preview" title="DaisyUI Preview" sandbox="allow-scripts"></iframe>
+      </section>
     </div>
   </main>
   <script>
     window.DaisyPresetRenderer = (() => {
-      const version = "5.7.0";
-      const cssUrl = "https://cdn.jsdelivr.net/npm/daisyui@5.7.0/daisyui.css";
-      const themesCssUrl = "https://cdn.jsdelivr.net/npm/daisyui@5.7.0/themes.css";
+      const version = "5";
+      const cssUrl = "https://cdn.jsdelivr.net/npm/daisyui@5";
+      const themesCssUrl = "https://cdn.jsdelivr.net/npm/daisyui@5/themes.css";
+      const tailwindBrowserUrl = "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4";
       const escapeHtml = value => String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
       const valueAt = (source, path) => String(path || "").split(".").filter(Boolean).reduce((cursor, part) => cursor && typeof cursor === "object" ? cursor[part] : undefined, source);
       const renderTemplateHtml = (template, data = {}) => String(template?.html || template || "").replace(/\{\{\s*([^}]+?)\s*\}\}/g, (_, expression) => {
@@ -66,18 +77,18 @@
         return escapeHtml(value === undefined || value === null || value === "" ? fallback : value);
       });
       const renderPresetHtml = (preset, data = preset?.data || {}) => renderTemplateHtml(preset?.template || preset?.components?.[0]?.template || "", data);
-      const shellHtml = (body, opts = {}) => `<!doctype html><html lang="de" data-theme="${escapeHtml(opts.theme || "light")}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="${themesCssUrl}"><link rel="stylesheet" href="${cssUrl}"><style>body{margin:0;padding:24px;background:var(--color-base-200,#f5f5f5);font-family:ui-sans-serif,system-ui,sans-serif}.daisy-preview-root{display:grid;justify-items:center;gap:20px;width:min(100%,1100px);margin:0 auto}.daisy-preview-root>*{max-width:100%}</style></head><body><main class="daisy-preview-root">${body}</main></body></html>`;
+      const shellHtml = (body, opts = {}) => `<!doctype html><html lang="de" data-theme="${escapeHtml(opts.theme || "light")}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link href="${themesCssUrl}" rel="stylesheet" type="text/css"><link href="${cssUrl}" rel="stylesheet" type="text/css"><script src="${tailwindBrowserUrl}"><\/script><style>body{margin:0;padding:24px;background:var(--color-base-200,#f5f5f5);font-family:ui-sans-serif,system-ui,sans-serif}.daisy-preview-root{display:grid;justify-items:center;gap:20px;width:min(100%,1100px);margin:0 auto}.daisy-preview-root>*{max-width:100%}</style></head><body><main class="daisy-preview-root">${body}</main></body></html>`;
       const renderInto = (target, preset, opts = {}) => { const html = renderPresetHtml(preset, opts.data || preset?.data || {}); if (target?.tagName === "IFRAME") target.srcdoc = shellHtml(html, opts); else if (target) target.innerHTML = html; return html; };
       const exportHtml = (presets, opts = {}) => shellHtml((Array.isArray(presets) ? presets : [presets]).filter(Boolean).map(preset => renderPresetHtml(preset, preset.data)).join("\n"), opts);
-      return { version, renderTemplateHtml, renderPresetHtml, renderInto, shellHtml, exportHtml };
+      return { version, cssUrl, themesCssUrl, tailwindBrowserUrl, escapeHtml, renderTemplateHtml, renderPresetHtml, renderInto, shellHtml, exportHtml };
     })();
 
     const fallbackPresets = [
-      { id: "builtin_daisy_button", title: "Button", variant: "button", data: { label: "Button" }, template: { source: "daisyui", version: "5.7.0", html: '<button class="btn btn-primary">{{ label | Button }}</button>' } },
-      { id: "builtin_daisy_card", title: "Card", variant: "card", data: { title: "Card Title", body: "A card component has a body part, title and actions part.", actionLabel: "Buy Now" }, template: { source: "daisyui", version: "5.7.0", html: '<div class="card bg-base-100 w-96 shadow-sm"><div class="card-body"><h2 class="card-title">{{ title | Card Title }}</h2><p>{{ body | A card component has a body part, title and actions part. }}</p><div class="card-actions justify-end"><button class="btn btn-primary">{{ actionLabel | Buy Now }}</button></div></div></div>' } },
-      { id: "builtin_daisy_alert", title: "Alert", variant: "alert", data: { message: "12 unread messages. Tap to see." }, template: { source: "daisyui", version: "5.7.0", html: '<div role="alert" class="alert alert-info"><span>{{ message | 12 unread messages. Tap to see. }}</span></div>' } },
-      { id: "builtin_daisy_input", title: "Input", variant: "input", data: { placeholder: "Type here", value: "" }, template: { source: "daisyui", version: "5.7.0", html: '<input type="text" placeholder="{{ placeholder | Type here }}" class="input" value="{{ value | }}" />' } },
-      { id: "builtin_daisy_hero", title: "Hero", variant: "hero", data: { title: "Hello there", body: "Provident cupiditate voluptatem et in.", actionLabel: "Get Started" }, template: { source: "daisyui", version: "5.7.0", html: '<div class="hero bg-base-200 min-h-96"><div class="hero-content text-center"><div class="max-w-md"><h1 class="text-5xl font-bold">{{ title | Hello there }}</h1><p class="py-6">{{ body | Provident cupiditate voluptatem et in. }}</p><button class="btn btn-primary">{{ actionLabel | Get Started }}</button></div></div></div>' } }
+      { id: "builtin_daisy_button", title: "Button", variant: "button", data: { label: "Button" }, template: { source: "daisyui", version: "5", html: '<button class="btn btn-primary">{{ label | Button }}</button>' } },
+      { id: "builtin_daisy_card", title: "Card", variant: "card", data: { title: "Card Title", body: "A card component has a body part, title and actions part.", actionLabel: "Buy Now" }, template: { source: "daisyui", version: "5", html: '<div class="card bg-base-100 w-96 shadow-sm"><div class="card-body"><h2 class="card-title">{{ title | Card Title }}</h2><p>{{ body | A card component has a body part, title and actions part. }}</p><div class="card-actions justify-end"><button class="btn btn-primary">{{ actionLabel | Buy Now }}</button></div></div></div>' } },
+      { id: "builtin_daisy_alert", title: "Alert", variant: "alert", data: { message: "12 unread messages. Tap to see." }, template: { source: "daisyui", version: "5", html: '<div role="alert" class="alert alert-info"><span>{{ message | 12 unread messages. Tap to see. }}</span></div>' } },
+      { id: "builtin_daisy_input", title: "Input", variant: "input", data: { placeholder: "Type here", value: "" }, template: { source: "daisyui", version: "5", html: '<input type="text" placeholder="{{ placeholder | Type here }}" class="input" value="{{ value | }}" />' } },
+      { id: "builtin_daisy_hero", title: "Hero", variant: "hero", data: { title: "Hello there", body: "Provident cupiditate voluptatem et in.", actionLabel: "Get Started" }, template: { source: "daisyui", version: "5", html: '<div class="hero bg-base-200 min-h-96"><div class="hero-content text-center"><div class="max-w-md"><h1 class="text-5xl font-bold">{{ title | Hello there }}</h1><p class="py-6">{{ body | Provident cupiditate voluptatem et in. }}</p><button class="btn btn-primary">{{ actionLabel | Get Started }}</button></div></div></div>' } }
     ];
     const el = id => document.getElementById(id);
     let presets = fallbackPresets, selectedId = fallbackPresets[0].id, states = [], currentStateIndex = -1;
@@ -97,7 +108,7 @@
     el("applyData").onclick = () => { try { renderPreview(); setStatus("Vorschau aktualisiert."); } catch (error) { setStatus("Ungültiges JSON: " + error.message); } };
     el("addState").onclick = () => { try { addState(); } catch (error) { setStatus("State konnte nicht übernommen werden: " + error.message); } };
     el("exportCurrent").onclick = () => { try { download("daisyui-preset.html", DaisyPresetRenderer.exportHtml(renderPreview(), { title: el("stateTitle").value || "DaisyUI Export" })); } catch (error) { setStatus("Export fehlgeschlagen: " + error.message); } };
-    el("exportFlow").onclick = () => { const exportStates = states.length ? states : [renderPreview()]; download("daisyui-states.html", DaisyPresetRenderer.exportHtml(exportStates, { title: "DaisyUI States" })); };
+    el("exportFlow").onclick = () => download("daisyui-states.html", DaisyPresetRenderer.exportHtml(states.length ? states : [renderPreview()], { title: "DaisyUI States" }));
     loadContract();
   </script>
 </body>
