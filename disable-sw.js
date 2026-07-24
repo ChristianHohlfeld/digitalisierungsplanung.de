@@ -3,6 +3,7 @@
   const DAISYUI_CSS = "https://cdn.jsdelivr.net/npm/daisyui@5";
   const TAILWIND_BROWSER = "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4";
   const RENDER_MARKER = "data-zustand-daisyui-render";
+  const FRAME_MARKER = "data-zustand-daisyui-frame";
 
   function daisyUiCdnMarkup() {
     return [
@@ -67,19 +68,18 @@
   }
 
   function installMarkedFrameHook() {
-    if (typeof document === "undefined" || typeof MutationObserver !== "function") return;
+    if (typeof document === "undefined") return;
     const wire = frame => {
-      if (!frame || frame.__zustandDaisyUiFrameHooked) return;
+      if (!frame || frame.__zustandDaisyUiFrameHooked || !frame.hasAttribute(FRAME_MARKER)) return;
       frame.__zustandDaisyUiFrameHooked = true;
       frame.addEventListener("load", () => {
         try { ensureDaisyUiInMarkedDocument(frame.contentDocument); } catch (_) {}
       });
       try { ensureDaisyUiInMarkedDocument(frame.contentDocument); } catch (_) {}
     };
-    const scan = () => document.querySelectorAll("iframe").forEach(wire);
+    const scan = () => document.querySelectorAll("iframe[" + FRAME_MARKER + "]").forEach(wire);
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", scan, { once: true });
     else scan();
-    new MutationObserver(scan).observe(document.documentElement, { childList: true, subtree: true });
   }
 
   installRenderedAppBlobHook();
