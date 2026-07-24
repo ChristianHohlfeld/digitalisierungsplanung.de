@@ -14,229 +14,54 @@
   <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
   <script defer src="/disable-sw.js"></script>
   <style>
-    :root {
-      color-scheme: dark;
-      --bg: #020617;
-      --panel: #071321;
-      --panel-2: #0b1f35;
-      --card: rgba(8, 24, 39, .82);
-      --line: rgba(148, 163, 184, .20);
-      --line-strong: rgba(56, 189, 248, .38);
-      --text: #e5f0ff;
-      --muted: #9fb3c8;
-      --soft: #bfdbfe;
-      --primary: #38bdf8;
-      --primary-strong: #0ea5e9;
-      --accent: #f59e0b;
-      --success: #34d399;
-      --danger: #fb7185;
-      --max: 1160px;
-    }
-
+    :root { color-scheme: dark; --bg: #020617; --panel: #071321; --panel-2: #0b1f35; --card: rgba(8, 24, 39, .82); --line: rgba(148, 163, 184, .20); --line-strong: rgba(56, 189, 248, .38); --text: #e5f0ff; --muted: #9fb3c8; --soft: #bfdbfe; --primary: #38bdf8; --primary-strong: #0ea5e9; --accent: #f59e0b; --success: #34d399; --danger: #fb7185; --max: 1160px; }
     * { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
     html, body { margin: 0; min-height: 100%; }
-    body {
-      min-height: 100vh;
-      font-family: "Atkinson Hyperlegible", "Aptos", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
-      background:
-        radial-gradient(circle at 14% -10%, rgba(56,189,248,.18), transparent 34%),
-        radial-gradient(circle at 86% 2%, rgba(245,158,11,.14), transparent 32%),
-        linear-gradient(180deg, #07111f 0%, var(--bg) 52%, #01040b 100%);
-      color: var(--text);
-      line-height: 1.55;
-      overflow-x: hidden;
-    }
-
+    body { min-height: 100vh; font-family: "Atkinson Hyperlegible", "Aptos", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif; background: radial-gradient(circle at 14% -10%, rgba(56,189,248,.18), transparent 34%), radial-gradient(circle at 86% 2%, rgba(245,158,11,.14), transparent 32%), linear-gradient(180deg, #07111f 0%, var(--bg) 52%, #01040b 100%); color: var(--text); line-height: 1.55; overflow-x: hidden; }
     a { color: inherit; text-decoration: none; }
     button, input, textarea { font: inherit; }
     .shell { width: min(var(--max), calc(100% - 32px)); margin: 0 auto; }
-
-    .nav {
-      position: sticky;
-      top: 0;
-      z-index: 20;
-      backdrop-filter: blur(18px);
-      background: rgba(2, 6, 23, .76);
-      border-bottom: 1px solid rgba(148, 163, 184, .16);
-    }
-    .nav-inner {
-      min-height: 68px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 18px;
-    }
+    .nav { position: sticky; top: 0; z-index: 20; backdrop-filter: blur(18px); background: rgba(2, 6, 23, .76); border-bottom: 1px solid rgba(148, 163, 184, .16); }
+    .nav-inner { min-height: 68px; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
     .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 950; letter-spacing: -.02em; }
-    .brand-mark {
-      width: 34px;
-      height: 34px;
-      border-radius: 11px;
-      display: grid;
-      place-items: center;
-      background: linear-gradient(135deg, rgba(56,189,248,.95), rgba(52,211,153,.85));
-      color: #03101f;
-      font-weight: 950;
-      box-shadow: 0 12px 30px rgba(56,189,248,.22);
-    }
+    .brand-mark { width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; background: linear-gradient(135deg, rgba(56,189,248,.95), rgba(52,211,153,.85)); color: #03101f; font-weight: 950; box-shadow: 0 12px 30px rgba(56,189,248,.22); }
     .nav-links { display: flex; align-items: center; gap: 18px; color: var(--muted); font-size: 14px; font-weight: 800; }
     .nav-links a:hover { color: var(--text); }
-
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 44px;
-      border: 1px solid rgba(56,189,248,.46);
-      border-radius: 999px;
-      padding: 11px 18px;
-      background: linear-gradient(135deg, var(--primary), var(--primary-strong));
-      color: #03101f;
-      box-shadow: 0 18px 38px rgba(14,165,233,.22), inset 0 1px 0 rgba(255,255,255,.2);
-      font-weight: 950;
-      cursor: pointer;
-      transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
-    }
+    .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; border: 1px solid rgba(56,189,248,.46); border-radius: 999px; padding: 11px 18px; background: linear-gradient(135deg, var(--primary), var(--primary-strong)); color: #03101f; box-shadow: 0 18px 38px rgba(14,165,233,.22), inset 0 1px 0 rgba(255,255,255,.2); font-weight: 950; cursor: pointer; transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
     .btn:hover { transform: translateY(-1px); box-shadow: 0 24px 48px rgba(14,165,233,.28); }
-    .btn.secondary {
-      background: rgba(8, 24, 39, .74);
-      color: var(--soft);
-      border-color: rgba(148,163,184,.26);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
-    }
+    .btn.secondary { background: rgba(8, 24, 39, .74); color: var(--soft); border-color: rgba(148,163,184,.26); box-shadow: inset 0 1px 0 rgba(255,255,255,.05); }
     .btn.secondary:hover { border-color: rgba(56,189,248,.48); }
-
-    .hero {
-      position: relative;
-      padding: clamp(70px, 10vw, 130px) 0 64px;
-    }
-    .hero-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1.05fr) minmax(320px, .75fr);
-      gap: clamp(34px, 6vw, 72px);
-      align-items: center;
-    }
-    .eyebrow {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      width: fit-content;
-      margin-bottom: 18px;
-      padding: 7px 11px;
-      border: 1px solid rgba(56,189,248,.34);
-      border-radius: 999px;
-      background: rgba(8, 24, 39, .74);
-      color: #7dd3fc;
-      font-size: 13px;
-      font-weight: 950;
-    }
+    .hero { position: relative; padding: clamp(70px, 10vw, 130px) 0 64px; }
+    .hero-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(320px, .75fr); gap: clamp(34px, 6vw, 72px); align-items: center; }
+    .eyebrow { display: inline-flex; align-items: center; gap: 8px; width: fit-content; margin-bottom: 18px; padding: 7px 11px; border: 1px solid rgba(56,189,248,.34); border-radius: 999px; background: rgba(8, 24, 39, .74); color: #7dd3fc; font-size: 13px; font-weight: 950; }
     .eyebrow::before { content: ""; width: 8px; height: 8px; border-radius: 999px; background: var(--success); box-shadow: 0 0 0 6px rgba(52,211,153,.12); }
-    h1 {
-      max-width: 960px;
-      margin: 0;
-      color: #f8fbff;
-      font-size: clamp(42px, 7.5vw, 88px);
-      line-height: .96;
-      letter-spacing: -.064em;
-      font-weight: 950;
-    }
-    .subline {
-      max-width: 780px;
-      margin: 22px 0 0;
-      color: var(--soft);
-      font-size: clamp(18px, 2.4vw, 24px);
-      line-height: 1.42;
-      font-weight: 650;
-    }
+    h1 { max-width: 960px; margin: 0; color: #f8fbff; font-size: clamp(42px, 7.5vw, 88px); line-height: .96; letter-spacing: -.064em; font-weight: 950; }
+    .subline { max-width: 780px; margin: 22px 0 0; color: var(--soft); font-size: clamp(18px, 2.4vw, 24px); line-height: 1.42; font-weight: 650; }
     .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
     .hero-note { margin-top: 14px; color: var(--muted); font-size: 14px; }
-
-    .risk-card {
-      position: relative;
-      overflow: hidden;
-      border: 1px solid rgba(56,189,248,.20);
-      border-radius: 30px;
-      padding: 26px;
-      background:
-        linear-gradient(135deg, rgba(8,24,39,.94), rgba(15,23,42,.76)),
-        radial-gradient(circle at top right, rgba(245,158,11,.20), transparent 42%);
-      box-shadow: 0 28px 80px rgba(0,0,0,.36), inset 0 1px 0 rgba(255,255,255,.06);
-    }
-    .risk-card::before {
-      content: "";
-      position: absolute;
-      inset: -1px;
-      border-radius: inherit;
-      pointer-events: none;
-      background: linear-gradient(135deg, rgba(56,189,248,.34), transparent 30%, rgba(245,158,11,.28));
-      mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-      mask-composite: exclude;
-      padding: 1px;
-    }
+    .risk-card { position: relative; overflow: hidden; border: 1px solid rgba(56,189,248,.20); border-radius: 30px; padding: 26px; background: linear-gradient(135deg, rgba(8,24,39,.94), rgba(15,23,42,.76)), radial-gradient(circle at top right, rgba(245,158,11,.20), transparent 42%); box-shadow: 0 28px 80px rgba(0,0,0,.36), inset 0 1px 0 rgba(255,255,255,.06); }
     .risk-title { margin: 0 0 16px; color: #f8fbff; font-size: 22px; font-weight: 950; letter-spacing: -.02em; }
     .risk-list { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
-    .risk-list li {
-      display: grid;
-      grid-template-columns: 28px 1fr;
-      gap: 10px;
-      align-items: start;
-      color: var(--soft);
-      font-weight: 800;
-    }
-    .risk-list li::before {
-      content: "!";
-      display: grid;
-      place-items: center;
-      width: 28px;
-      height: 28px;
-      border-radius: 999px;
-      background: rgba(251,113,133,.14);
-      color: #fecdd3;
-      font-weight: 950;
-    }
-
+    .risk-list li { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; color: var(--soft); font-weight: 800; }
+    .risk-list li::before { content: "!"; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 999px; background: rgba(251,113,133,.14); color: #fecdd3; font-weight: 950; }
     section { padding: 70px 0; }
     .section-head { max-width: 850px; margin-bottom: 28px; }
     .kicker { margin: 0 0 10px; color: var(--primary); font-size: 13px; font-weight: 950; letter-spacing: .13em; text-transform: uppercase; }
     h2 { margin: 0; color: #f8fbff; font-size: clamp(32px, 5vw, 58px); line-height: 1.02; letter-spacing: -.048em; font-weight: 950; }
     .lead { margin: 16px 0 0; color: var(--soft); font-size: 19px; line-height: 1.55; }
-
     .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
-    .card {
-      min-width: 0;
-      border: 1px solid var(--line);
-      border-radius: 24px;
-      padding: 22px;
-      background: var(--card);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 18px 50px rgba(0,0,0,.22);
-    }
+    .card { min-width: 0; border: 1px solid var(--line); border-radius: 24px; padding: 22px; background: var(--card); box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 18px 50px rgba(0,0,0,.22); }
     .card strong { display: block; color: #f8fbff; font-size: 20px; line-height: 1.15; margin-bottom: 10px; }
     .card p { margin: 0; color: var(--muted); }
     .card .num { color: var(--accent); font-size: 34px; font-weight: 950; letter-spacing: -.05em; }
-
     .split { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1fr); gap: 18px; align-items: stretch; }
-    .quote {
-      border-left: 4px solid var(--accent);
-      padding: 18px 0 18px 20px;
-      color: #f8fbff;
-      font-size: clamp(24px, 3.4vw, 38px);
-      line-height: 1.14;
-      font-weight: 950;
-      letter-spacing: -.035em;
-    }
-    .standard-box {
-      display: grid;
-      gap: 12px;
-      border: 1px solid rgba(52,211,153,.22);
-      border-radius: 24px;
-      padding: 22px;
-      background: linear-gradient(135deg, rgba(5,46,33,.64), rgba(8,24,39,.78));
-    }
+    .quote { border-left: 4px solid var(--accent); padding: 18px 0 18px 20px; color: #f8fbff; font-size: clamp(24px, 3.4vw, 38px); line-height: 1.14; font-weight: 950; letter-spacing: -.035em; }
+    .standard-box { display: grid; gap: 12px; border: 1px solid rgba(52,211,153,.22); border-radius: 24px; padding: 22px; background: linear-gradient(135deg, rgba(5,46,33,.64), rgba(8,24,39,.78)); }
     .standard-row { display: grid; grid-template-columns: 34px 1fr; gap: 12px; align-items: start; }
     .standard-row span:first-child { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 999px; background: rgba(52,211,153,.14); color: #bbf7d0; font-weight: 950; }
     .standard-row strong { color: #f8fbff; }
     .standard-row p { margin: 3px 0 0; color: var(--muted); }
-
     .comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
     .comparison .bad { border-color: rgba(251,113,133,.26); background: rgba(63, 12, 23, .35); }
     .comparison .good { border-color: rgba(52,211,153,.26); background: rgba(5, 46, 33, .32); }
@@ -244,248 +69,50 @@
     .check-list li { display: grid; grid-template-columns: 24px 1fr; gap: 10px; color: var(--soft); }
     .check-list li::before { content: "✓"; color: #bbf7d0; font-weight: 950; }
     .bad .check-list li::before { content: "×"; color: #fecdd3; }
-
-    .process-check {
-      border: 1px solid rgba(56,189,248,.28);
-      border-radius: 30px;
-      padding: clamp(22px, 4vw, 34px);
-      background: linear-gradient(135deg, rgba(8,24,39,.92), rgba(7,19,33,.74));
-      box-shadow: 0 30px 80px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.05);
-    }
+    .process-check { border: 1px solid rgba(56,189,248,.28); border-radius: 30px; padding: clamp(22px, 4vw, 34px); background: linear-gradient(135deg, rgba(8,24,39,.92), rgba(7,19,33,.74)); box-shadow: 0 30px 80px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.05); }
     .check-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 22px; }
     .check-item { border: 1px solid var(--line); border-radius: 18px; padding: 16px; background: rgba(2,6,23,.32); }
     .check-item label { display: flex; align-items: flex-start; gap: 10px; color: var(--soft); font-weight: 800; cursor: pointer; }
     .check-item input { flex: 0 0 auto; width: 18px; height: 18px; margin-top: 3px; accent-color: var(--primary); }
-    .score {
-      margin-top: 20px;
-      padding: 16px;
-      border-radius: 18px;
-      background: rgba(2,6,23,.42);
-      color: var(--soft);
-      border: 1px solid var(--line);
-    }
+    .score { margin-top: 20px; padding: 16px; border-radius: 18px; background: rgba(2,6,23,.42); color: var(--soft); border: 1px solid var(--line); }
     .score strong { color: #f8fbff; }
-
-    .final {
-      text-align: center;
-      padding-bottom: 90px;
-    }
+    .final { text-align: center; padding-bottom: 90px; }
     .final .lead { margin-inline: auto; max-width: 760px; }
-
-    footer {
-      border-top: 1px solid rgba(148,163,184,.16);
-      padding: 28px 0;
-      color: var(--muted);
-      font-size: 14px;
-    }
+    footer { border-top: 1px solid rgba(148,163,184,.16); padding: 28px 0; color: var(--muted); font-size: 14px; }
     .footer-inner { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
     .footer-inner a { color: var(--soft); font-weight: 850; }
-
     [hidden] { display: none !important; }
-    .sr-only {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0,0,0,0);
-      white-space: nowrap;
-      border: 0;
-    }
-
-    @media (max-width: 920px) {
-      .nav-inner { align-items: flex-start; padding: 12px 0; }
-      .nav-links { display: none; }
-      .hero-grid, .split, .comparison { grid-template-columns: 1fr; }
-      .cards, .check-grid { grid-template-columns: 1fr; }
-      .hero { padding-top: 48px; }
-      section { padding: 50px 0; }
-    }
+    @media (max-width: 920px) { .nav-inner { align-items: flex-start; padding: 12px 0; } .nav-links { display: none; } .hero-grid, .split, .comparison { grid-template-columns: 1fr; } .cards, .check-grid { grid-template-columns: 1fr; } .hero { padding-top: 48px; } section { padding: 50px 0; } }
   </style>
 </head>
 <body>
   <script>
     history.scrollRestoration = "manual";
-    function beginInitialViewportReset() {
-      let count = 0;
-      const reset = () => {
-        window.scrollTo(0, 0);
-        count += 1;
-        if (count < 4) requestAnimationFrame(reset);
-      };
-      reset();
-    }
+    function beginInitialViewportReset() { let count = 0; const reset = () => { window.scrollTo(0, 0); count += 1; if (count < 4) requestAnimationFrame(reset); }; reset(); }
     beginInitialViewportReset();
     window.visualViewport?.addEventListener("resize", () => requestAnimationFrame(() => window.scrollTo(0, 0)), { passive: true });
   </script>
-
   <div class="nav">
     <div class="shell nav-inner">
       <a class="brand" href="#top" aria-label="Digitalisierungsplanung Startseite"><span class="brand-mark">Z</span><span>Digitalisierungsplanung</span></a>
-      <nav class="nav-links" aria-label="Seitennavigation">
-        <a href="#problem">Problem</a>
-        <a href="#standard">Standard</a>
-        <a href="#check">Prozess-Check</a>
-      </nav>
-      <a class="btn secondary" href="state.html?demo=zustand">Editor öffnen</a>
+      <nav class="nav-links" aria-label="Seitennavigation"><a href="#problem">Problem</a><a href="#standard">Standard</a><a href="#check">Prozess-Check</a></nav>
+      <a class="btn secondary" href="state.html?demo=zustand">Pilot ansehen</a>
     </div>
   </div>
-
   <main id="top">
-    <section class="hero shell" aria-labelledby="hero-title">
-      <div class="hero-grid">
-        <div>
-          <div class="eyebrow">Unternehmen brauchen Standards, nicht Helden</div>
-          <h1 id="hero-title">Die meisten Unternehmen dokumentieren ihre Prozesse. Zustand sorgt dafür, dass sie tatsächlich so ausgeführt werden.</h1>
-          <p class="subline">Zustand verwandelt kritisches Prozesswissen in ausführbare Unternehmensstandards – für einheitliche Abläufe, weniger Risiko und nachhaltige Digitalisierung.</p>
-          <div class="hero-actions">
-            <a class="btn" href="#check">Kritischen Prozess analysieren</a>
-            <a class="btn secondary" href="#standard">Unternehmenswissen sichern</a>
-          </div>
-          <p class="hero-note">Für Abläufe, bei denen Erfahrung, Qualität und Verantwortung nicht an einzelnen Personen hängen dürfen.</p>
-        </div>
-        <aside class="risk-card" aria-label="Risiko durch Kopf-Wissen">
-          <p class="risk-title">Ihr wichtigstes Unternehmenswissen verlässt jeden Abend das Gebäude.</p>
-          <ul class="risk-list">
-            <li>Kritische Prozesse hängen an einzelnen Menschen.</li>
-            <li>Jeder macht es richtig. Aber jeder anders.</li>
-            <li>Dokumentation wird geschrieben, aber nicht gelebt.</li>
-            <li>Digitalisierung scheitert, wenn der reale Ablauf unklar bleibt.</li>
-          </ul>
-        </aside>
-      </div>
-    </section>
-
-    <section id="problem" class="shell">
-      <div class="section-head">
-        <p class="kicker">Der Schmerz</p>
-        <h2>Kritische Prozesse leben in Köpfen statt im Unternehmen.</h2>
-        <p class="lead">Was heute funktioniert, funktioniert oft wegen einzelner Menschen. Genau das macht Wachstum, Einarbeitung, Übergabe und Audits riskant.</p>
-      </div>
-      <div class="cards">
-        <article class="card"><div class="num">1</div><strong>Wissen ist personengebunden</strong><p>Wenn erfahrene Mitarbeiter fehlen, wechseln oder überlastet sind, wird der Ablauf langsam, unsicher oder unterschiedlich.</p></article>
-        <article class="card"><div class="num">2</div><strong>Dokumente steuern keinen Alltag</strong><p>Handbücher und Prozessbeschreibungen erklären, was sein sollte. Sie stellen nicht sicher, was wirklich passiert.</p></article>
-        <article class="card"><div class="num">3</div><strong>Digitalisierung startet zu spät</strong><p>Softwareprojekte werden teuer, wenn erst im Projekt sichtbar wird, dass der Prozess nicht eindeutig entschieden ist.</p></article>
-      </div>
-    </section>
-
-    <section id="standard" class="shell">
-      <div class="split">
-        <div>
-          <p class="kicker">Die Neupositionierung</p>
-          <h2>Prozesswissen wird zum ausführbaren Standard.</h2>
-          <p class="quote">Kritisches Prozesswissen gehört ins Unternehmen, nicht in Köpfe.</p>
-        </div>
-        <div class="standard-box">
-          <div class="standard-row"><span>1</span><div><strong>Wissen erfassen</strong><p>Der echte Ablauf wird sichtbar: Entscheidungen, Ausnahmen, Verantwortlichkeiten und Übergaben.</p></div></div>
-          <div class="standard-row"><span>2</span><div><strong>Standard festlegen</strong><p>Aus Erfahrung entsteht ein wiederholbarer Unternehmensstandard, der von Teams verstanden und genutzt wird.</p></div></div>
-          <div class="standard-row"><span>3</span><div><strong>Ausführung sichern</strong><p>Der Standard führt Menschen durch den Ablauf, statt als Dokument im Ordner zu liegen.</p></div></div>
-        </div>
-      </div>
-    </section>
-
-    <section class="shell" aria-labelledby="compare-title">
-      <div class="section-head">
-        <p class="kicker">Vorher / Nachher</p>
-        <h2 id="compare-title">Audits prüfen Dokumente. Unternehmen brauchen gelebte Abläufe.</h2>
-      </div>
-      <div class="comparison">
-        <article class="card bad">
-          <strong>Heute: beschrieben, aber abhängig</strong>
-          <ul class="check-list">
-            <li>Einarbeitung dauert lange.</li>
-            <li>Qualität hängt an Erfahrung.</li>
-            <li>Jeder Bereich interpretiert den Ablauf anders.</li>
-            <li>Abweichungen fallen erst spät auf.</li>
-          </ul>
-        </article>
-        <article class="card good">
-          <strong>Mit Zustand: standardisiert und ausführbar</strong>
-          <ul class="check-list">
-            <li>Teams arbeiten nach demselben Standard.</li>
-            <li>Kritische Entscheidungen sind im Ablauf verankert.</li>
-            <li>Neue Mitarbeiter werden schneller sicher.</li>
-            <li>Digitalisierung startet auf geklärten Prozessen.</li>
-          </ul>
-        </article>
-      </div>
-    </section>
-
-    <section id="check" class="shell">
-      <div class="process-check">
-        <div class="section-head">
-          <p class="kicker">Prozess-Check</p>
-          <h2>Welcher Prozess darf nicht länger nur in Köpfen existieren?</h2>
-          <p class="lead">Markieren Sie, was auf Ihren kritischen Ablauf zutrifft. Wenn mehrere Punkte stimmen, ist der Prozess reif für einen ausführbaren Unternehmensstandard.</p>
-        </div>
-        <div class="check-grid" role="group" aria-label="Kritische Prozesssignale">
-          <div class="check-item"><label><input type="checkbox" data-risk="people">Der Ablauf hängt an wenigen erfahrenen Personen.</label></div>
-          <div class="check-item"><label><input type="checkbox" data-risk="variance">Verschiedene Teams machen denselben Prozess unterschiedlich.</label></div>
-          <div class="check-item"><label><input type="checkbox" data-risk="onboarding">Neue Mitarbeiter brauchen lange, bis sie sicher handeln.</label></div>
-          <div class="check-item"><label><input type="checkbox" data-risk="audit">Im Audit zählt die Dokumentation, im Alltag läuft es anders.</label></div>
-          <div class="check-item"><label><input type="checkbox" data-risk="handover">Übergaben erzeugen Rückfragen, Wartezeit oder Fehler.</label></div>
-          <div class="check-item"><label><input type="checkbox" data-risk="digital">Digitalisierung ist geplant, aber der Ablauf ist noch nicht eindeutig.</label></div>
-        </div>
-        <div id="score" class="score" aria-live="polite"><strong>0 Signale markiert.</strong> Starten Sie mit dem Prozess, bei dem ein Ausfall, Fehler oder Wechsel den größten Schaden erzeugt.</div>
-        <div class="hero-actions">
-          <a class="btn" href="mailto:kontakt@digitalisierungsplanung.de?subject=Prozess-Check%20starten">Prozess-Check starten</a>
-          <a class="btn secondary" href="state.html?demo=zustand">Standard als Pilot ansehen</a>
-        </div>
-      </div>
-    </section>
-
-    <section class="final shell">
-      <p class="kicker">Ergebnis</p>
-      <h2>Zustand macht kritisches Unternehmenswissen zu einem ausführbaren Unternehmensstandard.</h2>
-      <p class="lead">Damit Prozesse nicht nur dokumentiert sind, sondern im Alltag einheitlich, nachvollziehbar und sicher ausgeführt werden.</p>
-      <div class="hero-actions" style="justify-content:center">
-        <a class="btn" href="mailto:kontakt@digitalisierungsplanung.de?subject=Kritischen%20Prozess%20analysieren">Kritischen Prozess analysieren</a>
-        <a class="btn secondary" href="#problem">Schmerzpunkte prüfen</a>
-      </div>
-    </section>
+    <section class="hero shell" aria-labelledby="hero-title"><div class="hero-grid"><div><div class="eyebrow">Unternehmen brauchen Standards, nicht Helden</div><h1 id="hero-title">Die meisten Unternehmen dokumentieren ihre Prozesse. Zustand sorgt dafür, dass sie tatsächlich so ausgeführt werden.</h1><p class="subline">Zustand verwandelt kritisches Prozesswissen in ausführbare Unternehmensstandards – für einheitliche Abläufe, weniger Risiko und nachhaltige Digitalisierung.</p><div class="hero-actions"><a class="btn" href="#check">Kritischen Prozess analysieren</a><a class="btn secondary" href="#standard">Unternehmenswissen sichern</a></div><p class="hero-note">Für Abläufe, bei denen Erfahrung, Qualität und Verantwortung nicht an einzelnen Personen hängen dürfen.</p></div><aside class="risk-card" aria-label="Risiko durch Kopf-Wissen"><p class="risk-title">Ihr wichtigstes Unternehmenswissen verlässt jeden Abend das Gebäude.</p><ul class="risk-list"><li>Kritische Prozesse hängen an einzelnen Menschen.</li><li>Jeder macht es richtig. Aber jeder anders.</li><li>Dokumentation wird geschrieben, aber nicht gelebt.</li><li>Digitalisierung scheitert, wenn der reale Ablauf unklar bleibt.</li></ul></aside></div></section>
+    <section id="problem" class="shell"><div class="section-head"><p class="kicker">Der Schmerz</p><h2>Kritische Prozesse leben in Köpfen statt im Unternehmen.</h2><p class="lead">Was heute funktioniert, funktioniert oft wegen einzelner Menschen. Genau das macht Wachstum, Einarbeitung, Übergabe und Audits riskant.</p></div><div class="cards"><article class="card"><div class="num">1</div><strong>Wissen ist personengebunden</strong><p>Wenn erfahrene Mitarbeiter fehlen, wechseln oder überlastet sind, wird der Ablauf langsam, unsicher oder unterschiedlich.</p></article><article class="card"><div class="num">2</div><strong>Dokumente steuern keinen Alltag</strong><p>Handbücher und Prozessbeschreibungen erklären, was sein sollte. Sie stellen nicht sicher, was wirklich passiert.</p></article><article class="card"><div class="num">3</div><strong>Digitalisierung startet zu spät</strong><p>Softwareprojekte werden teuer, wenn erst im Projekt sichtbar wird, dass der Prozess nicht eindeutig entschieden ist.</p></article></div></section>
+    <section id="standard" class="shell"><div class="split"><div><p class="kicker">Die Neupositionierung</p><h2>Prozesswissen wird zum ausführbaren Standard.</h2><p class="quote">Kritisches Prozesswissen gehört ins Unternehmen, nicht in Köpfe.</p></div><div class="standard-box"><div class="standard-row"><span>1</span><div><strong>Wissen erfassen</strong><p>Der echte Ablauf wird sichtbar: Entscheidungen, Ausnahmen, Verantwortlichkeiten und Übergaben.</p></div></div><div class="standard-row"><span>2</span><div><strong>Standard festlegen</strong><p>Aus Erfahrung entsteht ein wiederholbarer Unternehmensstandard, der von Teams verstanden und genutzt wird.</p></div></div><div class="standard-row"><span>3</span><div><strong>Ausführung sichern</strong><p>Der Standard führt Menschen durch den Ablauf, statt als Dokument im Ordner zu liegen.</p></div></div></div></div></section>
+    <section class="shell" aria-labelledby="compare-title"><div class="section-head"><p class="kicker">Vorher / Nachher</p><h2 id="compare-title">Audits prüfen Dokumente. Unternehmen brauchen gelebte Abläufe.</h2></div><div class="comparison"><article class="card bad"><strong>Heute: beschrieben, aber abhängig</strong><ul class="check-list"><li>Einarbeitung dauert lange.</li><li>Qualität hängt an Erfahrung.</li><li>Jeder Bereich interpretiert den Ablauf anders.</li><li>Abweichungen fallen erst spät auf.</li></ul></article><article class="card good"><strong>Mit Zustand: standardisiert und ausführbar</strong><ul class="check-list"><li>Teams arbeiten nach demselben Standard.</li><li>Kritische Entscheidungen sind im Ablauf verankert.</li><li>Neue Mitarbeiter werden schneller sicher.</li><li>Digitalisierung startet auf geklärten Prozessen.</li></ul></article></div></section>
+    <section id="check" class="shell"><div class="process-check"><div class="section-head"><p class="kicker">Prozess-Check</p><h2>Welcher Prozess darf nicht länger nur in Köpfen existieren?</h2><p class="lead">Markieren Sie, was auf Ihren kritischen Ablauf zutrifft. Wenn mehrere Punkte stimmen, ist der Prozess reif für einen ausführbaren Unternehmensstandard.</p></div><div class="check-grid" role="group" aria-label="Kritische Prozesssignale"><div class="check-item"><label><input type="checkbox" data-risk="people">Der Ablauf hängt an wenigen erfahrenen Personen.</label></div><div class="check-item"><label><input type="checkbox" data-risk="variance">Verschiedene Teams machen denselben Prozess unterschiedlich.</label></div><div class="check-item"><label><input type="checkbox" data-risk="onboarding">Neue Mitarbeiter brauchen lange, bis sie sicher handeln.</label></div><div class="check-item"><label><input type="checkbox" data-risk="audit">Im Audit zählt die Dokumentation, im Alltag läuft es anders.</label></div><div class="check-item"><label><input type="checkbox" data-risk="handover">Übergaben erzeugen Rückfragen, Wartezeit oder Fehler.</label></div><div class="check-item"><label><input type="checkbox" data-risk="digital">Digitalisierung ist geplant, aber der Ablauf ist noch nicht eindeutig.</label></div></div><div id="score" class="score" aria-live="polite"><strong>0 Signale markiert.</strong> Starten Sie mit dem Prozess, bei dem ein Ausfall, Fehler oder Wechsel den größten Schaden erzeugt.</div><div class="hero-actions"><a class="btn" href="mailto:kontakt@digitalisierungsplanung.de?subject=Prozess-Check%20starten">Prozess-Check starten</a><a class="btn secondary" href="state.html?demo=zustand">Standard als Pilot ansehen</a></div></div></section>
+    <section class="final shell"><p class="kicker">Ergebnis</p><h2>Zustand macht kritisches Unternehmenswissen zu einem ausführbaren Unternehmensstandard.</h2><p class="lead">Damit Prozesse nicht nur dokumentiert sind, sondern im Alltag einheitlich, nachvollziehbar und sicher ausgeführt werden.</p><div class="hero-actions" style="justify-content:center"><a class="btn" href="mailto:kontakt@digitalisierungsplanung.de?subject=Kritischen%20Prozess%20analysieren">Kritischen Prozess analysieren</a><a class="btn secondary" href="#problem">Schmerzpunkte prüfen</a></div></section>
   </main>
-
-  <footer>
-    <div class="shell footer-inner">
-      <span>© Digitalisierungsplanung.de</span>
-      <span>Prozesswissen wird zum ausführbaren Standard.</span>
-      <a href="state.html?demo=zustand">Pilot öffnen</a>
-    </div>
-  </footer>
-
+  <footer><div class="shell footer-inner"><span>© Digitalisierungsplanung.de</span><span>Prozesswissen wird zum ausführbaren Standard.</span><a href="state.html?demo=zustand">Pilot öffnen</a></div></footer>
   <script>
-    const EXPORTED_STATE_BLUEPRINT = {
-      version: 2,
-      name: "Digitalisierungsplanung",
-      initial: "site_home",
-      states: [
-        { id: "site_home", title: "Unternehmensstandard", data: { headline: "Die meisten Unternehmen dokumentieren ihre Prozesse. Zustand sorgt dafür, dass sie tatsächlich so ausgeführt werden." } },
-        { id: "site_problem", title: "Kopf-Wissen", data: { risk: "Kritische Prozesse leben in Köpfen statt im Unternehmen." } },
-        { id: "site_standard", title: "Ausführbarer Standard", data: { promise: "Prozesswissen wird zum ausführbaren Standard." } },
-        { id: "site_check", title: "Prozess-Check", data: { cta: "Kritischen Prozess analysieren" } }
-      ],
-      transitions: [
-        { id: "home_problem", from: "site_home", to: "site_problem", label: "Problem sichtbar machen" },
-        { id: "problem_standard", from: "site_problem", to: "site_standard", label: "Standard festlegen" },
-        { id: "standard_check", from: "site_standard", to: "site_check", label: "Prozess-Check starten" }
-      ]
-    };
-
-    const scoreEl = document.getElementById("score");
-    const checkboxes = [...document.querySelectorAll("[data-risk]")];
-    function syncScore() {
-      const count = checkboxes.filter(item => item.checked).length;
-      const intro = count === 1 ? "1 Signal markiert." : `${count} Signale markiert.`;
-      const message = count >= 3
-        ? "Dieser Prozess ist ein Kandidat für einen verbindlichen Unternehmensstandard."
-        : count > 0
-          ? "Hier lohnt sich eine gezielte Analyse, bevor Wissen verloren geht."
-          : "Starten Sie mit dem Prozess, bei dem ein Ausfall, Fehler oder Wechsel den größten Schaden erzeugt.";
-      scoreEl.innerHTML = `<strong>${intro}</strong> ${message}`;
-    }
-    checkboxes.forEach(item => item.addEventListener("change", syncScore));
-    syncScore();
+    const EXPORTED_STATE_BLUEPRINT = { version: 2, name: "Digitalisierungsplanung", initial: "site_home", states: [{ id: "site_home", title: "Unternehmensstandard", data: { headline: "Die meisten Unternehmen dokumentieren ihre Prozesse. Zustand sorgt dafür, dass sie tatsächlich so ausgeführt werden." } }, { id: "site_problem", title: "Kopf-Wissen", data: { risk: "Kritische Prozesse leben in Köpfen statt im Unternehmen." } }, { id: "site_standard", title: "Ausführbarer Standard", data: { promise: "Prozesswissen wird zum ausführbaren Standard." } }, { id: "site_check", title: "Prozess-Check", data: { cta: "Kritischen Prozess analysieren" } }], transitions: [{ id: "home_problem", from: "site_home", to: "site_problem", label: "Problem sichtbar machen" }, { id: "problem_standard", from: "site_problem", to: "site_standard", label: "Standard festlegen" }, { id: "standard_check", from: "site_standard", to: "site_check", label: "Prozess-Check starten" }] };
+    const scoreEl = document.getElementById("score"); const checkboxes = [...document.querySelectorAll("[data-risk]")];
+    function syncScore() { const count = checkboxes.filter(item => item.checked).length; const intro = count === 1 ? "1 Signal markiert." : `${count} Signale markiert.`; const message = count >= 3 ? "Dieser Prozess ist ein Kandidat für einen verbindlichen Unternehmensstandard." : count > 0 ? "Hier lohnt sich eine gezielte Analyse, bevor Wissen verloren geht." : "Starten Sie mit dem Prozess, bei dem ein Ausfall, Fehler oder Wechsel den größten Schaden erzeugt."; scoreEl.innerHTML = `<strong>${intro}</strong> ${message}`; }
+    checkboxes.forEach(item => item.addEventListener("change", syncScore)); syncScore();
   </script>
 </body>
 </html>
