@@ -102,6 +102,23 @@
       }
     },
     {
+      "id": "custom_aurora_pricingcard",
+      "variant": "card",
+      "title": "Aurora Pricing",
+      "description": "",
+      "categoryId": "websuite-builder",
+      "packageIds": [
+        "website.builder"
+      ],
+      "data": {
+        "title": "Premium",
+        "body": "",
+        "image": "",
+        "imageAlt": "",
+        "actionLabel": "Subscribe"
+      }
+    },
+    {
       "id": "custom_email_password_validated",
       "variant": "input",
       "title": "input Preset",
