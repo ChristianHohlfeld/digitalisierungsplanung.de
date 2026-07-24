@@ -87,6 +87,10 @@ const BUILTIN_TRIGGER_TYPES = Object.freeze([
   }
 ]);
 
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
 function triggerTypesForCatalog(catalog) {
   const response = eventCatalog.eventCatalogResponse(catalog);
   return BUILTIN_TRIGGER_TYPES.map(trigger => {
@@ -156,6 +160,59 @@ function stateContributionsForCatalog(catalog) {
   ];
 }
 
+function managedDaisyRoot(preset) {
+  if (preset?.builtIn !== false || !Array.isArray(preset.components)) return "";
+  if (!preset.components.some(component => component?.type === "daisy")) return "";
+  const root = String(preset.stateContribution?.root || "").trim();
+  return /^states\.[A-Za-z_][A-Za-z0-9_]*$/.test(root) ? root : "";
+}
+
+function normalizeManagedDaisyPreset(preset) {
+  const root = managedDaisyRoot(preset);
+  if (!root) return preset;
+  const target = `${root}.view`;
+  let changed = false;
+  const components = preset.components.map(component => {
+    if (component?.type !== "daisy") return component;
+    const dataPath = String(component.dataPath || "").trim();
+    if (dataPath && dataPath !== root) return component;
+    changed = true;
+    return { ...component, dataPath: target };
+  });
+  if (!changed) return preset;
+
+  const sourceData = isPlainObject(preset.data) ? preset.data : {};
+  const dataTypes = { view: "object" };
+  for (const [path, type] of Object.entries(isPlainObject(preset.dataTypes) ? preset.dataTypes : {})) {
+    dataTypes[`view.${path}`] = type;
+  }
+
+  const fieldTypes = { [root]: "object", [target]: "object" };
+  const originalFieldTypes = isPlainObject(preset.stateContribution?.fieldTypes) ? preset.stateContribution.fieldTypes : {};
+  for (const [path, type] of Object.entries(originalFieldTypes)) {
+    if (path === root) continue;
+    if (path.startsWith(root + ".")) fieldTypes[target + path.slice(root.length)] = type;
+  }
+
+  return {
+    ...preset,
+    components,
+    data: { view: sourceData },
+    dataTypes,
+    stateContribution: {
+      ...(preset.stateContribution || {}),
+      root,
+      fields: Object.keys(fieldTypes),
+      fieldTypes,
+      fieldSchemas: valueTypes.fieldSchemasFromTypeMap(fieldTypes)
+    }
+  };
+}
+
+function presetContractResponse(library) {
+  return presetCatalog.presetCatalogResponse(library).map(normalizeManagedDaisyPreset);
+}
+
 function productContractResponse(configOrCatalog) {
   const catalog = configOrCatalog?.eventCatalog || configOrCatalog;
   const library = configOrCatalog?.presetLibrary;
@@ -171,7 +228,7 @@ function productContractResponse(configOrCatalog) {
     presetCategories: presetCatalog.presetCategoriesResponse(library),
     presetPackages: presetCatalog.presetPackagesResponse(library),
     subscriptionPlans: presetCatalog.subscriptionPlansResponse(library),
-    presets: presetCatalog.presetCatalogResponse(library),
+    presets: presetContractResponse(library),
     stateContributions: stateContributionsForCatalog(catalog)
   };
 }
@@ -182,5 +239,6 @@ module.exports = {
   CONTRACT_SCHEMA_VERSION,
   VALUE_TYPES,
   VALUE_TYPE_CONSTRAINTS: valueTypes.VALUE_TYPE_DEFINITIONS,
+  normalizeManagedDaisyPreset,
   productContractResponse
 };
