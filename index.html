@@ -88,8 +88,8 @@
 <body>
   <script>
     history.scrollRestoration = "manual";
-    function beginInitialViewportReset() { let count = 0; const reset = () => { window.scrollTo(0, 0); count += 1; if (count < 4) requestAnimationFrame(reset); }; reset(); }
-    beginInitialViewportReset();
+    function beginInitialViewportReset(durationMs = 1200) { const until = performance.now() + durationMs; const reset = () => { window.scrollTo(0, 0); if (performance.now() < until) requestAnimationFrame(reset); }; reset(); }
+    beginInitialViewportReset(); window.addEventListener("pageshow", () => beginInitialViewportReset(1400)); window.addEventListener("load", () => beginInitialViewportReset(900)); [60, 180, 420, 900, 1400].forEach(delay => setTimeout(() => window.scrollTo(0, 0), delay));
     window.visualViewport?.addEventListener("resize", () => requestAnimationFrame(() => window.scrollTo(0, 0)), { passive: true });
   </script>
   <div class="nav">
