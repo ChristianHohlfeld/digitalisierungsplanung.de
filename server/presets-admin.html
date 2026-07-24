@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@5.7.0/daisyui.css">
   <style>
     :root { color-scheme: dark; }
-    body { min-height: 100vh; margin: 0; background: #020617; color: #e5eefb; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { margin: 0; min-height: 100vh; background: #020617; color: #e5eefb; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     .admin-shell { width: min(1380px, calc(100% - 28px)); margin: 0 auto; padding: 22px 0 40px; }
     .admin-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
     .admin-title { margin: 0; font-size: clamp(24px, 4vw, 40px); line-height: 1; font-weight: 900; }
@@ -21,7 +21,6 @@
     .admin-field > input, .admin-field > select { min-height: 42px; padding: 0 12px; }
     .admin-field > textarea { min-height: 190px; padding: 12px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.45; text-transform: none; letter-spacing: 0; }
     .admin-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-    .admin-actions .btn { min-height: 38px; }
     .admin-status { min-height: 22px; color: #9fb3c8; white-space: pre-wrap; font-size: 13px; }
     .admin-status[data-kind="ok"] { color: #86efac; }
     .admin-status[data-kind="bad"] { color: #fda4af; }
@@ -37,305 +36,81 @@
         <h1 class="admin-title">DaisyUI Preset Admin</h1>
         <p class="admin-subtitle">Echte DaisyUI Templates. Keine Fake-Renderer, keine Editor-CSS-Vermischung.</p>
       </div>
-      <nav class="admin-actions">
-        <a class="btn btn-ghost" href="/contract">Contract</a>
-        <a class="btn btn-ghost" href="/events-admin.html">Events</a>
-      </nav>
+      <nav class="admin-actions"><a class="btn btn-ghost" href="/contract">Contract</a><a class="btn btn-ghost" href="/events-admin.html">Events</a></nav>
     </header>
-
     <section class="admin-panel" style="margin-bottom:16px">
       <div class="admin-grid">
         <label class="admin-field">Admin-Secret<input id="secret" type="password" autocomplete="off" placeholder="REALTIME_ADMIN_SECRET"></label>
         <label class="admin-field">Commit-Nachricht<input id="message" value="Update real DaisyUI preset library"></label>
       </div>
-      <div class="admin-actions">
-        <button id="reload" class="btn btn-primary" type="button">Katalog laden</button>
-        <button id="validate" class="btn" type="button">Library prüfen</button>
-        <button id="save" class="btn btn-success" type="button">Custom Preset speichern</button>
-        <button id="deletePreset" class="btn btn-error" type="button">Custom Preset löschen</button>
-      </div>
+      <div class="admin-actions"><button id="reload" class="btn btn-primary" type="button">Katalog laden</button><button id="validate" class="btn" type="button">Library prüfen</button><button id="save" class="btn btn-success" type="button">Custom speichern</button><button id="deletePreset" class="btn btn-error" type="button">Custom löschen</button></div>
       <div id="status" class="admin-status">Nicht geladen</div>
     </section>
-
     <div class="admin-layout">
       <section class="admin-panel">
         <h2 class="admin-panel-title">Preset Explorer</h2>
         <label class="admin-field">Preset auswählen<select id="existingPreset"></select></label>
-        <div class="admin-actions">
-          <button id="loadPreset" class="btn" type="button">Laden</button>
-          <button id="duplicatePreset" class="btn" type="button">Als Custom duplizieren</button>
-        </div>
-        <div class="admin-grid">
-          <label class="admin-field">ID<input id="presetId" placeholder="custom_button"></label>
-          <label class="admin-field">Variante<input id="variant" readonly></label>
-        </div>
+        <div class="admin-actions"><button id="loadPreset" class="btn" type="button">Laden</button><button id="duplicatePreset" class="btn" type="button">Als Custom duplizieren</button><button id="newButton" class="btn" type="button">Neuer Button</button></div>
+        <div class="admin-grid"><label class="admin-field">ID<input id="presetId" placeholder="custom_button"></label><label class="admin-field">Variante<input id="variant" readonly></label></div>
         <label class="admin-field">Titel<input id="title" placeholder="Mein DaisyUI Preset"></label>
         <label class="admin-field">Beschreibung<input id="description" placeholder="Kurzbeschreibung"></label>
-        <div class="admin-grid">
-          <label class="admin-field">Kategorie<select id="category"></select></label>
-          <label class="admin-field">Paket<select id="package"></select></label>
-        </div>
-        <label class="admin-field">Original DaisyUI HTML Template<textarea id="snippet" spellcheck="false" placeholder="DaisyUI HTML aus packages/docs/src/components/... einfuegen"></textarea></label>
-        <div class="admin-actions">
-          <button id="parse" class="btn btn-primary" type="button">Snippet einlesen</button>
-          <button id="newButton" class="btn" type="button">Neues Button-Preset</button>
-        </div>
+        <div class="admin-grid"><label class="admin-field">Kategorie<select id="category"></select></label><label class="admin-field">Paket<select id="package"></select></label></div>
+        <label class="admin-field">Original DaisyUI HTML Template<textarea id="snippet" spellcheck="false" placeholder="DaisyUI HTML aus packages/docs/src/routes/(routes)/components/... einfügen"></textarea></label>
+        <div class="admin-actions"><button id="parse" class="btn btn-primary" type="button">Snippet einlesen</button></div>
         <label class="admin-field">Kanonische Preset-Definition<textarea id="definition" spellcheck="false"></textarea></label>
       </section>
-
-      <section class="admin-panel">
-        <h2 class="admin-panel-title">Echte DaisyUI Vorschau</h2>
-        <iframe id="preview" class="admin-preview" title="DaisyUI Preset Preview" sandbox="allow-same-origin"></iframe>
-      </section>
+      <section class="admin-panel"><h2 class="admin-panel-title">Echte DaisyUI Vorschau</h2><iframe id="preview" class="admin-preview" title="DaisyUI Preset Preview" sandbox="allow-same-origin"></iframe></section>
     </div>
   </main>
-
-  <script src="/assets/daisyui-template-renderer.js"></script>
   <script>
+    window.DaisyPresetRenderer = (() => {
+      const version = "5.7.0";
+      const cssUrl = "https://cdn.jsdelivr.net/npm/daisyui@5.7.0/daisyui.css";
+      const themesCssUrl = "https://cdn.jsdelivr.net/npm/daisyui@5.7.0/themes.css";
+      const escapeHtml = value => String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+      const valueAt = (source, path) => String(path || "").split(".").filter(Boolean).reduce((cursor, part) => cursor && typeof cursor === "object" ? cursor[part] : undefined, source);
+      const renderTemplateHtml = (template, data = {}) => String(template?.html || template || "").replace(/\{\{\s*([^}]+?)\s*\}\}/g, (_, expression) => {
+        const [rawPath, ...fallbackParts] = String(expression).split("|");
+        const fallback = fallbackParts.join("|").trim();
+        const value = valueAt(data, rawPath.trim());
+        return escapeHtml(value === undefined || value === null || value === "" ? fallback : value);
+      });
+      const renderPresetHtml = (preset, data = preset?.data || {}) => renderTemplateHtml(preset?.template || preset?.components?.[0]?.template || "", data);
+      const shellHtml = (body, opts = {}) => `<!doctype html><html lang="de" data-theme="${escapeHtml(opts.theme || "light")}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="${themesCssUrl}"><link rel="stylesheet" href="${cssUrl}"><style>body{margin:0;padding:24px;background:var(--color-base-200,#f5f5f5);font-family:ui-sans-serif,system-ui,sans-serif}.daisy-preview-root{display:grid;justify-items:center;gap:20px;width:min(100%,1100px);margin:0 auto}.daisy-preview-root>*{max-width:100%}</style></head><body><main class="daisy-preview-root">${body}</main></body></html>`;
+      const renderInto = (target, preset, opts = {}) => { const html = renderPresetHtml(preset, opts.data || preset?.data || {}); if (target?.tagName === "IFRAME") target.srcdoc = shellHtml(html, opts); else if (target) target.innerHTML = html; return html; };
+      const exportHtml = (presets, opts = {}) => shellHtml((Array.isArray(presets) ? presets : [presets]).filter(Boolean).map(preset => renderPresetHtml(preset, preset.data)).join("\n"), opts);
+      return { version, cssUrl, themesCssUrl, escapeHtml, renderTemplateHtml, renderPresetHtml, renderInto, shellHtml, exportHtml };
+    })();
+
     const STORAGE_KEY = "digitalisierungsplanung.realtime.adminSecret";
     const el = id => document.getElementById(id);
-    const protectedCategories = new Set(["websuite-builder"]);
-    const protectedPackages = new Set(["core.process", "website.builder", "approval.compliance", "service.operations", "bi.analytics", "sales.crm", "knowledge.portal", "integration.automation"]);
-    let library = null;
-    let allPresets = [];
-    let draft = null;
-
-    function clone(value) { return JSON.parse(JSON.stringify(value)); }
-    function isObject(value) { return Boolean(value) && typeof value === "object" && !Array.isArray(value); }
-    function authHeaders() { return { authorization: "Bearer " + el("secret").value.trim(), "content-type": "application/json" }; }
-    function setStatus(text, kind = "") { el("status").textContent = text; el("status").dataset.kind = kind; }
-    function showError(error) { setStatus(error?.message || String(error), "bad"); }
-
+    let library = null, allPresets = [], draft = null;
+    const clone = value => JSON.parse(JSON.stringify(value));
+    const isObject = value => Boolean(value) && typeof value === "object" && !Array.isArray(value);
+    const authHeaders = () => ({ authorization: "Bearer " + el("secret").value.trim(), "content-type": "application/json" });
+    const setStatus = (text, kind = "") => { el("status").textContent = text; el("status").dataset.kind = kind; };
+    const showError = error => setStatus(error?.message || String(error), "bad");
     try { el("secret").value = localStorage.getItem(STORAGE_KEY) || ""; } catch (_) {}
-    el("secret").addEventListener("input", () => {
-      try {
-        const value = el("secret").value.trim();
-        if (value) localStorage.setItem(STORAGE_KEY, value);
-        else localStorage.removeItem(STORAGE_KEY);
-      } catch (_) {}
-    });
-
-    async function requestJson(url, options = {}) {
-      const response = await fetch(url, { cache: "no-store", ...options });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
-      return payload;
-    }
-
-    function fillSelect(select, items, selected = "") {
-      select.innerHTML = "";
-      for (const item of items) select.add(new Option(item.label || item.title || item.id, item.id));
-      if (selected && [...select.options].some(option => option.value === selected)) select.value = selected;
-    }
-
-    function fillPresets() {
-      const select = el("existingPreset");
-      select.innerHTML = "";
-      select.add(new Option("Preset auswählen", ""));
-      const groups = new Map([["Built-ins", []], ["Custom", []]]);
-      allPresets.forEach(preset => groups.get(preset._custom ? "Custom" : "Built-ins").push(preset));
-      for (const [label, presets] of groups) {
-        if (!presets.length) continue;
-        const group = document.createElement("optgroup");
-        group.label = label;
-        presets.forEach(preset => group.appendChild(new Option(`${preset.title} (${preset.variant})`, preset.id)));
-        select.appendChild(group);
-      }
-    }
-
-    async function loadCatalog() {
-      setStatus("Lade Katalog...");
-      const [catalogPayload, contractPayload] = await Promise.all([
-        requestJson("/presets-admin/catalog", { headers: authHeaders() }),
-        requestJson("/contract")
-      ]);
-      library = catalogPayload.library;
-      const libraryIds = new Set(library.presets.map(preset => preset.id));
-      allPresets = [
-        ...(contractPayload.presets || []).filter(preset => !libraryIds.has(preset.id)).map(preset => ({ ...preset, _custom: false })),
-        ...library.presets.map(preset => ({ ...preset, _custom: true }))
-      ];
-      fillSelect(el("category"), library.categories, "websuite-builder");
-      fillSelect(el("package"), library.packages, "website.builder");
-      fillPresets();
-      setStatus(`${allPresets.length} Presets geladen, davon ${library.presets.length} Custom.`, "ok");
-      if (!draft && allPresets.length) setDraft(allPresets[0]);
-    }
-
-    function definitionFromText() {
-      const text = el("definition").value.trim();
-      if (!text) return null;
-      const value = JSON.parse(text);
-      if (!isObject(value)) throw new Error("Definition muss ein JSON-Objekt sein.");
-      return value;
-    }
-
-    function syncFields() {
-      if (!draft) return;
-      el("presetId").value = draft.id || "";
-      el("variant").value = draft.variant || "";
-      el("title").value = draft.title || "";
-      el("description").value = draft.description || "";
-      el("snippet").value = draft.template?.html || "";
-      if ([...el("category").options].some(option => option.value === draft.categoryId)) el("category").value = draft.categoryId;
-      if ([...el("package").options].some(option => option.value === draft.packageIds?.[0])) el("package").value = draft.packageIds[0];
-      el("deletePreset").disabled = !draft.id || !library?.presets.some(preset => preset.id === draft.id);
-    }
-
-    function renderPreview() {
-      const frame = el("preview");
-      if (!draft) {
-        frame.srcdoc = DaisyPresetRenderer.shellHtml("", { title: "DaisyUI Preview" });
-        return;
-      }
-      DaisyPresetRenderer.renderInto(frame, draft, { theme: "light" });
-    }
-
-    function setDraft(value) {
-      draft = value ? clone(value) : null;
-      if (draft) {
-        delete draft._custom;
-        delete draft._builtin;
-        if (draft.components?.[0]?.template && !draft.template) draft.template = clone(draft.components[0].template);
-      }
-      el("definition").value = draft ? JSON.stringify(draft, null, 2) : "";
-      syncFields();
-      renderPreview();
-    }
-
-    function normalizeCustomId(value) {
-      const slug = String(value || "custom_preset").toLowerCase()
-        .normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
-      const prefixed = slug.startsWith("custom_") ? slug : "custom_" + slug;
-      return /^custom_[a-z0-9_]{1,56}$/.test(prefixed) ? prefixed.slice(0, 63) : "custom_preset";
-    }
-
-    function uniqueCustomId(seed) {
-      const base = normalizeCustomId(seed);
-      const taken = new Set(library?.presets.map(preset => preset.id) || []);
-      if (!taken.has(base)) return base;
-      let n = 2;
-      while (taken.has(`${base.slice(0, 55)}_${n}`)) n += 1;
-      return `${base.slice(0, 55)}_${n}`;
-    }
-
-    function currentDraft() {
-      const base = definitionFromText() || draft;
-      if (!base) throw new Error("Kein Preset geladen.");
-      const next = clone(base);
-      next.id = normalizeCustomId(el("presetId").value || next.id);
-      next.variant = el("variant").value || next.variant;
-      next.title = el("title").value.trim() || next.title || "DaisyUI Preset";
-      next.description = el("description").value.trim();
-      next.categoryId = el("category").value || "websuite-builder";
-      next.packageIds = [el("package").value || "website.builder"];
-      next.template = { ...(next.template || {}), source: "daisyui", version: DaisyPresetRenderer.version, html: el("snippet").value.trim() };
-      next.data = isObject(next.data) ? next.data : {};
-      setDraft(next);
-      return next;
-    }
-
-    async function parseSnippet() {
-      if (!library) throw new Error("Erst Katalog laden.");
-      const payload = await requestJson("/presets-admin/parse", {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify({
-          snippet: el("snippet").value,
-          id: el("presetId").value,
-          title: el("title").value,
-          description: el("description").value,
-          categoryId: el("category").value || "websuite-builder",
-          packageIds: [el("package").value || "website.builder"]
-        })
-      });
-      setDraft(payload.preset);
-      setStatus(`Snippet als ${payload.preset.variant} erkannt.`, "ok");
-    }
-
-    async function submitLibrary(validateOnly = false) {
-      const payload = await requestJson(`/presets-admin/catalog${validateOnly ? "?validate=1" : ""}`, {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify({ library, validateOnly, message: el("message").value })
-      });
-      if (validateOnly) {
-        library = payload.library;
-        setStatus("Library ist gültig.", "ok");
-        return;
-      }
-      setStatus(payload.changed ? `Gespeichert: ${payload.commit}` : "Keine Änderung.", "ok");
-      await loadCatalog();
-    }
-
-    async function saveCurrent() {
-      if (!library) throw new Error("Erst Katalog laden.");
-      const preset = currentDraft();
-      const index = library.presets.findIndex(item => item.id === preset.id);
-      if (index >= 0) library.presets[index] = preset;
-      else library.presets.push(preset);
-      await submitLibrary(false);
-    }
-
-    async function validateCurrentLibrary() {
-      if (!library) throw new Error("Erst Katalog laden.");
-      if (draft) {
-        const preset = currentDraft();
-        const index = library.presets.findIndex(item => item.id === preset.id);
-        if (index >= 0) library.presets[index] = preset;
-      }
-      await submitLibrary(true);
-    }
-
-    async function deleteCurrent() {
-      if (!draft || !library?.presets.some(preset => preset.id === draft.id)) throw new Error("Nur Custom Presets können gelöscht werden.");
-      if (!confirm(`${draft.id} löschen?`)) return;
-      library.presets = library.presets.filter(preset => preset.id !== draft.id);
-      setDraft(null);
-      await submitLibrary(false);
-    }
-
-    function loadSelected(duplicate = false) {
-      const id = el("existingPreset").value;
-      const preset = allPresets.find(item => item.id === id);
-      if (!preset) throw new Error("Preset auswählen.");
-      const next = clone(preset);
-      if (duplicate || !next.id.startsWith("custom_")) {
-        next.id = uniqueCustomId(next.title || next.id);
-        next.title = `${next.title || "Preset"} Custom`;
-      }
-      setDraft(next);
-      setStatus(duplicate ? "Als Custom dupliziert. Prüfen und speichern." : "Preset geladen.", "ok");
-    }
-
-    function newButtonPreset() {
-      if (!library) throw new Error("Erst Katalog laden.");
-      setDraft({
-        id: uniqueCustomId("button"),
-        variant: "button",
-        title: "Button",
-        description: "Original DaisyUI Button.",
-        categoryId: "websuite-builder",
-        packageIds: ["core.process"],
-        template: { source: "daisyui", version: DaisyPresetRenderer.version, docsPath: "packages/docs/src/routes/(routes)/components/button/+page.md", html: '<button class="btn btn-primary">{{ label | Button }}</button>' },
-        data: { label: "Button", clicked: false, clickedAt: 0 }
-      });
-      setStatus("Neues Button-Preset angelegt.", "ok");
-    }
-
-    el("reload").addEventListener("click", () => loadCatalog().catch(showError));
-    el("loadPreset").addEventListener("click", () => { try { loadSelected(false); } catch (error) { showError(error); } });
-    el("duplicatePreset").addEventListener("click", () => { try { loadSelected(true); } catch (error) { showError(error); } });
-    el("parse").addEventListener("click", () => parseSnippet().catch(showError));
-    el("newButton").addEventListener("click", () => { try { newButtonPreset(); } catch (error) { showError(error); } });
-    el("save").addEventListener("click", () => saveCurrent().catch(showError));
-    el("validate").addEventListener("click", () => validateCurrentLibrary().catch(showError));
-    el("deletePreset").addEventListener("click", () => deleteCurrent().catch(showError));
-    ["presetId", "title", "description", "category", "package", "snippet", "definition"].forEach(id => {
-      el(id).addEventListener("input", () => { try { currentDraft(); } catch (_) { renderPreview(); } });
-      el(id).addEventListener("change", () => { try { currentDraft(); } catch (_) { renderPreview(); } });
-    });
+    el("secret").addEventListener("input", () => { try { const value = el("secret").value.trim(); value ? localStorage.setItem(STORAGE_KEY, value) : localStorage.removeItem(STORAGE_KEY); } catch (_) {} });
+    async function requestJson(url, options = {}) { const response = await fetch(url, { cache: "no-store", ...options }); const payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`); return payload; }
+    function fillSelect(select, items, selected = "") { select.innerHTML = ""; for (const item of items) select.add(new Option(item.label || item.title || item.id, item.id)); if (selected && [...select.options].some(option => option.value === selected)) select.value = selected; }
+    function fillPresets() { const select = el("existingPreset"); select.innerHTML = ""; select.add(new Option("Preset auswählen", "")); const groups = new Map([["Built-ins", []], ["Custom", []]]); allPresets.forEach(preset => groups.get(preset._custom ? "Custom" : "Built-ins").push(preset)); for (const [label, presets] of groups) { if (!presets.length) continue; const group = document.createElement("optgroup"); group.label = label; presets.forEach(preset => group.appendChild(new Option(`${preset.title} (${preset.variant})`, preset.id))); select.appendChild(group); } }
+    async function loadCatalog() { setStatus("Lade Katalog..."); const [catalogPayload, contractPayload] = await Promise.all([requestJson("/presets-admin/catalog", { headers: authHeaders() }), requestJson("/contract")]); library = catalogPayload.library; const libraryIds = new Set(library.presets.map(preset => preset.id)); allPresets = [...(contractPayload.presets || []).filter(preset => !libraryIds.has(preset.id)).map(preset => ({ ...preset, _custom: false })), ...library.presets.map(preset => ({ ...preset, _custom: true }))]; fillSelect(el("category"), library.categories, "websuite-builder"); fillSelect(el("package"), library.packages, "website.builder"); fillPresets(); setStatus(`${allPresets.length} Presets geladen, davon ${library.presets.length} Custom.`, "ok"); if (!draft && allPresets.length) setDraft(allPresets[0]); }
+    function syncFields() { if (!draft) return; el("presetId").value = draft.id || ""; el("variant").value = draft.variant || ""; el("title").value = draft.title || ""; el("description").value = draft.description || ""; el("snippet").value = draft.template?.html || ""; if ([...el("category").options].some(option => option.value === draft.categoryId)) el("category").value = draft.categoryId; if ([...el("package").options].some(option => option.value === draft.packageIds?.[0])) el("package").value = draft.packageIds[0]; el("deletePreset").disabled = !draft.id || !library?.presets.some(preset => preset.id === draft.id); }
+    function setDraft(value) { draft = value ? clone(value) : null; if (draft) { delete draft._custom; delete draft._builtin; if (draft.components?.[0]?.template && !draft.template) draft.template = clone(draft.components[0].template); } el("definition").value = draft ? JSON.stringify(draft, null, 2) : ""; syncFields(); DaisyPresetRenderer.renderInto(el("preview"), draft, { theme: "light" }); }
+    function normalizeCustomId(value) { const slug = String(value || "custom_preset").toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, ""); const prefixed = slug.startsWith("custom_") ? slug : "custom_" + slug; return /^custom_[a-z0-9_]{1,56}$/.test(prefixed) ? prefixed.slice(0, 63) : "custom_preset"; }
+    function uniqueCustomId(seed) { const base = normalizeCustomId(seed); const taken = new Set(library?.presets.map(preset => preset.id) || []); if (!taken.has(base)) return base; let n = 2; while (taken.has(`${base.slice(0, 55)}_${n}`)) n += 1; return `${base.slice(0, 55)}_${n}`; }
+    function definitionFromText() { const text = el("definition").value.trim(); if (!text) return null; const value = JSON.parse(text); if (!isObject(value)) throw new Error("Definition muss ein JSON-Objekt sein."); return value; }
+    function currentDraft() { const base = definitionFromText() || draft; if (!base) throw new Error("Kein Preset geladen."); const next = clone(base); next.id = normalizeCustomId(el("presetId").value || next.id); next.variant = el("variant").value || next.variant; next.title = el("title").value.trim() || next.title || "DaisyUI Preset"; next.description = el("description").value.trim(); next.categoryId = el("category").value || "websuite-builder"; next.packageIds = [el("package").value || "website.builder"]; next.template = { ...(next.template || {}), source: "daisyui", version: DaisyPresetRenderer.version, html: el("snippet").value.trim() }; next.data = isObject(next.data) ? next.data : {}; setDraft(next); return next; }
+    async function parseSnippet() { const payload = await requestJson("/presets-admin/parse", { method: "POST", headers: authHeaders(), body: JSON.stringify({ snippet: el("snippet").value, id: el("presetId").value, title: el("title").value, description: el("description").value, categoryId: el("category").value || "websuite-builder", packageIds: [el("package").value || "website.builder"] }) }); setDraft(payload.preset); setStatus(`Snippet als ${payload.preset.variant} erkannt.`, "ok"); }
+    async function submitLibrary(validateOnly = false) { const payload = await requestJson(`/presets-admin/catalog${validateOnly ? "?validate=1" : ""}`, { method: "POST", headers: authHeaders(), body: JSON.stringify({ library, validateOnly, message: el("message").value }) }); if (validateOnly) { library = payload.library; setStatus("Library ist gültig.", "ok"); return; } setStatus(payload.changed ? `Gespeichert: ${payload.commit}` : "Keine Änderung.", "ok"); await loadCatalog(); }
+    async function saveCurrent() { if (!library) throw new Error("Erst Katalog laden."); const preset = currentDraft(); const index = library.presets.findIndex(item => item.id === preset.id); if (index >= 0) library.presets[index] = preset; else library.presets.push(preset); await submitLibrary(false); }
+    async function validateCurrentLibrary() { if (!library) throw new Error("Erst Katalog laden."); if (draft && draft.id.startsWith("custom_")) { const preset = currentDraft(); const index = library.presets.findIndex(item => item.id === preset.id); if (index >= 0) library.presets[index] = preset; } await submitLibrary(true); }
+    async function deleteCurrent() { if (!draft || !library?.presets.some(preset => preset.id === draft.id)) throw new Error("Nur Custom Presets können gelöscht werden."); if (!confirm(`${draft.id} löschen?`)) return; library.presets = library.presets.filter(preset => preset.id !== draft.id); setDraft(null); await submitLibrary(false); }
+    function loadSelected(duplicate = false) { const preset = allPresets.find(item => item.id === el("existingPreset").value); if (!preset) throw new Error("Preset auswählen."); const next = clone(preset); if (duplicate || !next.id.startsWith("custom_")) { next.id = uniqueCustomId(next.title || next.id); next.title = `${next.title || "Preset"} Custom`; } setDraft(next); setStatus(duplicate ? "Als Custom dupliziert. Prüfen und speichern." : "Preset geladen.", "ok"); }
+    function newButtonPreset() { if (!library) throw new Error("Erst Katalog laden."); setDraft({ id: uniqueCustomId("button"), variant: "button", title: "Button", description: "Original DaisyUI Button.", categoryId: "websuite-builder", packageIds: ["core.process"], template: { source: "daisyui", version: DaisyPresetRenderer.version, docsPath: "packages/docs/src/routes/(routes)/components/button/+page.md", html: '<button class="btn btn-primary">{{ label | Button }}</button>' }, data: { label: "Button", clicked: false, clickedAt: 0 } }); }
+    el("reload").onclick = () => loadCatalog().catch(showError); el("loadPreset").onclick = () => { try { loadSelected(false); } catch (e) { showError(e); } }; el("duplicatePreset").onclick = () => { try { loadSelected(true); } catch (e) { showError(e); } }; el("parse").onclick = () => parseSnippet().catch(showError); el("newButton").onclick = () => { try { newButtonPreset(); } catch (e) { showError(e); } }; el("save").onclick = () => saveCurrent().catch(showError); el("validate").onclick = () => validateCurrentLibrary().catch(showError); el("deletePreset").onclick = () => deleteCurrent().catch(showError);
+    ["presetId", "title", "description", "category", "package", "snippet"].forEach(id => { el(id).addEventListener("input", () => { try { currentDraft(); } catch (_) {} }); el(id).addEventListener("change", () => { try { currentDraft(); } catch (_) {} }); });
     loadCatalog().catch(showError);
   </script>
 </body>
