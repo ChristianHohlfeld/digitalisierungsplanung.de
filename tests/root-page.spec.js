@@ -22,28 +22,23 @@ test.describe("Root demo export", () => {
     expect(cleanupSource).not.toContain("serviceWorker.register");
   });
 
-  test("serves the single Zustand demo at root @smoke", async ({ page }) => {
+  test("serves the repositioned business-standard landing at root @smoke", async ({ page }) => {
     const html = fs.readFileSync("index.html", "utf8");
     expect(html).toContain("EXPORTED_STATE_BLUEPRINT");
     expect(html).toContain("<title>Digitalisierungsplanung</title>");
-    expect(html).toContain('"name":"Digitalisierungsplanung"');
-    expect(html).toContain('"initial":"site_home"');
-    expect(html).toContain('"site_checkout"');
-    expect(html).toContain("state.html?demo=zustand");
+    expect(html).toContain('name: "Digitalisierungsplanung"');
+    expect(html).toContain('initial: "site_home"');
     expect(html).toContain("/manifest.webmanifest");
     expect(html).toContain("/assets/share-card.png");
+    expect(html).toContain("state.html?demo=zustand");
     expect(html).not.toContain('id="appFrame"');
     expect(html).not.toContain('id="btnNew"');
-    expect(html).not.toContain("_editor");
     expect(html).not.toContain("flow-debug");
     expect(html).not.toContain("flowDebug");
     expect(html).not.toContain("runtimeFlowDebug");
     expect(html).toContain('history.scrollRestoration = "manual"');
     expect(html).toContain("beginInitialViewportReset");
     expect(html).toContain("window.visualViewport?.addEventListener");
-    expect(html).toContain("Array.isArray(cursor) && /^\\d+$/.test(part)");
-    expect(html).not.toContain("Array.isArray(cursor) && /^d+$/.test(part)");
-    expect(html).toContain("DaisyUI v5.6.18 / Tailwind preflight parity");
     expect(html).not.toMatch(/(?:cdn\.jsdelivr\.net|unpkg\.com)\/.*daisyui/i);
 
     await page.addInitScript(() => {
@@ -65,86 +60,44 @@ test.describe("Root demo export", () => {
     await expect(page).toHaveTitle("Digitalisierungsplanung");
     await expect(page.getByRole("button", { name: "Neu" })).toHaveCount(0);
     await expect(page.locator("#flowDebug")).toHaveCount(0);
-    await expect(page.locator("#statePill")).toHaveText("site_home");
-    await expect(page.getByRole("heading", { name: "Aus verborgenem Prozesswissen wird ein klickbarer Ablauf.", exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Ablauf ansehen" }).first()).toBeVisible();
-    await expect(page.locator(".hero .card-actions.justify-center")).toHaveCSS("justify-content", "center");
-    await expect(page.locator(".navbar")).toContainText("Digitalisierungsplanung");
 
-    const footerGeometry = () => page.locator(".footer").evaluate(footer => {
-      const style = getComputedStyle(footer);
-      const children = [...footer.children]
-        .filter(child => !["SCRIPT", "STYLE", "TEMPLATE"].includes(child.tagName))
-        .map(child => {
-          const box = child.getBoundingClientRect();
-          return { left: box.left, right: box.right, top: box.top, bottom: box.bottom };
-        });
-      const brand = footer.querySelector("aside p");
-      const horizontalOverlap = children.some((box, index) => index > 0 && box.left < children[index - 1].right - 1);
-      const verticalOverlap = children.some((box, index) => index > 0 && box.top < children[index - 1].bottom - 1);
-      return {
-        flow: style.gridAutoFlow,
-        paddingTop: style.paddingTop,
-        borderTopWidth: style.borderTopWidth,
-        borderRadius: style.borderRadius,
-        topSpread: Math.max(...children.map(box => box.top)) - Math.min(...children.map(box => box.top)),
-        leftSpread: Math.max(...children.map(box => box.left)) - Math.min(...children.map(box => box.left)),
-        horizontalOverlap,
-        verticalOverlap,
-        brandFits: !brand || brand.scrollWidth <= brand.clientWidth + 1,
-        hasOverflow: footer.scrollWidth > footer.clientWidth + 1
-      };
-    });
+    const visibleText = await page.locator("body").innerText();
+    expect(visibleText).toContain("Unternehmen brauchen Standards, nicht Helden");
+    expect(visibleText).toContain("Die meisten Unternehmen dokumentieren ihre Prozesse. Zustand sorgt dafür, dass sie tatsächlich so ausgeführt werden.");
+    expect(visibleText).toContain("Zustand verwandelt kritisches Prozesswissen in ausführbare Unternehmensstandards");
+    expect(visibleText).toContain("Ihr wichtigstes Unternehmenswissen verlässt jeden Abend das Gebäude.");
+    expect(visibleText).toContain("Prozesswissen wird zum ausführbaren Standard.");
+    expect(visibleText).not.toMatch(/State Machine|Workflow|Low Code|No Code|BPMN|JSON|Realtime|MCP|Diagrammeditor/i);
 
-    await expect(page.locator('footer.footer[class~="sm:footer-horizontal"].bg-base-200.text-base-content.p-10')).toBeVisible();
-    const wideFooter = await footerGeometry();
-    expect(wideFooter).toMatchObject({
-      flow: "column",
-      paddingTop: "40px",
-      borderTopWidth: "0px",
-      borderRadius: "0px",
-      horizontalOverlap: false,
-      brandFits: true,
-      hasOverflow: false
-    });
-    expect(wideFooter.topSpread).toBeLessThanOrEqual(1);
+    await expect(page.getByRole("heading", { name: "Die meisten Unternehmen dokumentieren ihre Prozesse. Zustand sorgt dafür, dass sie tatsächlich so ausgeführt werden.", exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Kritischen Prozess analysieren" }).first()).toBeVisible();
+    await expect(page.getByRole("link", { name: "Unternehmenswissen sichern" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Kritische Prozesse leben in Köpfen statt im Unternehmen.", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Prozesswissen wird zum ausführbaren Standard.", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Audits prüfen Dokumente. Unternehmen brauchen gelebte Abläufe.", exact: true })).toBeVisible();
 
-    await page.setViewportSize({ width: 390, height: 844 });
-    const narrowFooter = await footerGeometry();
-    expect(narrowFooter).toMatchObject({
-      flow: "row",
-      horizontalOverlap: true,
-      verticalOverlap: false,
-      brandFits: true,
-      hasOverflow: false
-    });
-    expect(narrowFooter.leftSpread).toBeLessThanOrEqual(1);
-    await page.setViewportSize({ width: 1280, height: 820 });
+    await page.getByLabel("Der Ablauf hängt an wenigen erfahrenen Personen.").check();
+    await expect(page.locator("#score")).toContainText("1 Signal markiert.");
+    await page.getByLabel("Verschiedene Teams machen denselben Prozess unterschiedlich.").check();
+    await page.getByLabel("Digitalisierung ist geplant, aber der Ablauf ist noch nicht eindeutig.").check();
+    await expect(page.locator("#score")).toContainText("3 Signale markiert.");
+    await expect(page.locator("#score")).toContainText("Kandidat für einen verbindlichen Unternehmensstandard");
 
     const manifest = await page.request.get("/manifest.webmanifest");
     expect(manifest.ok()).toBe(true);
     expect((await manifest.json()).name).toBe("Digitalisierungsplanung.de");
 
-    await page.getByRole("button", { name: "Ablauf ansehen", exact: true }).click();
-    await expect(page.locator("#statePill")).toHaveText("site_features");
-    await expect(page.getByRole("heading", { name: "Warum das f\u00fcr K\u00e4ufer z\u00e4hlt" })).toBeVisible();
-
-    await page.getByRole("button", { name: "Pakete ansehen", exact: true }).first().click();
-    await expect(page.locator("#statePill")).toHaveText("site_pricing");
-    await expect(page.getByRole("heading", { name: "Pakete", exact: true })).toBeVisible();
-    await expect(page.locator(".daisy-pricing .card-title")).toContainText(["Starter", "Business", "Scale"]);
-    await page.getByRole("button", { name: "Business anfragen" }).click();
-    await expect(page.locator("#statePill")).toHaveText("site_checkout");
-    await expect(page.getByRole("heading", { name: "Anfrage" })).toBeVisible();
-    await expect(page.getByText("1.490 EUR")).toBeVisible();
-
-    await page.getByRole("button", { name: "Anfrage senden" }).click();
-    await expect(page.locator("#statePill")).toHaveText("site_thanks");
+    const blueprint = await page.evaluate(() => window.EXPORTED_STATE_BLUEPRINT || EXPORTED_STATE_BLUEPRINT);
+    expect(blueprint).toMatchObject({
+      version: 2,
+      name: "Digitalisierungsplanung",
+      initial: "site_home"
+    });
+    expect(blueprint.states.map(state => state.id)).toEqual(["site_home", "site_problem", "site_standard", "site_check"]);
 
     await page.reload({ waitUntil: "load" });
     await expect.poll(() => page.evaluate(() => window.__safariLateRestoreApplied === true)).toBe(true);
     await expect.poll(() => page.evaluate(() => Math.round(window.scrollY)), { timeout: 3000 }).toBe(0);
-    await expect.poll(() => page.locator(".app").evaluate(el => Math.round(el.getBoundingClientRect().top))).toBeLessThanOrEqual(24);
     expect(await page.evaluate(() => history.scrollRestoration)).toBe("manual");
 
     await page.mouse.wheel(0, 500);
