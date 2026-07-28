@@ -6877,6 +6877,7 @@ test.describe("State Blueprint tool", () => {
     expect(component.dataPath).toBe(scopePath);
     expect(defaults).toMatchObject({
       label: "Weiter",
+      url: "",
       clicked: false,
       clickedAt: 0
     });
@@ -8530,6 +8531,141 @@ test.describe("State Blueprint tool", () => {
       component: { dataPath: "states.auth_start.avatar", dataRole: "widget", dataLabel: "Benutzer-Avatar" },
       data: { name: "Mira Keller" }
     });
+  });
+
+  test("edits daisy action button widgets as URL-only CTAs without transition glue @smoke", async ({ page }) => {
+    await openTool(page);
+    await openStateInspector(page, "auth_start");
+    const panel = page.locator("#pWidgetLibrary");
+
+    await panel.getByLabel("Bausteinvorlage").selectOption("builtin_daisy_button");
+    await panel.getByRole("button", { name: "Baustein hinzufügen" }).click();
+    await expect.poll(async () => {
+      const stored = await savedModel(page);
+      const state = stored.states.find(item => item.id === "auth_start");
+      const component = state.components.find(item => item.type === "daisy" && item.variant === "button");
+      return {
+        states: stored.states.length,
+        component: component && {
+          dataPath: component.dataPath,
+          dataRole: component.dataRole,
+          dataLabel: component.dataLabel,
+          transitionId: component.transitionId || ""
+        },
+        data: state.data.button
+      };
+    }).toMatchObject({
+      states: defaultTestModel().states.length,
+      component: {
+        dataPath: "states.auth_start.button",
+        dataRole: "widget",
+        dataLabel: "Aktionsbutton",
+        transitionId: ""
+      },
+      data: { label: "Weiter", url: "", clicked: false, clickedAt: 0 }
+    });
+
+    await panel.getByRole("button", { name: "Baustein Aktionsbutton bearbeiten" }).click();
+    const editor = componentEditor(page, "Baustein: Aktionsbutton");
+    await expect(editor).toHaveJSProperty("open", true);
+    await expect(editor.locator(".component-quick-edit")).toContainText("Schnell bearbeiten");
+    await expect(editor.getByLabel("Beschriftung")).toBeVisible();
+    await expect(editor.getByLabel("URL")).toBeVisible();
+
+    await editor.getByLabel("Beschriftung").fill("Editor öffnen");
+    await editor.getByLabel("URL").fill("https://example.com/editor");
+    await editor.getByLabel("URL").blur();
+    await expect.poll(async () => {
+      const stored = await savedModel(page);
+      const state = stored.states.find(item => item.id === "auth_start");
+      const component = state.components.find(item => item.type === "daisy" && item.variant === "button");
+      const data = state.data.button || {};
+      return {
+        label: data.label || "",
+        url: data.url || "",
+        transitionId: data.transitionId || "",
+        componentTransitionId: component?.transitionId || ""
+      };
+    }).toEqual({
+      label: "Editor öffnen",
+      url: "https://example.com/editor",
+      transitionId: "",
+      componentTransitionId: ""
+    });
+    expect(await page.evaluate(() => {
+      try {
+        definitionPayload();
+        return "";
+      } catch (error) {
+        return String(error?.message || error);
+      }
+    })).toBe("");
+
+    const app = appFrame(page);
+    await expect(app.getByRole("link", { name: "Editor öffnen", exact: true })).toHaveAttribute("href", "https://example.com/editor");
+    await expect(app.getByRole("button", { name: "Editor öffnen", exact: true })).toHaveCount(0);
+
+    const transitionSelect = editor.getByLabel("Übergang für Aktionsbutton");
+    const transitionIds = await transitionSelect.locator("option").evaluateAll(options =>
+      options.map(option => option.value).filter(Boolean)
+    );
+    expect(transitionIds).toContain("t_auth_login");
+    await transitionSelect.selectOption("t_auth_login");
+    await expect(editor.getByLabel("URL")).toHaveValue("");
+    await expect.poll(async () => {
+      const stored = await savedModel(page);
+      const state = stored.states.find(item => item.id === "auth_start");
+      const component = state.components.find(item => item.type === "daisy" && item.variant === "button");
+      const data = state.data.button || {};
+      return {
+        url: data.url || "",
+        transitionId: data.transitionId || "",
+        componentTransitionId: component?.transitionId || ""
+      };
+    }).toEqual({
+      url: "",
+      transitionId: "t_auth_login",
+      componentTransitionId: ""
+    });
+    expect(await page.evaluate(() => {
+      try {
+        definitionPayload();
+        return "";
+      } catch (error) {
+        return String(error?.message || error);
+      }
+    })).toBe("");
+    await expect(app.getByRole("link", { name: "Editor öffnen", exact: true })).toHaveCount(0);
+    await expect(app.getByRole("button", { name: "Editor öffnen", exact: true })).toBeVisible();
+
+    await editor.getByLabel("URL").fill("https://example.com/reopened");
+    await expect(transitionSelect).toHaveValue("");
+    await editor.getByLabel("URL").blur();
+    await expect.poll(async () => {
+      const stored = await savedModel(page);
+      const state = stored.states.find(item => item.id === "auth_start");
+      const component = state.components.find(item => item.type === "daisy" && item.variant === "button");
+      const data = state.data.button || {};
+      return {
+        url: data.url || "",
+        transitionId: data.transitionId || "",
+        componentTransitionId: component?.transitionId || ""
+      };
+    }).toEqual({
+      url: "https://example.com/reopened",
+      transitionId: "",
+      componentTransitionId: ""
+    });
+    expect(await page.evaluate(() => {
+      try {
+        definitionPayload();
+        return "";
+      } catch (error) {
+        return String(error?.message || error);
+      }
+    })).toBe("");
+    await expect(app.getByRole("link", { name: "Editor öffnen", exact: true })).toHaveAttribute("href", "https://example.com/reopened");
+    await expect(app.getByRole("button", { name: "Editor öffnen", exact: true })).toHaveCount(0);
   });
 
   test("edits and reorders assigned widgets from their visible state list @smoke", async ({ page }) => {

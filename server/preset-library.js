@@ -271,6 +271,14 @@ function safeImageUrl(value) {
   return /^https:\/\/[^\s<>"']+$/i.test(url) ? url : "";
 }
 
+function safeLinkUrl(value) {
+  const url = cleanText(value, "", 1000);
+  if (/^https?:\/\/[^\s<>"']+$/i.test(url)) return url;
+  if (/^(?:mailto:|tel:)[^\s<>"']+$/i.test(url)) return url;
+  if (/^#[A-Za-z0-9_-]+$/.test(url)) return url;
+  return "";
+}
+
 function toneFromClasses(node, prefix, fallback = "primary") {
   const value = [...classSet(node)].find(name => name.startsWith(prefix));
   return value ? value.slice(prefix.length) : fallback;
@@ -390,7 +398,10 @@ function extractData(variant, root) {
   if (variant === "badge") return { label: textContent(root), tone: toneFromClasses(root, "badge-", "primary") };
   if (variant === "bottom-navigation") { const items = linkItems(root); return { selected: items[0] || "Start", items }; }
   if (variant === "breadcrumbs") return { items: findAll(root, node => node.tagName === "li").map(node => ({ label: textContent(node), transitionId: "" })).filter(item => item.label) };
-  if (variant === "button") return { label: textContent(root) || "Weiter", clicked: false, clickedAt: 0 };
+  if (variant === "button") {
+    const action = first(root, node => node.tagName === "a" || node.tagName === "button" || hasClass(node, "btn"));
+    return { label: textContent(action || root) || "Weiter", url: safeLinkUrl(attr(action, "href")), clicked: false, clickedAt: 0 };
+  }
   if (variant === "calendar") return {
     label: attr(root, "aria-label") || heading || "Datum",
     value: cleanText(attr(root, "value") || attr(root, "default-value") || "", "", 40),

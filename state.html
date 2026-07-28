@@ -16756,6 +16756,37 @@
         rerender({ componentId: component.id });
         return true;
       };
+      const transitionKeyForActionUrlKey = key => {
+        const clean = String(key || "");
+        if (/^(url|href)$/i.test(clean)) return "transitionId";
+        const match = clean.match(/^(.+?)(Url|Href)$/i);
+        return match ? match[1] + "TransitionId" : "";
+      };
+      const actionUrlKeysForTransitionKey = key => {
+        const clean = String(key || "");
+        if (!/transitionId$/i.test(clean)) return [];
+        const prefix = clean.slice(0, clean.length - "TransitionId".length);
+        return prefix
+          ? [`${prefix}Url`, `${prefix}Href`, ...(prefix.toLowerCase() === "primary" ? ["url", "href"] : [])]
+          : ["url", "href"];
+      };
+      const clearWidgetTransitionForUrl = (values, key) => {
+        const transitionKey = transitionKeyForActionUrlKey(key);
+        if (!transitionKey || !String(values[key] || "").trim()) return "";
+        if (Object.prototype.hasOwnProperty.call(values, transitionKey)) values[transitionKey] = "";
+        return transitionKey;
+      };
+      const clearWidgetUrlsForTransition = (values, key) => {
+        if (!String(values[key] || "").trim()) return;
+        actionUrlKeysForTransitionKey(key).forEach(urlKey => {
+          if (Object.prototype.hasOwnProperty.call(values, urlKey)) values[urlKey] = "";
+        });
+      };
+      const syncVisibleWidgetTransitionSelect = (container, transitionKey, value = "") => {
+        if (transitionKey !== "transitionId") return;
+        const select = container.closest(".widget-data-editor")?.querySelector('select[data-widget-action-transition="transitionId"]');
+        if (select) select.value = value;
+      };
       const appendWidgetScalarField = (container, component, dataPath, data, key, labelText, opts = {}) => {
         const field = document.createElement("div");
         field.className = "field";
@@ -16777,9 +16808,18 @@
           control.placeholder = labelText;
           control.oninput = () => {
             data[key] = typeof data[key] === "number" ? Number(control.value) || 0 : control.value;
+            const clearedTransitionKey = clearWidgetTransitionForUrl(data, key);
+            if (clearedTransitionKey === "transitionId" && Object.prototype.hasOwnProperty.call(component, "transitionId")) {
+              component.transitionId = "";
+            }
+            syncVisibleWidgetTransitionSelect(container, clearedTransitionKey, "");
             persistWidgetData(component, dataPath, data, "state:widget-field:" + component.id + ":" + key, { deferred: true, refreshTree: false });
           };
-          control.onblur = () => { flushInspectorTextCommit(); scheduleDraw(); };
+          control.onblur = () => {
+            flushInspectorTextCommit();
+            scheduleDraw();
+            if (transitionKeyForActionUrlKey(key)) rerender({ componentId: component.id });
+          };
         }
         control.setAttribute("aria-label", labelText);
         if (opts.quick) control.dataset.widgetQuick = key;
@@ -16991,6 +17031,7 @@
           labelEl.textContent = "Übergang";
           const select = document.createElement("select");
           select.setAttribute("aria-label", "Übergang für " + (component.dataLabel || component.variant || "Baustein"));
+          select.dataset.widgetActionTransition = "transitionId";
           const empty = document.createElement("option");
           empty.value = "";
           empty.textContent = "— Kein Übergang gebunden —";
@@ -17014,7 +17055,10 @@
           select.onchange = () => {
             const nextId = String(select.value || "").trim();
             const nextData = { ...data };
-            if (nextId) nextData.transitionId = nextId;
+            if (nextId) {
+              nextData.transitionId = nextId;
+              clearWidgetUrlsForTransition(nextData, "transitionId");
+            }
             else delete nextData.transitionId;
             if ("transitionId" in component) component.transitionId = nextId;
             persistWidgetData(component, dataPath, nextData, "state:widget-action:" + component.id);
@@ -17022,6 +17066,7 @@
               saveComponent(component);
               draw();
             }
+            rerender({ componentId: component.id });
           };
           field.append(labelEl, select);
           panel.append(head, field);
@@ -17071,7 +17116,7 @@
           calendar: ["label", "value", "min", "max"],
           alert: ["message"],
           avatar: ["name", "image", "status"],
-          button: ["label"],
+          button: ["label", "url"],
           loading: ["label", "nextLabel"]
         }[variant] || [];
         const quickPreferred = {
@@ -17087,7 +17132,7 @@
           input: ["label", "value"],
           textarea: ["label", "value"],
           select: ["label", "value"],
-          button: ["label"],
+          button: ["label", "url"],
           loading: ["label", "nextLabel"],
           mask: ["image", "alt"],
           "feature-grid": ["title", "body", "image"]
