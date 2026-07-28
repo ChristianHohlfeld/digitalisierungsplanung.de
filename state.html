@@ -6241,6 +6241,385 @@
     }
 
     function exampleWebsiteModel() {
+      const heroImage = "https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=1600&q=82";
+      const images = {
+        inquiry: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=900&q=82",
+        match: "https://images.unsplash.com/photo-1518005020951-eccb494ad742?auto=format&fit=crop&w=900&q=82",
+        check: "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=900&q=82",
+        visit: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=900&q=82",
+        docs: "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=900&q=82",
+        handover: "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=900&q=82"
+      };
+      const navItems = [
+        { label: "Karte", target: "site_map" },
+        { label: "Anfrage", target: "site_inquiry" },
+        { label: "Pruefung", target: "site_screening" },
+        { label: "Besichtigung", target: "site_visit" },
+        { label: "Vertrag", target: "site_contract" },
+        { label: "Uebergabe", target: "site_handover" },
+        { label: "Kontakt", target: "site_contact" }
+      ];
+      const processSteps = [
+        { label: "Anfrage", target: "site_inquiry", description: "Interessent fragt Wohnung oder Beratung an." },
+        { label: "Bedarf", target: "site_needs", description: "Haushalt, Budget, Lage, Dringlichkeit klaeren." },
+        { label: "Pruefung", target: "site_screening", description: "Vollstaendigkeit, Kriterien und Rueckfragen pruefen." },
+        { label: "Besichtigung", target: "site_visit", description: "Termin planen, Eindruck sichern, Entscheidung vorbereiten." },
+        { label: "Unterlagen", target: "site_documents", description: "Nachweise, Selbstauskunft und Freigaben buendeln." },
+        { label: "Vertrag", target: "site_contract", description: "Angebot, Vertragsdaten und Unterschrift abstimmen." },
+        { label: "Uebergabe", target: "site_handover", description: "Termin, Schluessel, Protokoll und Mieterlogin starten." }
+      ];
+      const component = (id, type, text = "", url = "", extra = {}) => ({ id, type, text, url, ...extra });
+      const daisy = (id, variant, dataPath, dataLabel) => component(id, "daisy", "", "", {
+        variant,
+        dataPath,
+        dataRole: "widget",
+        dataLabel
+      });
+      const typed = data => Object.fromEntries(Object.entries(data).map(([key, value]) => [
+        key,
+        Array.isArray(value) ? "list" : value && typeof value === "object" ? "object" : "text"
+      ]));
+      const shortId = id => String(id || "").replace(/^site_/, "");
+      const navTransitionIdFor = (stateId, label) => {
+        const item = navItems.find(entry => entry.label === label);
+        const target = item ? item.target : stateId;
+        return `site_${shortId(stateId)}_nav_${shortId(target)}`;
+      };
+      const navLink = (stateId, label) => ({ label, transitionId: navTransitionIdFor(stateId, label) });
+      const nav = (stateId, selected) => ({
+        layout: "menu-submenu",
+        brand: "WOBAK Onboarding",
+        selected,
+        items: navItems.map(item => navLink(stateId, item.label)),
+        parent: "",
+        submenu: [],
+        submenuOpen: false
+      });
+      const footerData = stateId => ({
+        brand: "Digitalisierungsplanung.de",
+        note: "Demo: Mietinteressenten-Onboarding als Prozesslandkarte fuer WOBAK-nahe Ablaeufe.",
+        columns: [
+          { title: "Prozess", items: ["Karte", "Anfrage", "Pruefung", "Uebergabe"].map(label => navLink(stateId, label)) },
+          { title: "Service", items: [{ label: "WOBAK Website", url: "https://www.wobak.de/" }, { label: "Mieterlogin", url: "https://wobak-crmportal.aareon.com/" }] },
+          { title: "Werkzeug", items: [{ label: "Editor oeffnen", url: "state.html?demo=zustand" }] }
+        ]
+      });
+      const shell = id => [daisy(`${id}_nav`, "navbar", `states.${id}.nav`, "Kopf-Navigation")];
+      const footer = id => [daisy(`${id}_footer`, "footer", `states.${id}.footer`, "Fusszeile")];
+      const makeState = (id, title, x, y, components, data, extra = {}) => ({
+        id,
+        title,
+        components,
+        data,
+        dataTypes: typed(data),
+        dataWires: [],
+        parentId: null,
+        x,
+        y,
+        ...extra
+      });
+      const transition = (id, from, to, label, set = {}) => ({
+        id,
+        from,
+        to,
+        label,
+        condition: "",
+        triggerType: "button",
+        triggerEvent: `button.${id}.clicked`,
+        timerMs: 3000,
+        set,
+        groupEntryId: "",
+        groupExitId: ""
+      });
+      const stepItems = current => processSteps.map(step => ({
+        label: step.label,
+        description: step.description,
+        transitionId: `site_${shortId(current)}_step_${shortId(step.target)}`
+      }));
+      const processCards = current => processSteps.map((step, index) => ({
+        title: `${index + 1}. ${step.label}`,
+        badge: index < 2 ? "Eingang" : index < 5 ? "Klaerung" : "Abschluss",
+        body: step.description,
+        features: [
+          index === 0 ? "Kanal: Website, Telefon, E-Mail" : "Verantwortung sichtbar",
+          index === 2 ? "Entscheidung: vollstaendig oder Rueckfrage" : "Status im Ablauf",
+          index === 6 ? "Start Mieterlogin und Service" : "Naechster Schritt eindeutig"
+        ],
+        actionLabel: step.label,
+        transitionId: `site_${shortId(current)}_step_${shortId(step.target)}`,
+        highlight: step.target === current
+      }));
+      const statusTimeline = [
+        { title: "Sichtbar", body: "Jeder Schritt ist als Zustand auf der Karte angelegt." },
+        { title: "Pruefbar", body: "Rueckfragen, fehlende Daten und Entscheidungen sind eigene Uebergaenge." },
+        { title: "Nutzbar", body: "Der Ablauf laesst sich als klickbare Demo testen und spaeter anbinden." }
+      ];
+
+      const states = [
+        makeState("site_map", "Prozesslandkarte", 80, 280, [
+          ...shell("site_map"),
+          daisy("map_hero", "hero", "states.site_map.hero", "Titelbereich"),
+          daisy("map_steps", "steps", "states.site_map.steps", "Teilprozess"),
+          daisy("map_cards", "feature-grid", "states.site_map.cards", "Prozesskarten"),
+          daisy("map_timeline", "timeline", "states.site_map.timeline", "Lesart"),
+          ...footer("site_map")
+        ], {
+          nav: nav("site_map", "Karte"),
+          hero: {
+            layout: "overlay",
+            title: "WOBAK Mietinteressenten-Onboarding",
+            body: "Eine einfache Prozesslandkarte: vom ersten Interesse an einer Wohnung bis zur Schluesseluebergabe. Jeder Kasten ist ein Zustand, jeder Klick zeigt den naechsten Arbeitsschritt.",
+            actionLabel: "Ablauf starten",
+            transitionId: "site_map_start",
+            secondaryActionLabel: "Kontaktfall zeigen",
+            secondaryTransitionId: "site_map_nav_contact",
+            image: heroImage
+          },
+          steps: { current: "Anfrage", items: stepItems("site_map") },
+          cards: {
+            eyebrow: "Teilprozess Vermietung",
+            heading: "So lesen alle Beteiligten denselben Ablauf",
+            body: "Die Karte trennt Eingang, Klaerung, Entscheidung und Uebergabe. Dadurch sieht man sofort, wo Daten fehlen, wer handeln muss und wann der Interessent wieder informiert wird.",
+            selected: "",
+            items: processCards("site_map")
+          },
+          timeline: { items: statusTimeline },
+          footer: footerData("site_map")
+        }),
+        makeState("site_inquiry", "Anfrage aufnehmen", 448, 80, [
+          ...shell("site_inquiry"),
+          daisy("inquiry_alert", "alert", "states.site_inquiry.alert", "Eingang"),
+          daisy("inquiry_steps", "steps", "states.site_inquiry.steps", "Status"),
+          daisy("inquiry_channel", "card", "states.site_inquiry.channel", "Kontaktkanal"),
+          daisy("inquiry_next", "button", "states.site_inquiry.next", "Weiter"),
+          ...footer("site_inquiry")
+        ], {
+          nav: nav("site_inquiry", "Anfrage"),
+          alert: { tone: "success", message: "Startpunkt: Eine Person interessiert sich fuer eine Wohnung oder braucht Beratung. Alles landet als ein Vorgang, nicht als verstreute Nachricht." },
+          steps: { current: "Anfrage", items: stepItems("site_inquiry") },
+          channel: {
+            title: "1 Eingang buendeln",
+            badge: "Eingang",
+            body: "Website-Formular, Telefon, E-Mail oder persoenlicher Kontakt werden zu einem Vorgang mit klarer Nummer.",
+            features: ["Kontaktweg", "Wunschwohnung oder Suchprofil", "Einwilligung und Rueckkanal"],
+            actionLabel: "Bedarf klaeren",
+            transitionId: "site_inquiry_next"
+          },
+          next: { label: "Bedarf klaeren", clicked: false, transitionId: "site_inquiry_next" },
+          footer: footerData("site_inquiry")
+        }),
+        makeState("site_needs", "Bedarf klaeren", 800, 80, [
+          ...shell("site_needs"),
+          daisy("needs_grid", "feature-grid", "states.site_needs.grid", "Bedarf"),
+          daisy("needs_next", "button", "states.site_needs.next", "Weiter"),
+          ...footer("site_needs")
+        ], {
+          nav: nav("site_needs", "Anfrage"),
+          grid: {
+            eyebrow: "Klaerung",
+            heading: "Aus Interesse wird ein belastbares Suchprofil",
+            body: "Der Ablauf fragt nicht alles auf einmal ab. Er sammelt genau die Angaben, die fuer eine passende und faire Pruefung gebraucht werden.",
+            selected: "",
+            items: [
+              { title: "Haushalt", body: "Wie viele Personen, besondere Anforderungen, gewuenschter Einzug.", image: images.inquiry, imageAlt: "Wohngebaeude", features: ["Personen", "Flaeche", "Zeitpunkt"] },
+              { title: "Budget", body: "Mietrahmen und Unterlagen werden verstaendlich angekuendigt.", image: images.match, imageAlt: "Architekturdetail", features: ["Mietrahmen", "Foerderung", "Nachweise"] },
+              { title: "Lage und Prioritaet", body: "Wunschlage, Barrierearmut, Dringlichkeit und Alternativen werden sichtbar.", image: images.visit, imageAlt: "Wohnhaus", features: ["Lage", "Dringlichkeit", "Alternativen"] }
+            ]
+          },
+          next: { label: "Zur Vorpruefung", clicked: false, transitionId: "site_needs_next" },
+          footer: footerData("site_needs")
+        }),
+        makeState("site_screening", "Vorpruefung", 1160, 80, [
+          ...shell("site_screening"),
+          daisy("screening_alert", "alert", "states.site_screening.alert", "Pruefung"),
+          daisy("screening_card", "card", "states.site_screening.card", "Entscheidung"),
+          daisy("screening_steps", "steps", "states.site_screening.steps", "Status"),
+          ...footer("site_screening")
+        ], {
+          nav: nav("site_screening", "Pruefung"),
+          alert: { tone: "warning", message: "Entscheidungspunkt: Sind die Angaben vollstaendig und passt das Suchprofil? Falls nicht, geht der Vorgang in die Rueckfrage." },
+          card: {
+            title: "3 Vorpruefung",
+            badge: "Entscheidung",
+            body: "Das Team sieht Ampel, fehlende Angaben und naechste Aktion. Niemand muss raten, ob eine E-Mail schon beantwortet wurde.",
+            features: ["vollstaendig", "Rueckfrage noetig", "Besichtigung anbieten"],
+            actionLabel: "Besichtigung anbieten",
+            transitionId: "site_screening_ok"
+          },
+          steps: { current: "Pruefung", items: stepItems("site_screening") },
+          footer: footerData("site_screening")
+        }),
+        makeState("site_callback", "Rueckfrage", 1160, 420, [
+          ...shell("site_callback"),
+          daisy("callback_alert", "alert", "states.site_callback.alert", "Rueckfrage"),
+          daisy("callback_form", "textarea", "states.site_callback.note", "Rueckfrage"),
+          daisy("callback_done", "button", "states.site_callback.done", "Zurueck"),
+          ...footer("site_callback")
+        ], {
+          nav: nav("site_callback", "Pruefung"),
+          alert: { tone: "info", message: "Schleife: Fehlende Angaben gehen als klare Rueckfrage an den Interessenten. Danach springt der Vorgang zurueck in die Vorpruefung." },
+          note: { label: "Fehlende Angabe", value: "z. B. Haushaltsgroesse, gewuenschter Einzug, Nachweis" },
+          done: { label: "Angaben erhalten", clicked: false, transitionId: "site_callback_done" },
+          footer: footerData("site_callback")
+        }),
+        makeState("site_visit", "Besichtigung", 1520, 80, [
+          ...shell("site_visit"),
+          daisy("visit_card", "card", "states.site_visit.card", "Termin"),
+          daisy("visit_stat", "stat", "states.site_visit.stat", "Status"),
+          daisy("visit_next", "button", "states.site_visit.next", "Weiter"),
+          ...footer("site_visit")
+        ], {
+          nav: nav("site_visit", "Besichtigung"),
+          card: {
+            title: "4 Besichtigung koordinieren",
+            badge: "Termin",
+            image: images.visit,
+            imageAlt: "Wohnung und Wohnhaus",
+            body: "Terminfenster, Ansprechpartner und Rueckmeldung werden an einem Ort sichtbar. Absage oder Interesse fuehren in unterschiedliche naechste Schritte.",
+            features: ["Termin vorschlagen", "Teilnahme bestaetigen", "Feedback dokumentieren"]
+          },
+          stat: { title: "Naechste Aktion", value: "Termin", description: "Vorschlag senden oder bestaetigen" },
+          next: { label: "Unterlagen anfordern", clicked: false, transitionId: "site_visit_next" },
+          footer: footerData("site_visit")
+        }),
+        makeState("site_documents", "Unterlagen", 1880, 80, [
+          ...shell("site_documents"),
+          daisy("documents_grid", "feature-grid", "states.site_documents.grid", "Unterlagen"),
+          daisy("documents_next", "button", "states.site_documents.next", "Weiter"),
+          ...footer("site_documents")
+        ], {
+          nav: nav("site_documents", "Vertrag"),
+          grid: {
+            eyebrow: "Nachweise",
+            heading: "Unterlagen ohne Sucherei",
+            body: "Der Vorgang zeigt, was fehlt, was eingegangen ist und was geprueft wurde. So wird aus E-Mail-Anhaengen ein sauberer Status.",
+            selected: "",
+            items: [
+              { title: "Selbstauskunft", body: "Formular eingegangen und lesbar.", image: images.docs, imageAlt: "Dokumente", features: ["eingegangen", "geprueft"] },
+              { title: "Nachweise", body: "Einkommen, Berechtigung oder weitere Nachweise je Fall.", image: images.check, imageAlt: "Pruefung am Schreibtisch", features: ["vollstaendig", "plausibel"] },
+              { title: "Freigabe", body: "Entscheidung und Begruendung sind nachvollziehbar dokumentiert.", image: images.match, imageAlt: "Planung", features: ["Teamfreigabe", "naechster Schritt"] }
+            ]
+          },
+          next: { label: "Vertrag vorbereiten", clicked: false, transitionId: "site_documents_next" },
+          footer: footerData("site_documents")
+        }),
+        makeState("site_contract", "Vertrag", 2240, 80, [
+          ...shell("site_contract"),
+          daisy("contract_alert", "alert", "states.site_contract.alert", "Vertrag"),
+          daisy("contract_card", "card", "states.site_contract.card", "Vertragsdaten"),
+          daisy("contract_next", "button", "states.site_contract.next", "Weiter"),
+          ...footer("site_contract")
+        ], {
+          nav: nav("site_contract", "Vertrag"),
+          alert: { tone: "success", message: "Der Vertragsschritt buendelt Stammdaten, Mietbeginn, offene Punkte und Versandstatus." },
+          card: {
+            title: "6 Vertrag vorbereiten",
+            badge: "Freigabe",
+            body: "Alle Beteiligten sehen, ob Daten fehlen, ob der Entwurf raus ist und wann unterschrieben werden soll.",
+            features: ["Stammdaten", "Mietbeginn", "Unterschrift"],
+            actionLabel: "Zur Uebergabe",
+            transitionId: "site_contract_next"
+          },
+          next: { label: "Uebergabe planen", clicked: false, transitionId: "site_contract_next" },
+          footer: footerData("site_contract")
+        }),
+        makeState("site_handover", "Uebergabe", 2600, 280, [
+          ...shell("site_handover"),
+          daisy("handover_hero", "hero", "states.site_handover.hero", "Uebergabe"),
+          daisy("handover_cards", "feature-grid", "states.site_handover.cards", "Abschluss"),
+          ...footer("site_handover")
+        ], {
+          nav: nav("site_handover", "Uebergabe"),
+          hero: {
+            layout: "figure",
+            title: "Einzug startklar",
+            body: "Schluessel, Protokoll, Zaehlerstaende und Zugang zum Mieterlogin sind der Abschluss des Teilprozesses. Danach beginnt der Serviceprozess.",
+            actionLabel: "Zur Karte",
+            transitionId: "site_handover_restart",
+            image: images.handover
+          },
+          cards: {
+            eyebrow: "Abschluss und Uebergabe",
+            heading: "Der Vorgang ist abgeschlossen, der Service beginnt",
+            body: "Die Uebergabe erzeugt nicht nur ein Protokoll, sondern auch den Startpunkt fuer spaetere Anliegen wie Schadensmeldung, Mietbescheinigung oder Beschwerde.",
+            selected: "",
+            items: [
+              { title: "Schluessel", body: "Ausgabe dokumentiert.", features: ["Datum", "Anzahl", "Person"] },
+              { title: "Protokoll", body: "Zustand, Zaehlerstaende und Hinweise festhalten.", features: ["Wohnung", "Zaehler", "Fotos"] },
+              { title: "Mieterlogin", body: "Digitaler Zugang fuer spaetere Servicefaelle.", features: ["Login", "Kontakt", "Service"] }
+            ]
+          },
+          footer: footerData("site_handover")
+        }),
+        makeState("site_contact", "Kontaktfall", 448, 420, [
+          ...shell("site_contact"),
+          daisy("contact_alert", "alert", "states.site_contact.alert", "Hinweis"),
+          daisy("contact_name", "input", "states.site_contact.nameField", "Name"),
+          daisy("contact_email", "input", "states.site_contact.emailField", "E-Mail"),
+          daisy("contact_message", "textarea", "states.site_contact.messageField", "Nachricht"),
+          daisy("contact_submit", "button", "states.site_contact.submit", "Absenden"),
+          ...footer("site_contact")
+        ], {
+          nav: nav("site_contact", "Kontakt"),
+          alert: { tone: "info", message: "Demo-Feld: In einem echten Ablauf wuerden Kontaktweg, Einwilligung und Vorgangsnummer sauber am Prozess haengen." },
+          nameField: { label: "Name", value: "" },
+          emailField: { label: "E-Mail", value: "" },
+          messageField: { label: "Notiz zum Vorgang", value: "" },
+          submit: { label: "Absenden", clicked: false, transitionId: "site_contact_submit" },
+          footer: footerData("site_contact")
+        }),
+        makeState("site_done", "Fertig", 800, 420, [
+          ...shell("site_done"),
+          daisy("done_alert", "alert", "states.site_done.alert", "Erledigt"),
+          daisy("done_stat", "stat", "states.site_done.stat", "Status"),
+          daisy("done_next", "button", "states.site_done.next", "Zur Karte"),
+          ...footer("site_done")
+        ], {
+          nav: nav("site_done", "Kontakt"),
+          alert: { tone: "success", message: "Kontaktfall gespeichert. In einer echten Umsetzung wuerde jetzt eine Vorgangsnummer, Zustaendigkeit und Frist entstehen." },
+          stat: { title: "Prozessstatus", value: "klar", description: "naechster Schritt sichtbar" },
+          next: { label: "Zur Prozesslandkarte", clicked: false, transitionId: "site_done_map" },
+          footer: footerData("site_done")
+        })
+      ];
+
+      const navTransitions = states.flatMap(state => navItems.map(item =>
+        transition(`site_${shortId(state.id)}_nav_${shortId(item.target)}`, state.id, item.target, item.label)
+      ));
+      const stepNavigationStateIds = new Set(["site_map", "site_inquiry", "site_screening"]);
+      const mapStepTransitions = states.filter(state => stepNavigationStateIds.has(state.id)).flatMap(state => processSteps.map(step =>
+        transition(`site_${shortId(state.id)}_step_${shortId(step.target)}`, state.id, step.target, step.label, {
+          [`states.${state.id}.steps.current`]: step.label
+        })
+      ));
+      const transitions = [
+        ...navTransitions,
+        ...mapStepTransitions,
+        transition("site_map_start", "site_map", "site_inquiry", "Ablauf starten"),
+        transition("site_inquiry_next", "site_inquiry", "site_needs", "Bedarf klaeren", { "states.site_inquiry.next.clicked": true }),
+        transition("site_needs_next", "site_needs", "site_screening", "Zur Vorpruefung", { "states.site_needs.next.clicked": true }),
+        transition("site_screening_ok", "site_screening", "site_visit", "Besichtigung anbieten", { "states.site_screening.card.clicked": true }),
+        transition("site_screening_callback", "site_screening", "site_callback", "Rueckfrage noetig"),
+        transition("site_callback_done", "site_callback", "site_screening", "Angaben erhalten", { "states.site_callback.done.clicked": true }),
+        transition("site_visit_next", "site_visit", "site_documents", "Unterlagen anfordern", { "states.site_visit.next.clicked": true }),
+        transition("site_documents_next", "site_documents", "site_contract", "Vertrag vorbereiten", { "states.site_documents.next.clicked": true }),
+        transition("site_contract_next", "site_contract", "site_handover", "Uebergabe planen", { "states.site_contract.next.clicked": true }),
+        transition("site_handover_restart", "site_handover", "site_map", "Zur Karte"),
+        transition("site_contact_submit", "site_contact", "site_done", "Absenden", { "states.site_contact.submit.clicked": true }),
+        transition("site_done_map", "site_done", "site_map", "Zur Prozesslandkarte")
+      ];
+
+      return {
+        version: 2,
+        name: "WOBAK Onboarding Prozesslandkarte",
+        initial: "site_map",
+        boundary: normalizeBoundaryConfig({ entryId: "site_map", exitId: "site_handover" }),
+        states,
+        transitions
+      };
+    }
+
+    function legacyWebsiteModel() {
       const heroImage = "https://images.unsplash.com/photo-1556761175-b413da4baf72?auto=format&fit=crop&w=1600&q=82";
       const featureImages = {
         knowledge: "https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=900&q=82",
