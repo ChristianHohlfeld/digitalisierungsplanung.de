@@ -25,8 +25,8 @@ test.describe("Root demo export", () => {
   test("serves the single Zustand demo at root @smoke", async ({ page }) => {
     const html = fs.readFileSync("index.html", "utf8");
     expect(html).toContain("EXPORTED_STATE_BLUEPRINT");
-    expect(html).toContain("<title>WOBAK Onboarding Prozesslandkarte</title>");
-    expect(html).toContain('"name":"WOBAK Onboarding Prozesslandkarte"');
+    expect(html).toContain("<title>Mietinteressenten-Onboarding</title>");
+    expect(html).toContain('"name":"Mietinteressenten-Onboarding"');
     expect(html).toContain('"initial":"site_map"');
     expect(html).toContain('"site_handover"');
     expect(html).toContain("state.html?demo=zustand");
@@ -62,14 +62,14 @@ test.describe("Root demo export", () => {
     await page.goto("/");
     await expect.poll(() => page.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).length)).toBe(0);
     await expect.poll(() => page.evaluate(async () => "caches" in window ? (await caches.keys()).length : 0)).toBe(0);
-    await expect(page).toHaveTitle("WOBAK Onboarding Prozesslandkarte");
+    await expect(page).toHaveTitle("Mietinteressenten-Onboarding");
     await expect(page.getByRole("button", { name: "Neu" })).toHaveCount(0);
     await expect(page.locator("#flowDebug")).toHaveCount(0);
     await expect(page.locator("#statePill")).toHaveText("site_map");
-    await expect(page.getByRole("heading", { name: "WOBAK Mietinteressenten-Onboarding", exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Ablauf starten" }).first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Mietinteressenten-Onboarding", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Prozess starten" }).first()).toBeVisible();
     await expect(page.locator(".hero .card-actions.justify-center")).toHaveCSS("justify-content", "center");
-    await expect(page.locator(".navbar")).toContainText("WOBAK Onboarding");
+    await expect(page.locator(".navbar")).toContainText("Vermietung Onboarding");
 
     const footerGeometry = () => page.locator(".footer").evaluate(footer => {
       const style = getComputedStyle(footer);
@@ -125,23 +125,17 @@ test.describe("Root demo export", () => {
     expect(manifest.ok()).toBe(true);
     expect((await manifest.json()).name).toBe("Digitalisierungsplanung.de");
 
-    await page.getByRole("button", { name: "Ablauf starten", exact: true }).click();
-    await expect(page.locator("#statePill")).toHaveText("site_inquiry");
+    await page.getByRole("button", { name: "Prozess starten", exact: true }).click();
+    await expect(page.locator("#statePill")).toHaveText("site_request");
     await expect(page.getByRole("heading", { name: "Anfrage aufnehmen", exact: true })).toBeVisible();
 
-    await page.getByRole("button", { name: "Bedarf kl\u00e4ren", exact: true }).first().click();
-    await expect(page.locator("#statePill")).toHaveText("site_needs");
-    await page.getByRole("button", { name: "Zur Vorpr\u00fcfung", exact: true }).click();
-    await expect(page.locator("#statePill")).toHaveText("site_screening");
-    await page.getByRole("button", { name: "Besichtigung anbieten", exact: true }).click();
+    await page.getByRole("button", { name: "Prüfung starten", exact: true }).first().click();
+    await expect(page.locator("#statePill")).toHaveText("site_check");
+    await page.getByRole("button", { name: "Termin planen", exact: true }).click();
     await expect(page.locator("#statePill")).toHaveText("site_visit");
-    await page.getByRole("button", { name: "Unterlagen anfordern", exact: true }).click();
-    await expect(page.locator("#statePill")).toHaveText("site_documents");
-    await page.getByRole("button", { name: "Vertrag vorbereiten", exact: true }).click();
-    await expect(page.locator("#statePill")).toHaveText("site_contract");
-    await page.getByRole("button", { name: "\u00dcbergabe planen", exact: true }).click();
+    await page.getByRole("button", { name: "Übergabe vorbereiten", exact: true }).click();
     await expect(page.locator("#statePill")).toHaveText("site_handover");
-    await expect(page.getByRole("heading", { name: "Einzug startklar", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Einzug vorbereitet", exact: true })).toBeVisible();
 
     await page.reload({ waitUntil: "load" });
     await expect.poll(() => page.evaluate(() => window.__safariLateRestoreApplied === true)).toBe(true);

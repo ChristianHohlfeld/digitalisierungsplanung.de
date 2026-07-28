@@ -2509,10 +2509,10 @@ test.describe("State Blueprint tool", () => {
         userTransitions: userTransitions(model).length
       };
     }).toEqual({
-      name: "WOBAK Onboarding Prozesslandkarte",
+      name: "Mietinteressenten-Onboarding",
       initial: "site_map",
-      stateIds: ["site_callback", "site_contact", "site_contract", "site_documents", "site_done", "site_handover", "site_inquiry", "site_map", "site_needs", "site_screening", "site_visit"],
-      userTransitions: 110
+      stateIds: ["site_check", "site_handover", "site_map", "site_request", "site_visit"],
+      userTransitions: 30
     });
 
     await page.goto("/state.html?demo=zustand");
@@ -2555,11 +2555,11 @@ test.describe("State Blueprint tool", () => {
         userTransitions: userTransitions(model).length
       };
     }).toEqual({
-      name: "WOBAK Onboarding Prozesslandkarte",
+      name: "Mietinteressenten-Onboarding",
       initial: "site_map",
       hasStarterOnly: false,
-      stateIds: ["site_callback", "site_contact", "site_contract", "site_documents", "site_done", "site_handover", "site_inquiry", "site_map", "site_needs", "site_screening", "site_visit"],
-      userTransitions: 110
+      stateIds: ["site_check", "site_handover", "site_map", "site_request", "site_visit"],
+      userTransitions: 30
     });
   });
 
@@ -2749,11 +2749,11 @@ test.describe("State Blueprint tool", () => {
         userTransitions: userTransitions(model).length
       };
     }).toEqual({
-      name: "WOBAK Onboarding Prozesslandkarte",
+      name: "Mietinteressenten-Onboarding",
       initial: "site_map",
       hasOldLocalModel: false,
-      stateIds: ["site_callback", "site_contact", "site_contract", "site_documents", "site_done", "site_handover", "site_inquiry", "site_map", "site_needs", "site_screening", "site_visit"],
-      userTransitions: 110
+      stateIds: ["site_check", "site_handover", "site_map", "site_request", "site_visit"],
+      userTransitions: 30
     });
   });
 
@@ -2765,8 +2765,8 @@ test.describe("State Blueprint tool", () => {
     await page.getByRole("button", { name: "Beispielablauf laden" }).click();
     await page.getByRole("button", { name: "Mit Beispiel neu starten" }).click();
 
-    const wobakStateIds = ["site_callback", "site_contact", "site_contract", "site_documents", "site_done", "site_handover", "site_inquiry", "site_map", "site_needs", "site_screening", "site_visit"];
-    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(wobakStateIds.length);
+    const rentalStateIds = ["site_check", "site_handover", "site_map", "site_request", "site_visit"];
+    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(rentalStateIds.length);
     await expect(page.locator('[data-id="site_map"]')).toBeVisible();
     await expect(page.locator('[data-id="site_handover"]')).toBeVisible();
 
@@ -2787,46 +2787,37 @@ test.describe("State Blueprint tool", () => {
         hasLegacyRoutes: /site_login|site_profile|site_pricing|site_checkout/.test(JSON.stringify(model))
       };
     }).toEqual({
-      name: "WOBAK Onboarding Prozesslandkarte",
+      name: "Mietinteressenten-Onboarding",
       initial: "site_map",
-      stateIds: wobakStateIds,
-      userTransitions: 110,
+      stateIds: rentalStateIds,
+      userTransitions: 30,
       boundary: { entryId: "site_map", exitId: "site_handover" },
       scopedDataOnly: true,
       hasLegacyRoutes: false
     });
 
-    const wobakApp = appFrame(page);
-    const expectWobakNoHorizontalOverflow = async () => {
-      await expect.poll(async () => wobakApp.locator("body").evaluate(body =>
+    const rentalApp = appFrame(page);
+    const expectRentalNoHorizontalOverflow = async () => {
+      await expect.poll(async () => rentalApp.locator("body").evaluate(body =>
         Math.round(body.scrollWidth - body.clientWidth)
       )).toBeLessThanOrEqual(2);
     };
-    await expect(wobakApp.locator("#statePill")).toHaveText("site_map");
-    await expect(wobakApp.getByRole("heading", { name: "WOBAK Mietinteressenten-Onboarding", exact: true })).toBeVisible();
-    await expect(wobakApp.locator('.hero[style*="photo-1560518883-ce09059eeffa"]')).toBeVisible();
-    await expect(wobakApp.locator(".daisy-feature-cards > .card")).toHaveCount(7);
-    await expect(wobakApp.locator(".daisy-feature-grid button[data-transition-id]")).toHaveCount(7);
-    await expect.poll(async () => wobakApp.locator(".daisy-transition-button[data-transition-id]").evaluateAll(buttons =>
-      [...new Set(buttons.map(button => button.dataset.transitionId))].sort()
-    )).toEqual(expect.arrayContaining(["site_map_start", "site_map_step_handover", "site_map_nav_contact"]));
-    await expectWobakNoHorizontalOverflow();
+    await expect(rentalApp.locator("#statePill")).toHaveText("site_map");
+    await expect(rentalApp.getByRole("heading", { name: "Mietinteressenten-Onboarding", exact: true })).toBeVisible();
+    await expect(rentalApp.locator('.hero[style*="photo-1560518883-ce09059eeffa"]')).toBeVisible();
+    await expect(rentalApp.getByText("Kontakt, Wunschwohnung und Rückkanal erfassen.").first()).toBeVisible();
+    await expect(rentalApp.getByRole("link", { name: "Editor öffnen" }).first()).toHaveAttribute("href", /state\.html\?demo=zustand$/);
+    await expectRentalNoHorizontalOverflow();
 
-    await wobakApp.getByRole("button", { name: "Ablauf starten", exact: true }).click();
-    await expect(wobakApp.locator("#statePill")).toHaveText("site_inquiry");
-    await wobakApp.getByRole("button", { name: "Bedarf kl\u00e4ren", exact: true }).first().click();
-    await expect(wobakApp.locator("#statePill")).toHaveText("site_needs");
-    await wobakApp.getByRole("button", { name: "Zur Vorpr\u00fcfung", exact: true }).click();
-    await expect(wobakApp.locator("#statePill")).toHaveText("site_screening");
-    await wobakApp.getByRole("button", { name: "Besichtigung anbieten", exact: true }).click();
-    await expect(wobakApp.locator("#statePill")).toHaveText("site_visit");
-    await wobakApp.getByRole("button", { name: "Unterlagen anfordern", exact: true }).click();
-    await expect(wobakApp.locator("#statePill")).toHaveText("site_documents");
-    await wobakApp.getByRole("button", { name: "Vertrag vorbereiten", exact: true }).click();
-    await expect(wobakApp.locator("#statePill")).toHaveText("site_contract");
-    await wobakApp.getByRole("button", { name: "\u00dcbergabe planen", exact: true }).click();
-    await expect(wobakApp.locator("#statePill")).toHaveText("site_handover");
-    await expect(wobakApp.getByRole("heading", { name: "Einzug startklar", exact: true })).toBeVisible();
+    await rentalApp.getByRole("button", { name: "Prozess starten", exact: true }).click();
+    await expect(rentalApp.locator("#statePill")).toHaveText("site_request");
+    await rentalApp.getByRole("button", { name: "Prüfung starten", exact: true }).first().click();
+    await expect(rentalApp.locator("#statePill")).toHaveText("site_check");
+    await rentalApp.getByRole("button", { name: "Termin planen", exact: true }).click();
+    await expect(rentalApp.locator("#statePill")).toHaveText("site_visit");
+    await rentalApp.getByRole("button", { name: "Übergabe vorbereiten", exact: true }).click();
+    await expect(rentalApp.locator("#statePill")).toHaveText("site_handover");
+    await expect(rentalApp.getByRole("heading", { name: "Einzug vorbereitet", exact: true })).toBeVisible();
     return;
 
     await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(5);
@@ -3036,8 +3027,8 @@ test.describe("State Blueprint tool", () => {
     const transitionIds = transitions.map(transition => transition.id);
     const allEntityIds = [...stateIds, ...transitionIds];
     expect(new Set(allEntityIds).size).toBe(allEntityIds.length);
-    expect(stateIds).toHaveLength(11);
-    expect(transitionIds).toHaveLength(110);
+    expect(stateIds).toHaveLength(5);
+    expect(transitionIds).toHaveLength(30);
 
     const stateIdSet = new Set(stateIds);
     for (const transition of transitions) {
@@ -3094,19 +3085,16 @@ test.describe("State Blueprint tool", () => {
         componentLabel: state?.components.find(component => component.id === "site_map_nav")?.dataLabel || "",
         brand: navData.brand || "",
         layout: navData.layout || "",
-        items: Array.isArray(navData.items) ? navData.items : []
+        itemLabels: Array.isArray(navData.items) ? navData.items.map(item => item.label) : []
       };
     }).toEqual({
       componentLabel: "Site Header",
       brand: "Site Header",
       layout: "menu-submenu",
-      items: expect.arrayContaining([
-        expect.objectContaining({ label: "Karte" }),
-        expect.objectContaining({ label: "Kontakt" })
-      ])
+      itemLabels: ["Karte", "Anfrage", "Prüfung", "Termin", "Übergabe"]
     });
     await expect(appFrame(page).locator(".navbar")).toContainText("Site Header");
-    await expect(appFrame(page).locator(".navbar button[data-transition-id]")).toHaveCount(7);
+    await expect(appFrame(page).locator(".navbar button[data-transition-id]")).toHaveCount(5);
 
     await page.getByRole("button", { name: "App zur\u00fccksetzen", exact: true }).click();
     await expect(appFrame(page).locator(".navbar")).toContainText("Site Header");
@@ -3205,11 +3193,11 @@ test.describe("State Blueprint tool", () => {
     const html = fs.readFileSync(await htmlDownload.path(), "utf8");
 
     expect(html).toContain("<!doctype html>");
-    expect(html).toContain("<title>WOBAK Onboarding Prozesslandkarte</title>");
+    expect(html).toContain("<title>Mietinteressenten-Onboarding</title>");
     expect(html).toContain("const IS_STANDALONE_EXPORT = true");
     expect(html).toContain("const EXPORTED_STATE_BLUEPRINT = ");
-    expect(html).toContain('"name":"WOBAK Onboarding Prozesslandkarte"');
-    expect(html).toContain('"site_screening"');
+    expect(html).toContain('"name":"Mietinteressenten-Onboarding"');
+    expect(html).toContain('"site_check"');
     expect(html).toContain('"site_handover"');
     expect(html).not.toContain("flow-debug");
     expect(html).not.toContain("flowDebug");
@@ -3231,14 +3219,14 @@ test.describe("State Blueprint tool", () => {
     };
     await openStandalonePage();
 
-    const expectWobakStandaloneShell = async (stateId, title) => {
+    const expectRentalStandaloneShell = async (stateId, title) => {
       await expect.poll(async () => standalone.locator("body").evaluate(() => {
         const text = element => (element?.textContent || "").trim();
         return {
           state: text(document.querySelector("#statePill")),
           title: text(document.querySelector("#screen > h1")),
           navbarCount: document.querySelectorAll(".navbar").length,
-          navbarHasBrand: text(document.querySelector(".navbar")).includes("WOBAK Onboarding"),
+          navbarHasBrand: text(document.querySelector(".navbar")).includes("Vermietung Onboarding"),
           footerHasBrand: text(document.querySelector(".footer")).includes("Digitalisierungsplanung.de"),
           editorExportButtons: document.querySelectorAll("#btnExport").length
         };
@@ -3251,32 +3239,27 @@ test.describe("State Blueprint tool", () => {
         editorExportButtons: 0
       });
     };
-    const expectWobakStandaloneNoHorizontalOverflow = async () => {
+    const expectRentalStandaloneNoHorizontalOverflow = async () => {
       await expect.poll(async () => standalone.locator("body").evaluate(body =>
         Math.round(body.scrollWidth - body.clientWidth)
       )).toBeLessThanOrEqual(2);
     };
 
-    await expectWobakStandaloneShell("site_map", "Prozesslandkarte");
-    await expect(standalone.getByRole("heading", { name: "WOBAK Mietinteressenten-Onboarding", exact: true })).toBeVisible();
-    await expect(standalone.locator(".daisy-feature-cards > .card")).toHaveCount(7);
+    await expectRentalStandaloneShell("site_map", "Prozesslandkarte");
+    await expect(standalone.getByRole("heading", { name: "Mietinteressenten-Onboarding", exact: true })).toBeVisible();
+    await expect(standalone.getByText("Kontakt, Wunschwohnung und Rückkanal erfassen.").first()).toBeVisible();
+    await expect(standalone.getByRole("link", { name: "Editor öffnen" }).first()).toHaveAttribute("href", /state\.html\?demo=zustand$/);
     await expect(standalone.locator("#flowDebug")).toHaveCount(0);
-    await expectWobakStandaloneNoHorizontalOverflow();
+    await expectRentalStandaloneNoHorizontalOverflow();
 
-    await standalone.getByRole("button", { name: "Ablauf starten", exact: true }).click();
-    await expectWobakStandaloneShell("site_inquiry", "Anfrage aufnehmen");
-    await standalone.getByRole("button", { name: "Bedarf kl\u00e4ren", exact: true }).first().click();
-    await expectWobakStandaloneShell("site_needs", "Bedarf kl\u00e4ren");
-    await standalone.getByRole("button", { name: "Zur Vorpr\u00fcfung", exact: true }).click();
-    await expectWobakStandaloneShell("site_screening", "Vorpr\u00fcfung");
-    await standalone.getByRole("button", { name: "Besichtigung anbieten", exact: true }).click();
-    await expectWobakStandaloneShell("site_visit", "Besichtigung");
-    await standalone.getByRole("button", { name: "Unterlagen anfordern", exact: true }).click();
-    await expectWobakStandaloneShell("site_documents", "Unterlagen");
-    await standalone.getByRole("button", { name: "Vertrag vorbereiten", exact: true }).click();
-    await expectWobakStandaloneShell("site_contract", "Vertrag");
-    await standalone.getByRole("button", { name: "\u00dcbergabe planen", exact: true }).click();
-    await expectWobakStandaloneShell("site_handover", "\u00dcbergabe");
+    await standalone.getByRole("button", { name: "Prozess starten", exact: true }).click();
+    await expectRentalStandaloneShell("site_request", "Anfrage aufnehmen");
+    await standalone.getByRole("button", { name: "Prüfung starten", exact: true }).first().click();
+    await expectRentalStandaloneShell("site_check", "Prüfung");
+    await standalone.getByRole("button", { name: "Termin planen", exact: true }).click();
+    await expectRentalStandaloneShell("site_visit", "Termin");
+    await standalone.getByRole("button", { name: "Übergabe vorbereiten", exact: true }).click();
+    await expectRentalStandaloneShell("site_handover", "\u00dcbergabe");
     expect(pageErrors).toEqual([]);
     await standalone.close();
     return;
