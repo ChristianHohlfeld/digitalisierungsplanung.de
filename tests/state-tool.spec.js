@@ -2512,7 +2512,7 @@ test.describe("State Blueprint tool", () => {
       name: "Mietinteressenten-Onboarding",
       initial: "site_map",
       stateIds: ["site_check", "site_handover", "site_map", "site_request", "site_visit"],
-      userTransitions: 30
+      userTransitions: 29
     });
 
     await page.goto("/state.html?demo=zustand");
@@ -2559,7 +2559,7 @@ test.describe("State Blueprint tool", () => {
       initial: "site_map",
       hasStarterOnly: false,
       stateIds: ["site_check", "site_handover", "site_map", "site_request", "site_visit"],
-      userTransitions: 30
+      userTransitions: 29
     });
   });
 
@@ -2753,7 +2753,7 @@ test.describe("State Blueprint tool", () => {
       initial: "site_map",
       hasOldLocalModel: false,
       stateIds: ["site_check", "site_handover", "site_map", "site_request", "site_visit"],
-      userTransitions: 30
+      userTransitions: 29
     });
   });
 
@@ -2790,7 +2790,7 @@ test.describe("State Blueprint tool", () => {
       name: "Mietinteressenten-Onboarding",
       initial: "site_map",
       stateIds: rentalStateIds,
-      userTransitions: 30,
+      userTransitions: 29,
       boundary: { entryId: "site_map", exitId: "site_handover" },
       scopedDataOnly: true,
       hasLegacyRoutes: false
@@ -3028,7 +3028,7 @@ test.describe("State Blueprint tool", () => {
     const allEntityIds = [...stateIds, ...transitionIds];
     expect(new Set(allEntityIds).size).toBe(allEntityIds.length);
     expect(stateIds).toHaveLength(5);
-    expect(transitionIds).toHaveLength(30);
+    expect(transitionIds).toHaveLength(29);
 
     const stateIdSet = new Set(stateIds);
     for (const transition of transitions) {

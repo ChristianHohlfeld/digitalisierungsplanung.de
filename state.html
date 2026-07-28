@@ -6293,7 +6293,7 @@
         note: "Demo: neutraler Teilprozess für Mietinteressenten-Onboarding.",
         columns: [
           { title: "Prozess", items: ["Karte", "Anfrage", "Prüfung", "Termin", "Übergabe"].map(label => navLink(stateId, label)) },
-          { title: "Werkzeug", items: [{ label: "Editor öffnen", url: "state.html?demo=zustand" }] }
+          ...(stateId === "site_handover" ? [] : [{ title: "Werkzeug", items: [{ label: "Editor öffnen", url: "state.html?demo=zustand" }] }])
         ]
       });
       const shell = id => [daisy(id + "_nav", "navbar", "states." + id + ".nav", "Kopf-Navigation")];
@@ -6423,8 +6423,8 @@
             layout: "figure",
             title: "Einzug vorbereitet",
             body: "Vertrag, Termin, Schlüssel und Startinformationen sind geklärt. Der Teilprozess endet sauber und der Service kann beginnen.",
-            actionLabel: "Zur Karte",
-            transitionId: "site_handover_restart",
+            actionLabel: "Editor öffnen",
+            url: "state.html?demo=zustand",
             image: images.handover
           },
           timeline: { items: [
@@ -6444,8 +6444,7 @@
         transition("site_map_start", "site_map", "site_request", "Prozess starten"),
         transition("site_request_next", "site_request", "site_check", "Prüfung starten", { "states.site_request.next.clicked": true }),
         transition("site_check_next", "site_check", "site_visit", "Termin planen", { "states.site_check.next.clicked": true }),
-        transition("site_visit_next", "site_visit", "site_handover", "Übergabe vorbereiten", { "states.site_visit.next.clicked": true }),
-        transition("site_handover_restart", "site_handover", "site_map", "Zur Karte")
+        transition("site_visit_next", "site_visit", "site_handover", "Übergabe vorbereiten", { "states.site_visit.next.clicked": true })
       ];
 
       return {
