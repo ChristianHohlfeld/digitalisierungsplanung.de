@@ -30,6 +30,7 @@ function adminRouteIndex(config = {}) {
     presetsAdminImport: route(config, "presetsAdminImportPath", "/presets-admin/import"),
     imageInline: route(config, "imageInlinePath", "/assets/inline-image"),
     mcp: route(config, "mcpPath", "/mcp"),
+    stripeCheckout: route(config, "stripeCheckoutPath", "/stripe/checkout"),
     emit: route(config, "emitPath", "/emit"),
     ws: route(config, "path", "/ws")
   };
@@ -103,6 +104,7 @@ function adminRouteIndex(config = {}) {
     endpoint("presets-admin-import", "POST", paths.presetsAdminImport, "Preset API Import", "admin", "Kanonische Preset-Definition von einer öffentlichen HTTPS-API als Entwurf laden."),
     endpoint("image-inline", "POST", paths.imageInline, "Image Inline", "runtime", "Public image URL as Data URI for self-contained exports."),
     endpoint("mcp", "POST", paths.mcp, "MCP JSON-RPC", "admin", "Secret-geschützter State-Blueprint MCP-Endpunkt."),
+    endpoint("stripe-checkout", "GET", paths.stripeCheckout, "Stripe Checkout", "runtime", "URL-only Preis-CTA erzeugt eine Stripe Checkout Session."),
     endpoint("emit", "POST", paths.emit, "Emit", "runtime", "Authentifizierter serverseitiger Event-Eingang."),
     endpoint("ws", "WSS", paths.ws, "WebSocket", "runtime", "Realtime-Transport für Runtime-Events.")
   ];

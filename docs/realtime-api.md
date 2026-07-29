@@ -329,7 +329,7 @@ Antwort, gekürzt:
       "id": "website.builder",
       "label": "Website Builder",
       "category": "package",
-      "includedInPlanIds": ["business", "scale"],
+      "includedInPlanIds": ["expert", "enterprise"],
       "presetIds": ["builtin_daisy_hero", "builtin_daisy_pricing", "builtin_daisy_export_image_asset"],
       "presetCount": 3
     },
@@ -345,9 +345,9 @@ Antwort, gekürzt:
   ],
   "subscriptionPlans": [
     {
-      "id": "business",
-      "label": "Business",
-      "price": "749 EUR",
+      "id": "expert",
+      "label": "Expert",
+      "price": "199 EUR",
       "period": "/Monat",
       "includedPackageIds": ["core.process", "website.builder", "approval.compliance"],
       "recommendedAddOnPackageIds": ["bi.analytics", "service.operations"]

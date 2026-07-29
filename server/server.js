@@ -13,6 +13,7 @@ const { WebSocketServer, WebSocket } = require("ws");
 const eventCatalog = require("./event-catalog");
 const presetLibrary = require("./preset-library");
 const adminTools = require("./admin-tools");
+const presetCatalog = require("./preset-catalog");
 const productContract = require("./product-contract");
 const { loadReleaseInfo, parseReleaseSource } = require("./release");
 const stateBlueprintMcp = require("../mcp/state-blueprint-server");
@@ -35,6 +36,10 @@ const DEFAULT_PRESETS_ADMIN_IMPORT_PATH = "/presets-admin/import";
 const DEFAULT_IMAGE_INLINE_PATH = "/assets/inline-image";
 const DEFAULT_MCP_PATH = "/mcp";
 const DEFAULT_VERSION_PATH = "/version";
+const DEFAULT_STRIPE_API_BASE_URL = "https://api.stripe.com";
+const DEFAULT_STRIPE_CHECKOUT_PATH = presetCatalog.STRIPE_CHECKOUT_DEFAULTS.path;
+const DEFAULT_STRIPE_SUCCESS_URL = presetCatalog.STRIPE_CHECKOUT_DEFAULTS.successUrl;
+const DEFAULT_STRIPE_CANCEL_URL = presetCatalog.STRIPE_CHECKOUT_DEFAULTS.cancelUrl;
 const DEFAULT_ADMIN_COMMIT_MESSAGE = "Update realtime event catalog";
 const DEFAULT_PRESET_ADMIN_COMMIT_MESSAGE = "Update preset library";
 const DEFAULT_HOST = "127.0.0.1";
@@ -554,6 +559,11 @@ function loadConfig(options = {}) {
     imageInlinePath: options.imageInlinePath || env.REALTIME_IMAGE_INLINE_PATH || DEFAULT_IMAGE_INLINE_PATH,
     mcpPath: options.mcpPath || env.REALTIME_MCP_PATH || DEFAULT_MCP_PATH,
     versionPath: options.versionPath || env.REALTIME_VERSION_PATH || DEFAULT_VERSION_PATH,
+    stripeCheckoutPath: options.stripeCheckoutPath || env.REALTIME_STRIPE_CHECKOUT_PATH || DEFAULT_STRIPE_CHECKOUT_PATH,
+    stripeApiBaseUrl: options.stripeApiBaseUrl || env.REALTIME_STRIPE_API_BASE_URL || DEFAULT_STRIPE_API_BASE_URL,
+    stripeSecretKey: options.stripeSecretKey ?? env.REALTIME_STRIPE_SECRET_KEY ?? env.STRIPE_SECRET_KEY ?? "",
+    stripeSuccessUrl: options.stripeSuccessUrl || env.REALTIME_STRIPE_SUCCESS_URL || DEFAULT_STRIPE_SUCCESS_URL,
+    stripeCancelUrl: options.stripeCancelUrl || env.REALTIME_STRIPE_CANCEL_URL || DEFAULT_STRIPE_CANCEL_URL,
     eventCatalogPath: path.resolve(options.eventCatalogPath || env.REALTIME_EVENT_CATALOG_PATH || eventCatalog.DEFAULT_EVENT_CATALOG_PATH),
     adminHtmlPath: path.resolve(options.adminHtmlPath || env.REALTIME_ADMIN_HTML_PATH || path.join(__dirname, "admin.html")),
     eventAdminHtmlPath: path.resolve(options.eventAdminHtmlPath || env.REALTIME_EVENT_ADMIN_HTML_PATH || path.join(__dirname, "events-admin.html")),
@@ -566,6 +576,7 @@ function loadConfig(options = {}) {
     gitPushToken: options.gitPushToken ?? env.REALTIME_GIT_PUSH_TOKEN ?? "",
     gitRunner: options.gitRunner || defaultGitRunner,
     presetApiFetcher: options.presetApiFetcher || fetchPresetApiDefinition,
+    stripeCheckoutFetcher: options.stripeCheckoutFetcher || globalThis.fetch,
     imageInlineFetcher: options.imageInlineFetcher || fetchPublicImageAsset,
     allowedOrigins: parseList(
       options.allowedOrigins ?? env.REALTIME_ALLOWED_ORIGINS,
@@ -753,6 +764,133 @@ function releaseResponse(config) {
     sourceCommit: config.release.sourceCommit,
     deployedCommit: config.release.deployedCommit
   };
+}
+
+function stripeCheckoutQuantity(plan, value) {
+  const stripe = plan?.stripe || {};
+  if (stripe.quantityMode !== "per_user") return 1;
+  const min = parseInteger(stripe.minQuantity, 1, 1, 10000);
+  const max = parseInteger(stripe.maxQuantity, min, min, 10000);
+  return parseInteger(value, min, min, max);
+}
+
+function stripeCheckoutSessionParams(config, plan, quantity) {
+  const stripe = plan?.stripe || {};
+  const amount = Number(stripe.unitAmountCents);
+  if (!Number.isSafeInteger(amount) || amount <= 0) {
+    const error = new Error("invalid_stripe_amount");
+    error.code = "invalid_stripe_amount";
+    error.status = 500;
+    throw error;
+  }
+  const params = new URLSearchParams();
+  params.set("mode", "subscription");
+  params.set("success_url", config.stripeSuccessUrl);
+  params.set("cancel_url", config.stripeCancelUrl);
+  params.set("client_reference_id", plan.id);
+  params.set("locale", "auto");
+  params.set("billing_address_collection", "auto");
+  params.set("allow_promotion_codes", "true");
+  params.set("metadata[contract_plan_id]", plan.id);
+  params.set("metadata[contract_lookup_key]", stripe.lookupKey || plan.id);
+  params.set("metadata[contract_source]", "digitalisierungsplanung.product_contract");
+  params.set("subscription_data[metadata][contract_plan_id]", plan.id);
+  params.set("subscription_data[metadata][contract_lookup_key]", stripe.lookupKey || plan.id);
+  params.set("line_items[0][quantity]", String(quantity));
+  params.set("line_items[0][price_data][currency]", stripe.currency || "eur");
+  params.set("line_items[0][price_data][unit_amount]", String(amount));
+  params.set("line_items[0][price_data][recurring][interval]", stripe.recurringInterval || "month");
+  params.set("line_items[0][price_data][product_data][name]", stripe.productName || plan.label || plan.id);
+  params.set("line_items[0][price_data][product_data][metadata][contract_plan_id]", plan.id);
+  if (stripe.adjustableQuantity === true) {
+    params.set("line_items[0][adjustable_quantity][enabled]", "true");
+    params.set("line_items[0][adjustable_quantity][minimum]", String(parseInteger(stripe.minQuantity, 1, 1, 10000)));
+    params.set("line_items[0][adjustable_quantity][maximum]", String(parseInteger(stripe.maxQuantity, 250, 1, 10000)));
+  }
+  return params;
+}
+
+async function createStripeCheckoutSession(config, plan, quantity) {
+  const fetcher = config.stripeCheckoutFetcher;
+  if (typeof fetcher !== "function") {
+    const error = new Error("stripe_fetch_unavailable");
+    error.code = "stripe_fetch_unavailable";
+    error.status = 500;
+    throw error;
+  }
+  const endpoint = new URL("/v1/checkout/sessions", config.stripeApiBaseUrl).href;
+  const response = await fetcher(endpoint, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${config.stripeSecretKey}`,
+      "content-type": "application/x-www-form-urlencoded"
+    },
+    body: stripeCheckoutSessionParams(config, plan, quantity).toString()
+  });
+  let payload = {};
+  try {
+    payload = await response.json();
+  } catch (_) {
+    payload = { error: { message: await response.text?.().catch(() => "") || "" } };
+  }
+  if (!response.ok) {
+    const error = new Error("stripe_checkout_failed");
+    error.code = "stripe_checkout_failed";
+    error.status = 502;
+    error.detail = String(payload?.error?.message || payload?.error || response.status || "").slice(0, 300);
+    throw error;
+  }
+  const redirectUrl = String(payload?.url || "").trim();
+  if (!/^https:\/\/checkout\.stripe\.com\//i.test(redirectUrl)) {
+    const error = new Error("stripe_checkout_url_invalid");
+    error.code = "stripe_checkout_url_invalid";
+    error.status = 502;
+    throw error;
+  }
+  return { id: String(payload.id || ""), url: redirectUrl };
+}
+
+async function handleStripeCheckoutRequest(config, request, response) {
+  if (request.method === "OPTIONS") {
+    response.writeHead(204, {
+      "access-control-allow-methods": "GET, OPTIONS",
+      "access-control-allow-headers": "content-type",
+      "cache-control": "no-store"
+    });
+    response.end();
+    return;
+  }
+  const url = new URL(request.url || "/", "http://localhost");
+  const planId = String(url.searchParams.get("plan") || "").trim();
+  if (!planId) {
+    writeJson(response, 400, { error: "stripe_plan_required" });
+    return;
+  }
+  const plan = presetCatalog.stripeCheckoutPlanById(planId);
+  if (!plan) {
+    writeJson(response, 404, { error: "unknown_stripe_plan" });
+    return;
+  }
+  if (!config.stripeSecretKey) {
+    writeJson(response, 503, { error: "stripe_secret_required" });
+    return;
+  }
+  try {
+    const quantity = stripeCheckoutQuantity(plan, url.searchParams.get("quantity"));
+    const session = await createStripeCheckoutSession(config, plan, quantity);
+    response.writeHead(303, {
+      location: session.url,
+      "cache-control": "no-store",
+      "referrer-policy": "no-referrer",
+      "x-content-type-options": "nosniff"
+    });
+    response.end();
+  } catch (error) {
+    writeJson(response, error.status || 502, {
+      error: error.code || "stripe_checkout_failed",
+      ...(error.detail ? { detail: error.detail } : {})
+    });
+  }
 }
 
 function cleanCommitMessage(value, fallback = DEFAULT_ADMIN_COMMIT_MESSAGE) {
@@ -1219,6 +1357,10 @@ function createRealtimeServer(options = {}) {
         ...productContract.productContractResponse(config),
         release: releaseResponse(config)
       }, prepared.headers);
+      return;
+    }
+    if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.stripeCheckoutPath) {
+      void handleStripeCheckoutRequest(config, request, response);
       return;
     }
     if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.emitPath) {

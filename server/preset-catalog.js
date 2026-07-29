@@ -37,44 +37,183 @@ function stateDataScopeForId(id) {
   return clean ? "states." + clean : "";
 }
 
-const SUBSCRIPTION_PLANS = Object.freeze([
+const STRIPE_CHECKOUT_BASE_URL = "https://realtime.digitalisierungsplanung.de/stripe/checkout";
+const STRIPE_CHECKOUT_SUCCESS_URL = "https://digitalisierungsplanung.de/?checkout=success&session_id={CHECKOUT_SESSION_ID}";
+const STRIPE_CHECKOUT_CANCEL_URL = "https://digitalisierungsplanung.de/?checkout=cancel";
+const ENTERPRISE_CONTACT_URL = "mailto:kontakt@digitalisierungsplanung.de?subject=Volumen%20%26%20Unternehmen%20anfragen";
+const STRIPE_CHECKOUT_DEFAULTS = Object.freeze({
+  path: "/stripe/checkout",
+  endpoint: STRIPE_CHECKOUT_BASE_URL,
+  successUrl: STRIPE_CHECKOUT_SUCCESS_URL,
+  cancelUrl: STRIPE_CHECKOUT_CANCEL_URL
+});
+
+const PRODUCT_PRICING_PLANS = Object.freeze([
   {
     id: "starter",
-    label: "Starter",
-    price: "249 EUR",
-    period: "/Monat",
-    description: "Für einzelne Prozesse, schnelle Prototypen und erste digitale Anwendungen.",
+    title: "Starter",
+    badge: "Einstieg",
+    price: "49,99 EUR",
+    period: "pro Benutzer / Monat",
+    body: "Für Einzelne, die Prozesse modellieren, testen und einfache Prozess-Apps nutzen.",
+    features: ["1 Benutzer", "Monatliche Tool-Nutzung", "HTML-Export"],
     includedPackageIds: ["core.process"],
     recommendedAddOnPackageIds: ["website.builder", "approval.compliance"],
-    cta: "Starter anfragen",
+    actionLabel: "Starter buchen",
+    stripe: {
+      provider: "stripe",
+      mode: "subscription",
+      lookupKey: "starter_user_monthly_eur",
+      productName: "Digitalisierungsplanung Starter",
+      unitAmountCents: 4999,
+      currency: "eur",
+      recurringInterval: "month",
+      quantityMode: "per_user",
+      adjustableQuantity: true,
+      minQuantity: 1,
+      maxQuantity: 250
+    },
     sort: 10
   },
   {
-    id: "business",
-    label: "Business",
+    id: "expert",
+    title: "Expert",
     badge: "Beliebt",
-    price: "749 EUR",
+    price: "199 EUR",
     period: "/Monat",
-    description: "Für Mittelstandsteams, die Prozesse modellieren, prüfen und als Web-App nutzen.",
+    body: "Für Teams und Expertinnen, die Abläufe gemeinsam bauen, prüfen und als Web-App nutzen.",
+    features: ["Expert-Arbeitsbereich", "Website Builder", "Freigaben & Prüfung"],
     includedPackageIds: ["core.process", "website.builder", "approval.compliance"],
     recommendedAddOnPackageIds: ["bi.analytics", "service.operations"],
-    cta: "Business anfragen",
+    actionLabel: "Expert buchen",
     highlight: true,
+    stripe: {
+      provider: "stripe",
+      mode: "subscription",
+      lookupKey: "expert_monthly_eur",
+      productName: "Digitalisierungsplanung Expert",
+      unitAmountCents: 19900,
+      currency: "eur",
+      recurringInterval: "month",
+      quantityMode: "workspace",
+      adjustableQuantity: false,
+      minQuantity: 1,
+      maxQuantity: 1
+    },
     sort: 20
   },
   {
-    id: "scale",
-    label: "Scale",
-    badge: "Teams",
-    price: "1.990 EUR",
-    period: "/Monat",
-    description: "Für mehrere Bereiche, operative Echtzeit-Prozesse und wiederholbare Rollouts.",
+    id: "enterprise",
+    title: "Volumen & Unternehmen",
+    badge: "Auf Anfrage",
+    price: "Auf Anfrage",
+    period: "",
+    body: "Für mehrere Bereiche, Volumen, Datenschutzabstimmung und begleiteten Rollout.",
+    features: ["Volumenpakete", "Enterprise-Abstimmung", "Begleitete Einführung"],
     includedPackageIds: ["core.process", "website.builder", "approval.compliance", "service.operations"],
     recommendedAddOnPackageIds: ["bi.analytics", "sales.crm", "integration.automation"],
-    cta: "Scale anfragen",
+    actionLabel: "Anfrage stellen",
+    contactUrl: ENTERPRISE_CONTACT_URL,
     sort: 30
   }
 ]);
+
+const SUBSCRIPTION_PLANS = Object.freeze(PRODUCT_PRICING_PLANS.map(plan => ({
+  id: plan.id,
+  label: plan.title,
+  badge: plan.badge || "",
+  price: plan.price,
+  period: plan.period,
+  description: plan.body,
+  includedPackageIds: [...plan.includedPackageIds],
+  recommendedAddOnPackageIds: [...plan.recommendedAddOnPackageIds],
+  cta: plan.actionLabel,
+  highlight: plan.highlight === true,
+  billing: {
+    cadence: "monthly",
+    unit: plan.stripe?.quantityMode === "per_user" ? "user" : "workspace",
+    usage: "tool_nutzung"
+  },
+  stripe: plan.stripe ? { ...plan.stripe } : {
+    provider: "contact",
+    mode: "request",
+    contactUrl: plan.contactUrl || ENTERPRISE_CONTACT_URL
+  },
+  sort: plan.sort
+})));
+
+function checkoutUrlForPlan(plan) {
+  if (plan.stripe?.provider === "stripe") {
+    return `${STRIPE_CHECKOUT_BASE_URL}?plan=${encodeURIComponent(plan.id)}&quantity=1`;
+  }
+  return plan.contactUrl || ENTERPRISE_CONTACT_URL;
+}
+
+function pricingPlanCard(plan, options = {}) {
+  const card = {
+    title: plan.title,
+    badge: plan.badge || "",
+    price: plan.price,
+    period: plan.period,
+    body: plan.body,
+    features: [...plan.features],
+    highlight: plan.highlight === true,
+    actionLabel: plan.actionLabel,
+    transitionId: ""
+  };
+  if (options.stripe === true) {
+    card.url = checkoutUrlForPlan(plan);
+    card.checkout = {
+      provider: plan.stripe?.provider || "contact",
+      mode: plan.stripe?.provider === "stripe" ? "checkout_session" : "request",
+      billingCadence: "monthly",
+      actionTarget: "url_only"
+    };
+    if (plan.stripe) card.stripe = { ...plan.stripe };
+  }
+  return card;
+}
+
+function pricingPresetData(options = {}) {
+  const stripe = options.stripe === true;
+  return {
+    selectedPlan: "",
+    billingCadence: "monthly",
+    currency: "EUR",
+    checkout: stripe ? {
+      provider: "stripe",
+      mode: "checkout_session",
+      endpoint: STRIPE_CHECKOUT_BASE_URL,
+      successUrl: STRIPE_CHECKOUT_SUCCESS_URL,
+      cancelUrl: STRIPE_CHECKOUT_CANCEL_URL,
+      actionTarget: "url_only"
+    } : {
+      provider: "fsm",
+      mode: "transition",
+      actionTarget: "transition_only"
+    },
+    plans: PRODUCT_PRICING_PLANS.map(plan => pricingPlanCard(plan, { stripe }))
+  };
+}
+
+function stripeCheckoutPlansResponse() {
+  return PRODUCT_PRICING_PLANS
+    .filter(plan => plan.stripe?.provider === "stripe")
+    .map(plan => ({
+      id: plan.id,
+      label: plan.title,
+      price: plan.price,
+      period: plan.period,
+      description: plan.body,
+      cta: plan.actionLabel,
+      stripe: { ...plan.stripe }
+    }));
+}
+
+function stripeCheckoutPlanById(id) {
+  const clean = String(id || "").trim();
+  return stripeCheckoutPlansResponse().find(plan => plan.id === clean) || null;
+}
 
 function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
@@ -199,7 +338,8 @@ function builtinStateTemplates(libraryValue) {
     { id: "card", title: "Produktkarte", description: "Bildkarte mit Titel, Kurztext und Aktionsfeld.", data: { title: "Premium-Sneaker", body: "Leichte Schuhe für Alltag, Arbeit und Reisen.", image: "https://img.daisyui.com/images/stock/photo-1606107557195-0e29a4b5b4aa.webp", imageAlt: "Schuhe", actionLabel: "Jetzt kaufen" } },
     { id: "export-image-asset", variant: "card", title: "Exportierbares Bild", description: "Bild-URL im globalen State. Beim HTML-Export wird sie als Data-URI eingebettet, wenn sie erreichbar ist.", packageIds: ["website.builder"], data: { title: "Exportierbares Bild", body: "URL eintragen, Export laden, Bild bleibt in der eigenständigen HTML enthalten.", image: "https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=900&q=80", imageAlt: "Bild für self-contained HTML-Export", actionLabel: "" } },
     { id: "feature-grid", title: "Feature-Raster", description: "Responsive Feature-Karten, deren Aktionen echte FSM-Zustände ansteuern.", data: { eyebrow: "Vorteile", heading: "Alles für einen sauberen Ablauf", body: "Nutze diese Vorlage für Produktvorteile, App-Bereiche oder Navigationsteaser.", selected: "", items: [{ title: "Wiederverwendbare Ansichten", body: "Seiten aus Bausteinen zusammensetzen, ohne Verhalten im HTML zu verstecken.", image: featurePresetImages.screens, imageAlt: "Wiederverwendbare Bildschirmbereiche in einem Arbeitsbereich", features: ["Gescopte Zustandsdaten", "Explizite Übergangsaktion"], actionLabel: "Ansichten ansehen", transitionId: "" }, { title: "Datengebundene UI", body: "Felder und Labels lesen aus dem globalen JSON-Bus.", image: featurePresetImages.data, imageAlt: "Dashboard-Daten als Grundlage für UI-Karten", features: ["eine Wahrheit", "In Eigenschaften editierbar"], actionLabel: "Datenfluss ansehen", transitionId: "" }, { title: "FSM-sichere Ereignisse", body: "Schaltflächen feuern nur Übergänge, die wirklich existieren.", image: featurePresetImages.events, imageAlt: "Strukturierte Ereignisverbindungen", features: ["Keine lokale Navigation", "Kein Label-Raten"], actionLabel: "Ereignisse prüfen", transitionId: "" }] } },
-    { id: "pricing", title: "Preiskarten", description: "Drei Abo-Karten, deren Schaltflächen auf echte Zustände verdrahtet sind.", data: { selectedPlan: "", plans: [{ title: "Starter", price: "249 EUR", period: "/Monat", body: "Für einzelne Prozesse, schnelle Prototypen und erste digitale Anwendungen.", features: ["Process Core", "1 Prozess-App", "HTML-Export"], actionLabel: "Starter anfragen", transitionId: "" }, { title: "Business", badge: "Beliebt", price: "749 EUR", period: "/Monat", body: "Für Teams, die Abläufe modellieren, prüfen und als Web-App nutzen.", features: ["Website Builder", "Freigaben", "Team-Nutzung"], highlight: true, actionLabel: "Business anfragen", transitionId: "" }, { title: "Scale", badge: "Teams", price: "1.990 EUR", period: "/Monat", body: "Für mehrere Bereiche, operative Ereignisse und wiederholbare Rollouts.", features: ["Service & Operations", "Mehrere Räume", "Add-ons zubuchbar"], actionLabel: "Scale anfragen", transitionId: "" }] } },
+    { id: "pricing", title: "Preiskarten", description: "Drei Abo-Karten, deren Schaltflächen auf echte Zustände verdrahtet sind.", data: pricingPresetData() },
+    { id: "stripe-pricing", variant: "pricing", title: "Stripe-Abo-Pakete", description: "Monatliche Pakete als URL-only CTAs zu echten Stripe Checkout Sessions.", packageIds: ["website.builder"], data: pricingPresetData({ stripe: true }) },
     { id: "bi-kpi-board", variant: "chart", title: "BI-KPI-Board", description: "KPI-Karten und Balkenvergleich für Management- und Bereichskennzahlen.", packageIds: ["bi.analytics"], data: { title: "Umsatz & Marge", subtitle: "Monatliche Sicht für Geschäftsführung und Bereichsleitung.", unit: "Tsd. EUR", metrics: [{ label: "Umsatz", value: "428 Tsd. EUR", delta: "+12%" }, { label: "Marge", value: "31%", delta: "+4%" }, { label: "Offene Chancen", value: "86", delta: "-7" }], items: [{ label: "Service", value: 128 }, { label: "Projekt", value: 96 }, { label: "Lizenz", value: 74 }, { label: "Beratung", value: 52 }] } },
     { id: "bi-bar-chart", variant: "chart", title: "Balkendiagramm", description: "Einfaches Chart für Umsatz, Mengen, SLA, Pipeline oder Prozesskennzahlen.", packageIds: ["bi.analytics"], data: { title: "Aufträge nach Status", subtitle: "Aktueller Stand aus dem globalen State.", unit: "Fälle", metrics: [{ label: "Gesamt", value: "184", delta: "+18" }, { label: "Durchlaufzeit", value: "3,2 Tage", delta: "-0,6" }], items: [{ label: "Neu", value: 42 }, { label: "Prüfung", value: 68 }, { label: "Freigabe", value: 31 }, { label: "Erledigt", value: 43 }] } },
     { id: "bi-pipeline-analysis", variant: "chart", title: "Pipeline-Analyse", description: "Sales- und Angebotsübersicht mit Kennzahlen und Fortschrittsbalken.", packageIds: ["bi.analytics", "sales.crm"], data: { title: "Pipeline", subtitle: "Chancen nach Phase und nächstem Schritt.", unit: "Tsd. EUR", metrics: [{ label: "Pipeline", value: "1,28 Mio. EUR", delta: "+9%" }, { label: "Abschlussquote", value: "27%", delta: "+3%" }, { label: "Nächste Aktionen", value: "14", delta: "heute" }], items: [{ label: "Lead", value: 220 }, { label: "Qualifiziert", value: 180 }, { label: "Angebot", value: 310 }, { label: "Verhandlung", value: 145 }] } },
@@ -475,10 +615,13 @@ function subscriptionPlansResponse(libraryValue) {
 }
 
 module.exports = {
+  STRIPE_CHECKOUT_DEFAULTS,
   builtinStateTemplates,
   collectLocalFieldTypes,
   presetCatalogResponse,
   presetCategoriesResponse,
   presetPackagesResponse,
+  stripeCheckoutPlanById,
+  stripeCheckoutPlansResponse,
   subscriptionPlansResponse
 };

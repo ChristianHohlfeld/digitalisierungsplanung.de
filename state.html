@@ -6272,29 +6272,19 @@
         key,
         Array.isArray(value) ? "list" : value && typeof value === "object" ? "object" : "text"
       ]));
-      const shortId = id => String(id || "").replace(/^site_/, "");
-      const navTransitionIdFor = (stateId, label) => {
-        const item = navItems.find(entry => entry.label === label);
-        const target = item ? item.target : stateId;
-        return "site_" + shortId(stateId) + "_nav_" + shortId(target);
-      };
-      const navLink = (stateId, label) => ({ label, transitionId: navTransitionIdFor(stateId, label) });
-      const nav = (stateId, selected) => ({
+      const nav = selected => ({
         layout: "menu-submenu",
         brand: "Wohnung anfragen",
         selected,
-        items: navItems.map(item => navLink(stateId, item.label)),
+        items: [],
         parent: "",
         submenu: [],
         submenuOpen: false
       });
-      const footerData = stateId => ({
+      const footerData = () => ({
         brand: "Digitalisierungsplanung.de",
         note: "Wohnwunsch, Kontakt und Zeitfenster in wenigen Schritten.",
-        columns: [
-          { title: "Schritte", items: navItems.map(item => navLink(stateId, item.label)) },
-          { title: "Werkzeug", items: [{ label: "Editor \u00f6ffnen", url: "state.html?demo=zustand" }] }
-        ]
+        columns: [{ title: "Werkzeug", items: [{ label: "Editor \u00f6ffnen", url: "state.html?demo=zustand" }] }]
       });
       const shell = id => [daisy(id + "_nav", "navbar", "states." + id + ".nav", "Kopf-Navigation")];
       const footer = id => [daisy(id + "_footer", "footer", "states." + id + ".footer", "Fu\u00dfzeile")];
@@ -6341,7 +6331,7 @@
           daisy("map_timeline", "timeline", "states.site_map.timeline", "Ablauf"),
           ...footer("site_map")
         ], {
-          nav: nav("site_map", "\u00dcbersicht"),
+          nav: nav("\u00dcbersicht"),
           hero: {
             layout: "overlay",
             title: demoName,
@@ -6353,73 +6343,64 @@
           alert: { tone: "info", message: "Ich brauche nur wenige Angaben: Wohnwunsch, Kontakt und ein passendes Zeitfenster." },
           steps: { current: "\u00dcbersicht", items: stepItems("site_map") },
           timeline: { items: mapItems },
-          footer: footerData("site_map")
+          footer: footerData()
         }),
         makeState("site_wish", "Wohnwunsch angeben", 500, 120, [
           ...shell("site_wish"),
           daisy("wish_area", "input", "states.site_wish.area", "Ort"),
           daisy("wish_rooms", "select", "states.site_wish.rooms", "Zimmer"),
-          daisy("wish_move", "input", "states.site_wish.move", "Einzug"),
-          daisy("wish_next", "button", "states.site_wish.next", "Weiter"),
-          ...footer("site_wish")
+          daisy("wish_move", "calendar", "states.site_wish.move", "Einzug"),
+          daisy("wish_next", "button", "states.site_wish.next", "Weiter")
         ], {
-          nav: nav("site_wish", "Wunsch"),
+          nav: nav("Wunsch"),
           area: { label: "Wo suche ich?", value: "Innenstadt oder N\u00e4he Bahnhof" },
           rooms: { label: "Wohnungsgr\u00f6\u00dfe", value: "2 Zimmer", options: ["1 Zimmer", "2 Zimmer", "3 Zimmer", "4+ Zimmer"] },
-          move: { label: "Einzug ab", value: "ab September" },
-          next: actionData("Kontakt angeben", "site_wish_next"),
-          footer: footerData("site_wish")
+          move: { label: "Einzug ab", value: "2026-09-01", min: "2026-07-29", max: "" },
+          next: actionData("Kontakt angeben", "site_wish_next")
         }),
         makeState("site_contact", "Kontakt angeben", 900, 120, [
           ...shell("site_contact"),
           daisy("contact_name", "input", "states.site_contact.name", "Name"),
           daisy("contact_channel", "select", "states.site_contact.channel", "R\u00fcckkanal"),
           daisy("contact_value", "input", "states.site_contact.value", "Kontakt"),
-          daisy("contact_next", "button", "states.site_contact.next", "Weiter"),
-          ...footer("site_contact")
+          daisy("contact_next", "button", "states.site_contact.next", "Weiter")
         ], {
-          nav: nav("site_contact", "Kontakt"),
+          nav: nav("Kontakt"),
           name: { label: "Mein Name", value: "Max Mustermann" },
           channel: { label: "Am besten erreichbar per", value: "E-Mail", options: ["E-Mail", "Telefon", "Post"] },
           value: { label: "Kontaktangabe", value: "max@example.de" },
-          next: actionData("Besichtigung w\u00e4hlen", "site_contact_next"),
-          footer: footerData("site_contact")
+          next: actionData("Besichtigung w\u00e4hlen", "site_contact_next")
         }),
         makeState("site_visit", "Besichtigung w\u00e4hlen", 1300, 120, [
           ...shell("site_visit"),
           daisy("visit_window", "select", "states.site_visit.window", "Zeitfenster"),
           daisy("visit_phone", "input", "states.site_visit.phone", "Telefon"),
           daisy("visit_note", "textarea", "states.site_visit.note", "Nachricht"),
-          daisy("visit_next", "button", "states.site_visit.next", "Weiter"),
-          ...footer("site_visit")
+          daisy("visit_next", "button", "states.site_visit.next", "Weiter")
         ], {
-          nav: nav("site_visit", "Termin"),
+          nav: nav("Termin"),
           window: { label: "Wann passt es?", value: "Werktags vormittags", options: ["Werktags vormittags", "Werktags nachmittags", "Samstag", "flexibel"] },
           phone: { label: "Telefon f\u00fcr R\u00fcckfragen", value: "+49 170 1234567" },
           note: { label: "Kurze Nachricht", value: "Ich kann kurzfristig reagieren." },
-          next: actionData("Angaben pr\u00fcfen", "site_visit_next"),
-          footer: footerData("site_visit")
+          next: actionData("Angaben pr\u00fcfen", "site_visit_next")
         }),
         makeState("site_review", "Anfrage pr\u00fcfen", 1700, 120, [
           ...shell("site_review"),
           daisy("review_stat", "stat", "states.site_review.stat", "Status"),
           daisy("review_consent", "checkbox", "states.site_review.consent", "Einwilligung"),
-          daisy("review_next", "button", "states.site_review.next", "Absenden"),
-          ...footer("site_review")
+          daisy("review_next", "button", "states.site_review.next", "Absenden")
         ], {
-          nav: nav("site_review", "Absenden"),
+          nav: nav("Absenden"),
           stat: { title: "Bereit zum Absenden", value: "vollst\u00e4ndig", description: "Wohnwunsch, Kontakt und Zeitfenster sind ausgef\u00fcllt." },
           consent: { label: "Ich darf wegen dieser Anfrage kontaktiert werden.", checked: true },
-          next: actionData("Anfrage abschicken", "site_review_next"),
-          footer: footerData("site_review")
+          next: actionData("Anfrage abschicken", "site_review_next")
         }),
         makeState("site_done", "Anfrage gesendet", 2100, 220, [
           ...shell("site_done"),
           daisy("done_hero", "hero", "states.site_done.hero", "Best\u00e4tigung"),
-          daisy("done_timeline", "timeline", "states.site_done.timeline", "N\u00e4chste Schritte"),
-          ...footer("site_done")
+          daisy("done_timeline", "timeline", "states.site_done.timeline", "N\u00e4chste Schritte")
         ], {
-          nav: nav("site_done", "Absenden"),
+          nav: nav("Absenden"),
           hero: {
             layout: "figure",
             title: "Anfrage ist raus",
@@ -6432,16 +6413,11 @@
             { title: "Eingang", body: "Die Anfrage liegt mit Wohnwunsch und Kontakt vor." },
             { title: "R\u00fcckmeldung", body: "Offene Punkte oder ein Terminvorschlag werden gemeldet." },
             { title: "Besichtigung", body: "Der Termin wird best\u00e4tigt, sobald ein passendes Zeitfenster frei ist." }
-          ] },
-          footer: footerData("site_done")
+          ] }
         })
       ];
 
-      const navTransitions = states.flatMap(state => navItems.map(item =>
-        transition("site_" + shortId(state.id) + "_nav_" + shortId(item.target), state.id, item.target, item.label)
-      ));
       const transitions = [
-        ...navTransitions,
         transition("site_map_start", "site_map", "site_wish", "Wohnung anfragen"),
         transition("site_wish_next", "site_wish", "site_contact", "Kontakt angeben", { "states.site_wish.next.clicked": true }),
         transition("site_contact_next", "site_contact", "site_visit", "Besichtigung w\u00e4hlen", { "states.site_contact.next.clicked": true }),
@@ -6536,32 +6512,35 @@
           id: "starter",
           title: "Starter",
           badge: "Einstieg",
-          price: "499 EUR",
-          period: "/Monat",
-          body: "Ein kritischer Ablauf wird sichtbar, logisch geprüft und als klickbarer Pilot nutzbar.",
-          features: ["1 Prozess-Pilot", "Web-Export", "Einführung inklusive"],
-          cta: "Starter anfragen"
+          price: "49,99 EUR",
+          period: "pro Benutzer / Monat",
+          body: "Für Einzelne, die Prozesse modellieren, testen und einfache Prozess-Apps nutzen.",
+          features: ["1 Benutzer", "Monatliche Tool-Nutzung", "HTML-Export"],
+          cta: "Starter buchen",
+          url: "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=starter&quantity=1"
         },
         {
-          id: "business",
-          title: "Business",
+          id: "expert",
+          title: "Expert",
           badge: "Empfohlen",
-          price: "1.490 EUR",
+          price: "199 EUR",
           period: "/Monat",
-          body: "Für Teams, die mehrere Abläufe aufnehmen, vergleichen und zuverlässig in nutzbare Anwendungen übersetzen.",
-          features: ["Mehrere Prozess-Piloten", "Freigaben & Rollen", "Begleiteter Start"],
-          cta: "Business anfragen",
+          body: "Für Teams und Expertinnen, die Abläufe gemeinsam bauen, prüfen und als Web-App nutzen.",
+          features: ["Expert-Arbeitsbereich", "Website Builder", "Freigaben & Prüfung"],
+          cta: "Expert buchen",
+          url: "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=expert&quantity=1",
           highlight: true
         },
         {
-          id: "scale",
-          title: "Scale",
-          badge: "Wachstum",
-          price: "3.900 EUR",
-          period: "/Monat",
-          body: "Für Unternehmen, die Prozesswissen wiederholbar sichern und neue digitale Abläufe laufend ausrollen.",
-          features: ["Bereichsübergreifend", "Echtzeit-Ereignisse", "Optionale Paket-Erweiterungen"],
-          cta: "Scale anfragen"
+          id: "enterprise",
+          title: "Volumen & Unternehmen",
+          badge: "Auf Anfrage",
+          price: "Auf Anfrage",
+          period: "",
+          body: "Für mehrere Bereiche, Volumen, Datenschutzabstimmung und begleiteten Rollout.",
+          features: ["Volumenpakete", "Enterprise-Abstimmung", "Begleitete Einführung"],
+          cta: "Anfrage stellen",
+          url: "mailto:kontakt@digitalisierungsplanung.de?subject=Volumen%20%26%20Unternehmen%20anfragen"
         }
       ];
       const states = [
@@ -6686,7 +6665,8 @@
               features: plan.features,
               highlight: Boolean(plan.highlight),
               actionLabel: plan.cta,
-              transitionId: "site_pricing_buy_" + plan.id
+              url: plan.url,
+              transitionId: ""
             }))
           },
           packages: {
@@ -6720,8 +6700,8 @@
           summary: {
             title: "Starter",
             badge: "Anfrage",
-            price: "499 EUR",
-            period: "/Monat",
+            price: "49,99 EUR",
+            period: "pro Benutzer / Monat",
             body: "Prüfen Sie das gewählte Paket und senden Sie die Anfrage. Danach klären wir den ersten echten Ablauf und den nächsten Schritt.",
             features: pricingPlans[0].features,
             actionLabel: ""
@@ -6737,7 +6717,7 @@
           },
           order: {
             plan: "Starter",
-            price: "499 EUR",
+            price: "49,99 EUR",
             completed: false
           },
           footer: footerData()
@@ -6779,7 +6759,7 @@
       const transitions = [
         transition("site_home_view_value", "site_home", "site_features", "Ablauf ansehen"),
         transition("site_features_view_pricing", "site_features", "site_pricing", "Pakete ansehen"),
-        ...pricingPlans.map(plan => transition("site_pricing_buy_" + plan.id, "site_pricing", checkoutFlowId, plan.cta, {
+        ...pricingPlans.filter(plan => !plan.url).map(plan => transition("site_pricing_buy_" + plan.id, "site_pricing", checkoutFlowId, plan.cta, {
           "states.site_pricing.plans.selectedPlan": plan.title,
           "states.site_checkout.summary.title": plan.title,
           "states.site_checkout.summary.badge": plan.badge || "Anfrage",
@@ -22798,6 +22778,7 @@
         return (Array.isArray(data.plans) ? data.plans : [])
           .map((plan, itemIndex) => {
             if (!plan || typeof plan !== "object" || Array.isArray(plan)) return null;
+            if (String(plan.url || plan.href || "").trim()) return null;
             const title = String(plan.title || plan.name || plan.label || "").trim();
             const label = String(plan.actionLabel || (title ? `${title} kaufen` : "")).trim();
             const key = normalizeId(label);

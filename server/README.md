@@ -125,7 +125,7 @@ There is no version selector and no old contract pinning; runtime always uses
 the latest green `release-N`. Release IDs are audit labels, not compatibility
 branches.
 
-Preset packages and subscription plans are commercial metadata in the same product contract. Presets keep their normal `stateContribution`; package IDs never become a second canvas state or a local catalog copy. `starter`, `business`, and `scale` are the default subscriptions. Add-on packages such as `bi.analytics`, `sales.crm`, `knowledge.portal`, and `integration.automation` stay upsellable even when `scale` is selected.
+Preset packages and subscription plans are commercial metadata in the same product contract. Presets keep their normal `stateContribution`; package IDs never become a second canvas state or a local catalog copy. `starter`, `expert`, and `enterprise` are the default subscriptions. The Stripe pricing preset keeps its checkout targets as URL-only plan fields, while `/stripe/checkout` creates a Stripe Checkout Session from the same contract prices when `REALTIME_STRIPE_SECRET_KEY` or `STRIPE_SECRET_KEY` is configured. Add-on packages such as `bi.analytics`, `sales.crm`, `knowledge.portal`, and `integration.automation` stay upsellable around the core monthly plans.
 
 The editor initially exposes one preset category, `websuite-builder`, containing
 all shipped website, basic, form, data, and additional presets. Categories are

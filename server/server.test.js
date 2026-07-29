@@ -216,11 +216,25 @@ test("serves the event and connector catalog only to allowed origins", async () 
     assert.deepEqual(apiTrigger.events.map(event => event.name), ["fetch.*.success", "fetch.*.error"]);
     assert.deepEqual(
       productContractPayload.subscriptionPlans.map(plan => plan.id),
-      ["starter", "business", "scale"]
+      ["starter", "expert", "enterprise"]
     );
+    const starterPlan = productContractPayload.subscriptionPlans.find(plan => plan.id === "starter");
+    assert.equal(starterPlan.price, "49,99 EUR");
+    assert.equal(starterPlan.period, "pro Benutzer / Monat");
+    assert.equal(starterPlan.stripe.mode, "subscription");
+    assert.equal(starterPlan.stripe.unitAmountCents, 4999);
+    assert.equal(starterPlan.stripe.currency, "eur");
+    assert.equal(starterPlan.stripe.recurringInterval, "month");
+    assert.equal(starterPlan.stripe.quantityMode, "per_user");
+    const expertPlan = productContractPayload.subscriptionPlans.find(plan => plan.id === "expert");
+    assert.equal(expertPlan.price, "199 EUR");
+    assert.equal(expertPlan.stripe.unitAmountCents, 19900);
+    const enterprisePlan = productContractPayload.subscriptionPlans.find(plan => plan.id === "enterprise");
+    assert.equal(enterprisePlan.price, "Auf Anfrage");
+    assert.equal(enterprisePlan.stripe.mode, "request");
     assert.ok(productContractPayload.presetPackages.some(pack =>
       pack.id === "website.builder" &&
-      pack.includedInPlanIds.includes("business") &&
+      pack.includedInPlanIds.includes("expert") &&
       pack.presetCount > 0
     ));
     assert.ok(productContractPayload.presetPackages.some(pack =>
@@ -285,6 +299,90 @@ test("serves the event and connector catalog only to allowed origins", async () 
     assert.equal(buttonPreset.stateContribution.root, "states.button");
     assert.equal(buttonPreset.stateContribution.fieldSchemas["states.button.clicked"].type, "boolean");
     assert.equal(buttonPreset.stateContribution.fieldSchemas["states.button.clicked"].jsonType, "boolean");
+    const stripePricingPreset = productContractPayload.presets.find(preset => preset.id === "builtin_daisy_stripe_pricing");
+    assert.ok(stripePricingPreset);
+    assert.equal(stripePricingPreset.components[0].variant, "pricing");
+    assert.equal(stripePricingPreset.stateContribution.root, "states.stripe_pricing");
+    assert.deepEqual(stripePricingPreset.data.plans.map(plan => plan.transitionId), ["", "", ""]);
+    assert.deepEqual(stripePricingPreset.data.plans.map(plan => plan.actionLabel), ["Starter buchen", "Expert buchen", "Anfrage stellen"]);
+    assert.equal(stripePricingPreset.data.plans[0].price, "49,99 EUR");
+    assert.equal(stripePricingPreset.data.plans[0].period, "pro Benutzer / Monat");
+    assert.equal(stripePricingPreset.data.plans[0].stripe.unitAmountCents, 4999);
+    assert.equal(stripePricingPreset.data.plans[0].url, "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=starter&quantity=1");
+    assert.equal(stripePricingPreset.data.plans[1].price, "199 EUR");
+    assert.equal(stripePricingPreset.data.plans[1].stripe.unitAmountCents, 19900);
+    assert.match(stripePricingPreset.data.plans[2].url, /^mailto:/);
+  });
+});
+
+test("creates Stripe subscription checkout sessions from contract pricing", async () => {
+  const calls = [];
+  await withRealtimeServer({
+    roomSecret: SECRET,
+    stripeSecretKey: "sk_test_contract",
+    stripeCheckoutFetcher: async (url, options) => {
+      calls.push({
+        url,
+        method: options.method,
+        authorization: options.headers.authorization,
+        contentType: options.headers["content-type"],
+        body: String(options.body || "")
+      });
+      return new Response(JSON.stringify({
+        id: "cs_test_contract",
+        url: "https://checkout.stripe.com/c/pay/cs_test_contract"
+      }), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      });
+    }
+  }, async realtime => {
+    const response = await fetch(httpUrl(realtime, "/stripe/checkout?plan=starter&quantity=7"), {
+      redirect: "manual"
+    });
+    assert.equal(response.status, 303);
+    assert.equal(response.headers.get("location"), "https://checkout.stripe.com/c/pay/cs_test_contract");
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, "https://api.stripe.com/v1/checkout/sessions");
+    assert.equal(calls[0].method, "POST");
+    assert.equal(calls[0].authorization, "Bearer sk_test_contract");
+    assert.equal(calls[0].contentType, "application/x-www-form-urlencoded");
+    const params = new URLSearchParams(calls[0].body);
+    assert.equal(params.get("mode"), "subscription");
+    assert.equal(params.get("client_reference_id"), "starter");
+    assert.equal(params.get("line_items[0][quantity]"), "7");
+    assert.equal(params.get("line_items[0][price_data][currency]"), "eur");
+    assert.equal(params.get("line_items[0][price_data][unit_amount]"), "4999");
+    assert.equal(params.get("line_items[0][price_data][recurring][interval]"), "month");
+    assert.equal(params.get("line_items[0][price_data][product_data][name]"), "Digitalisierungsplanung Starter");
+    assert.equal(params.get("line_items[0][adjustable_quantity][enabled]"), "true");
+    assert.equal(params.get("metadata[contract_lookup_key]"), "starter_user_monthly_eur");
+
+    const expertResponse = await fetch(httpUrl(realtime, "/stripe/checkout?plan=expert&quantity=9"), {
+      redirect: "manual"
+    });
+    assert.equal(expertResponse.status, 303);
+    const expertParams = new URLSearchParams(calls[1].body);
+    assert.equal(expertParams.get("client_reference_id"), "expert");
+    assert.equal(expertParams.get("line_items[0][quantity]"), "1");
+    assert.equal(expertParams.get("line_items[0][price_data][unit_amount]"), "19900");
+    assert.equal(expertParams.get("line_items[0][adjustable_quantity][enabled]"), null);
+  });
+});
+
+test("fails Stripe checkout closed when plan or credentials are missing", async () => {
+  await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
+    const missingSecret = await fetch(httpUrl(realtime, "/stripe/checkout?plan=starter"), {
+      redirect: "manual"
+    });
+    assert.equal(missingSecret.status, 503);
+    assert.deepEqual(await missingSecret.json(), { error: "stripe_secret_required" });
+
+    const unknownPlan = await fetch(httpUrl(realtime, "/stripe/checkout?plan=enterprise"), {
+      redirect: "manual"
+    });
+    assert.equal(unknownPlan.status, 404);
+    assert.deepEqual(await unknownPlan.json(), { error: "unknown_stripe_plan" });
   });
 });
 

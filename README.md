@@ -146,10 +146,13 @@ Fallback-Typen oder lokalen Preset-Definitionen.
 Preset-Pakete sind reine Server-Metadaten für Verkauf, Anzeige und spätere
 Freischaltung. Der Canvas speichert keine Paketkopie; ein Preset schreibt
 weiter nur seinen eindeutigen `stateContribution` in den globalen JSON-State.
-Die drei Standard-Abos sind `starter`, `business` und `scale`. Zusatzpakete
-wie `bi.analytics`, `sales.crm`, `knowledge.portal` und
-`integration.automation` bleiben auch neben dem größten Paket separat
-zubuchbar.
+Die drei Standard-Abos sind `starter`, `expert` und `enterprise`. Das
+Stripe-Pricing-Preset speichert Checkout-Ziele als URL-only Felder im
+globalen State; `/stripe/checkout` erzeugt daraus bei konfiguriertem
+`REALTIME_STRIPE_SECRET_KEY` oder `STRIPE_SECRET_KEY` eine Stripe Checkout
+Session aus denselben Contract-Preisen. Zusatzpakete wie `bi.analytics`,
+`sales.crm`, `knowledge.portal` und `integration.automation` bleiben um die
+monatlichen Kernpakete herum separat zubuchbar.
 
 Im Editor liegen alle mitgelieferten Vorlagen zunächst gemeinsam unter
 **Websuite Builder**. Der Preset Designer kann weitere Kategorien und Pakete

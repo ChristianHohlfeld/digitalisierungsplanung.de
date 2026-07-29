@@ -202,6 +202,10 @@ function runtimeTextInput(app, label) {
   return app.locator(".daisy-widget").filter({ hasText: label }).locator("input").first();
 }
 
+function runtimeDateInput(app, label) {
+  return app.locator(".daisy-widget").filter({ hasText: label }).locator("input[type=date]").first();
+}
+
 function runtimeSelect(app, label) {
   return app.locator(".daisy-widget").filter({ hasText: label }).locator("select").first();
 }
@@ -2520,7 +2524,7 @@ test.describe("State Blueprint tool", () => {
       name: "Wohnung anfragen: Wunsch bis Besichtigung",
       initial: "site_map",
       stateIds: ["site_contact", "site_done", "site_map", "site_review", "site_visit", "site_wish"],
-      userTransitions: 35
+      userTransitions: 5
     });
 
     await page.goto("/state.html?demo=zustand");
@@ -2567,7 +2571,7 @@ test.describe("State Blueprint tool", () => {
       initial: "site_map",
       hasStarterOnly: false,
       stateIds: ["site_contact", "site_done", "site_map", "site_review", "site_visit", "site_wish"],
-      userTransitions: 35
+      userTransitions: 5
     });
   });
 
@@ -2639,7 +2643,7 @@ test.describe("State Blueprint tool", () => {
       await expect(app.locator(".navbar")).toContainText("Digitalisierungsplanung");
       await expect(app.locator(".navbar")).not.toContainText("Kopf-Navigation");
       await expect(app.getByText("Starter")).toBeVisible();
-      await expect(app.getByText("499 EUR")).toBeVisible();
+      await expect(app.getByText("49,99 EUR")).toBeVisible();
       await expect(app.getByRole("button", { name: "Anfrage senden", exact: true })).toHaveCount(1);
     };
 
@@ -2761,7 +2765,7 @@ test.describe("State Blueprint tool", () => {
       initial: "site_map",
       hasOldLocalModel: false,
       stateIds: ["site_contact", "site_done", "site_map", "site_review", "site_visit", "site_wish"],
-      userTransitions: 35
+      userTransitions: 5
     });
   });
 
@@ -2798,7 +2802,7 @@ test.describe("State Blueprint tool", () => {
       name: "Wohnung anfragen: Wunsch bis Besichtigung",
       initial: "site_map",
       stateIds: rentalStateIds,
-      userTransitions: 35,
+      userTransitions: 5,
       boundary: { entryId: "site_map", exitId: "site_done" },
       scopedDataOnly: true,
       hasLegacyRoutes: false
@@ -2826,6 +2830,7 @@ test.describe("State Blueprint tool", () => {
     await expectRentalStep("site_wish", "Wohnwunsch angeben");
     await expect(runtimeTextInput(rentalApp, "Wo suche ich?")).toBeVisible();
     await expect(runtimeSelect(rentalApp, "Wohnungsgröße")).toBeVisible();
+    await expect(runtimeDateInput(rentalApp, "Einzug ab")).toHaveValue("2026-09-01");
     await rentalApp.getByRole("button", { name: "Kontakt angeben", exact: true }).click();
     await expectRentalStep("site_contact", "Kontakt angeben");
     await expect(runtimeTextInput(rentalApp, "Mein Name")).toBeVisible();
@@ -2850,7 +2855,7 @@ test.describe("State Blueprint tool", () => {
     const allEntityIds = [...stateIds, ...transitionIds];
     expect(new Set(allEntityIds).size).toBe(allEntityIds.length);
     expect(stateIds).toHaveLength(6);
-    expect(transitionIds).toHaveLength(35);
+    expect(transitionIds).toHaveLength(5);
 
     const stateIdSet = new Set(stateIds);
     for (const transition of transitions) {
@@ -2913,10 +2918,10 @@ test.describe("State Blueprint tool", () => {
       componentLabel: "Site Header",
       brand: "Site Header",
       layout: "menu-submenu",
-      itemLabels: ["Übersicht", "Wunsch", "Kontakt", "Termin", "Absenden"]
+      itemLabels: []
     });
     await expect(appFrame(page).locator(".navbar")).toContainText("Site Header");
-    await expect(appFrame(page).locator(".navbar button[data-transition-id]")).toHaveCount(5);
+    await expect(appFrame(page).locator(".navbar button[data-transition-id]")).toHaveCount(0);
 
     await page.getByRole("button", { name: "App zur\u00fccksetzen", exact: true }).click();
     await expect(appFrame(page).locator(".navbar")).toContainText("Site Header");
@@ -3044,7 +3049,7 @@ test.describe("State Blueprint tool", () => {
     };
     await openStandalonePage();
 
-    const expectRentalStandaloneShell = async (stateId, title) => {
+    const expectRentalStandaloneShell = async (stateId, title, options = {}) => {
       await expect.poll(async () => standalone.locator("body").evaluate(() => {
         const text = element => (element?.textContent || "").trim();
         return {
@@ -3052,6 +3057,7 @@ test.describe("State Blueprint tool", () => {
           title: text(document.querySelector("#screen > h1")),
           navbarCount: document.querySelectorAll(".navbar").length,
           navbarHasBrand: text(document.querySelector(".navbar")).includes("Wohnung anfragen"),
+          footerCount: document.querySelectorAll(".footer").length,
           footerHasBrand: text(document.querySelector(".footer")).includes("Digitalisierungsplanung.de"),
           hasOverflow: document.body.scrollWidth > document.body.clientWidth + 2,
           editorExportButtons: document.querySelectorAll("#btnExport").length
@@ -3061,7 +3067,8 @@ test.describe("State Blueprint tool", () => {
         title,
         navbarCount: 1,
         navbarHasBrand: true,
-        footerHasBrand: true,
+        footerCount: options.footer ? 1 : 0,
+        footerHasBrand: Boolean(options.footer),
         hasOverflow: false,
         editorExportButtons: 0
       });
@@ -3072,7 +3079,7 @@ test.describe("State Blueprint tool", () => {
       )).toBeLessThanOrEqual(2);
     };
 
-    await expectRentalStandaloneShell("site_map", "So läuft die Anfrage");
+    await expectRentalStandaloneShell("site_map", "So läuft die Anfrage", { footer: true });
     await expect(standalone.getByRole("heading", { name: "Wohnung anfragen: Wunsch bis Besichtigung", exact: true })).toBeVisible();
     await expect(standalone.getByText("Ich gebe kurz an, was ich suche").first()).toBeVisible();
     await expect(standalone.getByRole("link", { name: "Editor öffnen" }).first()).toHaveAttribute("href", /state\.html\?demo=zustand$/);
@@ -3083,6 +3090,7 @@ test.describe("State Blueprint tool", () => {
     await expectRentalStandaloneShell("site_wish", "Wohnwunsch angeben");
     await expect(runtimeTextInput(standalone, "Wo suche ich?")).toBeVisible();
     await expect(runtimeSelect(standalone, "Wohnungsgröße")).toBeVisible();
+    await expect(runtimeDateInput(standalone, "Einzug ab")).toHaveValue("2026-09-01");
     await standalone.getByRole("button", { name: "Kontakt angeben", exact: true }).click();
     await expectRentalStandaloneShell("site_contact", "Kontakt angeben");
     await expect(runtimeTextInput(standalone, "Mein Name")).toBeVisible();
@@ -8400,6 +8408,95 @@ test.describe("State Blueprint tool", () => {
     })).toBe("");
     await expect(app.getByRole("link", { name: "Editor öffnen", exact: true })).toHaveAttribute("href", "https://example.com/reopened");
     await expect(app.getByRole("button", { name: "Editor öffnen", exact: true })).toHaveCount(0);
+  });
+
+  test("materializes Stripe pricing preset as URL-only CTAs without FSM glue @smoke", async ({ page }) => {
+    await openTool(page);
+
+    const audit = await page.evaluate(() => {
+      const template = builtinStateTemplates().find(item => item.id === "builtin_daisy_stripe_pricing");
+      if (!template) throw new Error("missing_stripe_pricing_preset");
+      const instance = instantiateStateTemplate(template, 160, 160, null);
+      const root = instance.root;
+      const component = root.components.find(item => item.type === "daisy" && item.variant === "pricing");
+      const data = stateScopedComponentData(root, component);
+      loadEditorModel({
+        version: 2,
+        name: "Stripe Pricing",
+        initial: root.id,
+        boundary: normalizeBoundaryConfig({ entryId: root.id, exitId: root.id }),
+        states: instance.states,
+        transitions: instance.transitions
+      }, false);
+      return {
+        rootId: root.id,
+        dataPath: component?.dataPath || "",
+        transitions: instance.transitions.map(transition => transition.id),
+        flowItems: daisyFlowActionItems(component, data),
+        plans: data.plans.map(plan => ({
+          title: plan.title,
+          price: plan.price,
+          period: plan.period,
+          actionLabel: plan.actionLabel,
+          transitionId: plan.transitionId || "",
+          url: plan.url || "",
+          mode: plan.checkout?.mode || "",
+          amount: plan.stripe?.unitAmountCents || 0,
+          quantityMode: plan.stripe?.quantityMode || ""
+        }))
+      };
+    });
+
+    expect(audit.dataPath).toMatch(/^states\.[a-z0-9_]+\.?$/);
+    expect(audit.transitions).toEqual([]);
+    expect(audit.flowItems).toEqual([]);
+    expect(audit.plans).toEqual([
+      {
+        title: "Starter",
+        price: "49,99 EUR",
+        period: "pro Benutzer / Monat",
+        actionLabel: "Starter buchen",
+        transitionId: "",
+        url: "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=starter&quantity=1",
+        mode: "checkout_session",
+        amount: 4999,
+        quantityMode: "per_user"
+      },
+      {
+        title: "Expert",
+        price: "199 EUR",
+        period: "/Monat",
+        actionLabel: "Expert buchen",
+        transitionId: "",
+        url: "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=expert&quantity=1",
+        mode: "checkout_session",
+        amount: 19900,
+        quantityMode: "workspace"
+      },
+      {
+        title: "Volumen & Unternehmen",
+        price: "Auf Anfrage",
+        period: "",
+        actionLabel: "Anfrage stellen",
+        transitionId: "",
+        url: "mailto:kontakt@digitalisierungsplanung.de?subject=Volumen%20%26%20Unternehmen%20anfragen",
+        mode: "request",
+        amount: 0,
+        quantityMode: ""
+      }
+    ]);
+
+    const app = appFrame(page);
+    await expect(app.locator("#statePill")).toHaveText(audit.rootId);
+    const starter = app.getByRole("link", { name: "Starter buchen", exact: true });
+    const expert = app.getByRole("link", { name: "Expert buchen", exact: true });
+    const enterprise = app.getByRole("link", { name: "Anfrage stellen", exact: true });
+    await expect(starter).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=starter&quantity=1");
+    await expect(expert).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=expert&quantity=1");
+    await expect(enterprise).toHaveAttribute("href", "mailto:kontakt@digitalisierungsplanung.de?subject=Volumen%20%26%20Unternehmen%20anfragen");
+    await expect(app.getByRole("button", { name: "Starter buchen", exact: true })).toHaveCount(0);
+    await expect(app.getByRole("button", { name: "Expert buchen", exact: true })).toHaveCount(0);
+    await expect(app.locator("[data-transition-id]")).toHaveCount(0);
   });
 
   test("edits and reorders assigned widgets from their visible state list @smoke", async ({ page }) => {
