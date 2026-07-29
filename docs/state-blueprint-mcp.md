@@ -42,6 +42,12 @@ Workspace-Dateien; Definitionen werden nur mit
 öffentlichen Werkzeuge, Aktionen und Befehle sind exakt und besitzen keine
 Kompatibilitätsaliasse.
 
+`state_blueprint_export_definition` gibt die formale `.state.json` wie der
+Editor-Speichern-Flow zurueck und kann sie mit `outputPath` direkt als Datei
+schreiben. `state_blueprint_import_definition` ist der passende Load-Flow; er
+nimmt entweder `definition` als JSON-Objekt oder `json` als JSON string entgegen
+und schreibt danach wieder nur den MCP-Workspace.
+
 ## Werkzeuge
 
 - `state_blueprint_get_model`
@@ -136,6 +142,27 @@ nicht über DOM-Klicks.
     { "type": "upsert_transition", "id": "formular_fertig", "from": "formular", "to": "fertig", "label": "Absenden", "condition": "states.formular.email" },
     { "type": "set_initial", "stateId": "formular" }
   ]
+}
+```
+
+## Beispiel: Definition exportieren und laden
+
+```json
+{
+  "name": "state_blueprint_export_definition",
+  "arguments": {
+    "outputPath": "./dist/ablauf.state.json",
+    "includeDefinition": false
+  }
+}
+```
+
+```json
+{
+  "name": "state_blueprint_import_definition",
+  "arguments": {
+    "json": "{\"kind\":\"state-blueprint-definition\",\"schemaVersion\":2,\"model\":{\"version\":2,\"name\":\"Importiert\",\"states\":[],\"transitions\":[]},\"stateTemplates\":[]}"
+  }
 }
 ```
 

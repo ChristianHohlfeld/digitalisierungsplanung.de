@@ -56,8 +56,8 @@ Minimaler JSON-RPC-Aufruf:
 | `state_blueprint_plan_prompt` | Wandelt eine unterstützte Textanweisung in Modellaktionen um, ohne zu schreiben. |
 | `state_blueprint_apply_prompt` | Wandelt eine unterstützte Textanweisung in Modellaktionen um und wendet sie an. |
 | `state_blueprint_validate` | Validiert das Modell gegen den FSM-/Bus-Vertrag. |
-| `state_blueprint_export_definition` | Liefert die formale `.state.json`-Definition. |
-| `state_blueprint_import_definition` | Importiert eine formale `.state.json`-Definition. |
+| `state_blueprint_export_definition` | Liefert die formale `.state.json`-Definition oder schreibt sie als Datei. |
+| `state_blueprint_import_definition` | Laedt/importiert eine formale `.state.json`-Definition aus Objekt oder JSON string. |
 | `state_blueprint_export_html` | Baut dieselbe eigenständige HTML-App wie der Editor-Export. |
 | `state_blueprint_action_catalog` | Liefert Modellaktionsnamen und Prompt-Beispiele. |
 | `state_blueprint_command_catalog` | Liefert alle programmatischen Editorbefehle. |
@@ -848,11 +848,38 @@ Timer-Übergänge werden nicht als Schaltflächen gerendert.
 {"name":"state_blueprint_export_definition","arguments":{}}
 ```
 
+Definition in eine Datei schreiben:
+
+```json
+{
+  "name": "state_blueprint_export_definition",
+  "arguments": {
+    "outputPath": "./dist/ablauf.state.json",
+    "includeDefinition": false
+  }
+}
+```
+
 ### Import `.state.json`
 
 ```json
 {"name":"state_blueprint_import_definition","arguments":{"definition":{"kind":"state-blueprint-definition","schemaVersion":2,"model":{"version":2,"name":"Importiert","states":[],"transitions":[]},"stateTemplates":[]}}}
 ```
+
+Dasselbe Laden geht ohne Dateipfad mit einem JSON string:
+
+```json
+{
+  "name": "state_blueprint_import_definition",
+  "arguments": {
+    "json": "{\"kind\":\"state-blueprint-definition\",\"schemaVersion\":2,\"model\":{\"version\":2,\"name\":\"Importiert\",\"states\":[],\"transitions\":[]},\"stateTemplates\":[]}"
+  }
+}
+```
+
+Der Import schreibt wieder den MCP-Workspace im Schema
+`state-blueprint.workspace`/`schemaVersion: 1`; die `.state.json` selbst wird
+nicht als Workspace-Datei behandelt.
 
 ### Eigenständiges HTML exportieren
 

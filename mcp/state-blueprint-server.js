@@ -87,6 +87,47 @@ function buildStandaloneAppHtml(appHtml, payload) {
   return html;
 }
 
+function parseDefinitionInput(args = {}) {
+  const hasDefinition = Object.prototype.hasOwnProperty.call(args, "definition");
+  const hasJson = Object.prototype.hasOwnProperty.call(args, "json");
+  if (hasDefinition && hasJson) throw new Error("Use either definition or json, not both.");
+  if (!hasDefinition && !hasJson) throw new Error("Load expects a formal .state.json object in definition or a JSON string in json.");
+  let definition = hasDefinition ? args.definition : args.json;
+  if (typeof definition === "string") {
+    try {
+      definition = JSON.parse(definition);
+    } catch (_) {
+      throw new Error("json must contain valid formal .state.json JSON.");
+    }
+  }
+  if (!definition || typeof definition !== "object" || Array.isArray(definition)) {
+    throw new Error("Load expects a formal .state.json object.");
+  }
+  return definition;
+}
+
+function validatedDefinitionWorkspace(definition) {
+  if (definition.kind !== "state-blueprint-definition" || definition.schemaVersion !== 2) {
+    throw new Error('Import expects kind "state-blueprint-definition" with schemaVersion 2.');
+  }
+  if (Array.isArray(definition.stateTemplates) && definition.stateTemplates.length) {
+    throw new Error("Imported definitions must not contain local stateTemplates.");
+  }
+  const validation = validateModel(definition.model);
+  if (!validation.ok) {
+    const error = new Error("Imported definition violates the model contract.");
+    error.validation = validation;
+    throw error;
+  }
+  return {
+    validation,
+    workspace: {
+      model: validation.model,
+      editor: { camera: definition.camera, previewCollapsed: definition.previewCollapsed }
+    }
+  };
+}
+
 function loadWorkspace(options = {}) {
   const modelPath = currentModelPath(options);
   const stored = readJsonFile(modelPath, null);
@@ -227,8 +268,11 @@ const tools = [
   },
   {
     name: "state_blueprint_export_definition",
-    description: "Return a formal .state.json definition payload compatible with the app import/export flow.",
-    inputSchema: jsonSchema({})
+    description: "Return or write a formal .state.json definition payload compatible with the app Save/Load flow.",
+    inputSchema: jsonSchema({
+      outputPath: { type: "string", description: "Optional file path to write the final loadable .state.json. Relative paths resolve from the current working directory." },
+      includeDefinition: { type: "boolean", description: "Return the definition JSON in the response. Defaults to true when outputPath is omitted." }
+    })
   },
   {
     name: "state_blueprint_export_html",
@@ -240,10 +284,11 @@ const tools = [
   },
   {
     name: "state_blueprint_import_definition",
-    description: "Import a formal State Blueprint definition payload into the MCP workspace file.",
+    description: "Load/import a formal State Blueprint .state.json definition into the MCP workspace file.",
     inputSchema: jsonSchema({
-      definition: { type: "object", description: "Formal state-blueprint-definition JSON." }
-    }, ["definition"])
+      definition: { type: "object", description: "Formal state-blueprint-definition JSON object." },
+      json: { type: "string", description: "Stringified formal .state.json payload. Use instead of definition." }
+    })
   },
   {
     name: "state_blueprint_action_catalog",
@@ -364,7 +409,31 @@ function callTool(name, args = {}, options = {}) {
   }
   if (name === "state_blueprint_export_definition") {
     const workspace = loadWorkspace(options);
-    return definitionPayload(workspace.model, [], workspace.editor);
+    const payload = definitionPayload(workspace.model, [], workspace.editor);
+    const includeDefinition = Object.prototype.hasOwnProperty.call(args, "includeDefinition")
+      ? Boolean(args.includeDefinition)
+      : !args.outputPath;
+    const text = JSON.stringify(payload, null, 2) + "\n";
+    if (!args.outputPath && includeDefinition) return payload;
+    let outputPath = "";
+    if (args.outputPath) {
+      outputPath = path.resolve(process.cwd(), String(args.outputPath));
+      fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+      fs.writeFileSync(outputPath, text, "utf8");
+    }
+    return {
+      modelPath,
+      outputPath,
+      file: outputPath ? {
+        path: outputPath,
+        name: path.basename(outputPath),
+        mimeType: "application/json",
+        bytes: Buffer.byteLength(text, "utf8")
+      } : undefined,
+      mimeType: "application/json",
+      bytes: Buffer.byteLength(text, "utf8"),
+      definition: includeDefinition ? payload : undefined
+    };
   }
   if (name === "state_blueprint_export_html") {
     const workspace = loadWorkspace(options);
@@ -388,23 +457,7 @@ function callTool(name, args = {}, options = {}) {
     };
   }
   if (name === "state_blueprint_import_definition") {
-    const definition = args.definition || {};
-    if (definition.kind !== "state-blueprint-definition" || definition.schemaVersion !== 2) {
-      throw new Error('Import expects kind "state-blueprint-definition" with schemaVersion 2.');
-    }
-    if (Array.isArray(definition.stateTemplates) && definition.stateTemplates.length) {
-      throw new Error("Imported definitions must not contain local stateTemplates.");
-    }
-    const validation = validateModel(definition.model);
-    if (!validation.ok) {
-      const error = new Error("Imported definition violates the model contract.");
-      error.validation = validation;
-      throw error;
-    }
-    const workspace = {
-      model: validation.model,
-      editor: { camera: definition.camera, previewCollapsed: definition.previewCollapsed }
-    };
+    const { validation, workspace } = validatedDefinitionWorkspace(parseDefinitionInput(args));
     saveWorkspace(workspace, options);
     return { modelPath, validation, summary: modelSummary(workspace.model) };
   }
@@ -500,6 +553,7 @@ function readResource(uri, options = {}) {
           "- The canonical model JSON is the only persisted product definition; editor session data stays in the workspace envelope.",
           "- Runtime truth remains the single global state/event bus.",
           "- MCP persistence uses only `state-blueprint.workspace` schemaVersion 1; definitions enter through the import tool.",
+          "- `state_blueprint_export_definition` may write the final loadable `.state.json`; `state_blueprint_import_definition` is the matching JSON load path.",
           "- Tool, action, command, and field names are exact. There are no compatibility aliases.",
           "- State variables are declared as `state.data` plus `state.dataTypes`; they are defaults, not local runtime storage.",
           "- State-variable declaration paths are local; runtime references use fully qualified `states.<id>.*` bus paths.",

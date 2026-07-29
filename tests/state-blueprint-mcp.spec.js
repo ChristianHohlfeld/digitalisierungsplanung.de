@@ -493,6 +493,8 @@ test.describe("State Blueprint MCP", () => {
     expect(apiDoc).toContain("`realtime`");
     expect(apiDoc).toContain("triggerType");
     expect(apiDoc).toContain("state_blueprint_apply_commands");
+    expect(apiDoc).toContain("outputPath");
+    expect(apiDoc).toContain("JSON string");
     expect(apiDoc).toContain("graph.insert_state_on_transition");
     expect(apiDoc).toContain("graph.collapse_to_parent");
     expect(apiDoc).toContain("graph.degroup_parent");
@@ -928,12 +930,42 @@ test.describe("State Blueprint MCP", () => {
       }));
       expect(exported.structuredContent.history).toBeUndefined();
 
+      const definitionPath = path.join(tempDir, "command-flow.state.json");
+      const exportedFile = await client.request("tools/call", {
+        name: "state_blueprint_export_definition",
+        arguments: { outputPath: definitionPath, includeDefinition: false }
+      });
+      expect(exportedFile.structuredContent.outputPath).toBe(definitionPath);
+      expect(exportedFile.structuredContent.mimeType).toBe("application/json");
+      expect(exportedFile.structuredContent.file).toEqual(expect.objectContaining({
+        path: definitionPath,
+        name: "command-flow.state.json",
+        mimeType: "application/json",
+        bytes: expect.any(Number)
+      }));
+      expect(exportedFile.structuredContent.bytes).toBeGreaterThan(100);
+      expect(exportedFile.structuredContent.definition).toBeUndefined();
+      const exportedFileDefinition = JSON.parse(fs.readFileSync(definitionPath, "utf8"));
+      expect(exportedFileDefinition.kind).toBe("state-blueprint-definition");
+      expect(exportedFileDefinition.schemaVersion).toBe(2);
+      expect(exportedFileDefinition.stateTemplates).toEqual([]);
+      expect(exportedFileDefinition.model.states.map(state => state.id)).toEqual(["start", "done"]);
+      expect(exportedFileDefinition.history).toBeUndefined();
+
       const imported = await client.request("tools/call", {
         name: "state_blueprint_import_definition",
         arguments: { definition: exported.structuredContent }
       });
       expect(imported.structuredContent.validation.ok).toBe(true);
       expect(imported.structuredContent.validation.model.states.map(state => state.id)).toEqual(["start", "done"]);
+
+      const loadedJson = await client.request("tools/call", {
+        name: "state_blueprint_import_definition",
+        arguments: { json: fs.readFileSync(definitionPath, "utf8") }
+      });
+      expect(loadedJson.structuredContent.validation.ok).toBe(true);
+      expect(loadedJson.structuredContent.summary.name).toBe("Command MCP Flow");
+      expect(loadedJson.structuredContent.validation.model.states.map(state => state.id)).toEqual(["start", "done"]);
       const importedStored = JSON.parse(fs.readFileSync(modelPath, "utf8"));
       expect(importedStored.model.states.map(state => state.id)).toEqual(["start", "done"]);
     } finally {

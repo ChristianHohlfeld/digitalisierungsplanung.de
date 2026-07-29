@@ -268,6 +268,11 @@ werden über das Importwerkzeug eingelesen. Nackte Modelle, alte Feldnamen und
 Aliasbefehle werden nicht migriert. Preview, Editor-Export und MCP-Export nutzen
 dieselbe eingebettete Runtime.
 
+`state_blueprint_export_definition` kann die finale `.state.json` mit
+`outputPath` als Download-Datei schreiben. `state_blueprint_import_definition`
+laedt dieselbe Definition wieder aus einem JSON-Objekt oder JSON string und
+persistiert danach ausschliesslich den MCP-Workspace.
+
 Start:
 
 ```bash

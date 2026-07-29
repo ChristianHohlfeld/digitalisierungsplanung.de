@@ -903,6 +903,11 @@ und Parent-Ausgänge an ihrem `groupExitId`.
   anwenden.
 - **API-009 Exportgleichheit:** API-/MCP-Definition und HTML-Export MÜSSEN den
   Editor-Exportvertrag einhalten.
+  `state_blueprint_export_definition` DARF die finale formale `.state.json`
+  zusaetzlich per `outputPath` als Datei schreiben;
+  `state_blueprint_import_definition` MUSS dieselbe Definition aus JSON-Objekt
+  oder JSON string laden und danach wieder ausschliesslich den
+  `state-blueprint.workspace` persistieren.
 - **API-010 Keine Editor-Gruppenaktionen:** Die API DARF keine fachlichen
   `editorGroup`-Abkürzungen anbieten. Gruppierung erfolgt als echter Parent mit
   `parentId` und Boundary.
