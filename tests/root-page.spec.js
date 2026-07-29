@@ -25,15 +25,16 @@ test.describe("Root demo export", () => {
   test("serves the single Zustand demo at root @smoke", async ({ page }) => {
     const html = fs.readFileSync("index.html", "utf8");
     expect(html).toContain("EXPORTED_STATE_BLUEPRINT");
-    expect(html).toContain("<title>Wohnung anfragen: Wunsch bis Besichtigung</title>");
-    expect(html).toContain('"name":"Wohnung anfragen: Wunsch bis Besichtigung"');
-    expect(html).toContain('"initial":"site_map"');
-    expect(html).toContain('"site_wish"');
-    expect(html).toContain('"site_contact"');
-    expect(html).toContain('"site_visit"');
-    expect(html).toContain('"site_review"');
-    expect(html).toContain('"site_done"');
+    expect(html).toContain("<title>Prozessoptimierung mit Digitalisierungsplanung.de</title>");
+    expect(html).toContain('"name":"Prozessoptimierung mit Digitalisierungsplanung.de"');
+    expect(html).toContain('"initial":"site_overview"');
+    expect(html).toContain('"site_scope"');
+    expect(html).toContain('"site_map"');
+    expect(html).toContain('"site_improve"');
+    expect(html).toContain('"site_pricing"');
     expect(html).toContain("state.html?demo=zustand");
+    expect(html).not.toContain("Wohnung");
+    expect(html).not.toContain("Besichtigung");
     expect(html).toContain("/manifest.webmanifest");
     expect(html).toContain("/assets/share-card.png");
     expect(html).not.toContain('id="appFrame"');
@@ -66,14 +67,14 @@ test.describe("Root demo export", () => {
     await page.goto("/");
     await expect.poll(() => page.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).length)).toBe(0);
     await expect.poll(() => page.evaluate(async () => "caches" in window ? (await caches.keys()).length : 0)).toBe(0);
-    await expect(page).toHaveTitle("Wohnung anfragen: Wunsch bis Besichtigung");
+    await expect(page).toHaveTitle("Prozessoptimierung mit Digitalisierungsplanung.de");
     await expect(page.getByRole("button", { name: "Neu" })).toHaveCount(0);
     await expect(page.locator("#flowDebug")).toHaveCount(0);
-    await expect(page.locator("#statePill")).toHaveText("site_map");
-    await expect(page.getByRole("heading", { name: "Wohnung anfragen: Wunsch bis Besichtigung", exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Wohnung anfragen" }).first()).toBeVisible();
+    await expect(page.locator("#statePill")).toHaveText("site_overview");
+    await expect(page.getByRole("heading", { name: "Prozessoptimierung mit Digitalisierungsplanung.de", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Prozess optimieren" }).first()).toBeVisible();
     await expect(page.locator(".hero .card-actions.justify-center")).toHaveCSS("justify-content", "center");
-    await expect(page.locator(".navbar")).toContainText("Wohnung anfragen");
+    await expect(page.locator(".navbar")).toContainText("Digitalisierungsplanung.de");
 
     const footerGeometry = () => page.locator(".footer").evaluate(footer => {
       const style = getComputedStyle(footer);
@@ -139,29 +140,27 @@ test.describe("Root demo export", () => {
     const demoControl = (label, selector) =>
       page.locator(".daisy-widget").filter({ hasText: label }).locator(selector).first();
 
-    await expectDemoStep("site_map", "So läuft die Anfrage");
-    await page.getByRole("button", { name: "Wohnung anfragen", exact: true }).click();
-    await expectDemoStep("site_wish", "Wohnwunsch angeben");
-    await expect(demoControl("Wo suche ich?", "input")).toBeVisible();
-    await expect(demoControl("Wohnungsgröße", "select")).toBeVisible();
+    await expectDemoStep("site_overview", "So funktioniert das Tool");
+    await page.getByRole("button", { name: "Prozess optimieren", exact: true }).click();
+    await expectDemoStep("site_scope", "Prozess eingrenzen");
+    await expect(demoControl("Welchen Prozess will ich verbessern?", "input")).toBeVisible();
+    await expect(demoControl("Was bremst aktuell?", "select")).toBeVisible();
 
-    await page.getByRole("button", { name: "Kontakt angeben", exact: true }).click();
-    await expectDemoStep("site_contact", "Kontakt angeben");
-    await expect(demoControl("Mein Name", "input")).toBeVisible();
-    await expect(demoControl("Am besten erreichbar per", "select")).toBeVisible();
+    await page.getByRole("button", { name: "Landkarte prüfen", exact: true }).click();
+    await expectDemoStep("site_map", "Prozesslandkarte prüfen");
+    await expect(demoControl("Wo entsteht Reibung?", "select")).toBeVisible();
 
-    await page.getByRole("button", { name: "Besichtigung wählen", exact: true }).click();
-    await expectDemoStep("site_visit", "Besichtigung wählen");
-    await expect(demoControl("Wann passt es?", "select")).toBeVisible();
-    await expect(demoControl("Kurze Nachricht", "textarea")).toBeVisible();
+    await page.getByRole("button", { name: "Optimierung wählen", exact: true }).click();
+    await expectDemoStep("site_improve", "Optimierung wählen");
+    await expect(demoControl("Welche Verbesserung zuerst?", "select")).toBeVisible();
+    await expect(demoControl("Woran merkt mein Team den Nutzen?", "textarea")).toBeVisible();
 
-    await page.getByRole("button", { name: "Angaben prüfen", exact: true }).click();
-    await expectDemoStep("site_review", "Anfrage prüfen");
-    await expect(demoControl("Ich darf wegen dieser Anfrage kontaktiert werden.", "input[type=checkbox]")).toBeChecked();
-
-    await page.getByRole("button", { name: "Anfrage abschicken", exact: true }).click();
-    await expectDemoStep("site_done", "Anfrage gesendet");
-    await expect(page.getByRole("heading", { name: "Anfrage ist raus", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Paket wählen", exact: true }).click();
+    await expectDemoStep("site_pricing", "Paket wählen");
+    await expect(page.getByRole("heading", { name: "Jetzt als Tool nutzen", exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Starter buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=starter&quantity=1");
+    await expect(page.getByRole("link", { name: "Expert buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=expert&quantity=1");
+    await expect(page.getByRole("link", { name: "Gespräch anfragen", exact: true })).toHaveAttribute("href", "mailto:kontakt@digitalisierungsplanung.de?subject=Volumen%20%26%20Unternehmen%20anfragen");
 
     await page.reload({ waitUntil: "load" });
     await expect.poll(() => page.evaluate(() => window.__safariLateRestoreApplied === true)).toBe(true);

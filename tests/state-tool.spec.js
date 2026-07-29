@@ -2510,8 +2510,8 @@ test.describe("State Blueprint tool", () => {
 
     await expect(page).toHaveURL(/\/state\.html$/);
     await expect(page.getByRole("dialog", { name: "Beispielablauf laden" })).toBeHidden();
-    await expect(page.locator('[data-id="site_map"]')).toBeVisible();
-    await expect(appFrame(page).locator("#statePill")).toHaveText("site_map");
+    await expect(page.locator('[data-id="site_overview"]')).toBeVisible();
+    await expect(appFrame(page).locator("#statePill")).toHaveText("site_overview");
     await expect.poll(async () => {
       const model = await savedModel(page);
       return {
@@ -2521,10 +2521,10 @@ test.describe("State Blueprint tool", () => {
         userTransitions: userTransitions(model).length
       };
     }).toEqual({
-      name: "Wohnung anfragen: Wunsch bis Besichtigung",
-      initial: "site_map",
-      stateIds: ["site_contact", "site_done", "site_map", "site_review", "site_visit", "site_wish"],
-      userTransitions: 5
+      name: "Prozessoptimierung mit Digitalisierungsplanung.de",
+      initial: "site_overview",
+      stateIds: ["site_improve", "site_map", "site_overview", "site_pricing", "site_scope"],
+      userTransitions: 4
     });
 
     await page.goto("/state.html?demo=zustand");
@@ -2555,8 +2555,8 @@ test.describe("State Blueprint tool", () => {
     await expect(page).toHaveURL(/\/state\.html$/);
     await expect(page.getByRole("dialog", { name: "Beispielablauf laden" })).toBeHidden();
     await expect(page.getByRole("button", { name: "Mit Beispiel neu starten" })).toHaveCount(0);
-    await expect(page.locator('[data-id="site_map"]')).toBeVisible();
-    await expect(appFrame(page).locator("#statePill")).toHaveText("site_map");
+    await expect(page.locator('[data-id="site_overview"]')).toBeVisible();
+    await expect(appFrame(page).locator("#statePill")).toHaveText("site_overview");
     await expect.poll(async () => {
       const model = await savedModel(page);
       return {
@@ -2567,11 +2567,11 @@ test.describe("State Blueprint tool", () => {
         userTransitions: userTransitions(model).length
       };
     }).toEqual({
-      name: "Wohnung anfragen: Wunsch bis Besichtigung",
-      initial: "site_map",
+      name: "Prozessoptimierung mit Digitalisierungsplanung.de",
+      initial: "site_overview",
       hasStarterOnly: false,
-      stateIds: ["site_contact", "site_done", "site_map", "site_review", "site_visit", "site_wish"],
-      userTransitions: 5
+      stateIds: ["site_improve", "site_map", "site_overview", "site_pricing", "site_scope"],
+      userTransitions: 4
     });
   });
 
@@ -2749,8 +2749,8 @@ test.describe("State Blueprint tool", () => {
 
     await dialog.getByRole("button", { name: "Mit Beispiel neu starten" }).click();
 
-    await expect(page.locator('[data-id="site_map"]')).toBeVisible();
-    await expect(appFrame(page).locator("#statePill")).toHaveText("site_map");
+    await expect(page.locator('[data-id="site_overview"]')).toBeVisible();
+    await expect(appFrame(page).locator("#statePill")).toHaveText("site_overview");
     await expect.poll(async () => {
       const model = await savedModel(page);
       return {
@@ -2761,15 +2761,15 @@ test.describe("State Blueprint tool", () => {
         userTransitions: userTransitions(model).length
       };
     }).toEqual({
-      name: "Wohnung anfragen: Wunsch bis Besichtigung",
-      initial: "site_map",
+      name: "Prozessoptimierung mit Digitalisierungsplanung.de",
+      initial: "site_overview",
       hasOldLocalModel: false,
-      stateIds: ["site_contact", "site_done", "site_map", "site_review", "site_visit", "site_wish"],
-      userTransitions: 5
+      stateIds: ["site_improve", "site_map", "site_overview", "site_pricing", "site_scope"],
+      userTransitions: 4
     });
   });
 
-  test("loads a clean website demo scene with a simple apartment inquiry process @smoke", async ({ page }) => {
+  test("loads a clean website demo scene with a simple process optimization flow @smoke", async ({ page }) => {
     test.setTimeout(45000);
     await openTool(page);
 
@@ -2777,10 +2777,10 @@ test.describe("State Blueprint tool", () => {
     await page.getByRole("button", { name: "Beispielablauf laden" }).click();
     await page.getByRole("button", { name: "Mit Beispiel neu starten" }).click();
 
-    const rentalStateIds = ["site_contact", "site_done", "site_map", "site_review", "site_visit", "site_wish"];
-    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(rentalStateIds.length);
-    await expect(page.locator('[data-id="site_map"]')).toBeVisible();
-    await expect(page.locator('[data-id="site_done"]')).toBeVisible();
+    const productStateIds = ["site_improve", "site_map", "site_overview", "site_pricing", "site_scope"];
+    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(productStateIds.length);
+    await expect(page.locator('[data-id="site_overview"]')).toBeVisible();
+    await expect(page.locator('[data-id="site_pricing"]')).toBeVisible();
 
     await expect.poll(async () => {
       const model = await savedModel(page);
@@ -2796,70 +2796,72 @@ test.describe("State Blueprint tool", () => {
         scopedDataOnly: model.states.every(state =>
           Object.keys(state.data || {}).every(key => /^[A-Za-z_][A-Za-z0-9_]*$/.test(key))
         ),
-        hasLegacyRoutes: /site_login|site_profile|site_pricing|site_checkout/.test(JSON.stringify(model))
+        hasLegacyRoutes: /site_login|site_profile|site_checkout/.test(JSON.stringify(model))
       };
     }).toEqual({
-      name: "Wohnung anfragen: Wunsch bis Besichtigung",
-      initial: "site_map",
-      stateIds: rentalStateIds,
-      userTransitions: 5,
-      boundary: { entryId: "site_map", exitId: "site_done" },
+      name: "Prozessoptimierung mit Digitalisierungsplanung.de",
+      initial: "site_overview",
+      stateIds: productStateIds,
+      userTransitions: 4,
+      boundary: { entryId: "site_overview", exitId: "site_pricing" },
       scopedDataOnly: true,
       hasLegacyRoutes: false
     });
 
-    const rentalApp = appFrame(page);
-    const expectRentalNoHorizontalOverflow = async () => {
-      await expect.poll(async () => rentalApp.locator("body").evaluate(body =>
+    const productApp = appFrame(page);
+    const expectProductNoHorizontalOverflow = async () => {
+      await expect.poll(async () => productApp.locator("body").evaluate(body =>
         Math.round(body.scrollWidth - body.clientWidth)
       )).toBeLessThanOrEqual(2);
     };
-    const expectRentalStep = async (stateId, title) => {
-      await expect(rentalApp.locator("#statePill")).toHaveText(stateId);
-      await expect(rentalApp.locator("#screen > h1")).toHaveText(title);
-      await expectRentalNoHorizontalOverflow();
+    const expectProductStep = async (stateId, title) => {
+      await expect(productApp.locator("#statePill")).toHaveText(stateId);
+      await expect(productApp.locator("#screen > h1")).toHaveText(title);
+      await expectProductNoHorizontalOverflow();
     };
 
-    await expectRentalStep("site_map", "So läuft die Anfrage");
-    await expect(rentalApp.getByRole("heading", { name: "Wohnung anfragen: Wunsch bis Besichtigung", exact: true })).toBeVisible();
-    await expect(rentalApp.locator('.hero[style*="photo-1560518883-ce09059eeffa"]')).toBeVisible();
-    await expect(rentalApp.getByText("Ich gebe kurz an, was ich suche").first()).toBeVisible();
-    await expect(rentalApp.getByRole("link", { name: "Editor öffnen" }).first()).toHaveAttribute("href", /state\.html\?demo=zustand$/);
+    await expectProductStep("site_overview", "So funktioniert das Tool");
+    await expect(productApp.getByRole("heading", { name: "Prozessoptimierung mit Digitalisierungsplanung.de", exact: true })).toBeVisible();
+    await expect(productApp.locator('.hero[style*="photo-1556761175-b413da4baf72"]')).toBeVisible();
+    await expect(productApp.getByText("Der Nutzer beschreibt einen echten Unternehmensprozess").first()).toBeVisible();
+    await expect(productApp.getByRole("link", { name: "Editor öffnen" }).first()).toHaveAttribute("href", /state\.html\?demo=zustand$/);
 
-    await rentalApp.getByRole("button", { name: "Wohnung anfragen", exact: true }).click();
-    await expectRentalStep("site_wish", "Wohnwunsch angeben");
-    await expect(runtimeTextInput(rentalApp, "Wo suche ich?")).toBeVisible();
-    await expect(runtimeSelect(rentalApp, "Wohnungsgröße")).toBeVisible();
-    const moveDate = runtimeDateInput(rentalApp, "Einzug ab");
+    await productApp.getByRole("button", { name: "Prozess optimieren", exact: true }).click();
+    await expectProductStep("site_scope", "Prozess eingrenzen");
+    await expect(runtimeTextInput(productApp, "Welchen Prozess will ich verbessern?")).toBeVisible();
+    await expect(runtimeSelect(productApp, "Was bremst aktuell?")).toBeVisible();
+    const moveDate = runtimeDateInput(productApp, "Pilot starten ab");
     await expect(moveDate).toHaveValue("2026-09-01");
     await moveDate.evaluate(input => {
       window.__calendarShowPickerCalls = 0;
       input.showPicker = () => { window.__calendarShowPickerCalls += 1; };
     });
     await moveDate.click();
-    await expect.poll(async () => rentalApp.locator("html").evaluate(() => window.__calendarShowPickerCalls || 0)).toBe(1);
+    await expect.poll(async () => productApp.locator("html").evaluate(() => window.__calendarShowPickerCalls || 0)).toBe(1);
     await moveDate.focus();
     await page.keyboard.press("ArrowUp");
     await expect.poll(async () => moveDate.inputValue()).not.toBe("2026-09-01");
     const changedMoveDate = await moveDate.inputValue();
     expect(changedMoveDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     await expect(moveDate).toBeFocused();
-    await expect(runtimeTextInput(rentalApp, "Wo suche ich?")).not.toBeFocused();
-    await expect.poll(async () => (await runtimeContext(page)).states?.site_wish?.move?.value).toBe(changedMoveDate);
-    await rentalApp.getByRole("button", { name: "Kontakt angeben", exact: true }).click();
-    await expectRentalStep("site_contact", "Kontakt angeben");
-    await expect(runtimeTextInput(rentalApp, "Mein Name")).toBeVisible();
-    await expect(runtimeSelect(rentalApp, "Am besten erreichbar per")).toBeVisible();
-    await rentalApp.getByRole("button", { name: "Besichtigung wählen", exact: true }).click();
-    await expectRentalStep("site_visit", "Besichtigung wählen");
-    await expect(runtimeSelect(rentalApp, "Wann passt es?")).toBeVisible();
-    await expect(runtimeTextarea(rentalApp, "Kurze Nachricht")).toBeVisible();
-    await rentalApp.getByRole("button", { name: "Angaben prüfen", exact: true }).click();
-    await expectRentalStep("site_review", "Anfrage prüfen");
-    await expect(runtimeCheckbox(rentalApp, "Ich darf wegen dieser Anfrage kontaktiert werden.")).toBeChecked();
-    await rentalApp.getByRole("button", { name: "Anfrage abschicken", exact: true }).click();
-    await expectRentalStep("site_done", "Anfrage gesendet");
-    await expect(rentalApp.getByRole("heading", { name: "Anfrage ist raus", exact: true })).toBeVisible();
+    await expect(runtimeTextInput(productApp, "Welchen Prozess will ich verbessern?")).not.toBeFocused();
+    await expect.poll(async () => (await runtimeContext(page)).states?.site_scope?.pilot?.value).toBe(changedMoveDate);
+    await productApp.getByRole("button", { name: "Landkarte prüfen", exact: true }).click();
+    await expectProductStep("site_map", "Prozesslandkarte prüfen");
+    await expect(productApp.getByText("Sichtbar gemacht").first()).toBeVisible();
+    await expect(productApp.getByText("5 Zustände").first()).toBeVisible();
+    await expect(runtimeSelect(productApp, "Wo entsteht Reibung?")).toBeVisible();
+    await productApp.getByRole("button", { name: "Optimierung wählen", exact: true }).click();
+    await expectProductStep("site_improve", "Optimierung wählen");
+    await expect(runtimeSelect(productApp, "Welche Verbesserung zuerst?")).toBeVisible();
+    await expect(runtimeTextarea(productApp, "Woran merkt mein Team den Nutzen?")).toBeVisible();
+    await productApp.getByRole("button", { name: "Paket wählen", exact: true }).click();
+    await expectProductStep("site_pricing", "Paket wählen");
+    await expect(productApp.getByRole("heading", { name: "Jetzt als Tool nutzen", exact: true })).toBeVisible();
+    await expect(productApp.getByRole("link", { name: "Starter buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=starter&quantity=1");
+    await expect(productApp.getByRole("link", { name: "Expert buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=expert&quantity=1");
+    await expect(productApp.getByRole("link", { name: "Gespräch anfragen", exact: true })).toHaveAttribute("href", "mailto:kontakt@digitalisierungsplanung.de?subject=Volumen%20%26%20Unternehmen%20anfragen");
+    await expect(productApp.getByRole("link", { name: "Editor öffnen" }).first()).toHaveAttribute("href", /state\.html\?demo=zustand$/);
   });
 
   test("website demo graph reaches every state and binds every transition by contract id @smoke", async ({ page }) => {
@@ -2869,8 +2871,8 @@ test.describe("State Blueprint tool", () => {
     const transitionIds = transitions.map(transition => transition.id);
     const allEntityIds = [...stateIds, ...transitionIds];
     expect(new Set(allEntityIds).size).toBe(allEntityIds.length);
-    expect(stateIds).toHaveLength(6);
-    expect(transitionIds).toHaveLength(5);
+    expect(stateIds).toHaveLength(5);
+    expect(transitionIds).toHaveLength(4);
 
     const stateIdSet = new Set(stateIds);
     for (const transition of transitions) {
@@ -2913,7 +2915,7 @@ test.describe("State Blueprint tool", () => {
     await page.locator("#topbarMore summary").click();
     await page.getByRole("button", { name: "Beispielablauf laden" }).click();
     await page.getByRole("button", { name: "Mit Beispiel neu starten" }).click();
-    await openStateInspector(page, "site_map");
+    await openStateInspector(page, "site_overview");
 
     const editor = await expandComponentEditor(page, "Baustein: Kopf-Navigation");
     await editor.getByLabel("Marke").fill("Site Header");
@@ -2921,10 +2923,10 @@ test.describe("State Blueprint tool", () => {
 
     await expect.poll(async () => {
       const model = await savedModel(page);
-      const state = model.states.find(item => item.id === "site_map");
+      const state = model.states.find(item => item.id === "site_overview");
       const navData = state?.data?.nav || {};
       return {
-        componentLabel: state?.components.find(component => component.id === "site_map_nav")?.dataLabel || "",
+        componentLabel: state?.components.find(component => component.id === "site_overview_nav")?.dataLabel || "",
         brand: navData.brand || "",
         layout: navData.layout || "",
         itemLabels: Array.isArray(navData.items) ? navData.items.map(item => item.label) : []
@@ -2941,7 +2943,7 @@ test.describe("State Blueprint tool", () => {
     await page.getByRole("button", { name: "App zur\u00fccksetzen", exact: true }).click();
     await expect(appFrame(page).locator(".navbar")).toContainText("Site Header");
     await expect(appFrame(page).locator(".navbar")).not.toContainText("Zustand");
-    await expect.poll(async () => (await runtimeContext(page)).states?.site_map?.nav?.brand).toBe("Site Header");
+    await expect.poll(async () => (await runtimeContext(page)).states?.site_overview?.nav?.brand).toBe("Site Header");
   });
 
   test("inlines image URLs into standalone HTML exports without changing the editor model", async ({ page }) => {
@@ -3018,7 +3020,7 @@ test.describe("State Blueprint tool", () => {
     await page.locator("#topbarMore summary").click();
     await page.getByRole("button", { name: "Beispielablauf laden" }).click();
     await page.getByRole("button", { name: "Mit Beispiel neu starten" }).click();
-    await expect(appFrame(page).locator("#statePill")).toHaveText("site_map");
+    await expect(appFrame(page).locator("#statePill")).toHaveText("site_overview");
 
     expect(await page.evaluate(() => {
       try {
@@ -3035,15 +3037,17 @@ test.describe("State Blueprint tool", () => {
     const html = fs.readFileSync(await htmlDownload.path(), "utf8");
 
     expect(html).toContain("<!doctype html>");
-    expect(html).toContain("<title>Wohnung anfragen: Wunsch bis Besichtigung</title>");
+    expect(html).toContain("<title>Prozessoptimierung mit Digitalisierungsplanung.de</title>");
     expect(html).toContain("const IS_STANDALONE_EXPORT = true");
     expect(html).toContain("const EXPORTED_STATE_BLUEPRINT = ");
-    expect(html).toContain('"name":"Wohnung anfragen: Wunsch bis Besichtigung"');
-    expect(html).toContain('"site_wish"');
-    expect(html).toContain('"site_contact"');
-    expect(html).toContain('"site_visit"');
-    expect(html).toContain('"site_review"');
-    expect(html).toContain('"site_done"');
+    expect(html).toContain('"name":"Prozessoptimierung mit Digitalisierungsplanung.de"');
+    expect(html).toContain('"site_overview"');
+    expect(html).toContain('"site_scope"');
+    expect(html).toContain('"site_map"');
+    expect(html).toContain('"site_improve"');
+    expect(html).toContain('"site_pricing"');
+    expect(html).not.toContain("Wohnung");
+    expect(html).not.toContain("Besichtigung");
     expect(html).not.toContain("flow-debug");
     expect(html).not.toContain("flowDebug");
     expect(html).not.toContain("runtimeFlowDebug");
@@ -3064,14 +3068,14 @@ test.describe("State Blueprint tool", () => {
     };
     await openStandalonePage();
 
-    const expectRentalStandaloneShell = async (stateId, title, options = {}) => {
+    const expectProductStandaloneShell = async (stateId, title, options = {}) => {
       await expect.poll(async () => standalone.locator("body").evaluate(() => {
         const text = element => (element?.textContent || "").trim();
         return {
           state: text(document.querySelector("#statePill")),
           title: text(document.querySelector("#screen > h1")),
           navbarCount: document.querySelectorAll(".navbar").length,
-          navbarHasBrand: text(document.querySelector(".navbar")).includes("Wohnung anfragen"),
+          navbarHasBrand: text(document.querySelector(".navbar")).includes("Digitalisierungsplanung.de"),
           footerCount: document.querySelectorAll(".footer").length,
           footerHasBrand: text(document.querySelector(".footer")).includes("Digitalisierungsplanung.de"),
           hasOverflow: document.body.scrollWidth > document.body.clientWidth + 2,
@@ -3088,24 +3092,24 @@ test.describe("State Blueprint tool", () => {
         editorExportButtons: 0
       });
     };
-    const expectRentalStandaloneNoHorizontalOverflow = async () => {
+    const expectProductStandaloneNoHorizontalOverflow = async () => {
       await expect.poll(async () => standalone.locator("body").evaluate(body =>
         Math.round(body.scrollWidth - body.clientWidth)
       )).toBeLessThanOrEqual(2);
     };
 
-    await expectRentalStandaloneShell("site_map", "So läuft die Anfrage", { footer: true });
-    await expect(standalone.getByRole("heading", { name: "Wohnung anfragen: Wunsch bis Besichtigung", exact: true })).toBeVisible();
-    await expect(standalone.getByText("Ich gebe kurz an, was ich suche").first()).toBeVisible();
+    await expectProductStandaloneShell("site_overview", "So funktioniert das Tool", { footer: true });
+    await expect(standalone.getByRole("heading", { name: "Prozessoptimierung mit Digitalisierungsplanung.de", exact: true })).toBeVisible();
+    await expect(standalone.getByText("Der Nutzer beschreibt einen echten Unternehmensprozess").first()).toBeVisible();
     await expect(standalone.getByRole("link", { name: "Editor öffnen" }).first()).toHaveAttribute("href", /state\.html\?demo=zustand$/);
     await expect(standalone.locator("#flowDebug")).toHaveCount(0);
-    await expectRentalStandaloneNoHorizontalOverflow();
+    await expectProductStandaloneNoHorizontalOverflow();
 
-    await standalone.getByRole("button", { name: "Wohnung anfragen", exact: true }).click();
-    await expectRentalStandaloneShell("site_wish", "Wohnwunsch angeben");
-    await expect(runtimeTextInput(standalone, "Wo suche ich?")).toBeVisible();
-    await expect(runtimeSelect(standalone, "Wohnungsgröße")).toBeVisible();
-    const standaloneMoveDate = runtimeDateInput(standalone, "Einzug ab");
+    await standalone.getByRole("button", { name: "Prozess optimieren", exact: true }).click();
+    await expectProductStandaloneShell("site_scope", "Prozess eingrenzen");
+    await expect(runtimeTextInput(standalone, "Welchen Prozess will ich verbessern?")).toBeVisible();
+    await expect(runtimeSelect(standalone, "Was bremst aktuell?")).toBeVisible();
+    const standaloneMoveDate = runtimeDateInput(standalone, "Pilot starten ab");
     await expect(standaloneMoveDate).toHaveValue("2026-09-01");
     await standaloneMoveDate.focus();
     await standalone.keyboard.press("ArrowUp");
@@ -3113,20 +3117,20 @@ test.describe("State Blueprint tool", () => {
     const changedStandaloneMoveDate = await standaloneMoveDate.inputValue();
     expect(changedStandaloneMoveDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     await expect(standaloneMoveDate).toBeFocused();
-    await expect(runtimeTextInput(standalone, "Wo suche ich?")).not.toBeFocused();
-    await standalone.getByRole("button", { name: "Kontakt angeben", exact: true }).click();
-    await expectRentalStandaloneShell("site_contact", "Kontakt angeben");
-    await expect(runtimeTextInput(standalone, "Mein Name")).toBeVisible();
-    await expect(runtimeSelect(standalone, "Am besten erreichbar per")).toBeVisible();
-    await standalone.getByRole("button", { name: "Besichtigung wählen", exact: true }).click();
-    await expectRentalStandaloneShell("site_visit", "Besichtigung wählen");
-    await expect(runtimeSelect(standalone, "Wann passt es?")).toBeVisible();
-    await expect(runtimeTextarea(standalone, "Kurze Nachricht")).toBeVisible();
-    await standalone.getByRole("button", { name: "Angaben prüfen", exact: true }).click();
-    await expectRentalStandaloneShell("site_review", "Anfrage prüfen");
-    await expect(runtimeCheckbox(standalone, "Ich darf wegen dieser Anfrage kontaktiert werden.")).toBeChecked();
-    await standalone.getByRole("button", { name: "Anfrage abschicken", exact: true }).click();
-    await expectRentalStandaloneShell("site_done", "Anfrage gesendet");
+    await expect(runtimeTextInput(standalone, "Welchen Prozess will ich verbessern?")).not.toBeFocused();
+    await standalone.getByRole("button", { name: "Landkarte prüfen", exact: true }).click();
+    await expectProductStandaloneShell("site_map", "Prozesslandkarte prüfen");
+    await expect(runtimeSelect(standalone, "Wo entsteht Reibung?")).toBeVisible();
+    await standalone.getByRole("button", { name: "Optimierung wählen", exact: true }).click();
+    await expectProductStandaloneShell("site_improve", "Optimierung wählen");
+    await expect(runtimeSelect(standalone, "Welche Verbesserung zuerst?")).toBeVisible();
+    await expect(runtimeTextarea(standalone, "Woran merkt mein Team den Nutzen?")).toBeVisible();
+    await standalone.getByRole("button", { name: "Paket wählen", exact: true }).click();
+    await expectProductStandaloneShell("site_pricing", "Paket wählen", { footer: true });
+    await expect(standalone.getByRole("heading", { name: "Jetzt als Tool nutzen", exact: true })).toBeVisible();
+    await expect(standalone.getByRole("link", { name: "Starter buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=starter&quantity=1");
+    await expect(standalone.getByRole("link", { name: "Expert buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=expert&quantity=1");
+    await expect(standalone.getByRole("link", { name: "Gespräch anfragen", exact: true })).toHaveAttribute("href", "mailto:kontakt@digitalisierungsplanung.de?subject=Volumen%20%26%20Unternehmen%20anfragen");
     expect(pageErrors).toEqual([]);
     await standalone.close();
   });

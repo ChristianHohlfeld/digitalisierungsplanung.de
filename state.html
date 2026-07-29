@@ -6241,25 +6241,17 @@
     }
 
     function realWebsiteModel() {
-      const demoName = "Wohnung anfragen: Wunsch bis Besichtigung";
-      const heroImage = "https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=1600&q=82";
+      const demoName = "Prozessoptimierung mit Digitalisierungsplanung.de";
       const images = {
-        hero: heroImage,
-        done: "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=900&q=82"
+        hero: "https://images.unsplash.com/photo-1556761175-b413da4baf72?auto=format&fit=crop&w=1600&q=82",
+        map: "https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=900&q=82",
+        pilot: "https://images.unsplash.com/photo-1556761175-4b46a572b786?auto=format&fit=crop&w=900&q=82"
       };
-      const navItems = [
-        { label: "\u00dcbersicht", target: "site_map" },
-        { label: "Wunsch", target: "site_wish" },
-        { label: "Kontakt", target: "site_contact" },
-        { label: "Termin", target: "site_visit" },
-        { label: "Absenden", target: "site_review" }
-      ];
       const processSteps = [
-        { label: "1. Wohnwunsch", target: "site_wish", description: "Ort, Gr\u00f6\u00dfe und Einzugstermin angeben." },
-        { label: "2. Kontakt", target: "site_contact", description: "Name und bevorzugten R\u00fcckkanal hinterlegen." },
-        { label: "3. Besichtigung", target: "site_visit", description: "Ein passendes Zeitfenster und eine kurze Nachricht ausw\u00e4hlen." },
-        { label: "4. Pr\u00fcfen", target: "site_review", description: "Angaben kurz kontrollieren und Kontaktaufnahme erlauben." },
-        { label: "5. Gesendet", target: "site_done", description: "Die Anfrage ist raus; als N\u00e4chstes kommt die R\u00fcckmeldung." }
+        { label: "1. Prozess eingrenzen", target: "site_scope", description: "Den echten Ablauf benennen und den Engpass sichtbar machen." },
+        { label: "2. Landkarte pr\u00fcfen", target: "site_map", description: "Zust\u00e4nde, Entscheidungen und \u00dcbergaben als klickbaren Ablauf sehen." },
+        { label: "3. Optimierung w\u00e4hlen", target: "site_improve", description: "Den wichtigsten Hebel ausw\u00e4hlen, bevor ein IT-Projekt startet." },
+        { label: "4. Paket buchen", target: "site_pricing", description: "Tool monatlich nutzen, im Editor weiterbauen und den Prozess als Pilot testen." }
       ];
       const component = (id, type, text = "", url = "", extra = {}) => ({ id, type, text, url, ...extra });
       const daisy = (id, variant, dataPath, dataLabel) => component(id, "daisy", "", "", {
@@ -6274,7 +6266,7 @@
       ]));
       const nav = selected => ({
         layout: "menu-submenu",
-        brand: "Wohnung anfragen",
+        brand: "Digitalisierungsplanung.de",
         selected,
         items: [],
         parent: "",
@@ -6283,12 +6275,51 @@
       });
       const footerData = () => ({
         brand: "Digitalisierungsplanung.de",
-        note: "Wohnwunsch, Kontakt und Zeitfenster in wenigen Schritten.",
+        note: "Prozesse sichtbar machen, pr\u00fcfen und als klickbare Anwendung nutzen.",
         columns: [{ title: "Werkzeug", items: [{ label: "Editor \u00f6ffnen", url: "state.html?demo=zustand" }] }]
       });
       const shell = id => [daisy(id + "_nav", "navbar", "states." + id + ".nav", "Kopf-Navigation")];
       const footer = id => [daisy(id + "_footer", "footer", "states." + id + ".footer", "Fu\u00dfzeile")];
       const actionData = (label, transitionId) => ({ label, url: "", clicked: false, clickedAt: 0, transitionId });
+      const pricingPlans = [
+        {
+          title: "Starter",
+          badge: "Einstieg",
+          price: "49,99 EUR",
+          period: "pro Benutzer / Monat",
+          body: "F\u00fcr Einzelne, die Prozesse modellieren, testen und einfache Prozess-Apps nutzen.",
+          features: ["1 Benutzer", "Monatliche Tool-Nutzung", "HTML-Export"],
+          actionLabel: "Starter buchen",
+          url: "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=starter&quantity=1",
+          checkout: { mode: "checkout_session", plan: "starter" },
+          stripe: { unitAmountCents: 4999, currency: "eur", quantityMode: "per_user" }
+        },
+        {
+          title: "Expert",
+          badge: "Empfohlen",
+          price: "199 EUR",
+          period: "/Monat",
+          body: "F\u00fcr Teams, die Abl\u00e4ufe gemeinsam bauen, pr\u00fcfen und als Web-App nutzen.",
+          features: ["Expert-Arbeitsbereich", "Website Builder", "Freigaben & Pr\u00fcfung"],
+          actionLabel: "Expert buchen",
+          url: "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=expert&quantity=1",
+          highlight: true,
+          checkout: { mode: "checkout_session", plan: "expert" },
+          stripe: { unitAmountCents: 19900, currency: "eur", quantityMode: "workspace" }
+        },
+        {
+          title: "Volumen & Unternehmen",
+          badge: "Auf Anfrage",
+          price: "Auf Anfrage",
+          period: "",
+          body: "F\u00fcr mehrere Bereiche, Volumen, Datenschutzabstimmung und begleiteten Rollout.",
+          features: ["Volumenpakete", "Enterprise-Abstimmung", "Begleitete Einf\u00fchrung"],
+          actionLabel: "Gespr\u00e4ch anfragen",
+          url: "mailto:kontakt@digitalisierungsplanung.de?subject=Volumen%20%26%20Unternehmen%20anfragen",
+          checkout: { mode: "request", plan: "enterprise" },
+          stripe: { unitAmountCents: 0, currency: "eur", quantityMode: "" }
+        }
+      ];
       const makeState = (id, title, x, y, components, data, extra = {}) => ({
         id,
         title,
@@ -6323,113 +6354,116 @@
       const mapItems = processSteps.map(step => ({ title: step.label, body: step.description }));
 
       const states = [
-        makeState("site_map", "So l\u00e4uft die Anfrage", 80, 220, [
-          ...shell("site_map"),
-          daisy("map_hero", "hero", "states.site_map.hero", "Titelbereich"),
-          daisy("map_alert", "alert", "states.site_map.alert", "Hinweis"),
-          daisy("map_steps", "steps", "states.site_map.steps", "Anfrage-Schritte"),
-          daisy("map_timeline", "timeline", "states.site_map.timeline", "Ablauf"),
-          ...footer("site_map")
+        makeState("site_overview", "So funktioniert das Tool", 80, 220, [
+          ...shell("site_overview"),
+          daisy("overview_hero", "hero", "states.site_overview.hero", "Titelbereich"),
+          daisy("overview_alert", "alert", "states.site_overview.alert", "Hinweis"),
+          daisy("overview_steps", "steps", "states.site_overview.steps", "Prozess-Schritte"),
+          daisy("overview_timeline", "timeline", "states.site_overview.timeline", "Ablauf"),
+          ...footer("site_overview")
         ], {
-          nav: nav("\u00dcbersicht"),
+          nav: nav("\u00dcberblick"),
           hero: {
             layout: "overlay",
             title: demoName,
-            body: "Ich gebe kurz an, was ich suche, wie man mich erreicht und wann eine Besichtigung passt. Danach kann ich die Anfrage abschicken.",
-            actionLabel: "Wohnung anfragen",
-            transitionId: "site_map_start",
+            body: "Der Nutzer beschreibt einen echten Unternehmensprozess, sieht daraus eine verst\u00e4ndliche Prozesslandkarte und kann das Tool danach direkt buchen oder im Editor weiterbauen.",
+            actionLabel: "Prozess optimieren",
+            transitionId: "site_overview_start",
             image: images.hero
           },
-          alert: { tone: "info", message: "Ich brauche nur wenige Angaben: Wohnwunsch, Kontakt und ein passendes Zeitfenster." },
-          steps: { current: "\u00dcbersicht", items: stepItems("site_map") },
+          alert: { tone: "info", message: "Kein Theorie-Tool: Der Ablauf bleibt als echte State Machine pr\u00fcfbar und als Web-Pilot nutzbar." },
+          steps: { current: "\u00dcberblick", items: stepItems("site_overview") },
           timeline: { items: mapItems },
           footer: footerData()
         }),
-        makeState("site_wish", "Wohnwunsch angeben", 500, 120, [
-          ...shell("site_wish"),
-          daisy("wish_area", "input", "states.site_wish.area", "Ort"),
-          daisy("wish_rooms", "select", "states.site_wish.rooms", "Zimmer"),
-          daisy("wish_move", "calendar", "states.site_wish.move", "Einzug"),
-          daisy("wish_next", "button", "states.site_wish.next", "Weiter")
+        makeState("site_scope", "Prozess eingrenzen", 500, 120, [
+          ...shell("site_scope"),
+          daisy("scope_process", "input", "states.site_scope.process", "Prozess"),
+          daisy("scope_blocker", "select", "states.site_scope.blocker", "Engpass"),
+          daisy("scope_pilot", "calendar", "states.site_scope.pilot", "Pilotstart"),
+          daisy("scope_next", "button", "states.site_scope.next", "Weiter")
         ], {
-          nav: nav("Wunsch"),
-          area: { label: "Wo suche ich?", value: "Innenstadt oder N\u00e4he Bahnhof" },
-          rooms: { label: "Wohnungsgr\u00f6\u00dfe", value: "2 Zimmer", options: ["1 Zimmer", "2 Zimmer", "3 Zimmer", "4+ Zimmer"] },
-          move: { label: "Einzug ab", value: "2026-09-01", min: "2026-07-29", max: "" },
-          next: actionData("Kontakt angeben", "site_wish_next")
+          nav: nav("Eingrenzen"),
+          process: { label: "Welchen Prozess will ich verbessern?", value: "Kundenauftrag freigeben" },
+          blocker: { label: "Was bremst aktuell?", value: "R\u00fcckfragen und Medienbr\u00fcche", options: ["R\u00fcckfragen und Medienbr\u00fcche", "unklare Zust\u00e4ndigkeit", "zu lange Freigaben", "Wissen nur im Kopf"] },
+          pilot: { label: "Pilot starten ab", value: "2026-09-01", min: "2026-07-29", max: "" },
+          next: actionData("Landkarte pr\u00fcfen", "site_scope_next")
         }),
-        makeState("site_contact", "Kontakt angeben", 900, 120, [
-          ...shell("site_contact"),
-          daisy("contact_name", "input", "states.site_contact.name", "Name"),
-          daisy("contact_channel", "select", "states.site_contact.channel", "R\u00fcckkanal"),
-          daisy("contact_value", "input", "states.site_contact.value", "Kontakt"),
-          daisy("contact_next", "button", "states.site_contact.next", "Weiter")
+        makeState("site_map", "Prozesslandkarte pr\u00fcfen", 900, 120, [
+          ...shell("site_map"),
+          daisy("map_result", "stat", "states.site_map.result", "Mehrwert"),
+          daisy("map_flow", "timeline", "states.site_map.flow", "Prozesslandkarte"),
+          daisy("map_bottleneck", "select", "states.site_map.bottleneck", "Engpass"),
+          daisy("map_next", "button", "states.site_map.next", "Weiter")
         ], {
-          nav: nav("Kontakt"),
-          name: { label: "Mein Name", value: "Max Mustermann" },
-          channel: { label: "Am besten erreichbar per", value: "E-Mail", options: ["E-Mail", "Telefon", "Post"] },
-          value: { label: "Kontaktangabe", value: "max@example.de" },
-          next: actionData("Besichtigung w\u00e4hlen", "site_contact_next")
+          nav: nav("Landkarte"),
+          result: { title: "Sichtbar gemacht", value: "5 Zust\u00e4nde", description: "Aus losem Erfahrungswissen wird eine pr\u00fcfbare Prozesslandkarte." },
+          flow: { items: [
+            { title: "Eingang", body: "Ein Auftrag oder Vorgang kommt rein." },
+            { title: "Daten fehlen?", body: "Die State Machine zeigt, wann R\u00fcckfragen entstehen." },
+            { title: "Freigabe", body: "Entscheidung und Verantwortung sind eindeutig modelliert." },
+            { title: "Umsetzung", body: "Der Ablauf wird als klickbarer Web-Pilot nutzbar." }
+          ] },
+          bottleneck: { label: "Wo entsteht Reibung?", value: "Freigabe h\u00e4ngt an Einzelperson", options: ["Freigabe h\u00e4ngt an Einzelperson", "Daten fehlen zu sp\u00e4t", "Status ist nicht sichtbar", "Schritt wird doppelt gemacht"] },
+          next: actionData("Optimierung w\u00e4hlen", "site_map_next")
         }),
-        makeState("site_visit", "Besichtigung w\u00e4hlen", 1300, 120, [
-          ...shell("site_visit"),
-          daisy("visit_window", "select", "states.site_visit.window", "Zeitfenster"),
-          daisy("visit_phone", "input", "states.site_visit.phone", "Telefon"),
-          daisy("visit_note", "textarea", "states.site_visit.note", "Nachricht"),
-          daisy("visit_next", "button", "states.site_visit.next", "Weiter")
+        makeState("site_improve", "Optimierung w\u00e4hlen", 1300, 120, [
+          ...shell("site_improve"),
+          daisy("improve_options", "feature-grid", "states.site_improve.options", "Optimierungen"),
+          daisy("improve_priority", "select", "states.site_improve.priority", "Priorit\u00e4t"),
+          daisy("improve_goal", "textarea", "states.site_improve.goal", "Messbarer Nutzen"),
+          daisy("improve_next", "button", "states.site_improve.next", "Weiter")
         ], {
-          nav: nav("Termin"),
-          window: { label: "Wann passt es?", value: "Werktags vormittags", options: ["Werktags vormittags", "Werktags nachmittags", "Samstag", "flexibel"] },
-          phone: { label: "Telefon f\u00fcr R\u00fcckfragen", value: "+49 170 1234567" },
-          note: { label: "Kurze Nachricht", value: "Ich kann kurzfristig reagieren." },
-          next: actionData("Angaben pr\u00fcfen", "site_visit_next")
+          nav: nav("Optimieren"),
+          options: {
+            eyebrow: "Prozessoptimierung",
+            heading: "Der Nutzen wird konkret",
+            body: "Der Editor macht nicht nur ein Bild. Er zeigt, welche Zust\u00e4nde, Daten und Entscheidungen f\u00fcr einen stabilen digitalen Ablauf fehlen.",
+            selected: "",
+            items: [
+              { title: "R\u00fcckfragen reduzieren", body: "Pflichtangaben und klare Zust\u00e4nde verhindern Schleifen.", image: images.map, imageAlt: "Team pr\u00fcft Prozesslandkarte", features: ["weniger Nacharbeit", "klarer Status"] },
+              { title: "Freigaben beschleunigen", body: "Entscheidungen werden als eindeutige \u00dcberg\u00e4nge modelliert.", features: ["klare Verantwortung", "schneller entscheiden"] },
+              { title: "Pilot exportieren", body: "Der Ablauf wird als klickbare Web-Anwendung getestet.", image: images.pilot, imageAlt: "Klickbarer Prozess-Pilot", features: ["testen", "schulen", "ausrollen"] }
+            ]
+          },
+          priority: { label: "Welche Verbesserung zuerst?", value: "R\u00fcckfragen reduzieren", options: ["R\u00fcckfragen reduzieren", "Freigaben beschleunigen", "Status sichtbar machen", "Wissen sichern"] },
+          goal: { label: "Woran merkt mein Team den Nutzen?", value: "Weniger Nachfragen und ein klarer Status pro Vorgang." },
+          next: actionData("Paket w\u00e4hlen", "site_improve_next")
         }),
-        makeState("site_review", "Anfrage pr\u00fcfen", 1700, 120, [
-          ...shell("site_review"),
-          daisy("review_stat", "stat", "states.site_review.stat", "Status"),
-          daisy("review_consent", "checkbox", "states.site_review.consent", "Einwilligung"),
-          daisy("review_next", "button", "states.site_review.next", "Absenden")
+        makeState("site_pricing", "Paket w\u00e4hlen", 1700, 220, [
+          ...shell("site_pricing"),
+          daisy("pricing_hero", "hero", "states.site_pricing.hero", "Editor-Einstieg"),
+          daisy("pricing_intro", "alert", "states.site_pricing.intro", "Preishinweis"),
+          daisy("pricing_plans", "pricing", "states.site_pricing.plans", "Preispl\u00e4ne"),
+          ...footer("site_pricing")
         ], {
-          nav: nav("Absenden"),
-          stat: { title: "Bereit zum Absenden", value: "vollst\u00e4ndig", description: "Wohnwunsch, Kontakt und Zeitfenster sind ausgef\u00fcllt." },
-          consent: { label: "Ich darf wegen dieser Anfrage kontaktiert werden.", checked: true },
-          next: actionData("Anfrage abschicken", "site_review_next")
-        }),
-        makeState("site_done", "Anfrage gesendet", 2100, 220, [
-          ...shell("site_done"),
-          daisy("done_hero", "hero", "states.site_done.hero", "Best\u00e4tigung"),
-          daisy("done_timeline", "timeline", "states.site_done.timeline", "N\u00e4chste Schritte")
-        ], {
-          nav: nav("Absenden"),
+          nav: nav("Pakete"),
           hero: {
             layout: "figure",
-            title: "Anfrage ist raus",
-            body: "Die Anfrage ist abgeschickt. Als N\u00e4chstes kommt eine R\u00fcckmeldung mit Besichtigung oder R\u00fcckfrage.",
+            title: "Jetzt als Tool nutzen",
+            body: "Der Ablauf ist verstanden: im Editor weiterbauen, als Web-Pilot exportieren oder direkt ein monatliches Paket buchen.",
             actionLabel: "Editor \u00f6ffnen",
             url: "state.html?demo=zustand",
-            image: images.done
+            image: images.pilot
           },
-          timeline: { items: [
-            { title: "Eingang", body: "Die Anfrage liegt mit Wohnwunsch und Kontakt vor." },
-            { title: "R\u00fcckmeldung", body: "Offene Punkte oder ein Terminvorschlag werden gemeldet." },
-            { title: "Besichtigung", body: "Der Termin wird best\u00e4tigt, sobald ein passendes Zeitfenster frei ist." }
-          ] }
+          intro: { tone: "success", message: "Starter und Expert k\u00f6nnen direkt monatlich gebucht werden. F\u00fcr Volumen und Unternehmen kl\u00e4ren wir den passenden Rollout." },
+          plans: { selectedPlan: "", plans: pricingPlans },
+          footer: footerData()
         })
       ];
 
       const transitions = [
-        transition("site_map_start", "site_map", "site_wish", "Wohnung anfragen"),
-        transition("site_wish_next", "site_wish", "site_contact", "Kontakt angeben", { "states.site_wish.next.clicked": true }),
-        transition("site_contact_next", "site_contact", "site_visit", "Besichtigung w\u00e4hlen", { "states.site_contact.next.clicked": true }),
-        transition("site_visit_next", "site_visit", "site_review", "Angaben pr\u00fcfen", { "states.site_visit.next.clicked": true }),
-        transition("site_review_next", "site_review", "site_done", "Anfrage abschicken", { "states.site_review.next.clicked": true })
+        transition("site_overview_start", "site_overview", "site_scope", "Prozess optimieren"),
+        transition("site_scope_next", "site_scope", "site_map", "Landkarte pr\u00fcfen", { "states.site_scope.next.clicked": true }),
+        transition("site_map_next", "site_map", "site_improve", "Optimierung w\u00e4hlen", { "states.site_map.next.clicked": true }),
+        transition("site_improve_next", "site_improve", "site_pricing", "Paket w\u00e4hlen", { "states.site_improve.next.clicked": true })
       ];
 
       return {
         version: 2,
         name: demoName,
-        initial: "site_map",
-        boundary: normalizeBoundaryConfig({ entryId: "site_map", exitId: "site_done" }),
+        initial: "site_overview",
+        boundary: normalizeBoundaryConfig({ entryId: "site_overview", exitId: "site_pricing" }),
         states,
         transitions
       };
