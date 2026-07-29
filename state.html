@@ -6290,7 +6290,7 @@
       });
       const footerData = stateId => ({
         brand: "Digitalisierungsplanung.de",
-        note: "Demo: eine einfache Wohnungsanfrage aus Nutzersicht.",
+        note: "Wohnwunsch, Kontakt und Zeitfenster in wenigen Schritten.",
         columns: [
           { title: "Schritte", items: navItems.map(item => navLink(stateId, item.label)) },
           { title: "Werkzeug", items: [{ label: "Editor \u00f6ffnen", url: "state.html?demo=zustand" }] }
@@ -6350,7 +6350,7 @@
             transitionId: "site_map_start",
             image: images.hero
           },
-          alert: { tone: "info", message: "Keine Prozesssprache: Jede Seite fragt nur das ab, was der Nutzer an dieser Stelle wirklich entscheiden oder eintragen kann." },
+          alert: { tone: "info", message: "Ich brauche nur wenige Angaben: Wohnwunsch, Kontakt und ein passendes Zeitfenster." },
           steps: { current: "\u00dcbersicht", items: stepItems("site_map") },
           timeline: { items: mapItems },
           footer: footerData("site_map")
