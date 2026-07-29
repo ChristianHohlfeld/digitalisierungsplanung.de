@@ -2521,7 +2521,7 @@ test.describe("State Blueprint tool", () => {
         userTransitions: userTransitions(model).length
       };
     }).toEqual({
-      name: "Prozessoptimierung mit Digitalisierungsplanung.de",
+      name: "Digitalisierungsplanung.de kaufen",
       initial: "site_overview",
       stateIds: ["site_improve", "site_map", "site_overview", "site_pricing", "site_scope"],
       userTransitions: 4
@@ -2567,7 +2567,7 @@ test.describe("State Blueprint tool", () => {
         userTransitions: userTransitions(model).length
       };
     }).toEqual({
-      name: "Prozessoptimierung mit Digitalisierungsplanung.de",
+      name: "Digitalisierungsplanung.de kaufen",
       initial: "site_overview",
       hasStarterOnly: false,
       stateIds: ["site_improve", "site_map", "site_overview", "site_pricing", "site_scope"],
@@ -2761,7 +2761,7 @@ test.describe("State Blueprint tool", () => {
         userTransitions: userTransitions(model).length
       };
     }).toEqual({
-      name: "Prozessoptimierung mit Digitalisierungsplanung.de",
+      name: "Digitalisierungsplanung.de kaufen",
       initial: "site_overview",
       hasOldLocalModel: false,
       stateIds: ["site_improve", "site_map", "site_overview", "site_pricing", "site_scope"],
@@ -2769,7 +2769,7 @@ test.describe("State Blueprint tool", () => {
     });
   });
 
-  test("loads a clean website demo scene with a simple process optimization flow @smoke", async ({ page }) => {
+  test("loads a clean website demo scene with a license purchase funnel @smoke", async ({ page }) => {
     test.setTimeout(45000);
     await openTool(page);
 
@@ -2799,7 +2799,7 @@ test.describe("State Blueprint tool", () => {
         hasLegacyRoutes: /site_login|site_profile|site_checkout/.test(JSON.stringify(model))
       };
     }).toEqual({
-      name: "Prozessoptimierung mit Digitalisierungsplanung.de",
+      name: "Digitalisierungsplanung.de kaufen",
       initial: "site_overview",
       stateIds: productStateIds,
       userTransitions: 4,
@@ -2820,17 +2820,17 @@ test.describe("State Blueprint tool", () => {
       await expectProductNoHorizontalOverflow();
     };
 
-    await expectProductStep("site_overview", "So funktioniert das Tool");
-    await expect(productApp.getByRole("heading", { name: "Prozessoptimierung mit Digitalisierungsplanung.de", exact: true })).toBeVisible();
-    await expect(productApp.locator('.hero[style*="photo-1556761175-b413da4baf72"]')).toBeVisible();
-    await expect(productApp.getByText("Der Nutzer beschreibt einen echten Unternehmensprozess").first()).toBeVisible();
+    await expectProductStep("site_overview", "Lizenz kaufen");
+    await expect(productApp.getByRole("heading", { name: "Digitalisierungsplanung.de kaufen", exact: true })).toBeVisible();
+    await expect(productApp.locator('.hero[style*="photo-1551434678-e076c223a692"]')).toBeVisible();
+    await expect(productApp.getByText("Kaufe eine monatliche Lizenz").first()).toBeVisible();
     await expect(productApp.getByRole("link", { name: "Editor öffnen" }).first()).toHaveAttribute("href", /state\.html\?demo=zustand$/);
 
-    await productApp.getByRole("button", { name: "Prozess optimieren", exact: true }).click();
-    await expectProductStep("site_scope", "Prozess eingrenzen");
-    await expect(runtimeTextInput(productApp, "Welchen Prozess will ich verbessern?")).toBeVisible();
-    await expect(runtimeSelect(productApp, "Was bremst aktuell?")).toBeVisible();
-    const moveDate = runtimeDateInput(productApp, "Pilot starten ab");
+    await productApp.getByRole("button", { name: "Lizenz auswählen", exact: true }).click();
+    await expectProductStep("site_scope", "Bedarf klären");
+    await expect(runtimeSelect(productApp, "Wie viele Nutzer sollen starten?")).toBeVisible();
+    await expect(runtimeSelect(productApp, "Wofür brauchst du das Tool zuerst?")).toBeVisible();
+    const moveDate = runtimeDateInput(productApp, "Nutzung starten ab");
     await expect(moveDate).toHaveValue("2026-09-01");
     await moveDate.evaluate(input => {
       window.__calendarShowPickerCalls = 0;
@@ -2844,20 +2844,19 @@ test.describe("State Blueprint tool", () => {
     const changedMoveDate = await moveDate.inputValue();
     expect(changedMoveDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     await expect(moveDate).toBeFocused();
-    await expect(runtimeTextInput(productApp, "Welchen Prozess will ich verbessern?")).not.toBeFocused();
-    await expect.poll(async () => (await runtimeContext(page)).states?.site_scope?.pilot?.value).toBe(changedMoveDate);
-    await productApp.getByRole("button", { name: "Landkarte prüfen", exact: true }).click();
-    await expectProductStep("site_map", "Prozesslandkarte prüfen");
-    await expect(productApp.getByText("Sichtbar gemacht").first()).toBeVisible();
-    await expect(productApp.getByText("5 Zustände").first()).toBeVisible();
-    await expect(runtimeSelect(productApp, "Wo entsteht Reibung?")).toBeVisible();
-    await productApp.getByRole("button", { name: "Optimierung wählen", exact: true }).click();
-    await expectProductStep("site_improve", "Optimierung wählen");
-    await expect(runtimeSelect(productApp, "Welche Verbesserung zuerst?")).toBeVisible();
-    await expect(runtimeTextarea(productApp, "Woran merkt mein Team den Nutzen?")).toBeVisible();
-    await productApp.getByRole("button", { name: "Paket wählen", exact: true }).click();
-    await expectProductStep("site_pricing", "Paket wählen");
-    await expect(productApp.getByRole("heading", { name: "Jetzt als Tool nutzen", exact: true })).toBeVisible();
+    await expect(runtimeSelect(productApp, "Wie viele Nutzer sollen starten?")).not.toBeFocused();
+    await expect.poll(async () => (await runtimeContext(page)).states?.site_scope?.start?.value).toBe(changedMoveDate);
+    await productApp.getByRole("button", { name: "Mehrwert ansehen", exact: true }).click();
+    await expectProductStep("site_map", "Mehrwert sehen");
+    await expect(productApp.getByText("In einem Tool").first()).toBeVisible();
+    await expect(productApp.getByText("Modell + UI").first()).toBeVisible();
+    await expect(runtimeSelect(productApp, "Was ist für den Kauf entscheidend?")).toBeVisible();
+    await productApp.getByRole("button", { name: "Empfehlung anzeigen", exact: true }).click();
+    await expectProductStep("site_improve", "Lizenzvorschlag");
+    await expect(runtimeSelect(productApp, "Welches Paket willst du buchen?")).toBeVisible();
+    await productApp.getByRole("button", { name: "Pakete buchen", exact: true }).click();
+    await expectProductStep("site_pricing", "Paket buchen");
+    await expect(productApp.getByText("Stripe Checkout fordert die Rechnungsadresse an").first()).toBeVisible();
     await expect(productApp.getByRole("link", { name: "Starter buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=starter&quantity=1");
     await expect(productApp.getByRole("link", { name: "Expert buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=expert&quantity=1");
     await expect(productApp.getByRole("link", { name: "Volumen buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=enterprise&quantity=1");
@@ -3037,10 +3036,10 @@ test.describe("State Blueprint tool", () => {
     const html = fs.readFileSync(await htmlDownload.path(), "utf8");
 
     expect(html).toContain("<!doctype html>");
-    expect(html).toContain("<title>Prozessoptimierung mit Digitalisierungsplanung.de</title>");
+    expect(html).toContain("<title>Digitalisierungsplanung.de kaufen</title>");
     expect(html).toContain("const IS_STANDALONE_EXPORT = true");
     expect(html).toContain("const EXPORTED_STATE_BLUEPRINT = ");
-    expect(html).toContain('"name":"Prozessoptimierung mit Digitalisierungsplanung.de"');
+    expect(html).toContain('"name":"Digitalisierungsplanung.de kaufen"');
     expect(html).toContain('"site_overview"');
     expect(html).toContain('"site_scope"');
     expect(html).toContain('"site_map"');
@@ -3054,6 +3053,7 @@ test.describe("State Blueprint tool", () => {
     expect(html).toContain('history.scrollRestoration = "manual"');
     expect(html).toContain("beginInitialViewportReset");
     expect(html).toContain("window.visualViewport?.addEventListener");
+    expect(html).toContain("standalone-export-polish");
     expect(html).not.toContain("let model = loadModel() || blankModel();");
     expect(html).not.toContain('id="appFrame"');
     expect(html).not.toContain('id="btnExport"');
@@ -3098,18 +3098,19 @@ test.describe("State Blueprint tool", () => {
       )).toBeLessThanOrEqual(2);
     };
 
-    await expectProductStandaloneShell("site_overview", "So funktioniert das Tool", { footer: true });
-    await expect(standalone.getByRole("heading", { name: "Prozessoptimierung mit Digitalisierungsplanung.de", exact: true })).toBeVisible();
-    await expect(standalone.getByText("Der Nutzer beschreibt einen echten Unternehmensprozess").first()).toBeVisible();
+    await expectProductStandaloneShell("site_overview", "Lizenz kaufen", { footer: true });
+    await expect(standalone.locator("#runtimeRecorderControls")).toBeHidden();
+    await expect(standalone.getByRole("heading", { name: "Digitalisierungsplanung.de kaufen", exact: true })).toBeVisible();
+    await expect(standalone.getByText("Kaufe eine monatliche Lizenz").first()).toBeVisible();
     await expect(standalone.getByRole("link", { name: "Editor öffnen" }).first()).toHaveAttribute("href", /state\.html\?demo=zustand$/);
     await expect(standalone.locator("#flowDebug")).toHaveCount(0);
     await expectProductStandaloneNoHorizontalOverflow();
 
-    await standalone.getByRole("button", { name: "Prozess optimieren", exact: true }).click();
-    await expectProductStandaloneShell("site_scope", "Prozess eingrenzen");
-    await expect(runtimeTextInput(standalone, "Welchen Prozess will ich verbessern?")).toBeVisible();
-    await expect(runtimeSelect(standalone, "Was bremst aktuell?")).toBeVisible();
-    const standaloneMoveDate = runtimeDateInput(standalone, "Pilot starten ab");
+    await standalone.getByRole("button", { name: "Lizenz auswählen", exact: true }).click();
+    await expectProductStandaloneShell("site_scope", "Bedarf klären");
+    await expect(runtimeSelect(standalone, "Wie viele Nutzer sollen starten?")).toBeVisible();
+    await expect(runtimeSelect(standalone, "Wofür brauchst du das Tool zuerst?")).toBeVisible();
+    const standaloneMoveDate = runtimeDateInput(standalone, "Nutzung starten ab");
     await expect(standaloneMoveDate).toHaveValue("2026-09-01");
     await standaloneMoveDate.focus();
     await standalone.keyboard.press("ArrowUp");
@@ -3117,17 +3118,16 @@ test.describe("State Blueprint tool", () => {
     const changedStandaloneMoveDate = await standaloneMoveDate.inputValue();
     expect(changedStandaloneMoveDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     await expect(standaloneMoveDate).toBeFocused();
-    await expect(runtimeTextInput(standalone, "Welchen Prozess will ich verbessern?")).not.toBeFocused();
-    await standalone.getByRole("button", { name: "Landkarte prüfen", exact: true }).click();
-    await expectProductStandaloneShell("site_map", "Prozesslandkarte prüfen");
-    await expect(runtimeSelect(standalone, "Wo entsteht Reibung?")).toBeVisible();
-    await standalone.getByRole("button", { name: "Optimierung wählen", exact: true }).click();
-    await expectProductStandaloneShell("site_improve", "Optimierung wählen");
-    await expect(runtimeSelect(standalone, "Welche Verbesserung zuerst?")).toBeVisible();
-    await expect(runtimeTextarea(standalone, "Woran merkt mein Team den Nutzen?")).toBeVisible();
-    await standalone.getByRole("button", { name: "Paket wählen", exact: true }).click();
-    await expectProductStandaloneShell("site_pricing", "Paket wählen", { footer: true });
-    await expect(standalone.getByRole("heading", { name: "Jetzt als Tool nutzen", exact: true })).toBeVisible();
+    await expect(runtimeSelect(standalone, "Wie viele Nutzer sollen starten?")).not.toBeFocused();
+    await standalone.getByRole("button", { name: "Mehrwert ansehen", exact: true }).click();
+    await expectProductStandaloneShell("site_map", "Mehrwert sehen");
+    await expect(runtimeSelect(standalone, "Was ist für den Kauf entscheidend?")).toBeVisible();
+    await standalone.getByRole("button", { name: "Empfehlung anzeigen", exact: true }).click();
+    await expectProductStandaloneShell("site_improve", "Lizenzvorschlag");
+    await expect(runtimeSelect(standalone, "Welches Paket willst du buchen?")).toBeVisible();
+    await standalone.getByRole("button", { name: "Pakete buchen", exact: true }).click();
+    await expectProductStandaloneShell("site_pricing", "Paket buchen", { footer: true });
+    await expect(standalone.getByText("Stripe Checkout fordert die Rechnungsadresse an").first()).toBeVisible();
     await expect(standalone.getByRole("link", { name: "Starter buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=starter&quantity=1");
     await expect(standalone.getByRole("link", { name: "Expert buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=expert&quantity=1");
     await expect(standalone.getByRole("link", { name: "Volumen buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=enterprise&quantity=1");
