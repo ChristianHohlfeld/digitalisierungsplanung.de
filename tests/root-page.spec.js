@@ -25,13 +25,14 @@ test.describe("Root demo export", () => {
   test("serves the single Zustand demo at root @smoke", async ({ page }) => {
     const html = fs.readFileSync("index.html", "utf8");
     expect(html).toContain("EXPORTED_STATE_BLUEPRINT");
-    expect(html).toContain("<title>Wohnungsvermietung: Anfrage bis Übergabe</title>");
-    expect(html).toContain('"name":"Wohnungsvermietung: Anfrage bis Übergabe"');
+    expect(html).toContain("<title>Wohnung anfragen: Wunsch bis Besichtigung</title>");
+    expect(html).toContain('"name":"Wohnung anfragen: Wunsch bis Besichtigung"');
     expect(html).toContain('"initial":"site_map"');
-    expect(html).toContain('"site_missing"');
-    expect(html).toContain('"site_approval"');
-    expect(html).toContain('"site_contract"');
-    expect(html).toContain('"site_handover"');
+    expect(html).toContain('"site_wish"');
+    expect(html).toContain('"site_contact"');
+    expect(html).toContain('"site_visit"');
+    expect(html).toContain('"site_review"');
+    expect(html).toContain('"site_done"');
     expect(html).toContain("state.html?demo=zustand");
     expect(html).toContain("/manifest.webmanifest");
     expect(html).toContain("/assets/share-card.png");
@@ -65,14 +66,14 @@ test.describe("Root demo export", () => {
     await page.goto("/");
     await expect.poll(() => page.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).length)).toBe(0);
     await expect.poll(() => page.evaluate(async () => "caches" in window ? (await caches.keys()).length : 0)).toBe(0);
-    await expect(page).toHaveTitle("Wohnungsvermietung: Anfrage bis Übergabe");
+    await expect(page).toHaveTitle("Wohnung anfragen: Wunsch bis Besichtigung");
     await expect(page.getByRole("button", { name: "Neu" })).toHaveCount(0);
     await expect(page.locator("#flowDebug")).toHaveCount(0);
     await expect(page.locator("#statePill")).toHaveText("site_map");
-    await expect(page.getByRole("heading", { name: "Wohnungsvermietung: Anfrage bis Übergabe", exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Ablauf starten" }).first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Wohnung anfragen: Wunsch bis Besichtigung", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Wohnung anfragen" }).first()).toBeVisible();
     await expect(page.locator(".hero .card-actions.justify-center")).toHaveCSS("justify-content", "center");
-    await expect(page.locator(".navbar")).toContainText("Wohnungsvermietung");
+    await expect(page.locator(".navbar")).toContainText("Wohnung anfragen");
 
     const footerGeometry = () => page.locator(".footer").evaluate(footer => {
       const style = getComputedStyle(footer);
@@ -135,29 +136,32 @@ test.describe("Root demo export", () => {
         Math.round(body.scrollWidth - body.clientWidth)
       )).toBeLessThanOrEqual(2);
     };
+    const demoControl = (label, selector) =>
+      page.locator(".daisy-widget").filter({ hasText: label }).locator(selector).first();
 
-    await expectDemoStep("site_map", "Prozesslandkarte");
-    await page.getByRole("button", { name: "Ablauf starten", exact: true }).click();
-    await expectDemoStep("site_request", "Anfrage qualifizieren");
-    await expect(page.getByRole("heading", { name: "Anfrage qualifizieren", exact: true })).toBeVisible();
+    await expectDemoStep("site_map", "So läuft die Anfrage");
+    await page.getByRole("button", { name: "Wohnung anfragen", exact: true }).click();
+    await expectDemoStep("site_wish", "Wohnwunsch angeben");
+    await expect(demoControl("Wo suche ich?", "input")).toBeVisible();
+    await expect(demoControl("Wohnungsgröße", "select")).toBeVisible();
 
-    await page.getByRole("button", { name: "Pflichtangaben prüfen", exact: true }).first().click();
-    await expectDemoStep("site_check", "Pflichtangaben prüfen");
-    await page.getByRole("button", { name: "Rückfrage auslösen", exact: true }).click();
-    await expectDemoStep("site_missing", "Rückfrage klären");
-    await page.getByRole("button", { name: "Angaben ergänzt: erneut prüfen", exact: true }).click();
-    await expectDemoStep("site_check", "Pflichtangaben prüfen");
-    await page.getByRole("button", { name: "Vollständig: Termin planen", exact: true }).click();
-    await expectDemoStep("site_visit", "Besichtigung terminieren");
-    await page.getByRole("button", { name: "Besichtigung durchführen", exact: true }).click();
-    await expectDemoStep("site_viewing", "Besichtigung dokumentieren");
-    await page.getByRole("button", { name: "Bewerbung freigeben", exact: true }).click();
-    await expectDemoStep("site_approval", "Bewerbung freigeben");
-    await page.getByRole("button", { name: "Freigegeben: Vertrag vorbereiten", exact: true }).click();
-    await expectDemoStep("site_contract", "Vertrag vorbereiten");
-    await page.getByRole("button", { name: "Übergabe abschließen", exact: true }).click();
-    await expectDemoStep("site_handover", "Übergabe abschließen");
-    await expect(page.getByRole("heading", { name: "Einzug startklar", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Kontakt angeben", exact: true }).click();
+    await expectDemoStep("site_contact", "Kontakt angeben");
+    await expect(demoControl("Mein Name", "input")).toBeVisible();
+    await expect(demoControl("Am besten erreichbar per", "select")).toBeVisible();
+
+    await page.getByRole("button", { name: "Besichtigung wählen", exact: true }).click();
+    await expectDemoStep("site_visit", "Besichtigung wählen");
+    await expect(demoControl("Wann passt es?", "select")).toBeVisible();
+    await expect(demoControl("Kurze Nachricht", "textarea")).toBeVisible();
+
+    await page.getByRole("button", { name: "Angaben prüfen", exact: true }).click();
+    await expectDemoStep("site_review", "Anfrage prüfen");
+    await expect(demoControl("Ich darf wegen dieser Anfrage kontaktiert werden.", "input[type=checkbox]")).toBeChecked();
+
+    await page.getByRole("button", { name: "Anfrage abschicken", exact: true }).click();
+    await expectDemoStep("site_done", "Anfrage gesendet");
+    await expect(page.getByRole("heading", { name: "Anfrage ist raus", exact: true })).toBeVisible();
 
     await page.reload({ waitUntil: "load" });
     await expect.poll(() => page.evaluate(() => window.__safariLateRestoreApplied === true)).toBe(true);
