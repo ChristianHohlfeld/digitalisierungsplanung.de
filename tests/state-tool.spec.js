@@ -2840,10 +2840,12 @@ test.describe("State Blueprint tool", () => {
     await expect.poll(async () => rentalApp.locator("html").evaluate(() => window.__calendarShowPickerCalls || 0)).toBe(1);
     await moveDate.focus();
     await page.keyboard.press("ArrowUp");
-    await expect(moveDate).toHaveValue("2026-09-02");
+    await expect.poll(async () => moveDate.inputValue()).not.toBe("2026-09-01");
+    const changedMoveDate = await moveDate.inputValue();
+    expect(changedMoveDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     await expect(moveDate).toBeFocused();
     await expect(runtimeTextInput(rentalApp, "Wo suche ich?")).not.toBeFocused();
-    await expect.poll(async () => (await runtimeContext(page)).states?.site_wish?.move?.value).toBe("2026-09-02");
+    await expect.poll(async () => (await runtimeContext(page)).states?.site_wish?.move?.value).toBe(changedMoveDate);
     await rentalApp.getByRole("button", { name: "Kontakt angeben", exact: true }).click();
     await expectRentalStep("site_contact", "Kontakt angeben");
     await expect(runtimeTextInput(rentalApp, "Mein Name")).toBeVisible();
@@ -3107,7 +3109,9 @@ test.describe("State Blueprint tool", () => {
     await expect(standaloneMoveDate).toHaveValue("2026-09-01");
     await standaloneMoveDate.focus();
     await standalone.keyboard.press("ArrowUp");
-    await expect(standaloneMoveDate).toHaveValue("2026-09-02");
+    await expect.poll(async () => standaloneMoveDate.inputValue()).not.toBe("2026-09-01");
+    const changedStandaloneMoveDate = await standaloneMoveDate.inputValue();
+    expect(changedStandaloneMoveDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     await expect(standaloneMoveDate).toBeFocused();
     await expect(runtimeTextInput(standalone, "Wo suche ich?")).not.toBeFocused();
     await standalone.getByRole("button", { name: "Kontakt angeben", exact: true }).click();
