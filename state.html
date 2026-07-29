@@ -6240,26 +6240,36 @@
       return true;
     }
 
-    function exampleWebsiteModel() {
+    function realWebsiteModel() {
+      const demoName = "Wohnungsvermietung: Anfrage bis Übergabe";
       const heroImage = "https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=1600&q=82";
       const images = {
         request: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=900&q=82",
         check: "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=900&q=82",
+        missing: "https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=900&q=82",
         visit: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=900&q=82",
+        viewing: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=900&q=82",
+        approval: "https://images.unsplash.com/photo-1554224154-26032ffc0d07?auto=format&fit=crop&w=900&q=82",
+        contract: "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=900&q=82",
         handover: "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=900&q=82"
       };
       const navItems = [
-        { label: "Karte", target: "site_map" },
-        { label: "Anfrage", target: "site_request" },
-        { label: "Prüfung", target: "site_check" },
+        { label: "Übersicht", target: "site_map" },
+        { label: "Eingang", target: "site_request" },
+        { label: "Prüfen", target: "site_check" },
         { label: "Termin", target: "site_visit" },
-        { label: "Übergabe", target: "site_handover" }
+        { label: "Freigabe", target: "site_approval" },
+        { label: "Abschluss", target: "site_handover" }
       ];
       const processSteps = [
-        { label: "Anfrage", target: "site_request", description: "Kontakt, Wunschwohnung und Rückkanal erfassen." },
-        { label: "Prüfung", target: "site_check", description: "Pflichtangaben prüfen und nächste Aktion festlegen." },
-        { label: "Termin", target: "site_visit", description: "Besichtigung oder Beratung verbindlich einplanen." },
-        { label: "Übergabe", target: "site_handover", description: "Vertrag, Schlüssel und Start in den Service abschließen." }
+        { label: "1. Eingang", target: "site_request", description: "Anfrage, Rückkanal, Objektwunsch und Einwilligung werden als Vorgang angelegt." },
+        { label: "2. Pflichtprüfung", target: "site_check", description: "Mindestangaben, Suchprofil, Fristen und fehlende Nachweise werden geprüft." },
+        { label: "3. Rückfrage", target: "site_missing", description: "Fehlende Informationen werden mit klarer Frist nachgefordert und erneut geprüft." },
+        { label: "4. Termin", target: "site_visit", description: "Passender Termin, Ansprechpartner und Kommunikationsweg werden verbindlich bestätigt." },
+        { label: "5. Besichtigung", target: "site_viewing", description: "Teilnahme, Interesse, offene Punkte und nächste Entscheidung werden dokumentiert." },
+        { label: "6. Freigabe", target: "site_approval", description: "Bewerbung, Bonität, Belegungskriterien und Entscheidungsvorlage werden zusammengeführt." },
+        { label: "7. Vertrag", target: "site_contract", description: "Vertragsdaten, Unterlagen, Signatur und Übergabetermin werden vorbereitet." },
+        { label: "8. Übergabe", target: "site_handover", description: "Schlüssel, Protokoll, Zählerstände und Startinformationen schließen den Vorgang ab." }
       ];
       const component = (id, type, text = "", url = "", extra = {}) => ({ id, type, text, url, ...extra });
       const daisy = (id, variant, dataPath, dataLabel) => component(id, "daisy", "", "", {
@@ -6281,7 +6291,7 @@
       const navLink = (stateId, label) => ({ label, transitionId: navTransitionIdFor(stateId, label) });
       const nav = (stateId, selected) => ({
         layout: "menu-submenu",
-        brand: "Vermietung Onboarding",
+        brand: "Wohnungsvermietung",
         selected,
         items: navItems.map(item => navLink(stateId, item.label)),
         parent: "",
@@ -6290,14 +6300,15 @@
       });
       const footerData = stateId => ({
         brand: "Digitalisierungsplanung.de",
-        note: "Demo: neutraler Teilprozess für Mietinteressenten-Onboarding.",
+        note: "Demo: echter Teilprozess für Wohnungsvermietung von Eingang bis Übergabe.",
         columns: [
-          { title: "Prozess", items: ["Karte", "Anfrage", "Prüfung", "Termin", "Übergabe"].map(label => navLink(stateId, label)) },
-          ...(stateId === "site_handover" ? [] : [{ title: "Werkzeug", items: [{ label: "Editor öffnen", url: "state.html?demo=zustand" }] }])
+          { title: "Direktnavigation", items: navItems.map(item => navLink(stateId, item.label)) },
+          { title: "Werkzeug", items: [{ label: "Editor öffnen", url: "state.html?demo=zustand" }] }
         ]
       });
       const shell = id => [daisy(id + "_nav", "navbar", "states." + id + ".nav", "Kopf-Navigation")];
       const footer = id => [daisy(id + "_footer", "footer", "states." + id + ".footer", "Fußzeile")];
+      const actionData = (label, transitionId) => ({ label, url: "", clicked: false, clickedAt: 0, transitionId });
       const makeState = (id, title, x, y, components, data, extra = {}) => ({
         id,
         title,
@@ -6328,109 +6339,203 @@
         description: step.description,
         status: step.target === current ? "current" : ""
       }));
-      const mapItems = processSteps.map((step, index) => ({
-        title: String(index + 1) + ". " + step.label,
+      const mapItems = processSteps.map(step => ({
+        title: step.label,
         body: step.description
       }));
 
       const states = [
-        makeState("site_map", "Prozesslandkarte", 80, 220, [
+        makeState("site_map", "Prozesslandkarte", 80, 260, [
           ...shell("site_map"),
           daisy("map_hero", "hero", "states.site_map.hero", "Titelbereich"),
+          daisy("map_alert", "alert", "states.site_map.alert", "Leselogik"),
           daisy("map_steps", "steps", "states.site_map.steps", "Teilprozess"),
           daisy("map_timeline", "timeline", "states.site_map.timeline", "Ablaufkarte"),
           ...footer("site_map")
         ], {
-          nav: nav("site_map", "Karte"),
+          nav: nav("site_map", "Übersicht"),
           hero: {
             layout: "overlay",
-            title: "Mietinteressenten-Onboarding",
-            body: "Ein neutraler, einfacher Teilprozess: Anfrage aufnehmen, prüfen, Termin klären, Übergabe vorbereiten. Jeder Zustand zeigt nur, was als Nächstes passiert.",
-            actionLabel: "Prozess starten",
+            title: demoName,
+            body: "Ein echter operativer Ablauf: Eingang erfassen, Pflichtangaben prüfen, Rückfragen schließen, Termine steuern, Bewerbung freigeben, Vertrag vorbereiten und Übergabe abschließen.",
+            actionLabel: "Ablauf starten",
             transitionId: "site_map_start",
             image: heroImage
           },
-          steps: { current: "Karte", items: stepItems("site_map") },
+          alert: { tone: "info", message: "Die Karte zeigt den Hauptpfad und die Rückfrage-Schleife. Jede Seite beantwortet: Was liegt vor, wer entscheidet, was passiert als Nächstes?" },
+          steps: { current: "Übersicht", items: stepItems("site_map") },
           timeline: { items: mapItems },
           footer: footerData("site_map")
         }),
-        makeState("site_request", "Anfrage aufnehmen", 500, 120, [
+        makeState("site_request", "Anfrage qualifizieren", 500, 120, [
           ...shell("site_request"),
           daisy("request_alert", "alert", "states.site_request.alert", "Eingang"),
           daisy("request_card", "card", "states.site_request.card", "Erfassung"),
           daisy("request_next", "button", "states.site_request.next", "Weiter"),
           ...footer("site_request")
         ], {
-          nav: nav("site_request", "Anfrage"),
-          alert: { tone: "success", message: "Start: Aus Website, Telefon oder E-Mail wird ein Vorgang mit eindeutigem Rückkanal." },
+          nav: nav("site_request", "Eingang"),
+          alert: { tone: "success", message: "Startpunkt: Der Vorgang kommt aus Website, Telefon, E-Mail oder persönlichem Kontakt." },
           card: {
-            title: "Was wird erfasst?",
+            title: "Mindestdaten für den Vorgang",
             badge: "Eingang",
             image: images.request,
-            imageAlt: "Wohnhaus",
-            body: "Name, Kontaktweg, Wunschwohnung oder Suchprofil und Einwilligung. Mehr nicht.",
-            features: ["Kontakt", "Wohnwunsch", "Rückkanal"]
+            imageAlt: "Wohnhaus als Mietobjekt",
+            body: "Erfasst werden Kontakt, Rückkanal, Objektwunsch, Haushaltsgröße, Wunschtermin und Einwilligung. Ohne diese Basis geht der Vorgang nicht in die Prüfung.",
+            features: ["Kontakt", "Objektwunsch", "Einwilligung"]
           },
-          next: { label: "Prüfung starten", clicked: false, transitionId: "site_request_next" },
+          next: actionData("Pflichtangaben prüfen", "site_request_next"),
           footer: footerData("site_request")
         }),
-        makeState("site_check", "Prüfung", 920, 120, [
+        makeState("site_check", "Pflichtangaben prüfen", 920, 120, [
           ...shell("site_check"),
           daisy("check_card", "card", "states.site_check.card", "Prüfung"),
           daisy("check_stat", "stat", "states.site_check.stat", "Status"),
-          daisy("check_next", "button", "states.site_check.next", "Weiter"),
+          daisy("check_ready", "button", "states.site_check.ready", "Terminpfad"),
+          daisy("check_missing", "button", "states.site_check.missing", "Rückfragepfad"),
           ...footer("site_check")
         ], {
-          nav: nav("site_check", "Prüfung"),
+          nav: nav("site_check", "Prüfen"),
           card: {
-            title: "Passt der Vorgang?",
-            badge: "Entscheidung",
+            title: "Ist der Vorgang entscheidungsfähig?",
+            badge: "Prüfung",
             image: images.check,
-            imageAlt: "Prüfung am Schreibtisch",
-            body: "Das Team sieht fehlende Angaben, Kriterien und die nächste Entscheidung an einer Stelle.",
-            features: ["vollständig", "plausibel", "nächste Aktion"]
+            imageAlt: "Unterlagenprüfung am Schreibtisch",
+            body: "Das Team prüft Pflichtfelder, Einkommens- oder Berechtigungshinweise, Dubletten, Fristen und ob eine Besichtigung sinnvoll geplant werden kann.",
+            features: ["vollständig", "plausibel", "fristgerecht"]
           },
-          stat: { title: "Ergebnis", value: "prüfen", description: "Freigeben oder Rückfrage separat klären" },
-          next: { label: "Termin planen", clicked: false, transitionId: "site_check_next" },
+          stat: { title: "Entscheidung", value: "2 Wege", description: "Vollständig zur Terminplanung oder gezielte Rückfrage." },
+          ready: actionData("Vollständig: Termin planen", "site_check_ready"),
+          missing: actionData("Rückfrage auslösen", "site_check_missing"),
           footer: footerData("site_check")
         }),
-        makeState("site_visit", "Termin", 1340, 120, [
+        makeState("site_missing", "Rückfrage klären", 920, 410, [
+          ...shell("site_missing"),
+          daisy("missing_alert", "alert", "states.site_missing.alert", "Nachforderung"),
+          daisy("missing_card", "card", "states.site_missing.card", "Fehlstellen"),
+          daisy("missing_back", "button", "states.site_missing.back", "Zur Prüfung"),
+          ...footer("site_missing")
+        ], {
+          nav: nav("site_missing", "Prüfen"),
+          alert: { tone: "warning", message: "Rückfrage ist kein Endzustand: Fehlende Angaben werden konkret benannt, befristet und danach erneut geprüft." },
+          card: {
+            title: "Was fehlt?",
+            badge: "Rückfrage",
+            image: images.missing,
+            imageAlt: "Dokumente und Checkliste",
+            body: "Beispiele: fehlender Rückkanal, unklare Haushaltsgröße, falscher Objektbezug, fehlende Einwilligung oder unvollständige Nachweise.",
+            features: ["Fehlstelle", "Frist", "Antwortkanal"]
+          },
+          back: actionData("Angaben ergänzt: erneut prüfen", "site_missing_back"),
+          footer: footerData("site_missing")
+        }),
+        makeState("site_visit", "Besichtigung terminieren", 1340, 120, [
           ...shell("site_visit"),
           daisy("visit_card", "card", "states.site_visit.card", "Termin"),
+          daisy("visit_calendar", "calendar", "states.site_visit.calendar", "Terminfenster"),
           daisy("visit_next", "button", "states.site_visit.next", "Weiter"),
           ...footer("site_visit")
         ], {
           nav: nav("site_visit", "Termin"),
           card: {
-            title: "Besichtigung oder Beratung",
+            title: "Termin verbindlich machen",
             badge: "Termin",
             image: images.visit,
             imageAlt: "Wohnung und Wohnhaus",
-            body: "Terminfenster, Ansprechpartner und Rückmeldung stehen im Vorgang. Danach ist klar, ob es weitergeht.",
-            features: ["Termin", "Rückmeldung", "Entscheidung"]
+            body: "Ein freies Zeitfenster wird mit Interessent, Objekt, Ansprechpartner und Treffpunkt bestätigt. Absage- und Ersatzfenster sind sichtbar.",
+            features: ["Zeitfenster", "Ansprechpartner", "Bestätigung"]
           },
-          next: { label: "Übergabe vorbereiten", clicked: false, transitionId: "site_visit_next" },
+          calendar: { label: "Vorgeschlagener Termin", value: "2026-08-06", min: "2026-08-01", max: "2026-09-30" },
+          next: actionData("Besichtigung durchführen", "site_visit_next"),
           footer: footerData("site_visit")
         }),
-        makeState("site_handover", "Übergabe", 1760, 220, [
+        makeState("site_viewing", "Besichtigung dokumentieren", 1340, 410, [
+          ...shell("site_viewing"),
+          daisy("viewing_card", "card", "states.site_viewing.card", "Besichtigung"),
+          daisy("viewing_stat", "stat", "states.site_viewing.stat", "Rückmeldung"),
+          daisy("viewing_ready", "button", "states.site_viewing.ready", "Freigabe"),
+          daisy("viewing_missing", "button", "states.site_viewing.missing", "Nachfassen"),
+          ...footer("site_viewing")
+        ], {
+          nav: nav("site_viewing", "Termin"),
+          card: {
+            title: "Was wurde vor Ort entschieden?",
+            badge: "Besichtigung",
+            image: images.viewing,
+            imageAlt: "Innenraum einer Wohnung",
+            body: "Teilnahme, Eindruck, offene Fragen, Interessensbestätigung und nächste Unterlagen werden direkt im Vorgang dokumentiert.",
+            features: ["Teilnahme", "Interesse", "offene Punkte"]
+          },
+          stat: { title: "Rückmeldung", value: "bestätigen", description: "Nur bestätigtes Interesse läuft in die Freigabe." },
+          ready: actionData("Bewerbung freigeben", "site_viewing_ready"),
+          missing: actionData("Nachweise nachfordern", "site_viewing_missing"),
+          footer: footerData("site_viewing")
+        }),
+        makeState("site_approval", "Bewerbung freigeben", 1760, 120, [
+          ...shell("site_approval"),
+          daisy("approval_card", "card", "states.site_approval.card", "Freigabe"),
+          daisy("approval_stat", "stat", "states.site_approval.stat", "Entscheidung"),
+          daisy("approval_contract", "button", "states.site_approval.contract", "Vertrag"),
+          daisy("approval_missing", "button", "states.site_approval.missing", "Rückfrage"),
+          ...footer("site_approval")
+        ], {
+          nav: nav("site_approval", "Freigabe"),
+          card: {
+            title: "Freigabe vorbereiten",
+            badge: "Entscheidung",
+            image: images.approval,
+            imageAlt: "Entscheidungsvorlage",
+            body: "Bewerbung, Nachweise, Belegungskriterien, Gesprächsnotiz und Priorisierung liegen zusammen. Die Entscheidung ist nachvollziehbar dokumentiert.",
+            features: ["Bewerbung", "Nachweise", "Freigabe"]
+          },
+          stat: { title: "Entscheidungsvorlage", value: "prüfbar", description: "Freigabe oder begründete Nachforderung." },
+          contract: actionData("Freigegeben: Vertrag vorbereiten", "site_approval_contract"),
+          missing: actionData("Nachforderung anstoßen", "site_approval_missing"),
+          footer: footerData("site_approval")
+        }),
+        makeState("site_contract", "Vertrag vorbereiten", 2180, 120, [
+          ...shell("site_contract"),
+          daisy("contract_card", "card", "states.site_contract.card", "Vertrag"),
+          daisy("contract_timeline", "timeline", "states.site_contract.timeline", "Vertragsarbeit"),
+          daisy("contract_next", "button", "states.site_contract.next", "Übergabe"),
+          ...footer("site_contract")
+        ], {
+          nav: nav("site_contract", "Abschluss"),
+          card: {
+            title: "Vom Beschluss zum unterschriftsreifen Vertrag",
+            badge: "Vertrag",
+            image: images.contract,
+            imageAlt: "Vertragsunterlagen",
+            body: "Stammdaten, Mietbeginn, Kaution, Anlagen, Signaturweg und Übergabetermin werden in eine verbindliche Vorbereitung überführt.",
+            features: ["Stammdaten", "Signatur", "Übergabetermin"]
+          },
+          timeline: { items: [
+            { title: "Daten prüfen", body: "Personen, Objekt, Mietbeginn und Konditionen abgleichen." },
+            { title: "Unterlagen erzeugen", body: "Vertrag, Anlagen, Datenschutz und Übergabeformular vorbereiten." },
+            { title: "Termin bestätigen", body: "Unterschrift und Schlüsselübergabe koordinieren." }
+          ] },
+          next: actionData("Übergabe abschließen", "site_contract_next"),
+          footer: footerData("site_contract")
+        }),
+        makeState("site_handover", "Übergabe abschließen", 2600, 260, [
           ...shell("site_handover"),
           daisy("handover_hero", "hero", "states.site_handover.hero", "Übergabe"),
           daisy("handover_timeline", "timeline", "states.site_handover.timeline", "Abschluss"),
           ...footer("site_handover")
         ], {
-          nav: nav("site_handover", "Übergabe"),
+          nav: nav("site_handover", "Abschluss"),
           hero: {
             layout: "figure",
-            title: "Einzug vorbereitet",
-            body: "Vertrag, Termin, Schlüssel und Startinformationen sind geklärt. Der Teilprozess endet sauber und der Service kann beginnen.",
+            title: "Einzug startklar",
+            body: "Der Vorgang endet erst, wenn Vertrag, Schlüssel, Protokoll, Zählerstände und Startinformationen dokumentiert sind.",
             actionLabel: "Editor öffnen",
             url: "state.html?demo=zustand",
             image: images.handover
           },
           timeline: { items: [
-            { title: "Vertrag", body: "Daten und Unterschrift sind vorbereitet." },
-            { title: "Übergabe", body: "Termin, Schlüssel und Protokoll sind klar." },
-            { title: "Service", body: "Der neue Vorgang startet erst nach dem Einzug." }
+            { title: "Unterschrift", body: "Vertrag und Anlagen liegen final vor." },
+            { title: "Schlüssel & Protokoll", body: "Übergabe, Zustand und Zählerstände sind dokumentiert." },
+            { title: "Startinformation", body: "Kontaktwege, Regeln und nächste Serviceprozesse sind übergeben." }
           ] },
           footer: footerData("site_handover")
         })
@@ -6441,20 +6546,31 @@
       ));
       const transitions = [
         ...navTransitions,
-        transition("site_map_start", "site_map", "site_request", "Prozess starten"),
-        transition("site_request_next", "site_request", "site_check", "Prüfung starten", { "states.site_request.next.clicked": true }),
-        transition("site_check_next", "site_check", "site_visit", "Termin planen", { "states.site_check.next.clicked": true }),
-        transition("site_visit_next", "site_visit", "site_handover", "Übergabe vorbereiten", { "states.site_visit.next.clicked": true })
+        transition("site_map_start", "site_map", "site_request", "Ablauf starten"),
+        transition("site_request_next", "site_request", "site_check", "Pflichtangaben prüfen", { "states.site_request.next.clicked": true }),
+        transition("site_check_ready", "site_check", "site_visit", "Vollständig: Termin planen", { "states.site_check.ready.clicked": true }),
+        transition("site_check_missing", "site_check", "site_missing", "Rückfrage auslösen", { "states.site_check.missing.clicked": true }),
+        transition("site_missing_back", "site_missing", "site_check", "Angaben ergänzt", { "states.site_missing.back.clicked": true }),
+        transition("site_visit_next", "site_visit", "site_viewing", "Besichtigung durchführen", { "states.site_visit.next.clicked": true }),
+        transition("site_viewing_ready", "site_viewing", "site_approval", "Bewerbung freigeben", { "states.site_viewing.ready.clicked": true }),
+        transition("site_viewing_missing", "site_viewing", "site_missing", "Nachweise nachfordern", { "states.site_viewing.missing.clicked": true }),
+        transition("site_approval_contract", "site_approval", "site_contract", "Vertrag vorbereiten", { "states.site_approval.contract.clicked": true }),
+        transition("site_approval_missing", "site_approval", "site_missing", "Nachforderung anstoßen", { "states.site_approval.missing.clicked": true }),
+        transition("site_contract_next", "site_contract", "site_handover", "Übergabe abschließen", { "states.site_contract.next.clicked": true })
       ];
 
       return {
         version: 2,
-        name: "Mietinteressenten-Onboarding",
+        name: demoName,
         initial: "site_map",
         boundary: normalizeBoundaryConfig({ entryId: "site_map", exitId: "site_handover" }),
         states,
         transitions
       };
+    }
+
+    function exampleWebsiteModel() {
+      return realWebsiteModel();
     }
 
     function legacyWebsiteModel() {

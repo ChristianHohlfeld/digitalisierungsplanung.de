@@ -25,9 +25,12 @@ test.describe("Root demo export", () => {
   test("serves the single Zustand demo at root @smoke", async ({ page }) => {
     const html = fs.readFileSync("index.html", "utf8");
     expect(html).toContain("EXPORTED_STATE_BLUEPRINT");
-    expect(html).toContain("<title>Mietinteressenten-Onboarding</title>");
-    expect(html).toContain('"name":"Mietinteressenten-Onboarding"');
+    expect(html).toContain("<title>Wohnungsvermietung: Anfrage bis Übergabe</title>");
+    expect(html).toContain('"name":"Wohnungsvermietung: Anfrage bis Übergabe"');
     expect(html).toContain('"initial":"site_map"');
+    expect(html).toContain('"site_missing"');
+    expect(html).toContain('"site_approval"');
+    expect(html).toContain('"site_contract"');
     expect(html).toContain('"site_handover"');
     expect(html).toContain("state.html?demo=zustand");
     expect(html).toContain("/manifest.webmanifest");
@@ -62,14 +65,14 @@ test.describe("Root demo export", () => {
     await page.goto("/");
     await expect.poll(() => page.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).length)).toBe(0);
     await expect.poll(() => page.evaluate(async () => "caches" in window ? (await caches.keys()).length : 0)).toBe(0);
-    await expect(page).toHaveTitle("Mietinteressenten-Onboarding");
+    await expect(page).toHaveTitle("Wohnungsvermietung: Anfrage bis Übergabe");
     await expect(page.getByRole("button", { name: "Neu" })).toHaveCount(0);
     await expect(page.locator("#flowDebug")).toHaveCount(0);
     await expect(page.locator("#statePill")).toHaveText("site_map");
-    await expect(page.getByRole("heading", { name: "Mietinteressenten-Onboarding", exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Prozess starten" }).first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Wohnungsvermietung: Anfrage bis Übergabe", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Ablauf starten" }).first()).toBeVisible();
     await expect(page.locator(".hero .card-actions.justify-center")).toHaveCSS("justify-content", "center");
-    await expect(page.locator(".navbar")).toContainText("Vermietung Onboarding");
+    await expect(page.locator(".navbar")).toContainText("Wohnungsvermietung");
 
     const footerGeometry = () => page.locator(".footer").evaluate(footer => {
       const style = getComputedStyle(footer);
@@ -125,17 +128,36 @@ test.describe("Root demo export", () => {
     expect(manifest.ok()).toBe(true);
     expect((await manifest.json()).name).toBe("Digitalisierungsplanung.de");
 
-    await page.getByRole("button", { name: "Prozess starten", exact: true }).click();
-    await expect(page.locator("#statePill")).toHaveText("site_request");
-    await expect(page.getByRole("heading", { name: "Anfrage aufnehmen", exact: true })).toBeVisible();
+    const expectDemoStep = async (stateId, title) => {
+      await expect(page.locator("#statePill")).toHaveText(stateId);
+      await expect(page.locator("#screen > h1")).toHaveText(title);
+      await expect.poll(async () => page.locator("body").evaluate(body =>
+        Math.round(body.scrollWidth - body.clientWidth)
+      )).toBeLessThanOrEqual(2);
+    };
 
-    await page.getByRole("button", { name: "Prüfung starten", exact: true }).first().click();
-    await expect(page.locator("#statePill")).toHaveText("site_check");
-    await page.getByRole("button", { name: "Termin planen", exact: true }).click();
-    await expect(page.locator("#statePill")).toHaveText("site_visit");
-    await page.getByRole("button", { name: "Übergabe vorbereiten", exact: true }).click();
-    await expect(page.locator("#statePill")).toHaveText("site_handover");
-    await expect(page.getByRole("heading", { name: "Einzug vorbereitet", exact: true })).toBeVisible();
+    await expectDemoStep("site_map", "Prozesslandkarte");
+    await page.getByRole("button", { name: "Ablauf starten", exact: true }).click();
+    await expectDemoStep("site_request", "Anfrage qualifizieren");
+    await expect(page.getByRole("heading", { name: "Anfrage qualifizieren", exact: true })).toBeVisible();
+
+    await page.getByRole("button", { name: "Pflichtangaben prüfen", exact: true }).first().click();
+    await expectDemoStep("site_check", "Pflichtangaben prüfen");
+    await page.getByRole("button", { name: "Rückfrage auslösen", exact: true }).click();
+    await expectDemoStep("site_missing", "Rückfrage klären");
+    await page.getByRole("button", { name: "Angaben ergänzt: erneut prüfen", exact: true }).click();
+    await expectDemoStep("site_check", "Pflichtangaben prüfen");
+    await page.getByRole("button", { name: "Vollständig: Termin planen", exact: true }).click();
+    await expectDemoStep("site_visit", "Besichtigung terminieren");
+    await page.getByRole("button", { name: "Besichtigung durchführen", exact: true }).click();
+    await expectDemoStep("site_viewing", "Besichtigung dokumentieren");
+    await page.getByRole("button", { name: "Bewerbung freigeben", exact: true }).click();
+    await expectDemoStep("site_approval", "Bewerbung freigeben");
+    await page.getByRole("button", { name: "Freigegeben: Vertrag vorbereiten", exact: true }).click();
+    await expectDemoStep("site_contract", "Vertrag vorbereiten");
+    await page.getByRole("button", { name: "Übergabe abschließen", exact: true }).click();
+    await expectDemoStep("site_handover", "Übergabe abschließen");
+    await expect(page.getByRole("heading", { name: "Einzug startklar", exact: true })).toBeVisible();
 
     await page.reload({ waitUntil: "load" });
     await expect.poll(() => page.evaluate(() => window.__safariLateRestoreApplied === true)).toBe(true);
