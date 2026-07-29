@@ -6309,15 +6309,15 @@
         },
         {
           title: "Volumen & Unternehmen",
-          badge: "Auf Anfrage",
-          price: "Auf Anfrage",
-          period: "",
+          badge: "Volumen",
+          price: "499 EUR",
+          period: "/Monat",
           body: "F\u00fcr mehrere Bereiche, Volumen, Datenschutzabstimmung und begleiteten Rollout.",
           features: ["Volumenpakete", "Enterprise-Abstimmung", "Begleitete Einf\u00fchrung"],
-          actionLabel: "Gespr\u00e4ch anfragen",
-          url: "mailto:kontakt@digitalisierungsplanung.de?subject=Volumen%20%26%20Unternehmen%20anfragen",
-          checkout: { mode: "request", plan: "enterprise" },
-          stripe: { unitAmountCents: 0, currency: "eur", quantityMode: "" }
+          actionLabel: "Volumen buchen",
+          url: "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=enterprise&quantity=1",
+          checkout: { mode: "checkout_session", plan: "enterprise" },
+          stripe: { unitAmountCents: 49900, currency: "eur", quantityMode: "workspace" }
         }
       ];
       const makeState = (id, title, x, y, components, data, extra = {}) => ({
@@ -6446,7 +6446,7 @@
             url: "state.html?demo=zustand",
             image: images.pilot
           },
-          intro: { tone: "success", message: "Starter und Expert k\u00f6nnen direkt monatlich gebucht werden. F\u00fcr Volumen und Unternehmen kl\u00e4ren wir den passenden Rollout." },
+          intro: { tone: "success", message: "Alle drei Pakete k\u00f6nnen direkt monatlich gebucht werden. Der Checkout bleibt als URL-CTA sauber vom Prozessfluss getrennt." },
           plans: { selectedPlan: "", plans: pricingPlans },
           footer: footerData()
         })
@@ -6568,13 +6568,13 @@
         {
           id: "enterprise",
           title: "Volumen & Unternehmen",
-          badge: "Auf Anfrage",
-          price: "Auf Anfrage",
-          period: "",
+          badge: "Volumen",
+          price: "499 EUR",
+          period: "/Monat",
           body: "Für mehrere Bereiche, Volumen, Datenschutzabstimmung und begleiteten Rollout.",
           features: ["Volumenpakete", "Enterprise-Abstimmung", "Begleitete Einführung"],
-          cta: "Anfrage stellen",
-          url: "mailto:kontakt@digitalisierungsplanung.de?subject=Volumen%20%26%20Unternehmen%20anfragen"
+          cta: "Volumen buchen",
+          url: "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=enterprise&quantity=1"
         }
       ];
       const states = [

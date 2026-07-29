@@ -40,7 +40,7 @@ function stateDataScopeForId(id) {
 const STRIPE_CHECKOUT_BASE_URL = "https://realtime.digitalisierungsplanung.de/stripe/checkout";
 const STRIPE_CHECKOUT_SUCCESS_URL = "https://digitalisierungsplanung.de/?checkout=success&session_id={CHECKOUT_SESSION_ID}";
 const STRIPE_CHECKOUT_CANCEL_URL = "https://digitalisierungsplanung.de/?checkout=cancel";
-const ENTERPRISE_CONTACT_URL = "mailto:kontakt@digitalisierungsplanung.de?subject=Volumen%20%26%20Unternehmen%20anfragen";
+const CONTACT_URL = "mailto:kontakt@digitalisierungsplanung.de?subject=Volumen%20%26%20Unternehmen%20buchen";
 const STRIPE_CHECKOUT_DEFAULTS = Object.freeze({
   path: "/stripe/checkout",
   endpoint: STRIPE_CHECKOUT_BASE_URL,
@@ -105,15 +105,27 @@ const PRODUCT_PRICING_PLANS = Object.freeze([
   {
     id: "enterprise",
     title: "Volumen & Unternehmen",
-    badge: "Auf Anfrage",
-    price: "Auf Anfrage",
-    period: "",
+    badge: "Volumen",
+    price: "499 EUR",
+    period: "/Monat",
     body: "Für mehrere Bereiche, Volumen, Datenschutzabstimmung und begleiteten Rollout.",
     features: ["Volumenpakete", "Enterprise-Abstimmung", "Begleitete Einführung"],
     includedPackageIds: ["core.process", "website.builder", "approval.compliance", "service.operations"],
     recommendedAddOnPackageIds: ["bi.analytics", "sales.crm", "integration.automation"],
-    actionLabel: "Anfrage stellen",
-    contactUrl: ENTERPRISE_CONTACT_URL,
+    actionLabel: "Volumen buchen",
+    stripe: {
+      provider: "stripe",
+      mode: "subscription",
+      lookupKey: "enterprise_monthly_eur",
+      productName: "Digitalisierungsplanung Volumen & Unternehmen",
+      unitAmountCents: 49900,
+      currency: "eur",
+      recurringInterval: "month",
+      quantityMode: "workspace",
+      adjustableQuantity: false,
+      minQuantity: 1,
+      maxQuantity: 1
+    },
     sort: 30
   }
 ]);
@@ -137,7 +149,7 @@ const SUBSCRIPTION_PLANS = Object.freeze(PRODUCT_PRICING_PLANS.map(plan => ({
   stripe: plan.stripe ? { ...plan.stripe } : {
     provider: "contact",
     mode: "request",
-    contactUrl: plan.contactUrl || ENTERPRISE_CONTACT_URL
+    contactUrl: plan.contactUrl || CONTACT_URL
   },
   sort: plan.sort
 })));
@@ -146,7 +158,7 @@ function checkoutUrlForPlan(plan) {
   if (plan.stripe?.provider === "stripe") {
     return `${STRIPE_CHECKOUT_BASE_URL}?plan=${encodeURIComponent(plan.id)}&quantity=1`;
   }
-  return plan.contactUrl || ENTERPRISE_CONTACT_URL;
+  return plan.contactUrl || CONTACT_URL;
 }
 
 function pricingPlanCard(plan, options = {}) {

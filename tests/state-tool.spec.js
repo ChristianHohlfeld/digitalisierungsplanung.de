@@ -2860,7 +2860,7 @@ test.describe("State Blueprint tool", () => {
     await expect(productApp.getByRole("heading", { name: "Jetzt als Tool nutzen", exact: true })).toBeVisible();
     await expect(productApp.getByRole("link", { name: "Starter buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=starter&quantity=1");
     await expect(productApp.getByRole("link", { name: "Expert buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=expert&quantity=1");
-    await expect(productApp.getByRole("link", { name: "Gespräch anfragen", exact: true })).toHaveAttribute("href", "mailto:kontakt@digitalisierungsplanung.de?subject=Volumen%20%26%20Unternehmen%20anfragen");
+    await expect(productApp.getByRole("link", { name: "Volumen buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=enterprise&quantity=1");
     await expect(productApp.getByRole("link", { name: "Editor öffnen" }).first()).toHaveAttribute("href", /state\.html\?demo=zustand$/);
   });
 
@@ -3130,7 +3130,7 @@ test.describe("State Blueprint tool", () => {
     await expect(standalone.getByRole("heading", { name: "Jetzt als Tool nutzen", exact: true })).toBeVisible();
     await expect(standalone.getByRole("link", { name: "Starter buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=starter&quantity=1");
     await expect(standalone.getByRole("link", { name: "Expert buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=expert&quantity=1");
-    await expect(standalone.getByRole("link", { name: "Gespräch anfragen", exact: true })).toHaveAttribute("href", "mailto:kontakt@digitalisierungsplanung.de?subject=Volumen%20%26%20Unternehmen%20anfragen");
+    await expect(standalone.getByRole("link", { name: "Volumen buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=enterprise&quantity=1");
     expect(pageErrors).toEqual([]);
     await standalone.close();
   });
@@ -8577,14 +8577,14 @@ test.describe("State Blueprint tool", () => {
       },
       {
         title: "Volumen & Unternehmen",
-        price: "Auf Anfrage",
-        period: "",
-        actionLabel: "Anfrage stellen",
+        price: "499 EUR",
+        period: "/Monat",
+        actionLabel: "Volumen buchen",
         transitionId: "",
-        url: "mailto:kontakt@digitalisierungsplanung.de?subject=Volumen%20%26%20Unternehmen%20anfragen",
-        mode: "request",
-        amount: 0,
-        quantityMode: ""
+        url: "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=enterprise&quantity=1",
+        mode: "checkout_session",
+        amount: 49900,
+        quantityMode: "workspace"
       }
     ]);
 
@@ -8592,10 +8592,10 @@ test.describe("State Blueprint tool", () => {
     await expect(app.locator("#statePill")).toHaveText(audit.rootId);
     const starter = app.getByRole("link", { name: "Starter buchen", exact: true });
     const expert = app.getByRole("link", { name: "Expert buchen", exact: true });
-    const enterprise = app.getByRole("link", { name: "Anfrage stellen", exact: true });
+    const enterprise = app.getByRole("link", { name: "Volumen buchen", exact: true });
     await expect(starter).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=starter&quantity=1");
     await expect(expert).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=expert&quantity=1");
-    await expect(enterprise).toHaveAttribute("href", "mailto:kontakt@digitalisierungsplanung.de?subject=Volumen%20%26%20Unternehmen%20anfragen");
+    await expect(enterprise).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=enterprise&quantity=1");
     await expect(app.getByRole("button", { name: "Starter buchen", exact: true })).toHaveCount(0);
     await expect(app.getByRole("button", { name: "Expert buchen", exact: true })).toHaveCount(0);
     await expect(app.locator("[data-transition-id]")).toHaveCount(0);

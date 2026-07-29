@@ -160,7 +160,7 @@ test.describe("Root demo export", () => {
     await expect(page.getByRole("heading", { name: "Jetzt als Tool nutzen", exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: "Starter buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=starter&quantity=1");
     await expect(page.getByRole("link", { name: "Expert buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=expert&quantity=1");
-    await expect(page.getByRole("link", { name: "Gespräch anfragen", exact: true })).toHaveAttribute("href", "mailto:kontakt@digitalisierungsplanung.de?subject=Volumen%20%26%20Unternehmen%20anfragen");
+    await expect(page.getByRole("link", { name: "Volumen buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=enterprise&quantity=1");
 
     await page.reload({ waitUntil: "load" });
     await expect.poll(() => page.evaluate(() => window.__safariLateRestoreApplied === true)).toBe(true);

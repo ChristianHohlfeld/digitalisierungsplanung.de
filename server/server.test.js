@@ -230,8 +230,11 @@ test("serves the event and connector catalog only to allowed origins", async () 
     assert.equal(expertPlan.price, "199 EUR");
     assert.equal(expertPlan.stripe.unitAmountCents, 19900);
     const enterprisePlan = productContractPayload.subscriptionPlans.find(plan => plan.id === "enterprise");
-    assert.equal(enterprisePlan.price, "Auf Anfrage");
-    assert.equal(enterprisePlan.stripe.mode, "request");
+    assert.equal(enterprisePlan.price, "499 EUR");
+    assert.equal(enterprisePlan.period, "/Monat");
+    assert.equal(enterprisePlan.stripe.mode, "subscription");
+    assert.equal(enterprisePlan.stripe.unitAmountCents, 49900);
+    assert.equal(enterprisePlan.stripe.quantityMode, "workspace");
     assert.ok(productContractPayload.presetPackages.some(pack =>
       pack.id === "website.builder" &&
       pack.includedInPlanIds.includes("expert") &&
@@ -304,14 +307,17 @@ test("serves the event and connector catalog only to allowed origins", async () 
     assert.equal(stripePricingPreset.components[0].variant, "pricing");
     assert.equal(stripePricingPreset.stateContribution.root, "states.stripe_pricing");
     assert.deepEqual(stripePricingPreset.data.plans.map(plan => plan.transitionId), ["", "", ""]);
-    assert.deepEqual(stripePricingPreset.data.plans.map(plan => plan.actionLabel), ["Starter buchen", "Expert buchen", "Anfrage stellen"]);
+    assert.deepEqual(stripePricingPreset.data.plans.map(plan => plan.actionLabel), ["Starter buchen", "Expert buchen", "Volumen buchen"]);
     assert.equal(stripePricingPreset.data.plans[0].price, "49,99 EUR");
     assert.equal(stripePricingPreset.data.plans[0].period, "pro Benutzer / Monat");
     assert.equal(stripePricingPreset.data.plans[0].stripe.unitAmountCents, 4999);
     assert.equal(stripePricingPreset.data.plans[0].url, "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=starter&quantity=1");
     assert.equal(stripePricingPreset.data.plans[1].price, "199 EUR");
     assert.equal(stripePricingPreset.data.plans[1].stripe.unitAmountCents, 19900);
-    assert.match(stripePricingPreset.data.plans[2].url, /^mailto:/);
+    assert.equal(stripePricingPreset.data.plans[2].price, "499 EUR");
+    assert.equal(stripePricingPreset.data.plans[2].period, "/Monat");
+    assert.equal(stripePricingPreset.data.plans[2].stripe.unitAmountCents, 49900);
+    assert.equal(stripePricingPreset.data.plans[2].url, "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=enterprise&quantity=1");
   });
 });
 
@@ -367,6 +373,17 @@ test("creates Stripe subscription checkout sessions from contract pricing", asyn
     assert.equal(expertParams.get("line_items[0][quantity]"), "1");
     assert.equal(expertParams.get("line_items[0][price_data][unit_amount]"), "19900");
     assert.equal(expertParams.get("line_items[0][adjustable_quantity][enabled]"), null);
+
+    const enterpriseResponse = await fetch(httpUrl(realtime, "/stripe/checkout?plan=enterprise&quantity=4"), {
+      redirect: "manual"
+    });
+    assert.equal(enterpriseResponse.status, 303);
+    const enterpriseParams = new URLSearchParams(calls[2].body);
+    assert.equal(enterpriseParams.get("client_reference_id"), "enterprise");
+    assert.equal(enterpriseParams.get("line_items[0][quantity]"), "1");
+    assert.equal(enterpriseParams.get("line_items[0][price_data][unit_amount]"), "49900");
+    assert.equal(enterpriseParams.get("metadata[contract_lookup_key]"), "enterprise_monthly_eur");
+    assert.equal(enterpriseParams.get("line_items[0][adjustable_quantity][enabled]"), null);
   });
 });
 
@@ -378,7 +395,7 @@ test("fails Stripe checkout closed when plan or credentials are missing", async 
     assert.equal(missingSecret.status, 503);
     assert.deepEqual(await missingSecret.json(), { error: "stripe_secret_required" });
 
-    const unknownPlan = await fetch(httpUrl(realtime, "/stripe/checkout?plan=enterprise"), {
+    const unknownPlan = await fetch(httpUrl(realtime, "/stripe/checkout?plan=unknown"), {
       redirect: "manual"
     });
     assert.equal(unknownPlan.status, 404);
