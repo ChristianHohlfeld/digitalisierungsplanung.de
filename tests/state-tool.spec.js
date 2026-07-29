@@ -8544,7 +8544,11 @@ test.describe("State Blueprint tool", () => {
           url: plan.url || "",
           mode: plan.checkout?.mode || "",
           amount: plan.stripe?.unitAmountCents || 0,
-          quantityMode: plan.stripe?.quantityMode || ""
+          quantityMode: plan.stripe?.quantityMode || "",
+          billingAddressCollection: plan.stripe?.billingAddressCollection || "",
+          automaticTax: plan.stripe?.automaticTax === true,
+          taxBehavior: plan.stripe?.taxBehavior || "",
+          taxCode: plan.stripe?.taxCode || ""
         }))
       };
     });
@@ -8562,7 +8566,11 @@ test.describe("State Blueprint tool", () => {
         url: "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=starter&quantity=1",
         mode: "checkout_session",
         amount: 4999,
-        quantityMode: "per_user"
+        quantityMode: "per_user",
+        billingAddressCollection: "required",
+        automaticTax: true,
+        taxBehavior: "exclusive",
+        taxCode: "txcd_10103001"
       },
       {
         title: "Expert",
@@ -8573,7 +8581,11 @@ test.describe("State Blueprint tool", () => {
         url: "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=expert&quantity=1",
         mode: "checkout_session",
         amount: 19900,
-        quantityMode: "workspace"
+        quantityMode: "workspace",
+        billingAddressCollection: "required",
+        automaticTax: true,
+        taxBehavior: "exclusive",
+        taxCode: "txcd_10103001"
       },
       {
         title: "Volumen & Unternehmen",
@@ -8584,7 +8596,11 @@ test.describe("State Blueprint tool", () => {
         url: "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=enterprise&quantity=1",
         mode: "checkout_session",
         amount: 49900,
-        quantityMode: "workspace"
+        quantityMode: "workspace",
+        billingAddressCollection: "required",
+        automaticTax: true,
+        taxBehavior: "exclusive",
+        taxCode: "txcd_10103001"
       }
     ]);
 

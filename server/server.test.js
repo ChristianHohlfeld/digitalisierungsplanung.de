@@ -225,15 +225,27 @@ test("serves the event and connector catalog only to allowed origins", async () 
     assert.equal(starterPlan.stripe.unitAmountCents, 4999);
     assert.equal(starterPlan.stripe.currency, "eur");
     assert.equal(starterPlan.stripe.recurringInterval, "month");
+    assert.equal(starterPlan.stripe.billingAddressCollection, "required");
+    assert.equal(starterPlan.stripe.automaticTax, true);
+    assert.equal(starterPlan.stripe.taxBehavior, "exclusive");
+    assert.equal(starterPlan.stripe.taxCode, "txcd_10103001");
     assert.equal(starterPlan.stripe.quantityMode, "per_user");
     const expertPlan = productContractPayload.subscriptionPlans.find(plan => plan.id === "expert");
     assert.equal(expertPlan.price, "199 EUR");
     assert.equal(expertPlan.stripe.unitAmountCents, 19900);
+    assert.equal(expertPlan.stripe.billingAddressCollection, "required");
+    assert.equal(expertPlan.stripe.automaticTax, true);
+    assert.equal(expertPlan.stripe.taxBehavior, "exclusive");
+    assert.equal(expertPlan.stripe.taxCode, "txcd_10103001");
     const enterprisePlan = productContractPayload.subscriptionPlans.find(plan => plan.id === "enterprise");
     assert.equal(enterprisePlan.price, "499 EUR");
     assert.equal(enterprisePlan.period, "/Monat");
     assert.equal(enterprisePlan.stripe.mode, "subscription");
     assert.equal(enterprisePlan.stripe.unitAmountCents, 49900);
+    assert.equal(enterprisePlan.stripe.billingAddressCollection, "required");
+    assert.equal(enterprisePlan.stripe.automaticTax, true);
+    assert.equal(enterprisePlan.stripe.taxBehavior, "exclusive");
+    assert.equal(enterprisePlan.stripe.taxCode, "txcd_10103001");
     assert.equal(enterprisePlan.stripe.quantityMode, "workspace");
     assert.ok(productContractPayload.presetPackages.some(pack =>
       pack.id === "website.builder" &&
@@ -311,12 +323,24 @@ test("serves the event and connector catalog only to allowed origins", async () 
     assert.equal(stripePricingPreset.data.plans[0].price, "49,99 EUR");
     assert.equal(stripePricingPreset.data.plans[0].period, "pro Benutzer / Monat");
     assert.equal(stripePricingPreset.data.plans[0].stripe.unitAmountCents, 4999);
+    assert.equal(stripePricingPreset.data.plans[0].stripe.billingAddressCollection, "required");
+    assert.equal(stripePricingPreset.data.plans[0].stripe.automaticTax, true);
+    assert.equal(stripePricingPreset.data.plans[0].stripe.taxBehavior, "exclusive");
+    assert.equal(stripePricingPreset.data.plans[0].stripe.taxCode, "txcd_10103001");
     assert.equal(stripePricingPreset.data.plans[0].url, "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=starter&quantity=1");
     assert.equal(stripePricingPreset.data.plans[1].price, "199 EUR");
     assert.equal(stripePricingPreset.data.plans[1].stripe.unitAmountCents, 19900);
+    assert.equal(stripePricingPreset.data.plans[1].stripe.billingAddressCollection, "required");
+    assert.equal(stripePricingPreset.data.plans[1].stripe.automaticTax, true);
+    assert.equal(stripePricingPreset.data.plans[1].stripe.taxBehavior, "exclusive");
+    assert.equal(stripePricingPreset.data.plans[1].stripe.taxCode, "txcd_10103001");
     assert.equal(stripePricingPreset.data.plans[2].price, "499 EUR");
     assert.equal(stripePricingPreset.data.plans[2].period, "/Monat");
     assert.equal(stripePricingPreset.data.plans[2].stripe.unitAmountCents, 49900);
+    assert.equal(stripePricingPreset.data.plans[2].stripe.billingAddressCollection, "required");
+    assert.equal(stripePricingPreset.data.plans[2].stripe.automaticTax, true);
+    assert.equal(stripePricingPreset.data.plans[2].stripe.taxBehavior, "exclusive");
+    assert.equal(stripePricingPreset.data.plans[2].stripe.taxCode, "txcd_10103001");
     assert.equal(stripePricingPreset.data.plans[2].url, "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=enterprise&quantity=1");
   });
 });
@@ -363,6 +387,10 @@ test("creates Stripe subscription checkout sessions from contract pricing", asyn
     assert.equal(params.get("line_items[0][price_data][product_data][name]"), "Digitalisierungsplanung Starter");
     assert.equal(params.get("line_items[0][adjustable_quantity][enabled]"), "true");
     assert.equal(params.get("metadata[contract_lookup_key]"), "starter_user_monthly_eur");
+    assert.equal(params.get("billing_address_collection"), "required");
+    assert.equal(params.get("automatic_tax[enabled]"), "true");
+    assert.equal(params.get("line_items[0][price_data][tax_behavior]"), "exclusive");
+    assert.equal(params.get("line_items[0][price_data][product_data][tax_code]"), "txcd_10103001");
 
     const expertResponse = await fetch(httpUrl(realtime, "/stripe/checkout?plan=expert&quantity=9"), {
       redirect: "manual"
@@ -373,6 +401,10 @@ test("creates Stripe subscription checkout sessions from contract pricing", asyn
     assert.equal(expertParams.get("line_items[0][quantity]"), "1");
     assert.equal(expertParams.get("line_items[0][price_data][unit_amount]"), "19900");
     assert.equal(expertParams.get("line_items[0][adjustable_quantity][enabled]"), null);
+    assert.equal(expertParams.get("billing_address_collection"), "required");
+    assert.equal(expertParams.get("automatic_tax[enabled]"), "true");
+    assert.equal(expertParams.get("line_items[0][price_data][tax_behavior]"), "exclusive");
+    assert.equal(expertParams.get("line_items[0][price_data][product_data][tax_code]"), "txcd_10103001");
 
     const enterpriseResponse = await fetch(httpUrl(realtime, "/stripe/checkout?plan=enterprise&quantity=4"), {
       redirect: "manual"
@@ -384,6 +416,10 @@ test("creates Stripe subscription checkout sessions from contract pricing", asyn
     assert.equal(enterpriseParams.get("line_items[0][price_data][unit_amount]"), "49900");
     assert.equal(enterpriseParams.get("metadata[contract_lookup_key]"), "enterprise_monthly_eur");
     assert.equal(enterpriseParams.get("line_items[0][adjustable_quantity][enabled]"), null);
+    assert.equal(enterpriseParams.get("billing_address_collection"), "required");
+    assert.equal(enterpriseParams.get("automatic_tax[enabled]"), "true");
+    assert.equal(enterpriseParams.get("line_items[0][price_data][tax_behavior]"), "exclusive");
+    assert.equal(enterpriseParams.get("line_items[0][price_data][product_data][tax_code]"), "txcd_10103001");
   });
 });
 

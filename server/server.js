@@ -789,7 +789,8 @@ function stripeCheckoutSessionParams(config, plan, quantity) {
   params.set("cancel_url", config.stripeCancelUrl);
   params.set("client_reference_id", plan.id);
   params.set("locale", "auto");
-  params.set("billing_address_collection", "auto");
+  params.set("billing_address_collection", stripe.billingAddressCollection === "auto" ? "auto" : "required");
+  if (stripe.automaticTax === true) params.set("automatic_tax[enabled]", "true");
   params.set("allow_promotion_codes", "true");
   params.set("metadata[contract_plan_id]", plan.id);
   params.set("metadata[contract_lookup_key]", stripe.lookupKey || plan.id);
@@ -800,8 +801,14 @@ function stripeCheckoutSessionParams(config, plan, quantity) {
   params.set("line_items[0][price_data][currency]", stripe.currency || "eur");
   params.set("line_items[0][price_data][unit_amount]", String(amount));
   params.set("line_items[0][price_data][recurring][interval]", stripe.recurringInterval || "month");
+  if (["inclusive", "exclusive"].includes(stripe.taxBehavior)) {
+    params.set("line_items[0][price_data][tax_behavior]", stripe.taxBehavior);
+  }
   params.set("line_items[0][price_data][product_data][name]", stripe.productName || plan.label || plan.id);
   params.set("line_items[0][price_data][product_data][metadata][contract_plan_id]", plan.id);
+  if (/^txcd_\d+$/.test(String(stripe.taxCode || ""))) {
+    params.set("line_items[0][price_data][product_data][tax_code]", stripe.taxCode);
+  }
   if (stripe.adjustableQuantity === true) {
     params.set("line_items[0][adjustable_quantity][enabled]", "true");
     params.set("line_items[0][adjustable_quantity][minimum]", String(parseInteger(stripe.minQuantity, 1, 1, 10000)));

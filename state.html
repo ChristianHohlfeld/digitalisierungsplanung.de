@@ -6292,7 +6292,7 @@
           actionLabel: "Starter buchen",
           url: "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=starter&quantity=1",
           checkout: { mode: "checkout_session", plan: "starter" },
-          stripe: { unitAmountCents: 4999, currency: "eur", quantityMode: "per_user" }
+          stripe: { unitAmountCents: 4999, currency: "eur", quantityMode: "per_user", billingAddressCollection: "required", automaticTax: true, taxBehavior: "exclusive", taxCode: "txcd_10103001" }
         },
         {
           title: "Expert",
@@ -6305,7 +6305,7 @@
           url: "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=expert&quantity=1",
           highlight: true,
           checkout: { mode: "checkout_session", plan: "expert" },
-          stripe: { unitAmountCents: 19900, currency: "eur", quantityMode: "workspace" }
+          stripe: { unitAmountCents: 19900, currency: "eur", quantityMode: "workspace", billingAddressCollection: "required", automaticTax: true, taxBehavior: "exclusive", taxCode: "txcd_10103001" }
         },
         {
           title: "Volumen & Unternehmen",
@@ -6317,7 +6317,7 @@
           actionLabel: "Volumen buchen",
           url: "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=enterprise&quantity=1",
           checkout: { mode: "checkout_session", plan: "enterprise" },
-          stripe: { unitAmountCents: 49900, currency: "eur", quantityMode: "workspace" }
+          stripe: { unitAmountCents: 49900, currency: "eur", quantityMode: "workspace", billingAddressCollection: "required", automaticTax: true, taxBehavior: "exclusive", taxCode: "txcd_10103001" }
         }
       ];
       const makeState = (id, title, x, y, components, data, extra = {}) => ({
