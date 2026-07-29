@@ -3180,6 +3180,81 @@ test.describe("State Blueprint tool", () => {
     });
   });
 
+  test("loads saved definitions with state-root daisy widget data scopes @smoke", async ({ page }, testInfo) => {
+    await openTool(page);
+
+    const definition = {
+      kind: "state-blueprint-definition",
+      schemaVersion: 2,
+      app: "Zustand",
+      savedAt: new Date().toISOString(),
+      model: {
+        version: 2,
+        name: "State root widget scope",
+        initial: "pricing",
+        boundary: { entryId: "", exitId: "", entryDisabled: false, exitDisabled: false },
+        states: [
+          {
+            id: "intro",
+            title: "Intro",
+            components: [{ id: "intro_text", type: "text", text: "Intro", url: "" }],
+            data: {},
+            dataTypes: {},
+            parentId: null,
+            x: 96,
+            y: 120
+          },
+          {
+            id: "details",
+            title: "Details",
+            components: [{ id: "details_text", type: "text", text: "Details", url: "" }],
+            data: {},
+            dataTypes: {},
+            parentId: null,
+            x: 360,
+            y: 120
+          },
+          {
+            id: "pricing",
+            title: "Pricing",
+            components: [{
+              id: "pricing_button",
+              type: "daisy",
+              text: "",
+              url: "",
+              variant: "button",
+              dataPath: "states.pricing",
+              dataRole: "widget",
+              dataLabel: "Pricing Button"
+            }],
+            data: { label: "Starter buchen", clicked: false, clickedAt: 0 },
+            dataTypes: { label: "text", clicked: "boolean", clickedAt: "number" },
+            parentId: null,
+            x: 624,
+            y: 120
+          }
+        ],
+        transitions: []
+      },
+      stateTemplates: [],
+      camera: { x: 32, y: 32, scale: 1 },
+      previewCollapsed: false
+    };
+    const definitionPath = testInfo.outputPath("state-root-widget-scope.state.json");
+    fs.writeFileSync(definitionPath, JSON.stringify(definition), "utf8");
+
+    await page.locator("#fileLoad").setInputFiles(definitionPath);
+    await expect(page.locator('[data-id="pricing"]')).toBeVisible();
+    await expect(appFrame(page).locator("#statePill")).toHaveText("pricing");
+    await expect.poll(async () => {
+      const loadedModel = await savedModel(page);
+      return loadedModel.states[2]?.components?.[0]?.dataPath || "";
+    }).toBe("states.pricing");
+
+    await appFrame(page).getByRole("button", { name: "Starter buchen" }).click();
+    await expect.poll(async () => (await runtimeContext(page)).states?.pricing?.clicked).toBe(true);
+  });
+
   test("deletes selected substates with the same Delete key path as root states", async ({ page }) => {
     await openTool(page);
 

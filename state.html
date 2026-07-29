@@ -7835,7 +7835,7 @@
       return assertString(value, path, { allowEmpty });
     }
 
-    function validateComponents(value, path) {
+    function validateComponents(value, path, { stateId = "" } = {}) {
       if (value === undefined) return [];
       if (!Array.isArray(value)) throw new Error(`${path} must be an array.`);
       return value.map((component, index) => {
@@ -7850,7 +7850,7 @@
           url: "url" in component ? validateComponentLiteralText(component.url, `${itemPath}.url`) : "",
           variant: "variant" in component ? assertString(component.variant, `${itemPath}.variant`, { allowEmpty: true }) : ""
         };
-        if ("dataPath" in component) normalized.dataPath = validateComponentDataPath(component.dataPath, `${itemPath}.dataPath`, { allowEmpty: true });
+        if ("dataPath" in component) normalized.dataPath = validateComponentDataPath(component.dataPath, `${itemPath}.dataPath`, { allowEmpty: true, stateId });
         if ("dataRole" in component) normalized.dataRole = assertString(component.dataRole, `${itemPath}.dataRole`, { allowEmpty: true }).slice(0, 40);
         if ("dataLabel" in component) normalized.dataLabel = assertString(component.dataLabel, `${itemPath}.dataLabel`, { allowEmpty: true }).slice(0, 80);
         if (type === "transitionButton") normalized.transitionId = assertString(component.transitionId || "", `${itemPath}.transitionId`, { allowEmpty: true });
@@ -8304,11 +8304,20 @@
       }
     }
 
-    function validateComponentDataPath(value, path, { allowEmpty = false } = {}) {
+    function validateComponentDataPath(value, path, { allowEmpty = false, stateId = "" } = {}) {
       if (value === undefined) return allowEmpty ? "" : "";
       const text = assertString(value, path, { allowEmpty }).trim();
       if (!text) return allowEmpty ? "" : "";
-      return validateWritableBusPath(text, path, { allowEmpty });
+      const clean = validateBindingPath(text, path, { allowEmpty });
+      if (!clean) return "";
+      const ownerScope = stateId ? stateDataScopeForId(stateId) : "";
+      if (ownerScope && clean !== ownerScope && !clean.startsWith(ownerScope + ".")) {
+        throw new Error(`${path} must bind data owned by states.${stateId}.`);
+      }
+      if (!ownerScope && !/^states\.[a-zA-Z_][a-zA-Z0-9_]*(?:\.|$)/.test(clean)) {
+        throw new Error(`${path} must be a fully qualified states.<id> data scope.`);
+      }
+      return clean;
     }
 
     function validateDataTypePath(value, path, { allowEmpty = false } = {}) {
@@ -8485,7 +8494,7 @@
         return {
           id,
           title: assertString(state.title, `${path}.title`),
-          components: validateComponents(state.components, `${path}.components`),
+          components: validateComponents(state.components, `${path}.components`, { stateId: id }),
           data: dataObject,
           dataTypes: validateDataTypesObject(state.dataTypes, `${path}.dataTypes`, dataObject),
           dataSource: validateDataSource(state.dataSource, `${path}.dataSource`, { fallbackTarget: stateDataScopeForId(id) + ".fetch" }),
