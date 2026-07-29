@@ -2830,7 +2830,20 @@ test.describe("State Blueprint tool", () => {
     await expectRentalStep("site_wish", "Wohnwunsch angeben");
     await expect(runtimeTextInput(rentalApp, "Wo suche ich?")).toBeVisible();
     await expect(runtimeSelect(rentalApp, "Wohnungsgröße")).toBeVisible();
-    await expect(runtimeDateInput(rentalApp, "Einzug ab")).toHaveValue("2026-09-01");
+    const moveDate = runtimeDateInput(rentalApp, "Einzug ab");
+    await expect(moveDate).toHaveValue("2026-09-01");
+    await moveDate.evaluate(input => {
+      window.__calendarShowPickerCalls = 0;
+      input.showPicker = () => { window.__calendarShowPickerCalls += 1; };
+    });
+    await moveDate.click();
+    await expect.poll(async () => rentalApp.locator("html").evaluate(() => window.__calendarShowPickerCalls || 0)).toBe(1);
+    await moveDate.focus();
+    await page.keyboard.press("ArrowUp");
+    await expect(moveDate).toHaveValue("2026-09-02");
+    await expect(moveDate).toBeFocused();
+    await expect(runtimeTextInput(rentalApp, "Wo suche ich?")).not.toBeFocused();
+    await expect.poll(async () => (await runtimeContext(page)).states?.site_wish?.move?.value).toBe("2026-09-02");
     await rentalApp.getByRole("button", { name: "Kontakt angeben", exact: true }).click();
     await expectRentalStep("site_contact", "Kontakt angeben");
     await expect(runtimeTextInput(rentalApp, "Mein Name")).toBeVisible();
@@ -3090,7 +3103,13 @@ test.describe("State Blueprint tool", () => {
     await expectRentalStandaloneShell("site_wish", "Wohnwunsch angeben");
     await expect(runtimeTextInput(standalone, "Wo suche ich?")).toBeVisible();
     await expect(runtimeSelect(standalone, "Wohnungsgröße")).toBeVisible();
-    await expect(runtimeDateInput(standalone, "Einzug ab")).toHaveValue("2026-09-01");
+    const standaloneMoveDate = runtimeDateInput(standalone, "Einzug ab");
+    await expect(standaloneMoveDate).toHaveValue("2026-09-01");
+    await standaloneMoveDate.focus();
+    await standalone.keyboard.press("ArrowUp");
+    await expect(standaloneMoveDate).toHaveValue("2026-09-02");
+    await expect(standaloneMoveDate).toBeFocused();
+    await expect(runtimeTextInput(standalone, "Wo suche ich?")).not.toBeFocused();
     await standalone.getByRole("button", { name: "Kontakt angeben", exact: true }).click();
     await expectRentalStandaloneShell("site_contact", "Kontakt angeben");
     await expect(runtimeTextInput(standalone, "Mein Name")).toBeVisible();
