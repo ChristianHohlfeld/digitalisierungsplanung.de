@@ -16441,10 +16441,22 @@
         return true;
       };
       let touchComponentReorder = null;
-      const componentDropTargetAt = clientY => {
+      const componentDropTargetAt = (clientY, clientX = NaN) => {
         const rows = [...root.querySelectorAll(".widget-assigned-row[data-component-id],.component-editor[data-component-id]")];
         const candidates = rows.filter(row => row.dataset.componentId !== touchComponentReorder?.componentId);
         if (!candidates.length) return null;
+        if (Number.isFinite(clientX) && Number.isFinite(clientY)) {
+          const directRow = document.elementFromPoint(clientX, clientY)
+            ?.closest?.(".widget-assigned-row[data-component-id],.component-editor[data-component-id]");
+          if (directRow && root.contains(directRow) && directRow.dataset.componentId !== touchComponentReorder?.componentId) {
+            const rect = directRow.getBoundingClientRect();
+            return {
+              row: directRow,
+              componentId: directRow.dataset.componentId,
+              after: clientY > rect.top + rect.height / 2
+            };
+          }
+        }
         let first = null;
         let last = null;
         for (const row of candidates) {
@@ -16466,7 +16478,7 @@
       };
       const updateTouchComponentDropTarget = evt => {
         if (!touchComponentReorder?.active) return;
-        const target = componentDropTargetAt(evt.clientY);
+        const target = componentDropTargetAt(evt.clientY, evt.clientX);
         clearComponentDropMarks();
         touchComponentReorder.target = target;
         if (target?.row) target.row.classList.add(target.after ? "drop-after" : "drop-before");
@@ -16506,7 +16518,7 @@
         if (!ended?.active) return;
         evt.preventDefault();
         evt.stopPropagation();
-        const target = ended.target || componentDropTargetAt(evt.clientY);
+        const target = ended.target || componentDropTargetAt(evt.clientY, evt.clientX);
         if (target?.componentId) moveComponentBefore(ended.componentId, target.componentId, target.after);
       }
       function onTouchComponentReorderCancel(evt) {
