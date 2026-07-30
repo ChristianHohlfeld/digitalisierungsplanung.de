@@ -10722,6 +10722,7 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator('[data-id="register"]').click();
     await expect(page.locator("#pTitle")).toBeHidden();
+    await expect.poll(() => page.locator("#map").evaluate(map => document.activeElement === map)).toBe(true);
     await page.keyboard.type("Join");
 
     await expect(page.locator(".workspace")).toHaveClass(/inspector-collapsed/);
