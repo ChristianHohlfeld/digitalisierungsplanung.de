@@ -3259,7 +3259,7 @@ test.describe("State Blueprint tool", () => {
 
     await productApp.getByRole("button", { name: "Pakete ansehen", exact: true }).click();
     await expectProductStep("site_pricing", "Paket wählen");
-    await expect(productApp.getByText("Der Checkout erfasst Rechnungsadresse").first()).toBeVisible();
+    await expect(productApp.getByText("Der Checkout erfasst die Rechnungsadresse").first()).toBeVisible();
     await expect(productApp.getByRole("link", { name: "Starter buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=starter&quantity=1");
     await expect(productApp.getByRole("link", { name: "Expert buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=expert&quantity=1");
     await expect(productApp.getByRole("link", { name: "Volumen buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=enterprise&quantity=1");
@@ -3511,7 +3511,7 @@ test.describe("State Blueprint tool", () => {
 
     await standalone.getByRole("button", { name: "Pakete ansehen", exact: true }).click();
     await expectProductStandaloneShell("site_pricing", "Paket wählen", { footer: true });
-    await expect(standalone.getByText("Der Checkout erfasst Rechnungsadresse").first()).toBeVisible();
+    await expect(standalone.getByText("Der Checkout erfasst die Rechnungsadresse").first()).toBeVisible();
     await expect(standalone.getByRole("link", { name: "Starter buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=starter&quantity=1");
     await expect(standalone.getByRole("link", { name: "Expert buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=expert&quantity=1");
     await expect(standalone.getByRole("link", { name: "Volumen buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=enterprise&quantity=1");

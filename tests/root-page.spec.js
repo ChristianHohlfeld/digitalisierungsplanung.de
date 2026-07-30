@@ -143,7 +143,7 @@ test.describe("Root demo export", () => {
     await expectDemoStep("site_overview", "Prozess-App-Editor kaufen");
     await page.getByRole("button", { name: "Pakete ansehen", exact: true }).click();
     await expectDemoStep("site_pricing", "Paket wählen");
-    await expect(page.getByText("Der Checkout erfasst Rechnungsadresse").first()).toBeVisible();
+    await expect(page.getByText("Der Checkout erfasst die Rechnungsadresse").first()).toBeVisible();
     await expect(page.getByRole("link", { name: "Starter buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=starter&quantity=1");
     await expect(page.getByRole("link", { name: "Expert buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=expert&quantity=1");
     await expect(page.getByRole("link", { name: "Volumen buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=enterprise&quantity=1");
