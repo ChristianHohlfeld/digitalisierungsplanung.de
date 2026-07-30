@@ -8,6 +8,7 @@
   const DEFAULT_MODEL = "Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC";
   const DEFAULT_WEBLLM_PACKAGE = "https://esm.run/@mlc-ai/web-llm";
   const STORAGE_KEY = "digitalisierungsplanung.agentWidget.settings.v1";
+  const LOCAL_ENGINE_REGISTRY = new Map();
 
   const css = `
     :host { all: initial; color-scheme: light; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
@@ -20,7 +21,9 @@
     .title { min-width: 0; }
     .title strong { display: block; font-size: 14px; line-height: 1.2; }
     .title span { display: block; margin-top: 2px; color: #64748b; font-size: 12px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .head-actions { display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto; }
     .icon-btn { width: 34px; height: 34px; display: inline-grid; place-items: center; border: 1px solid #dbe3ee; border-radius: 6px; background: #fff; color: #0f172a; cursor: pointer; }
+    .icon-btn.clear-chat { width: auto; min-width: 54px; padding-inline: 9px; font-size: 12px; font-weight: 850; }
     .status { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #475569; font-size: 12px; background: #f8fafc; }
     .status-text { min-width: 0; overflow-wrap: anywhere; }
     .dot { width: 8px; height: 8px; border-radius: 999px; background: #22c55e; flex: 0 0 auto; }
@@ -86,6 +89,7 @@
       this.pendingToolCall = null;
       this.sending = false;
       this.sendQueue = [];
+      this.chatGeneration = 0;
       this.localEngineState = "idle";
       this.localEngineProgress = 0;
       this.localEngineError = "";
@@ -128,12 +132,59 @@
 
     readyStatusText() {
       if (this.editorBridge()) {
+        this.syncLocalEngineState(this.localEngineEntry());
         if (this.engine) return `Lokale KI aktiv: ${this.model()}`;
         if (this.loadingEngine || this.localEngineState === "loading") return `Lokale KI laedt: ${this.model()} (${this.localEngineProgress || 0}%)`;
         if (this.localEngineState === "unavailable") return "Lokale KI nicht verfuegbar. Editor-Aenderungen laufen direkt.";
         return "Lokale KI noch nicht geladen. Editor-Aenderungen laufen direkt.";
       }
       return this.mode() === "server" ? "Externes Backend bereit" : "In-Browser KI bereit";
+    }
+
+    localPackageUrl() {
+      return this.getAttribute("data-webllm-src") || this.config?.widget?.webLlmPackageUrl || DEFAULT_WEBLLM_PACKAGE;
+    }
+
+    localEngineKey() {
+      return `${this.localPackageUrl()}::${this.model()}`;
+    }
+
+    localEngineEntry() {
+      const key = this.localEngineKey();
+      if (!LOCAL_ENGINE_REGISTRY.has(key)) {
+        LOCAL_ENGINE_REGISTRY.set(key, {
+          key,
+          engine: null,
+          loading: null,
+          state: "idle",
+          progress: 0,
+          error: ""
+        });
+      }
+      return LOCAL_ENGINE_REGISTRY.get(key);
+    }
+
+    syncLocalEngineState(entry) {
+      this.engine = entry?.engine || null;
+      this.loadingEngine = entry?.loading || null;
+      this.localEngineState = entry?.state || "idle";
+      this.localEngineProgress = entry?.progress || 0;
+      this.localEngineError = entry?.error || "";
+    }
+
+    resetLocalEngineEntry(error = null) {
+      const entry = this.localEngineEntry();
+      entry.engine = null;
+      entry.loading = null;
+      entry.state = "idle";
+      entry.progress = 0;
+      entry.error = error?.message || String(error || "");
+      this.syncLocalEngineState(entry);
+      return entry;
+    }
+
+    localEngineDisposedError(error) {
+      return /(?:already\s+)?disposed|engine.*closed|worker.*terminated/i.test(error?.message || String(error || ""));
     }
 
     openPanel() {
@@ -214,8 +265,11 @@
               <strong>App Intelligence</strong>
               <span class="subtitle">${editorBridge ? "In-Browser Oberflaeche, MCP-Bridge bei Bedarf" : "In-Browser KI, MCP-Broker bei Bedarf"}</span>
             </div>
-            ${settingsToggle}
-            <button class="icon-btn close" type="button" aria-label="Minimieren">-</button>
+            <div class="head-actions">
+              ${settingsToggle}
+              <button class="icon-btn clear-chat" type="button" aria-label="Chat loeschen">Clear</button>
+              <button class="icon-btn close" type="button" aria-label="Minimieren">-</button>
+            </div>
           </div>
           ${settingsPanel}
           <div class="status"><span class="dot"></span><span class="status-text">Initialisiere...</span></div>
@@ -228,6 +282,7 @@
       `;
       this.shadowRoot.querySelector(".launcher").addEventListener("click", () => this.setOpen(!this.open));
       this.shadowRoot.querySelector(".close").addEventListener("click", () => this.setOpen(false));
+      this.shadowRoot.querySelector(".clear-chat").addEventListener("click", () => this.clearChat());
       const settingsToggleButton = this.shadowRoot.querySelector(".settings-toggle");
       if (settingsToggleButton) {
         settingsToggleButton.addEventListener("click", () => {
@@ -285,6 +340,20 @@
       this.updateSendButton();
     }
 
+    clearChat() {
+      this.chatGeneration += 1;
+      this.messages = [];
+      this.sendQueue = [];
+      const container = this.shadowRoot.querySelector(".messages");
+      if (container) container.innerHTML = "";
+      this.addMessage("assistant", this.editorBridge()
+        ? "Chat geloescht. Editor-Modell bleibt unveraendert; neue Aenderungen uebernehme ich direkt."
+        : "Chat geloescht. Frag mich neu nach Blueprint, MCP, Export oder Laden.");
+      this.setStatus(this.readyStatusText(), "ready");
+      this.updateSendButton();
+      this.shadowRoot.querySelector(".input")?.focus();
+    }
+
     setOpen(next) {
       this.open = Boolean(next);
       this.shadowRoot.querySelector(".panel").classList.toggle("hidden", !this.open);
@@ -307,6 +376,7 @@
     }
 
     addMessage(role, content, options = {}) {
+      if (Number.isInteger(options.generation) && options.generation !== this.chatGeneration) return null;
       const wrap = document.createElement("div");
       wrap.className = `msg ${role === "user" ? "user" : "assistant"}`;
       const bubble = document.createElement("div");
@@ -380,41 +450,51 @@
     }
 
     async ensureLocalEngine() {
-      if (this.engine) return this.engine;
-      if (this.loadingEngine) return this.loadingEngine;
+      const entry = this.localEngineEntry();
+      this.syncLocalEngineState(entry);
+      if (entry.engine) return entry.engine;
+      if (entry.loading) return entry.loading;
       if (!navigator.gpu) {
-        this.localEngineState = "unavailable";
-        this.localEngineError = "WebGPU nicht verfuegbar";
+        entry.state = "unavailable";
+        entry.error = "WebGPU nicht verfuegbar";
+        this.syncLocalEngineState(entry);
         this.setStatus(this.readyStatusText(), "ready");
         throw new Error("WebGPU ist in diesem Browser nicht verfuegbar.");
       }
-      const packageUrl = this.config?.widget?.webLlmPackageUrl || this.getAttribute("data-webllm-src") || DEFAULT_WEBLLM_PACKAGE;
-      this.localEngineState = "loading";
-      this.localEngineProgress = 0;
-      this.localEngineError = "";
-      this.loadingEngine = (async () => {
+      const packageUrl = this.localPackageUrl();
+      entry.state = "loading";
+      entry.progress = 0;
+      entry.error = "";
+      this.syncLocalEngineState(entry);
+      entry.loading = (async () => {
         this.setStatus(`WebLLM Paket laden: ${this.model()}`, "loading");
         const webllm = await import(packageUrl);
         return webllm.CreateMLCEngine(this.model(), {
           initProgressCallback: report => {
             const percent = Math.round(Number(report.progress || 0) * 100);
-            this.localEngineProgress = percent;
+            entry.progress = percent;
+            this.syncLocalEngineState(entry);
             this.setStatus(`Lokales Modell laden: ${this.model()} (${percent}%)`, "loading");
           }
         });
       })();
+      this.syncLocalEngineState(entry);
       try {
-        this.engine = await this.loadingEngine;
-        this.localEngineState = "ready";
+        entry.engine = await entry.loading;
+        entry.state = "ready";
+        entry.error = "";
       } catch (error) {
-        this.loadingEngine = null;
-        this.localEngineState = "idle";
-        this.localEngineError = error?.message || String(error || "");
+        entry.engine = null;
+        entry.state = "idle";
+        entry.error = error?.message || String(error || "");
         this.setStatus("Lokale KI noch nicht bereit. Editor-Aenderungen laufen direkt.", "ready");
         throw error;
+      } finally {
+        entry.loading = null;
+        this.syncLocalEngineState(entry);
       }
       this.setStatus(`Lokale KI aktiv: ${this.model()}`, "ready");
-      return this.engine;
+      return entry.engine;
     }
 
     systemPrompt() {
@@ -508,7 +588,7 @@
       return issueText ? `${base}\n${issueText}` : base;
     }
 
-    async sendEditorPrompt(prompt) {
+    async sendEditorPrompt(prompt, generation = this.chatGeneration) {
       const snapshot = await this.requestEditorSnapshot();
       const response = await fetch(this.editorPromptPath(), {
         method: "POST",
@@ -530,9 +610,10 @@
       this.addMessage("assistant", message, {
         meta: hasEditorActions
           ? (payload.ok ? "Geprueft und direkt uebernommen" : "Nicht uebernommen")
-          : "Keine Aenderung"
+          : "Keine Aenderung",
+        generation
       });
-      this.messages.push({ role: "assistant", content: message });
+      if (generation === this.chatGeneration) this.messages.push({ role: "assistant", content: message });
       return payload;
     }
 
@@ -557,53 +638,55 @@
       const input = this.shadowRoot.querySelector(".input");
       this.sending = true;
       this.updateSendButton();
-      let hadFailure = false;
+      let lastFailed = false;
+      const generation = this.chatGeneration;
       try {
-        while (this.sendQueue.length) {
+        while (this.sendQueue.length && generation === this.chatGeneration) {
           const text = this.sendQueue.shift();
           this.messages.push({ role: "user", content: text });
           try {
-            await this.handlePrompt(text);
+            await this.handlePrompt(text, generation);
+            lastFailed = false;
           } catch (error) {
-            hadFailure = true;
+            lastFailed = true;
             this.setStatus("Fehler", "error");
-            this.addMessage("assistant", error.message || String(error));
+            this.addMessage("assistant", error.message || String(error), { generation });
           }
         }
       } finally {
         this.sending = false;
         this.updateSendButton();
-        if (!hadFailure) this.setStatus(this.readyStatusText(), "ready");
+        if (!lastFailed && generation === this.chatGeneration) this.setStatus(this.readyStatusText(), "ready");
         if (this.open && (document.activeElement === this || this.shadowRoot.activeElement === input)) {
           input?.focus();
         }
       }
     }
 
-    async handlePrompt(text) {
+    async handlePrompt(text, generation = this.chatGeneration) {
       this.setStatus(this.sendQueue.length ? `Arbeite... ${this.sendQueue.length} wartet` : "Arbeite...", "loading");
       if (this.editorBridge()) {
         if (this.editorActionLikely(text)) {
-          await this.sendEditorPrompt(text);
+          await this.sendEditorPrompt(text, generation);
           return;
         }
         try {
-          await this.sendLocal(text);
+          await this.sendLocal(text, generation);
         } catch (error) {
           const message = "Lokale KI ist noch nicht bereit. Editor-Aenderungen kann ich trotzdem direkt ausfuehren.";
-          this.addMessage("assistant", message, { meta: this.readyStatusText() });
-          this.messages.push({ role: "assistant", content: message });
+          this.addMessage("assistant", message, { meta: this.readyStatusText(), generation });
+          if (generation === this.chatGeneration) this.messages.push({ role: "assistant", content: message });
         }
         return;
       }
       if (this.mode() === "server") {
-        await this.sendServer();
+        await this.sendServer(generation);
       } else {
-        await this.sendLocal(text);
+        await this.sendLocal(text, generation);
       }
     }
 
-    async sendServer() {
+    async sendServer(generation = this.chatGeneration) {
       const response = await fetch(this.endpoint("chatPath", DEFAULT_CHAT_PATH), {
         method: "POST",
         headers: this.headers(),
@@ -614,52 +697,64 @@
       const text = payload?.message?.content || "";
       this.addMessage("assistant", text, {
         meta: this.toolRunMeta(payload.toolRuns),
-        toolCall: payload.needsConfirmation ? payload.toolCall : null
+        toolCall: payload.needsConfirmation ? payload.toolCall : null,
+        generation
       });
-      this.messages.push({ role: "assistant", content: text });
+      if (generation === this.chatGeneration) this.messages.push({ role: "assistant", content: text });
     }
 
-    async sendLocal(promptText = "") {
+    async sendLocal(promptText = "", generation = this.chatGeneration, options = {}) {
+      const retryDisposed = options.retryDisposed !== false;
       const engine = await this.ensureLocalEngine();
-      const stream = await engine.chat.completions.create({
-        messages: [
-          { role: "system", content: this.editorBridge() ? this.editorSystemPrompt() : this.systemPrompt() },
-          ...this.messages.slice(-10)
-        ],
-        temperature: 0.2,
-        stream: true
-      });
       const streamToBubble = !this.editorBridge();
-      const bubble = streamToBubble ? this.addMessage("assistant", "") : null;
+      const bubble = streamToBubble ? this.addMessage("assistant", "", { generation }) : null;
       let complete = "";
-      for await (const chunk of stream) {
-        complete += chunk.choices?.[0]?.delta?.content || "";
-        if (bubble) bubble.textContent = complete;
+      try {
+        const stream = await engine.chat.completions.create({
+          messages: [
+            { role: "system", content: this.editorBridge() ? this.editorSystemPrompt() : this.systemPrompt() },
+            ...this.messages.slice(-10)
+          ],
+          temperature: 0.2,
+          stream: true
+        });
+        for await (const chunk of stream) {
+          complete += chunk.choices?.[0]?.delta?.content || "";
+          if (bubble && generation === this.chatGeneration) bubble.textContent = complete;
+        }
+      } catch (error) {
+        if (this.localEngineDisposedError(error) && retryDisposed) {
+          if (bubble) bubble.remove();
+          this.resetLocalEngineEntry(error);
+          this.setStatus("Lokale KI-Session erneuert. Browser-Cache bleibt erhalten.", "loading");
+          return this.sendLocal(promptText, generation, { retryDisposed: false });
+        }
+        throw error;
       }
       const editorCall = this.editorBridge() ? this.extractEditorCall(complete) : null;
       if (editorCall) {
-        await this.sendEditorPrompt(editorCall.prompt);
+        await this.sendEditorPrompt(editorCall.prompt, generation);
         return;
       }
       if (this.editorBridge() && this.editorActionLikely(promptText)) {
-        await this.sendEditorPrompt(promptText);
+        await this.sendEditorPrompt(promptText, generation);
         return;
       }
       const toolCall = this.extractMcpCall(complete);
       if (toolCall) {
         if (bubble) bubble.textContent = "Ich frage den MCP-Broker.";
         await this.runTool(toolCall);
-        this.messages.push({ role: "assistant", content: "MCP-Broker genutzt." });
+        if (generation === this.chatGeneration) this.messages.push({ role: "assistant", content: "MCP-Broker genutzt." });
         return;
       }
       if (this.editorBridge() && safeText(complete).trim().startsWith("{")) {
         const message = "Ich habe eine interne Tool-Antwort nicht sicher lesen koennen. Schreib den Editor-Auftrag bitte nochmal kurz.";
-        this.addMessage("assistant", message);
-        this.messages.push({ role: "assistant", content: message });
+        this.addMessage("assistant", message, { generation });
+        if (generation === this.chatGeneration) this.messages.push({ role: "assistant", content: message });
         return;
       }
-      if (!bubble) this.addMessage("assistant", complete);
-      this.messages.push({ role: "assistant", content: complete });
+      if (!bubble) this.addMessage("assistant", complete, { generation });
+      if (generation === this.chatGeneration) this.messages.push({ role: "assistant", content: complete });
     }
 
     headers() {

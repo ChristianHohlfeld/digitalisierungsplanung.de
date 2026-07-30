@@ -1314,6 +1314,7 @@ test.describe("State Blueprint tool", () => {
     await openTool(page);
 
     await page.locator("#btnAiAgent").click({ force: true });
+    await page.waitForFunction(() => document.querySelector("dp-agent-widget")?.shadowRoot?.querySelector(".panel:not(.hidden)"));
 
     const metrics = await page.evaluate(() => {
       const root = document.querySelector("dp-agent-widget")?.shadowRoot;
@@ -1341,6 +1342,148 @@ test.describe("State Blueprint tool", () => {
     expect(metrics.input.bottom).toBeLessThanOrEqual(metrics.viewport.height);
     expect(metrics.closeLabel).toBe("Minimieren");
     expect(metrics.inputDisabled).toBe(false);
+  });
+
+  test("keeps the editor AI local model session and clears chat history @smoke", async ({ page }) => {
+    await page.addInitScript(() => {
+      try {
+        Object.defineProperty(navigator, "gpu", { value: {}, configurable: true });
+      } catch (_) {}
+      window.__agentDisposeOnce = true;
+    });
+    await page.route("**/fake-webllm.js", route => route.fulfill({
+      status: 200,
+      contentType: "text/javascript",
+      body: `
+        export async function CreateMLCEngine(model, options) {
+          globalThis.__agentCreateCalls = (globalThis.__agentCreateCalls || 0) + 1;
+          options?.initProgressCallback?.({ progress: 1 });
+          return {
+            chat: {
+              completions: {
+                create() {
+                  return (async function* () {
+                    globalThis.__agentCompletionCalls = (globalThis.__agentCompletionCalls || 0) + 1;
+                    if (globalThis.__agentDisposeOnce) {
+                      globalThis.__agentDisposeOnce = false;
+                      throw new Error("already disposed");
+                    }
+                    yield { choices: [{ delta: { content: "Lokale Antwort " + globalThis.__agentCompletionCalls } }] };
+                  })();
+                }
+              }
+            }
+          };
+        }
+      `
+    }));
+    await openTool(page);
+
+    await page.locator("#btnAiAgent").click();
+    await page.waitForFunction(() => document.querySelector("dp-agent-widget")?.shadowRoot?.querySelector(".panel:not(.hidden)"));
+    await page.evaluate(() => {
+      const widget = document.querySelector("dp-agent-widget");
+      widget.setAttribute("data-webllm-src", "/fake-webllm.js");
+    });
+
+    const sendChat = async text => {
+      await page.evaluate(value => {
+        const root = document.querySelector("dp-agent-widget").shadowRoot;
+        const input = root.querySelector(".input");
+        input.value = value;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.focus();
+      }, text);
+      await page.keyboard.press("Enter");
+    };
+
+    await sendChat("hi");
+    await expect.poll(async () => page.evaluate(() => document.querySelector("dp-agent-widget")?.shadowRoot?.textContent || ""))
+      .toContain("Lokale Antwort 2");
+    await expect.poll(async () => page.evaluate(() => ({
+      createCalls: window.__agentCreateCalls || 0,
+      completionCalls: window.__agentCompletionCalls || 0
+    }))).toEqual({ createCalls: 2, completionCalls: 2 });
+
+    await sendChat("hi nochmal");
+    await expect.poll(async () => page.evaluate(() => document.querySelector("dp-agent-widget")?.shadowRoot?.textContent || ""))
+      .toContain("Lokale Antwort 3");
+    await expect.poll(async () => page.evaluate(() => window.__agentCreateCalls || 0)).toBe(2);
+
+    await page.evaluate(() => document.querySelector("dp-agent-widget").shadowRoot.querySelector(".clear-chat").click());
+    await expect.poll(async () => page.evaluate(() => {
+      const widget = document.querySelector("dp-agent-widget");
+      const root = widget.shadowRoot;
+      return {
+        text: root.querySelector(".messages").innerText,
+        messages: widget.messages.length,
+        queue: widget.sendQueue.length,
+        status: root.querySelector(".status-text").textContent
+      };
+    })).toEqual({
+      text: "Chat geloescht. Editor-Modell bleibt unveraendert; neue Aenderungen uebernehme ich direkt.",
+      messages: 0,
+      queue: 0,
+      status: "Lokale KI aktiv: Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC"
+    });
+  });
+
+  test("keeps the editor AI usable after an editor prompt error @smoke", async ({ page }) => {
+    await page.addInitScript(() => {
+      try {
+        Object.defineProperty(navigator, "gpu", { value: undefined, configurable: true });
+      } catch (_) {}
+    });
+    let promptRequests = 0;
+    await page.route("**/agent/editor/prompt", route => {
+      promptRequests += 1;
+      if (promptRequests === 1) {
+        return route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "map_async_failed" })
+        });
+      }
+      return route.continue();
+    });
+    await openTool(page);
+    await page.locator("#btnAiAgent").click();
+    await page.waitForFunction(() => document.querySelector("dp-agent-widget")?.shadowRoot?.querySelector(".panel:not(.hidden)"));
+
+    const sendEditorPrompt = async text => {
+      await page.evaluate(value => {
+        const root = document.querySelector("dp-agent-widget").shadowRoot;
+        const input = root.querySelector(".input");
+        input.value = value;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.focus();
+      }, text);
+      await page.keyboard.press("Enter");
+    };
+
+    await sendEditorPrompt("erstelle state Fehlerfall");
+    await expect.poll(async () => page.evaluate(() => document.querySelector("dp-agent-widget")?.shadowRoot?.textContent || ""))
+      .toContain("map_async_failed");
+    await expect.poll(async () => page.evaluate(() => {
+      const root = document.querySelector("dp-agent-widget").shadowRoot;
+      return root.querySelector(".input").disabled;
+    })).toBe(false);
+
+    await sendEditorPrompt("erstelle state Danach");
+    await expect(page.locator('[data-id="danach"]')).toBeVisible();
+    await expect.poll(async () => page.evaluate(() => {
+      const root = document.querySelector("dp-agent-widget").shadowRoot;
+      return {
+        status: root.querySelector(".status-text").textContent,
+        inputDisabled: root.querySelector(".input").disabled,
+        text: root.textContent
+      };
+    })).toEqual(expect.objectContaining({
+      status: "Lokale KI noch nicht geladen. Editor-Aenderungen laufen direkt.",
+      inputDisabled: false
+    }));
+    await expect.poll(async () => page.evaluate(() => document.querySelector("dp-agent-widget")?.shadowRoot?.textContent || ""))
+      .toContain("Geprueft und direkt uebernommen");
   });
 
   test("creates a complete Zustandsdiagramm from the UI with data, components, conditions, sets, preview, and export", async ({ page }) => {
