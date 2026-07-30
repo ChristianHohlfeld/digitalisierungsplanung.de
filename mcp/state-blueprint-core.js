@@ -136,6 +136,10 @@ function runtimeBusPathIsWritable(value) {
   return /^states\.[a-zA-Z_][a-zA-Z0-9_]*\./.test(normalizeBindingPath(value, ""));
 }
 
+function runtimeComponentDataPathIsValid(value) {
+  return /^states\.[a-zA-Z_][a-zA-Z0-9_]*(?:\.|$)/.test(normalizeBindingPath(value, ""));
+}
+
 function conditionRuntimePaths(condition) {
   const withoutStrings = String(condition || "").replace(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/g, " ");
   return withoutStrings.match(/[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*/g) || [];
@@ -178,8 +182,8 @@ function runtimeReferenceContractIssuesForState(state) {
   const issues = [];
   const add = (code, path, message) => issues.push({ code, stateId, path, message });
   for (const component of Array.isArray(state?.components) ? state.components : []) {
-    if (component?.dataPath && !runtimeBusPathIsWritable(component.dataPath)) {
-      add("invalid_component_data_path", String(component.dataPath), "Component dataPath must use states.<id>.<field>.");
+    if (component?.dataPath && !runtimeComponentDataPathIsValid(component.dataPath)) {
+      add("invalid_component_data_path", String(component.dataPath), "Component dataPath must use states.<id> or states.<id>.<field>.");
     }
     for (const value of [component?.text, component?.url, ...(Array.isArray(component?.items) ? component.items.flatMap(item => [item?.text, item?.url]) : [])]) {
       if (/\{\{[\s\S]*?\}\}/.test(String(value || ""))) {

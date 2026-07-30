@@ -91,6 +91,50 @@ function childTitleFromPrompt(prompt, fallback = "Schritt") {
     .trim() || fallback;
 }
 
+function stateTitleFromPrompt(prompt, fallback = "Neuer State") {
+  const quoted = quotedText(prompt);
+  if (quoted) return quoted;
+  const text = compactText(prompt);
+  const match = text.match(/\b(?:state|zustand|screen|seite)\s+([A-Za-z0-9äöüÄÖÜß _-]{1,80})/i);
+  const raw = match ? match[1] : text
+    .replace(/^(?:bitte\s+)?(?:erstelle|erzeuge|mach|lege|create|build|add)\s+/i, "")
+    .replace(/^(?:einen|eine|nen|neuen|neue|new)\s+/i, "");
+  return raw
+    .replace(/\b(?:hinzu|anlegen|erstellen|create|add|state|zustand|screen|seite)$/i, "")
+    .trim() || fallback;
+}
+
+function planState(model, prompt, args) {
+  const source = targetState(model, args);
+  const title = stateTitleFromPrompt(prompt);
+  const existing = findState(model, title);
+  const id = existing?.id || normalizeId(title);
+  const sourceX = Number(source?.x);
+  const sourceY = Number(source?.y);
+  const x = (Number.isFinite(sourceX) ? sourceX + 288 : 96 + Math.max(0, model.states.length) * 288);
+  const y = Number.isFinite(sourceY) ? sourceY : 120;
+  const actions = [{
+    type: "upsert_state",
+    id,
+    title: titleCase(title, "Neuer State"),
+    parentId: existing?.parentId || args.parentId || null,
+    x,
+    y
+  }];
+  if (!model.states.length) actions.push({ type: "set_initial", stateId: id });
+  return {
+    understood: true,
+    confidence: 0.82,
+    intent: "upsert_state",
+    targetStateId: id,
+    actions,
+    assumptions: existing
+      ? [`State "${existing.id}" wird aktualisiert, weil er bereits existiert.`]
+      : ["Der neue State wird ohne versteckte Transition angelegt."],
+    explanation: "Legt einen echten State im kanonischen Modell an. Verbindungen bleiben explizite Transitionen."
+  };
+}
+
 function planTimer(model, prompt, args) {
   const state = targetState(model, args);
   const assumptions = [];
@@ -528,6 +572,7 @@ function planPrompt(model, args = {}) {
   if (!prompt) return fallbackPlan("Empty prompt.");
   if (/timer|countdown|warte|delay|sekunde|second/.test(text)) return planTimer(model, prompt, args);
   if (/inner state|child state|unterstate|unter state|kindstate|kind state|nested state|verschachtel|inside state|state.*inside/.test(text)) return planInnerState(model, prompt, args);
+  if (/(?:erstelle|erzeuge|mach|lege|create|build|add|neuer|neue|new)\b.*\b(?:state|zustand|screen|seite)\b|^(?:state|zustand|screen|seite)\s+(?!mit\b|with\b|zu\b|nach\b|to\b)[a-z0-9]/.test(text) && !/transition|übergang|verbinde|connect|wire|route|gehe zu|go to|workflow|flow|ablauf|prozess|process|app/.test(text)) return planState(model, prompt, args);
   if (/api|fetch|endpoint|daten laden|lade daten|json/.test(text)) return planFetch(model, prompt, args);
   if (/transition|übergang|verbinde|connect|wire|route|gehe zu|go to|nach .*state|zu .*state/.test(text)) return planTransition(model, prompt, args);
   if (/variable|statevar|state var|feld|email|password|passwort|typ/.test(text) && !/input|formular|form|component|komponente|preset/.test(text)) return planVariable(model, prompt, args);
@@ -545,9 +590,10 @@ function fallbackPlan(reason) {
     targetStateId: "",
     actions: [],
     assumptions: [reason],
-    explanation: "Use direct actions or one of the prompt intents: create workflow, add timer, add inner state, upsert transition, add preset/component, upsert variable, configure API/list.",
+    explanation: "Ich brauche eine konkrete Editor-Anweisung, z. B. State anlegen, Workflow erstellen, Timer hinzufügen, Inner State anlegen, States verbinden, Widget hinzufügen, Variable anlegen oder API/Liste konfigurieren.",
     examples: [
       "füge timer 10s hinzu und weiter zu Done",
+      "erstelle state Rechnung pruefen",
       "erstelle inner state Schritt 1",
       "verbinde diesen State mit Checkout",
       "füge Card Preset hinzu",
@@ -568,6 +614,7 @@ function promptIntentMarkdown() {
     "",
     "Supported intents:",
     "",
+    "- `upsert_state`: phrases like `erstelle state Rechnung pruefen`, `create state Review`.",
     "- `add_timer`: phrases like `füge timer hinzu`, `add countdown 10s`, `warte 5 Sekunden und weiter zu Done`.",
     "- `add_inner_state`: phrases like `erstelle inner state Step 1`, `add child state Details`.",
     "- `upsert_transition`: phrases like `verbinde mit Checkout`, `upsert transition to Done`, `gehe zu Error`.",

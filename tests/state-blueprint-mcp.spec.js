@@ -511,6 +511,7 @@ test.describe("State Blueprint MCP", () => {
     expect(readme).toContain("docs/state-blueprint-api.md");
 
     const promptDoc = promptIntentMarkdown();
+    expect(promptDoc).toContain("`upsert_state`");
     expect(promptDoc).toContain("`upsert_transition`");
     expect(promptDoc).toContain("`upsert_state_variable`");
     expect(promptDoc).not.toContain("`add_transition`");
@@ -519,6 +520,7 @@ test.describe("State Blueprint MCP", () => {
     const promptModel = applyActions({}, [
       { type: "upsert_state", id: "start", title: "Start" }
     ]).model;
+    expect(planPrompt(promptModel, { prompt: "erstelle state Rechnung pruefen", selectedStateId: "start" }).intent).toBe("upsert_state");
     expect(planPrompt(promptModel, { prompt: "verbinde diesen State mit Checkout", selectedStateId: "start" }).intent).toBe("upsert_transition");
     expect(planPrompt(promptModel, { prompt: "füge Variable email vom Typ email hinzu", selectedStateId: "start" }).intent).toBe("upsert_state_variable");
   });

@@ -139,7 +139,7 @@ function publicAgentConfig(config = {}) {
       chatPath: config.agentChatPath || DEFAULT_AGENT_CHAT_PATH,
       mcpToolPath: config.agentMcpToolPath || DEFAULT_AGENT_MCP_TOOL_PATH,
       editorPromptPath: config.agentEditorPromptPath || DEFAULT_AGENT_EDITOR_PROMPT_PATH,
-      defaultMode: providerUrl ? "server" : "local-webllm",
+      defaultMode: "local-webllm",
       defaultModel: config.agentModel || DEFAULT_AGENT_MODEL,
       webLlmPackageUrl: config.agentWebLlmPackageUrl || DEFAULT_AGENT_WEBLLM_PACKAGE_URL,
       authRequired: agentAuthSecrets(config).length > 0

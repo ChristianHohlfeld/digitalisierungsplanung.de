@@ -82,6 +82,7 @@
       this.settings = readSettings();
       this.sessionAuthToken = "";
       this.pendingToolCall = null;
+      this.sending = false;
       this.open = this.getAttribute("data-open") === "true";
     }
 
@@ -95,6 +96,7 @@
     }
 
     mode() {
+      if (this.editorBridge()) return "local-webllm";
       return this.settings.mode || this.getAttribute("data-mode") || this.config?.widget?.defaultMode || "local-webllm";
     }
 
@@ -116,6 +118,13 @@
 
     editorPromptPath() {
       return this.getAttribute("data-editor-prompt-path") || this.config?.widget?.editorPromptPath || DEFAULT_EDITOR_PROMPT_PATH;
+    }
+
+    readyStatusText() {
+      if (this.editorBridge()) return this.engine
+        ? `Lokale KI aktiv: ${this.model()}`
+        : `In-Browser KI: ${this.model()} (bereit, noch nicht geladen)`;
+      return this.mode() === "server" ? "Externes Backend bereit" : "In-Browser KI bereit";
     }
 
     openPanel() {
@@ -167,6 +176,26 @@
     }
 
     renderShell() {
+      const editorBridge = this.editorBridge();
+      const settingsToggle = editorBridge
+        ? ""
+        : `<button class="icon-btn settings-toggle" type="button" aria-label="Einstellungen">⚙</button>`;
+      const settingsPanel = editorBridge
+        ? ""
+        : `<div class="settings hidden">
+            <label>Modus
+              <select class="mode">
+                <option value="local-webllm">In-Browser KI (WebLLM)</option>
+                <option value="server">Externes Chat-Backend</option>
+              </select>
+            </label>
+            <label>Modell
+              <input class="model" autocomplete="off">
+            </label>
+            <label>Broker-Token
+              <input class="token" type="password" autocomplete="off">
+            </label>
+          </div>`;
       this.shadowRoot.innerHTML = `
         <style>${css}</style>
         <button class="launcher ${this.open || this.launcherDisabled() ? "hidden" : ""}" type="button" aria-label="App Intelligence oeffnen">AI</button>
@@ -174,65 +203,70 @@
           <div class="head">
             <div class="title">
               <strong>App Intelligence</strong>
-              <span class="subtitle">Lokale KI, MCP-Broker bei Bedarf</span>
+              <span class="subtitle">${editorBridge ? "In-Browser Oberflaeche, MCP-Bridge bei Bedarf" : "In-Browser KI, MCP-Broker bei Bedarf"}</span>
             </div>
-            <button class="icon-btn settings-toggle" type="button" aria-label="Einstellungen">⚙</button>
+            ${settingsToggle}
             <button class="icon-btn close" type="button" aria-label="Schließen">×</button>
           </div>
-          <div class="settings hidden">
-            <label>Modus
-              <select class="mode">
-                <option value="local-webllm">Local WebLLM</option>
-                <option value="server">Server Agent</option>
-              </select>
-            </label>
-            <label>Modell
-              <input class="model" autocomplete="off">
-            </label>
-            <label>Agent/MCP Secret
-              <input class="token" type="password" autocomplete="off">
-            </label>
-          </div>
+          ${settingsPanel}
           <div class="status"><span class="dot"></span><span class="status-text">Initialisiere...</span></div>
           <main class="messages"></main>
           <form class="form">
-            <textarea class="input" rows="1" placeholder="${this.editorBridge() ? "Sag, was im Editor entstehen soll..." : "Sag, was am Prozess entstehen soll..."}"></textarea>
+            <textarea class="input" rows="1" placeholder="${editorBridge ? "Sag, was im Editor entstehen soll..." : "Sag, was am Prozess entstehen soll..."}"></textarea>
             <button class="send" type="submit" aria-label="Senden">›</button>
           </form>
         </section>
       `;
       this.shadowRoot.querySelector(".launcher").addEventListener("click", () => this.setOpen(!this.open));
       this.shadowRoot.querySelector(".close").addEventListener("click", () => this.setOpen(false));
-      this.shadowRoot.querySelector(".settings-toggle").addEventListener("click", () => {
-        this.shadowRoot.querySelector(".settings").classList.toggle("hidden");
-      });
+      const settingsToggleButton = this.shadowRoot.querySelector(".settings-toggle");
+      if (settingsToggleButton) {
+        settingsToggleButton.addEventListener("click", () => {
+          this.shadowRoot.querySelector(".settings").classList.toggle("hidden");
+        });
+      }
       this.shadowRoot.querySelector(".form").addEventListener("submit", event => {
         event.preventDefault();
         this.send();
       });
-      this.shadowRoot.querySelector(".input").addEventListener("input", event => {
+      const input = this.shadowRoot.querySelector(".input");
+      input.addEventListener("input", event => {
         event.currentTarget.style.height = "auto";
         event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 130)}px`;
       });
-      this.shadowRoot.querySelector(".mode").addEventListener("change", event => {
-        this.settings.mode = event.currentTarget.value;
-        writeSettings(this.settings);
-        this.setStatus("Bereit", "ready");
+      input.addEventListener("keydown", event => {
+        if (event.key !== "Enter" || event.isComposing || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return;
+        event.preventDefault();
+        this.send();
       });
-      this.shadowRoot.querySelector(".model").addEventListener("change", event => {
-        this.settings.model = event.currentTarget.value.trim();
-        this.engine = null;
-        this.loadingEngine = null;
-        writeSettings(this.settings);
-      });
-      this.shadowRoot.querySelector(".token").addEventListener("change", event => {
-        this.sessionAuthToken = event.currentTarget.value;
-      });
-      this.shadowRoot.querySelector(".mode").value = this.mode();
-      this.shadowRoot.querySelector(".model").value = this.model();
-      this.shadowRoot.querySelector(".token").value = this.authToken();
-      this.addMessage("assistant", this.editorBridge()
-        ? "Sag mir kurz, welche States, Uebergaenge oder Widgets im aktuellen Editor-Modell entstehen sollen."
+      const modeSelect = this.shadowRoot.querySelector(".mode");
+      if (modeSelect) {
+        modeSelect.addEventListener("change", event => {
+          this.settings.mode = event.currentTarget.value;
+          writeSettings(this.settings);
+          this.setStatus(this.readyStatusText(), "ready");
+        });
+        modeSelect.value = this.mode();
+      }
+      const modelInput = this.shadowRoot.querySelector(".model");
+      if (modelInput) {
+        modelInput.addEventListener("change", event => {
+          this.settings.model = event.currentTarget.value.trim();
+          this.engine = null;
+          this.loadingEngine = null;
+          writeSettings(this.settings);
+        });
+        modelInput.value = this.model();
+      }
+      const tokenInput = this.shadowRoot.querySelector(".token");
+      if (tokenInput) {
+        tokenInput.addEventListener("change", event => {
+          this.sessionAuthToken = event.currentTarget.value;
+        });
+        tokenInput.value = this.authToken();
+      }
+      this.addMessage("assistant", editorBridge
+        ? "Ich bin bereit. Schreib mir, was ich im Editor aendern oder anlegen soll."
         : "Sag mir in einem Satz, welchen State-Blueprint du bauen, pruefen, exportieren oder laden willst.");
     }
 
@@ -299,16 +333,18 @@
         if (!response.ok) throw new Error(`config ${response.status}`);
         this.config = await response.json();
         const tools = this.config?.mcpServers?.[0]?.tools || [];
-        if (tools.length) {
+        if (!this.editorBridge() && tools.length) {
           this.addToolChips(tools);
         }
-        this.shadowRoot.querySelector(".mode").value = this.mode();
-        this.shadowRoot.querySelector(".model").value = this.model();
-        this.setStatus(this.mode() === "local-webllm" ? "Bereit für lokale KI" : "Bereit für Server Agent", "ready");
+        const modeSelect = this.shadowRoot.querySelector(".mode");
+        if (modeSelect) modeSelect.value = this.mode();
+        const modelInput = this.shadowRoot.querySelector(".model");
+        if (modelInput) modelInput.value = this.model();
+        this.setStatus(this.readyStatusText(), "ready");
       } catch (error) {
         if (this.editorBridge()) {
           this.config = { widget: { editorPromptPath: this.editorPromptPath() }, mcpServers: [{ tools: [] }] };
-          this.setStatus("Editor-Bridge bereit", "ready");
+          this.setStatus(this.readyStatusText(), "ready");
           return;
         }
         this.setStatus("Config nicht geladen", "error");
@@ -334,16 +370,22 @@
       if (!navigator.gpu) throw new Error("WebGPU ist in diesem Browser nicht verfügbar.");
       const packageUrl = this.config?.widget?.webLlmPackageUrl || this.getAttribute("data-webllm-src") || DEFAULT_WEBLLM_PACKAGE;
       this.loadingEngine = (async () => {
+        this.setStatus(`WebLLM Paket laden: ${this.model()}`, "loading");
         const webllm = await import(packageUrl);
         return webllm.CreateMLCEngine(this.model(), {
           initProgressCallback: report => {
             const percent = Math.round(Number(report.progress || 0) * 100);
-            this.setStatus(`Modell laden: ${percent}%`, "loading");
+            this.setStatus(`Lokales Modell laden: ${this.model()} (${percent}%)`, "loading");
           }
         });
       })();
-      this.engine = await this.loadingEngine;
-      this.setStatus("Lokale KI bereit", "ready");
+      try {
+        this.engine = await this.loadingEngine;
+      } catch (error) {
+        this.loadingEngine = null;
+        throw error;
+      }
+      this.setStatus(`Lokale KI aktiv: ${this.model()}`, "ready");
       return this.engine;
     }
 
@@ -370,6 +412,18 @@
       ].join("\n");
     }
 
+    editorSystemPrompt() {
+      return [
+        "Du bist die In-Browser AI im State-Blueprint-Editor.",
+        "Antworte normal, kurz und hilfreich auf Deutsch.",
+        "Du hast ein Editor-Tool. Wenn der Nutzer States, Uebergaenge, Widgets, Variablen, Timer, APIs oder Workflows erstellen oder aendern will, antworte ausschliesslich mit JSON:",
+        "{\"editor\":{\"prompt\":\"konkrete Editor-Anweisung\"}}",
+        "Fuer Smalltalk, Erklaerungen oder Rueckfragen antworte als normaler Chat ohne JSON.",
+        "Nutze keine versteckten Zustaende und keinen zweiten Schatten-State im Chat.",
+        "Der Editor liefert den Snapshot und wendet Aenderungen nur ueber den Contract-Endpunkt an."
+      ].join("\n");
+    }
+
     extractMcpCall(text) {
       const raw = safeText(text).trim().replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
       if (!raw.startsWith("{")) return null;
@@ -378,6 +432,20 @@
         if (parsed?.mcp?.name) return parsed.mcp;
       } catch (_) {}
       return null;
+    }
+
+    extractEditorCall(text) {
+      const raw = safeText(text).trim().replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
+      if (!raw.startsWith("{")) return null;
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed?.editor?.prompt) return parsed.editor;
+      } catch (_) {}
+      return null;
+    }
+
+    editorActionLikely(text) {
+      return /(?:erstelle|erzeuge|mach|baue|bau|lege|fuege|füge|add|create|build|connect|verbinde|konfiguriere|aendere|ändere|setze|upsert|delete|loesche|lösche|entferne)\b|\b(?:state|zustand|screen|seite)\s+[a-z0-9]/i.test(safeText(text));
     }
 
     editorPlanMessage(payload) {
@@ -398,6 +466,16 @@
       return details + assumptions;
     }
 
+    editorErrorMessage(payload, status) {
+      const issues = Array.isArray(payload?.validation?.issues) ? payload.validation.issues : [];
+      const issueText = issues.slice(0, 3).map(issue => {
+        const path = issue.path || issue.stateId || issue.transitionId || "";
+        return [issue.code || "", path, issue.message || ""].filter(Boolean).join(": ");
+      }).filter(Boolean).join("\n");
+      const base = payload?.error || `editor agent ${status}`;
+      return issueText ? `${base}\n${issueText}` : base;
+    }
+
     async sendEditorPrompt(prompt) {
       const snapshot = await this.requestEditorSnapshot();
       const response = await fetch(this.editorPromptPath(), {
@@ -410,37 +488,54 @@
         })
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.error || "editor agent " + response.status);
+      if (!response.ok) throw new Error(this.editorErrorMessage(payload, response.status));
       const message = this.editorPlanMessage(payload);
+      const hasEditorActions = payload?.plan?.intent !== "unknown" && Array.isArray(payload?.actions) && payload.actions.length > 0;
       this.addMessage("assistant", message, {
-        meta: payload?.validation?.ok ? "Contract geprueft" : "Contract blockiert",
-        editorPlan: payload.ok ? payload : null
+        meta: hasEditorActions ? (payload?.validation?.ok ? "Contract geprueft" : "Contract blockiert") : "Keine Aenderung geplant",
+        editorPlan: hasEditorActions && payload.ok ? payload : null
       });
       this.messages.push({ role: "assistant", content: message });
     }
 
     async send() {
+      if (this.sending) return;
       const input = this.shadowRoot.querySelector(".input");
       const text = input.value.trim();
       if (!text) return;
+      const sendButton = this.shadowRoot.querySelector(".send");
+      this.sending = true;
+      input.disabled = true;
+      sendButton.disabled = true;
       input.value = "";
       input.style.height = "";
       this.addMessage("user", text);
       this.messages.push({ role: "user", content: text });
+      let failed = false;
       try {
         this.setStatus("Arbeite...", "loading");
         if (this.editorBridge()) {
-          await this.sendEditorPrompt(text);
+          try {
+            await this.sendLocal();
+          } catch (error) {
+            if (!this.editorActionLikely(text)) throw error;
+            this.addMessage("assistant", `Lokale KI nicht aktiv: ${error.message || String(error)}\nIch nutze das contract-sichere Editor-Tool direkt.`, { meta: "Editor-Tool Fallback" });
+            await this.sendEditorPrompt(text);
+          }
         } else if (this.mode() === "server") {
           await this.sendServer();
         } else {
           await this.sendLocal();
         }
       } catch (error) {
+        failed = true;
         this.setStatus("Fehler", "error");
         this.addMessage("assistant", error.message || String(error));
       } finally {
-        this.setStatus("Bereit", "ready");
+        this.sending = false;
+        input.disabled = false;
+        sendButton.disabled = false;
+        if (!failed) this.setStatus(this.readyStatusText(), "ready");
         input.focus();
       }
     }
@@ -465,7 +560,7 @@
       const engine = await this.ensureLocalEngine();
       const stream = await engine.chat.completions.create({
         messages: [
-          { role: "system", content: this.systemPrompt() },
+          { role: "system", content: this.editorBridge() ? this.editorSystemPrompt() : this.systemPrompt() },
           ...this.messages.slice(-10)
         ],
         temperature: 0.2,
@@ -476,6 +571,20 @@
       for await (const chunk of stream) {
         complete += chunk.choices?.[0]?.delta?.content || "";
         bubble.textContent = complete;
+      }
+      const editorCall = this.editorBridge() ? this.extractEditorCall(complete) : null;
+      if (editorCall) {
+        bubble.textContent = "Ich nutze das Editor-Tool.";
+        await this.sendEditorPrompt(editorCall.prompt);
+        this.messages.push({ role: "assistant", content: "Editor-Tool genutzt." });
+        return;
+      }
+      const latestUser = [...this.messages].reverse().find(message => message.role === "user")?.content || "";
+      if (this.editorBridge() && this.editorActionLikely(latestUser)) {
+        bubble.textContent = "Ich nutze das Editor-Tool.";
+        await this.sendEditorPrompt(latestUser);
+        this.messages.push({ role: "assistant", content: "Editor-Tool genutzt." });
+        return;
       }
       const toolCall = this.extractMcpCall(complete);
       if (toolCall) {

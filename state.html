@@ -7664,12 +7664,49 @@
       if (btnCanvasRedo) btnCanvasRedo.disabled = !canRedo;
     }
 
-    function historyTextEditTarget(target) {
-      const element = target?.nodeType === Node.TEXT_NODE ? target.parentElement : target;
+    function eventComposedElements(evt) {
+      const path = typeof evt?.composedPath === "function" ? evt.composedPath() : [];
+      const nodes = path.length ? path : [evt?.target];
+      return nodes.filter(node => node?.nodeType === Node.ELEMENT_NODE);
+    }
+
+    function eventPathMatches(evt, selector) {
+      return eventComposedElements(evt).some(element => element.matches?.(selector) || element.closest?.(selector));
+    }
+
+    function targetElement(target) {
+      return target?.nodeType === Node.TEXT_NODE ? target.parentElement : target;
+    }
+
+    function elementIsHistoryTextEditTarget(element) {
       if (!element?.matches) return false;
       if (element.matches("textarea, [contenteditable='true']")) return true;
       if (!element.matches("input")) return false;
       return !new Set(["button", "checkbox", "color", "file", "hidden", "image", "radio", "range", "reset", "submit"]).has(String(element.type || "text").toLowerCase());
+    }
+
+    function historyTextEditEvent(evt) {
+      return eventComposedElements(evt).some(elementIsHistoryTextEditTarget);
+    }
+
+    function elementIsEditableTarget(element) {
+      return Boolean(element?.closest?.("input, textarea, select, [contenteditable]"));
+    }
+
+    function editableEventTarget(evt) {
+      return eventComposedElements(evt).some(elementIsEditableTarget);
+    }
+
+    function agentWidgetEventTarget(evt) {
+      return eventPathMatches(evt, "dp-agent-widget");
+    }
+
+    function agentWidgetHasFocus() {
+      return document.activeElement?.matches?.("dp-agent-widget") || false;
+    }
+
+    function eventTargetsEditorChrome(evt) {
+      return agentWidgetHasFocus() || editableEventTarget(evt) || eventPathMatches(evt, ".state-explorer, .inspector, .modal-backdrop, button, input, textarea, select, [contenteditable]");
     }
 
     function beginHistoryAction() {
@@ -7679,21 +7716,21 @@
 
     document.addEventListener("pointerdown", evt => {
       historyPointerActive = true;
-      if (!historyTextEditTarget(evt.target)) beginHistoryAction();
+      if (!historyTextEditEvent(evt)) beginHistoryAction();
     }, { capture: true });
     document.addEventListener("pointerup", () => { historyPointerActive = false; }, { capture: true });
     document.addEventListener("pointercancel", () => { historyPointerActive = false; }, { capture: true });
     document.addEventListener("click", evt => {
-      if (evt.detail === 0 && !historyTextEditTarget(evt.target)) beginHistoryAction();
+      if (evt.detail === 0 && !historyTextEditEvent(evt)) beginHistoryAction();
     }, { capture: true });
     document.addEventListener("focusin", evt => {
-      if (historyTextEditTarget(evt.target)) beginHistoryAction();
+      if (historyTextEditEvent(evt)) beginHistoryAction();
     }, { capture: true });
     document.addEventListener("keydown", evt => {
-      if (!historyTextEditTarget(evt.target)) beginHistoryAction();
+      if (!historyTextEditEvent(evt)) beginHistoryAction();
     }, { capture: true });
     document.addEventListener("input", evt => {
-      if (!historyPointerActive && !historyTextEditTarget(evt.target)) beginHistoryAction();
+      if (!historyPointerActive && !historyTextEditEvent(evt)) beginHistoryAction();
     }, { capture: true });
     document.addEventListener("drop", beginHistoryAction, { capture: true });
 
@@ -10080,6 +10117,23 @@
       return clean ? "states." + clean : "";
     }
 
+    function normalizeStateOwnedDataPath(state, value) {
+      const raw = normalizeBindingPath(value, "");
+      if (!raw) return "";
+      if (/^states\.[a-zA-Z_][a-zA-Z0-9_]*(?:\.|$)/.test(raw)) return raw;
+      if (raw.startsWith("states.")) return "";
+      const scope = stateDataScopeForId(state?.id);
+      return scope ? scope + "." + raw : "";
+    }
+
+    function normalizeStateComponentDataPaths(state, components) {
+      return normalizeComponents(components).map(component => {
+        if (!component.dataPath) return component;
+        const dataPath = normalizeStateOwnedDataPath(state, component.dataPath);
+        return dataPath ? { ...component, dataPath } : { ...component, dataPath: "" };
+      });
+    }
+
     function stateDataBusSnapshot(state) {
       const id = normalizeId(state?.id || "");
       return id ? { states: { [id]: normalizeStateDataObject(state?.data) } } : {};
@@ -10554,7 +10608,7 @@
         s.id = id;
         s.title = s.title || s.id;
         delete s.renderMode;
-        s.components = normalizeComponents(s.components);
+        s.components = normalizeStateComponentDataPaths(s, s.components);
         delete s.body;
         s.data = normalizeStateDataObject(s.data);
         s.dataTypes = normalizeDataTypes(s.dataTypes, s.data);
@@ -10562,7 +10616,7 @@
         s.repeat = normalizeRepeatConfig(s.repeat);
         s.dataWires = normalizeDataWires(s.dataWires);
         const wireIds = new Set(s.dataWires.map(wire => wire.id));
-        s.components = normalizeComponents(s.components)
+        s.components = normalizeStateComponentDataPaths(s, s.components)
           .filter(component => component.type !== "dataWire" || wireIds.has(component.wireId));
         s.subscriptions = normalizeSubscriptions(s.subscriptions);
         s.boundary = normalizeBoundaryConfig(s.boundary);
@@ -15861,6 +15915,24 @@
         }
 
         if (isNewNode) {
+          el.addEventListener("dblclick", evt => {
+            const s = el.__state;
+            if (!s || s.virtualProxy) return;
+            const now = Date.now();
+            if (now - lastTouchAt < 700) return;
+            if (now < suppressLayerEnterUntil || now < suppressExplicitLayerEnterUntil || now < suppressEmptyCanvasDblClickUntil) return;
+            if (s.id === lastCreatedStateId && now - lastCreatedStateTime < 700) return;
+            if (evt.target.closest(".port, .port-slot, .node-edit")) return;
+            evt.preventDefault();
+            evt.stopPropagation();
+            suppressCanvasTextSelection();
+            focusCanvasForSelection();
+            lastNodeClick = null;
+            lastTouchNodeTap = null;
+            setSingleSelection("node", s.id, null, { startRuntime: false });
+            enterStateLayer(s.id, { source: "node-dblclick", explicit: true });
+          });
+
           el.addEventListener("mousedown", evt => {
             const s = el.__state;
             if (Date.now() - lastTouchAt < 700) return;
@@ -21532,7 +21604,7 @@
     }
 
     function isEditableTarget(target) {
-      return target?.closest?.("input, textarea, select, [contenteditable]");
+      return elementIsEditableTarget(targetElement(target));
     }
 
     function focusCanvasForSelection() {
@@ -21567,7 +21639,7 @@
     function canvasHasKeyboardIntent(evt) {
       const target = evt.target;
       const active = document.activeElement;
-      if (target?.closest?.(".state-explorer, .inspector, .modal-backdrop, button, input, textarea, select, [contenteditable]")) return false;
+      if (agentWidgetEventTarget(evt) || eventTargetsEditorChrome(evt)) return false;
       if (active && active !== document.body && active !== mapEl && !mapEl.contains(active)) return false;
       return target === document || target === document.body || target === mapEl || mapEl.contains(target) || active === mapEl || mapEl.contains(active);
     }
@@ -21762,8 +21834,7 @@
 
     function eventTargetsCanvasForDelete(evt) {
       const target = evt.target;
-      if (isEditableTarget(target)) return false;
-      if (target?.closest?.(".state-explorer, .inspector, .modal-backdrop, button, input, textarea, select, [contenteditable]")) return false;
+      if (agentWidgetEventTarget(evt) || eventTargetsEditorChrome(evt)) return false;
       const active = document.activeElement;
       if (active && active !== document.body && active !== mapEl && !mapEl.contains(active)) return false;
       return target === mapEl || mapEl.contains(target) || active === mapEl || mapEl.contains(active);
@@ -24231,6 +24302,8 @@
     function handleKeyDown(evt) {
       const mod = evt.ctrlKey || evt.metaKey;
       const key = String(evt.key || "").toLowerCase();
+      if (agentWidgetEventTarget(evt) || agentWidgetHasFocus()) return;
+      const editable = editableEventTarget(evt);
       if (mod && !evt.altKey && (key === "n" || evt.code === "KeyN")) {
         evt.preventDefault();
         evt.stopImmediatePropagation();
@@ -24238,7 +24311,7 @@
         return;
       }
       if (!modalBackdropEl.hidden) return;
-      if (!mod && !evt.altKey && !evt.shiftKey && evt.code === "Space" && !evt.repeat && !isEditableTarget(evt.target)) {
+      if (!mod && !evt.altKey && !evt.shiftKey && evt.code === "Space" && !evt.repeat && !editable && canvasHasKeyboardIntent(evt)) {
         evt.preventDefault();
         evt.stopImmediatePropagation();
         clearQuickRenameSession();
@@ -24257,7 +24330,7 @@
         evt.stopImmediatePropagation();
         return;
       }
-      if (mod && evt.code === "Space") {
+      if (!editable && mod && evt.code === "Space") {
         evt.preventDefault();
         evt.stopImmediatePropagation();
         stateExplorerCollapsed = !stateExplorerCollapsed;
@@ -24289,19 +24362,19 @@
         requestLoadBlueprintFile();
         return;
       }
-      if (!isEditableTarget(evt.target) && mod && !evt.shiftKey && (key === "a" || evt.code === "KeyA")) {
+      if (!editable && mod && !evt.shiftKey && (key === "a" || evt.code === "KeyA")) {
         evt.preventDefault();
         evt.stopImmediatePropagation();
         selectAllCurrentLayerItems();
         return;
       }
-      if (!isEditableTarget(evt.target) && mod && (key === "c" || evt.code === "KeyC") && selected) {
+      if (!editable && mod && (key === "c" || evt.code === "KeyC") && selected) {
         evt.preventDefault();
         evt.stopImmediatePropagation();
         copySelectedNodes();
         return;
       }
-      if (!isEditableTarget(evt.target) && mod && (key === "v" || evt.code === "KeyV") && selectionClipboard) {
+      if (!editable && mod && (key === "v" || evt.code === "KeyV") && selectionClipboard) {
         evt.preventDefault();
         evt.stopImmediatePropagation();
         pasteSelectionClipboard();
@@ -24314,7 +24387,7 @@
         deleteActiveSelection();
         return;
       }
-      if (isEditableTarget(evt.target)) return;
+      if (editable) return;
       if (handleQuickRenameKey(evt)) return;
       if (evt.key === "Enter" && selectedNodeId) {
         evt.preventDefault();
@@ -24951,7 +25024,6 @@
       widget.setAttribute("data-editor-prompt-path", editorAgentServiceUrl("/agent/editor/prompt"));
       widget.setAttribute("data-editor-bridge", "state-blueprint");
       widget.setAttribute("data-disable-launcher", "true");
-      widget.setAttribute("data-mode", "server");
       widget.addEventListener("dp-agent-editor-snapshot", handleEditorAgentSnapshot);
       widget.addEventListener("dp-agent-editor-apply", handleEditorAgentApply);
       document.body.appendChild(widget);

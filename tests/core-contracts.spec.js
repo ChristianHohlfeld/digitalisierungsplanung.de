@@ -2889,7 +2889,9 @@ test.describe("Core source contracts", () => {
 
     expect(html).toContain("function eventTargetsCanvasForDelete");
     expect(html).toContain('evt.key === "Delete" && eventTargetsCanvasForDelete(evt) && deleteActiveSelection()');
-    expect(html).toContain("if (isEditableTarget(evt.target)) return;");
+    expect(html).toContain("function agentWidgetHasFocus");
+    expect(html).toContain("if (agentWidgetEventTarget(evt) || agentWidgetHasFocus()) return;");
+    expect(html).toContain("if (editable) return;");
     expect(html).not.toContain('evt.key === "Backspace" && deleteActiveSelection()');
     expect(html).not.toContain('if (evt.key === "Delete" && deleteActiveSelection())');
   });

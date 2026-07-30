@@ -1180,6 +1180,91 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#modalMessage")).toContainText("Realtime-Deploy");
   });
 
+  test("opens the editor AI as browser-first UI and sends prompts with Enter @smoke", async ({ page }) => {
+    await page.addInitScript(() => {
+      try {
+        Object.defineProperty(navigator, "gpu", { value: undefined, configurable: true });
+      } catch (_) {}
+    });
+    await openTool(page);
+
+    await page.locator("#btnAiAgent").click();
+
+    await expect.poll(async () => page.evaluate(() => {
+      const widget = document.querySelector("dp-agent-widget");
+      const root = widget?.shadowRoot;
+      return {
+        registered: Boolean(customElements.get("dp-agent-widget")),
+        panelOpen: Boolean(root?.querySelector(".panel:not(.hidden)")),
+        hasModeSelect: Boolean(root?.querySelector(".mode")),
+        hasTokenInput: Boolean(root?.querySelector(".token")),
+        hasToolChips: Boolean(root?.querySelector(".tools")),
+        text: root?.textContent || ""
+      };
+    })).toEqual(expect.objectContaining({
+      registered: true,
+      panelOpen: true,
+      hasModeSelect: false,
+      hasTokenInput: false,
+      hasToolChips: false
+    }));
+    await expect.poll(async () => page.evaluate(() => document.querySelector("dp-agent-widget")?.shadowRoot?.textContent || ""))
+      .toContain("In-Browser KI");
+    await expect.poll(async () => page.evaluate(() => document.querySelector("dp-agent-widget")?.shadowRoot?.textContent || ""))
+      .not.toContain("Server Agent");
+    await expect.poll(async () => page.evaluate(() => document.querySelector("dp-agent-widget")?.shadowRoot?.textContent || ""))
+      .not.toContain("Externes Chat-Backend");
+
+    await page.locator('[data-id="auth_start"]').click();
+    await page.evaluate(() => {
+      window.__copySelectedNodesCalls = 0;
+      const originalCopySelectedNodes = window.copySelectedNodes;
+      window.copySelectedNodes = (...args) => {
+        window.__copySelectedNodesCalls += 1;
+        return originalCopySelectedNodes(...args);
+      };
+      const root = document.querySelector("dp-agent-widget").shadowRoot;
+      const input = root.querySelector(".input");
+      input.value = "copy text";
+      input.focus();
+      input.setSelectionRange(0, input.value.length);
+    });
+    await page.keyboard.press("Control+C");
+    await expect.poll(async () => page.evaluate(() => window.__copySelectedNodesCalls || 0)).toBe(0);
+
+    await page.evaluate(() => {
+      const root = document.querySelector("dp-agent-widget").shadowRoot;
+      const input = root.querySelector(".input");
+      input.value = "space";
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    });
+    await page.keyboard.press("Space");
+    await expect.poll(async () => page.evaluate(() => document.querySelector("dp-agent-widget")?.shadowRoot?.querySelector(".input")?.value || ""))
+      .toBe("space ");
+    await expect.poll(async () => page.evaluate(() => hostRuntimePausedView())).toBe(false);
+    await page.keyboard.press("Backspace");
+    await expect.poll(async () => page.evaluate(() => document.querySelector("dp-agent-widget")?.shadowRoot?.querySelector(".input")?.value || ""))
+      .toBe("space");
+
+    await page.evaluate(() => {
+      const root = document.querySelector("dp-agent-widget").shadowRoot;
+      const input = root.querySelector(".input");
+      input.value = "erstelle state Rechnung pruefen";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.focus();
+    });
+    await page.keyboard.press("Enter");
+
+    await expect.poll(async () => page.evaluate(() => document.querySelector("dp-agent-widget")?.shadowRoot?.textContent || ""))
+      .toContain("Contract");
+    await expect.poll(async () => page.evaluate(() => {
+      const input = document.querySelector("dp-agent-widget")?.shadowRoot?.querySelector(".input");
+      return input ? input.value : "missing";
+    }))
+      .toBe("");
+  });
+
   test("creates a complete Zustandsdiagramm from the UI with data, components, conditions, sets, preview, and export", async ({ page }) => {
     await openTool(page);
     await page.locator("#btnNew").click();
