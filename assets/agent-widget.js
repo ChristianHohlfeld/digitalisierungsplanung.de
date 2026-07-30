@@ -14,7 +14,7 @@
     * { box-sizing: border-box; }
     button, textarea, input, select { font: inherit; }
     .launcher { position: fixed; right: 18px; bottom: 18px; z-index: 2147483000; width: 54px; height: 54px; border: 0; border-radius: 999px; background: #0f172a; color: #f8fafc; font-weight: 900; box-shadow: 0 14px 34px rgba(15, 23, 42, .28); cursor: pointer; }
-    .panel { position: fixed; right: 18px; bottom: 84px; z-index: 2147483000; width: min(420px, calc(100vw - 24px)); height: min(650px, calc(100vh - 104px)); min-height: 380px; display: grid; grid-template-rows: auto auto 1fr auto; overflow: hidden; border: 1px solid #d7dee8; border-radius: 8px; background: #f8fafc; color: #111827; box-shadow: 0 24px 70px rgba(15, 23, 42, .24); }
+    .panel { position: fixed; right: 18px; bottom: 84px; z-index: 2147483000; width: min(420px, calc(100vw - 24px)); height: min(650px, calc(100dvh - 104px)); max-height: calc(100dvh - 104px); min-height: 380px; display: grid; grid-template-rows: auto auto 1fr auto; overflow: hidden; border: 1px solid #d7dee8; border-radius: 8px; background: #f8fafc; color: #111827; box-shadow: 0 24px 70px rgba(15, 23, 42, .24); }
     .hidden { display: none; }
     .head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px; background: #ffffff; border-bottom: 1px solid #e2e8f0; }
     .title { min-width: 0; }
@@ -22,6 +22,7 @@
     .title span { display: block; margin-top: 2px; color: #64748b; font-size: 12px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .icon-btn { width: 34px; height: 34px; display: inline-grid; place-items: center; border: 1px solid #dbe3ee; border-radius: 6px; background: #fff; color: #0f172a; cursor: pointer; }
     .status { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #475569; font-size: 12px; background: #f8fafc; }
+    .status-text { min-width: 0; overflow-wrap: anywhere; }
     .dot { width: 8px; height: 8px; border-radius: 999px; background: #22c55e; flex: 0 0 auto; }
     .dot.loading { background: #0ea5e9; }
     .dot.error { background: #f43f5e; }
@@ -42,8 +43,9 @@
     .form { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 10px 12px; border-top: 1px solid #e2e8f0; background: #ffffff; }
     textarea { width: 100%; min-height: 42px; max-height: 130px; resize: none; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 11px; color: #111827; background: #fff; line-height: 1.35; }
     .send { width: 42px; height: 42px; border: 0; border-radius: 8px; background: #0ea5e9; color: #001018; font-weight: 900; cursor: pointer; }
-    .send:disabled, textarea:disabled { opacity: .55; cursor: not-allowed; }
-    @media (max-width: 520px) { .panel { right: 8px; bottom: 76px; width: calc(100vw - 16px); height: calc(100vh - 92px); } .launcher { right: 12px; bottom: 12px; } }
+    .send:disabled { opacity: .55; cursor: not-allowed; }
+    @media (max-width: 760px) { .panel { left: 8px; right: 8px; bottom: 72px; bottom: max(72px, calc(env(safe-area-inset-bottom) + 72px)); width: auto; height: min(560px, calc(100dvh - 136px)); max-height: calc(100dvh - 136px); min-height: 320px; } .launcher { right: 12px; bottom: 12px; } }
+    @media (max-height: 520px) { .panel { top: max(10px, env(safe-area-inset-top)); bottom: 10px; height: auto; min-height: 0; max-height: none; } }
   `;
 
   function safeText(value) {
@@ -83,6 +85,10 @@
       this.sessionAuthToken = "";
       this.pendingToolCall = null;
       this.sending = false;
+      this.sendQueue = [];
+      this.localEngineState = "idle";
+      this.localEngineProgress = 0;
+      this.localEngineError = "";
       this.open = this.getAttribute("data-open") === "true";
     }
 
@@ -121,9 +127,12 @@
     }
 
     readyStatusText() {
-      if (this.editorBridge()) return this.engine
-        ? `Lokale KI aktiv: ${this.model()}`
-        : `In-Browser KI: ${this.model()} (bereit, noch nicht geladen)`;
+      if (this.editorBridge()) {
+        if (this.engine) return `Lokale KI aktiv: ${this.model()}`;
+        if (this.loadingEngine || this.localEngineState === "loading") return `Lokale KI laedt: ${this.model()} (${this.localEngineProgress || 0}%)`;
+        if (this.localEngineState === "unavailable") return "Lokale KI nicht verfuegbar. Editor-Aenderungen laufen direkt.";
+        return "Lokale KI noch nicht geladen. Editor-Aenderungen laufen direkt.";
+      }
       return this.mode() === "server" ? "Externes Backend bereit" : "In-Browser KI bereit";
     }
 
@@ -206,14 +215,14 @@
               <span class="subtitle">${editorBridge ? "In-Browser Oberflaeche, MCP-Bridge bei Bedarf" : "In-Browser KI, MCP-Broker bei Bedarf"}</span>
             </div>
             ${settingsToggle}
-            <button class="icon-btn close" type="button" aria-label="Schließen">×</button>
+            <button class="icon-btn close" type="button" aria-label="Minimieren">-</button>
           </div>
           ${settingsPanel}
           <div class="status"><span class="dot"></span><span class="status-text">Initialisiere...</span></div>
           <main class="messages"></main>
           <form class="form">
             <textarea class="input" rows="1" placeholder="${editorBridge ? "Sag, was im Editor entstehen soll..." : "Sag, was am Prozess entstehen soll..."}"></textarea>
-            <button class="send" type="submit" aria-label="Senden">›</button>
+            <button class="send" type="submit" aria-label="Senden">></button>
           </form>
         </section>
       `;
@@ -233,11 +242,16 @@
       input.addEventListener("input", event => {
         event.currentTarget.style.height = "auto";
         event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 130)}px`;
+        this.updateSendButton();
       });
       input.addEventListener("keydown", event => {
+        event.stopPropagation();
         if (event.key !== "Enter" || event.isComposing || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return;
         event.preventDefault();
         this.send();
+      });
+      ["keyup", "keypress", "beforeinput", "copy", "cut", "paste"].forEach(type => {
+        input.addEventListener(type, event => event.stopPropagation());
       });
       const modeSelect = this.shadowRoot.querySelector(".mode");
       if (modeSelect) {
@@ -266,8 +280,9 @@
         tokenInput.value = this.authToken();
       }
       this.addMessage("assistant", editorBridge
-        ? "Ich bin bereit. Schreib mir, was ich im Editor aendern oder anlegen soll."
+        ? "Ich bin bereit. Editor-Aenderungen uebernehme ich direkt; normale Fragen laufen ueber die lokale KI, sobald sie geladen ist."
         : "Sag mir in einem Satz, welchen State-Blueprint du bauen, pruefen, exportieren oder laden willst.");
+      this.updateSendButton();
     }
 
     setOpen(next) {
@@ -281,6 +296,14 @@
       const dot = this.shadowRoot.querySelector(".dot");
       dot.className = `dot ${type === "loading" ? "loading" : type === "error" ? "error" : ""}`;
       this.shadowRoot.querySelector(".status-text").textContent = text;
+    }
+
+    updateSendButton() {
+      const input = this.shadowRoot.querySelector(".input");
+      const button = this.shadowRoot.querySelector(".send");
+      if (!button || !input) return;
+      button.disabled = !input.value.trim();
+      button.textContent = this.sending ? "..." : ">";
     }
 
     addMessage(role, content, options = {}) {
@@ -302,14 +325,6 @@
         button.type = "button";
         button.textContent = "Aenderung anwenden";
         button.addEventListener("click", () => this.confirmTool(options.toolCall, button));
-        wrap.appendChild(button);
-      }
-      if (options.editorPlan) {
-        const button = document.createElement("button");
-        button.className = "confirm";
-        button.type = "button";
-        button.textContent = "Im Editor uebernehmen";
-        button.addEventListener("click", () => this.confirmEditorPlan(options.editorPlan, button));
         wrap.appendChild(button);
       }
       if (options.download) {
@@ -367,22 +382,35 @@
     async ensureLocalEngine() {
       if (this.engine) return this.engine;
       if (this.loadingEngine) return this.loadingEngine;
-      if (!navigator.gpu) throw new Error("WebGPU ist in diesem Browser nicht verfügbar.");
+      if (!navigator.gpu) {
+        this.localEngineState = "unavailable";
+        this.localEngineError = "WebGPU nicht verfuegbar";
+        this.setStatus(this.readyStatusText(), "ready");
+        throw new Error("WebGPU ist in diesem Browser nicht verfuegbar.");
+      }
       const packageUrl = this.config?.widget?.webLlmPackageUrl || this.getAttribute("data-webllm-src") || DEFAULT_WEBLLM_PACKAGE;
+      this.localEngineState = "loading";
+      this.localEngineProgress = 0;
+      this.localEngineError = "";
       this.loadingEngine = (async () => {
         this.setStatus(`WebLLM Paket laden: ${this.model()}`, "loading");
         const webllm = await import(packageUrl);
         return webllm.CreateMLCEngine(this.model(), {
           initProgressCallback: report => {
             const percent = Math.round(Number(report.progress || 0) * 100);
+            this.localEngineProgress = percent;
             this.setStatus(`Lokales Modell laden: ${this.model()} (${percent}%)`, "loading");
           }
         });
       })();
       try {
         this.engine = await this.loadingEngine;
+        this.localEngineState = "ready";
       } catch (error) {
         this.loadingEngine = null;
+        this.localEngineState = "idle";
+        this.localEngineError = error?.message || String(error || "");
+        this.setStatus("Lokale KI noch nicht bereit. Editor-Aenderungen laufen direkt.", "ready");
         throw error;
       }
       this.setStatus(`Lokale KI aktiv: ${this.model()}`, "ready");
@@ -416,8 +444,8 @@
       return [
         "Du bist die In-Browser AI im State-Blueprint-Editor.",
         "Antworte normal, kurz und hilfreich auf Deutsch.",
-        "Du hast ein Editor-Tool. Wenn der Nutzer States, Uebergaenge, Widgets, Variablen, Timer, APIs oder Workflows erstellen oder aendern will, antworte ausschliesslich mit JSON:",
-        "{\"editor\":{\"prompt\":\"konkrete Editor-Anweisung\"}}",
+        "Du hast ein Editor-Tool. Wenn der Nutzer States, Uebergaenge, Widgets, Variablen, Timer, APIs, Workflows oder eine neue Szene erstellen oder aendern will, antworte ausschliesslich mit internem JSON:",
+        "{\"editor\":{\"prompt\":\"<kurze konkrete Aenderung>\"}}",
         "Fuer Smalltalk, Erklaerungen oder Rueckfragen antworte als normaler Chat ohne JSON.",
         "Nutze keine versteckten Zustaende und keinen zweiten Schatten-State im Chat.",
         "Der Editor liefert den Snapshot und wendet Aenderungen nur ueber den Contract-Endpunkt an."
@@ -445,21 +473,25 @@
     }
 
     editorActionLikely(text) {
-      return /(?:erstelle|erzeuge|mach|baue|bau|lege|fuege|füge|add|create|build|connect|verbinde|konfiguriere|aendere|ändere|setze|upsert|delete|loesche|lösche|entferne)\b|\b(?:state|zustand|screen|seite)\s+[a-z0-9]/i.test(safeText(text));
+      const normalized = safeText(text).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ß/g, "ss").toLowerCase();
+      return /(?:erstelle|erzeuge|mach|baue|bau|lege|fuege|fuge|add|create|build|connect|verbinde|konfiguriere|aendere|andere|setze|upsert|delete|loesch|loesche|loeschen|losch|losche|loschen|entferne|clear|reset|leere|neu|neue)\b/.test(normalized) ||
+        /\b(?:state|zustand|screen|seite|szene|scene|canvas|workflow|flow|ablauf)\s+[a-z0-9]/i.test(normalized);
     }
 
     editorPlanMessage(payload) {
       const plan = payload?.plan || {};
       const actionCount = Array.isArray(payload?.actions) ? payload.actions.length : 0;
       if (!payload?.ok) {
-        return plan.explanation || payload?.error || "Ich konnte daraus keine sichere Contract-Aenderung planen.";
+        return plan.explanation || payload?.error || "Ich konnte daraus keine sichere Editor-Aenderung ableiten.";
       }
       const summary = payload?.summary || {};
-      const details = [
-        plan.explanation || "Contract-Aenderung geplant.",
-        actionCount ? String(actionCount) + " Aktion(en)" : "keine Aktion",
-        Number.isFinite(summary.states) ? String(summary.states) + " States" : ""
-      ].filter(Boolean).join(" | ");
+      const details = actionCount
+        ? [
+            "Erledigt.",
+            plan.explanation || "Die Aenderung wurde direkt im Editor uebernommen.",
+            Number.isFinite(summary.states) ? String(summary.states) + " States im Modell." : ""
+          ].filter(Boolean).join(" ")
+        : plan.explanation || "Ich habe nichts im Editor geaendert.";
       const assumptions = Array.isArray(plan.assumptions) && plan.assumptions.length
         ? "\n\nAnnahmen: " + plan.assumptions.slice(0, 3).join("; ")
         : "";
@@ -489,54 +521,85 @@
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(this.editorErrorMessage(payload, response.status));
-      const message = this.editorPlanMessage(payload);
       const hasEditorActions = payload?.plan?.intent !== "unknown" && Array.isArray(payload?.actions) && payload.actions.length > 0;
+      if (hasEditorActions && payload.ok) {
+        this.setStatus("Uebernehme direkt im Editor...", "loading");
+        await this.applyEditorPlan(payload);
+      }
+      const message = this.editorPlanMessage(payload);
       this.addMessage("assistant", message, {
-        meta: hasEditorActions ? (payload?.validation?.ok ? "Contract geprueft" : "Contract blockiert") : "Keine Aenderung geplant",
-        editorPlan: hasEditorActions && payload.ok ? payload : null
+        meta: hasEditorActions
+          ? (payload.ok ? "Geprueft und direkt uebernommen" : "Nicht uebernommen")
+          : "Keine Aenderung"
       });
       this.messages.push({ role: "assistant", content: message });
+      return payload;
     }
 
     async send() {
-      if (this.sending) return;
       const input = this.shadowRoot.querySelector(".input");
       const text = input.value.trim();
       if (!text) return;
-      const sendButton = this.shadowRoot.querySelector(".send");
-      this.sending = true;
-      input.disabled = true;
-      sendButton.disabled = true;
       input.value = "";
       input.style.height = "";
       this.addMessage("user", text);
-      this.messages.push({ role: "user", content: text });
-      let failed = false;
+      this.sendQueue.push(text);
+      this.updateSendButton();
+      this.processSendQueue();
+      input.focus();
+    }
+
+    async processSendQueue() {
+      if (this.sending) {
+        this.setStatus(`${this.sendQueue.length} Nachricht(en) warten`, "loading");
+        return;
+      }
+      const input = this.shadowRoot.querySelector(".input");
+      this.sending = true;
+      this.updateSendButton();
+      let hadFailure = false;
       try {
-        this.setStatus("Arbeite...", "loading");
-        if (this.editorBridge()) {
+        while (this.sendQueue.length) {
+          const text = this.sendQueue.shift();
+          this.messages.push({ role: "user", content: text });
           try {
-            await this.sendLocal();
+            await this.handlePrompt(text);
           } catch (error) {
-            if (!this.editorActionLikely(text)) throw error;
-            this.addMessage("assistant", `Lokale KI nicht aktiv: ${error.message || String(error)}\nIch nutze das contract-sichere Editor-Tool direkt.`, { meta: "Editor-Tool Fallback" });
-            await this.sendEditorPrompt(text);
+            hadFailure = true;
+            this.setStatus("Fehler", "error");
+            this.addMessage("assistant", error.message || String(error));
           }
-        } else if (this.mode() === "server") {
-          await this.sendServer();
-        } else {
-          await this.sendLocal();
         }
-      } catch (error) {
-        failed = true;
-        this.setStatus("Fehler", "error");
-        this.addMessage("assistant", error.message || String(error));
       } finally {
         this.sending = false;
-        input.disabled = false;
-        sendButton.disabled = false;
-        if (!failed) this.setStatus(this.readyStatusText(), "ready");
-        input.focus();
+        this.updateSendButton();
+        if (!hadFailure) this.setStatus(this.readyStatusText(), "ready");
+        if (this.open && (document.activeElement === this || this.shadowRoot.activeElement === input)) {
+          input?.focus();
+        }
+      }
+    }
+
+    async handlePrompt(text) {
+      this.setStatus(this.sendQueue.length ? `Arbeite... ${this.sendQueue.length} wartet` : "Arbeite...", "loading");
+      if (this.editorBridge()) {
+        if (this.editorActionLikely(text)) {
+          await this.sendEditorPrompt(text);
+          return;
+        }
+        try {
+          await this.sendLocal(text);
+        } catch (error) {
+          const message = "Lokale KI ist noch nicht bereit. Editor-Aenderungen kann ich trotzdem direkt ausfuehren.";
+          this.addMessage("assistant", message, { meta: this.readyStatusText() });
+          this.messages.push({ role: "assistant", content: message });
+        }
+        return;
+      }
+      if (this.mode() === "server") {
+        await this.sendServer();
+      } else {
+        await this.sendLocal(text);
       }
     }
 
@@ -556,7 +619,7 @@
       this.messages.push({ role: "assistant", content: text });
     }
 
-    async sendLocal() {
+    async sendLocal(promptText = "") {
       const engine = await this.ensureLocalEngine();
       const stream = await engine.chat.completions.create({
         messages: [
@@ -566,33 +629,36 @@
         temperature: 0.2,
         stream: true
       });
-      const bubble = this.addMessage("assistant", "");
+      const streamToBubble = !this.editorBridge();
+      const bubble = streamToBubble ? this.addMessage("assistant", "") : null;
       let complete = "";
       for await (const chunk of stream) {
         complete += chunk.choices?.[0]?.delta?.content || "";
-        bubble.textContent = complete;
+        if (bubble) bubble.textContent = complete;
       }
       const editorCall = this.editorBridge() ? this.extractEditorCall(complete) : null;
       if (editorCall) {
-        bubble.textContent = "Ich nutze das Editor-Tool.";
         await this.sendEditorPrompt(editorCall.prompt);
-        this.messages.push({ role: "assistant", content: "Editor-Tool genutzt." });
         return;
       }
-      const latestUser = [...this.messages].reverse().find(message => message.role === "user")?.content || "";
-      if (this.editorBridge() && this.editorActionLikely(latestUser)) {
-        bubble.textContent = "Ich nutze das Editor-Tool.";
-        await this.sendEditorPrompt(latestUser);
-        this.messages.push({ role: "assistant", content: "Editor-Tool genutzt." });
+      if (this.editorBridge() && this.editorActionLikely(promptText)) {
+        await this.sendEditorPrompt(promptText);
         return;
       }
       const toolCall = this.extractMcpCall(complete);
       if (toolCall) {
-        bubble.textContent = "Ich frage den MCP-Broker.";
+        if (bubble) bubble.textContent = "Ich frage den MCP-Broker.";
         await this.runTool(toolCall);
         this.messages.push({ role: "assistant", content: "MCP-Broker genutzt." });
         return;
       }
+      if (this.editorBridge() && safeText(complete).trim().startsWith("{")) {
+        const message = "Ich habe eine interne Tool-Antwort nicht sicher lesen koennen. Schreib den Editor-Auftrag bitte nochmal kurz.";
+        this.addMessage("assistant", message);
+        this.messages.push({ role: "assistant", content: message });
+        return;
+      }
+      if (!bubble) this.addMessage("assistant", complete);
       this.messages.push({ role: "assistant", content: complete });
     }
 
@@ -649,20 +715,6 @@
         download: this.downloadForStructuredResult(structured)
       });
       return payload;
-    }
-
-    async confirmEditorPlan(plan, button) {
-      button.disabled = true;
-      try {
-        this.setStatus("Uebernehme...", "loading");
-        await this.applyEditorPlan(plan);
-        this.setStatus("Editor aktualisiert", "ready");
-        this.addMessage("assistant", "Uebernommen. Der Editor ist die einzige Modellquelle; Undo bleibt ueber den Canvas-Verlauf moeglich.");
-      } catch (error) {
-        button.disabled = false;
-        this.setStatus("Fehler", "error");
-        this.addMessage("assistant", error.message || String(error));
-      }
     }
 
     async confirmTool(toolCall, button) {

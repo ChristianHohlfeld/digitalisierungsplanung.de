@@ -28,10 +28,10 @@ test.describe("Root demo export", () => {
     expect(html).toContain("<title>Digitalisierungsplanung.de kaufen</title>");
     expect(html).toContain('"name":"Digitalisierungsplanung.de kaufen"');
     expect(html).toContain('"initial":"site_overview"');
-    expect(html).toContain('"site_scope"');
-    expect(html).toContain('"site_map"');
-    expect(html).toContain('"site_improve"');
     expect(html).toContain('"site_pricing"');
+    expect(html).not.toContain('"site_scope"');
+    expect(html).not.toContain('"site_map"');
+    expect(html).not.toContain('"site_improve"');
     expect(html).toContain("state.html?demo=zustand");
     expect(html).toContain("standalone-export-polish");
     expect(html).not.toContain("Wohnung");
@@ -73,8 +73,9 @@ test.describe("Root demo export", () => {
     await expect(page.locator("#flowDebug")).toHaveCount(0);
     await expect(page.locator("#statePill")).toHaveText("site_overview");
     await expect(page.locator("#runtimeRecorderControls")).toBeHidden();
-    await expect(page.getByRole("heading", { name: "Digitalisierungsplanung.de kaufen", exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Lizenz auswählen" }).first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Digitalisierungsplanung.de", exact: true })).toBeVisible();
+    await expect(page.getByText("Der visuelle Editor").first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Pakete ansehen" }).first()).toBeVisible();
     await expect(page.locator(".hero .card-actions.justify-center")).toHaveCSS("justify-content", "center");
     await expect(page.locator(".navbar")).toContainText("Digitalisierungsplanung.de");
 
@@ -139,26 +140,10 @@ test.describe("Root demo export", () => {
         Math.round(body.scrollWidth - body.clientWidth)
       )).toBeLessThanOrEqual(2);
     };
-    const demoControl = (label, selector) =>
-      page.locator(".daisy-widget").filter({ hasText: label }).locator(selector).first();
-
-    await expectDemoStep("site_overview", "Lizenz kaufen");
-    await page.getByRole("button", { name: "Lizenz auswählen", exact: true }).click();
-    await expectDemoStep("site_scope", "Bedarf klären");
-    await expect(demoControl("Wie viele Nutzer sollen starten?", "select")).toBeVisible();
-    await expect(demoControl("Wofür brauchst du das Tool zuerst?", "select")).toBeVisible();
-
-    await page.getByRole("button", { name: "Mehrwert ansehen", exact: true }).click();
-    await expectDemoStep("site_map", "Mehrwert sehen");
-    await expect(demoControl("Was ist für den Kauf entscheidend?", "select")).toBeVisible();
-
-    await page.getByRole("button", { name: "Empfehlung anzeigen", exact: true }).click();
-    await expectDemoStep("site_improve", "Lizenzvorschlag");
-    await expect(demoControl("Welches Paket willst du buchen?", "select")).toBeVisible();
-
-    await page.getByRole("button", { name: "Pakete buchen", exact: true }).click();
-    await expectDemoStep("site_pricing", "Paket buchen");
-    await expect(page.getByText("Stripe Checkout fordert die Rechnungsadresse an").first()).toBeVisible();
+    await expectDemoStep("site_overview", "Prozess-App-Editor kaufen");
+    await page.getByRole("button", { name: "Pakete ansehen", exact: true }).click();
+    await expectDemoStep("site_pricing", "Paket wählen");
+    await expect(page.getByText("Der Checkout erfasst Rechnungsadresse").first()).toBeVisible();
     await expect(page.getByRole("link", { name: "Starter buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=starter&quantity=1");
     await expect(page.getByRole("link", { name: "Expert buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=expert&quantity=1");
     await expect(page.getByRole("link", { name: "Volumen buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=enterprise&quantity=1");

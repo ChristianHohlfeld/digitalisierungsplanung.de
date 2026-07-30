@@ -18,6 +18,10 @@ function lower(text) {
   return compactText(text).toLowerCase();
 }
 
+function asciiLower(text) {
+  return lower(text).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ß/g, "ss");
+}
+
 function titleCase(text, fallback = "Weiter") {
   const raw = compactText(text).replace(/^["']|["']$/g, "");
   if (!raw) return fallback;
@@ -430,6 +434,40 @@ function workflowSpec(prompt) {
   return null;
 }
 
+function looksLikeNewScenePrompt(prompt) {
+  const text = asciiLower(prompt);
+  const clearWords = "(?:loesch|loesche|loeschen|losch|losche|loschen|delete|clear|reset|leere|zuruecksetzen)";
+  const sceneWords = "(?:alles|canvas|szene|scene|modell|model|workflow|flow|ablauf)";
+  return new RegExp(`\\b${clearWords}\\b.{0,60}\\b${sceneWords}\\b`).test(text) ||
+    new RegExp(`\\b${sceneWords}\\b.{0,60}\\b${clearWords}\\b`).test(text) ||
+    /\b(?:neue|neuen|new|fresh|blank|leere|leer)\s+(?:szene|scene|canvas|modell|model|workflow|flow)\b/.test(text);
+}
+
+function sceneTitleFromPrompt(prompt, fallback = "Neue Szene") {
+  const quoted = quotedText(prompt);
+  if (quoted) return titleCase(quoted, fallback);
+  const text = compactText(prompt);
+  const match = text.match(/\b(?:szene|scene|workflow|flow|ablauf|modell|model|app)\s+(?:namens|called|named|fuer|für|zu|zum)?\s*([A-Za-z0-9Ã¤Ã¶Ã¼Ã„Ã–ÃœÃŸ _-]{3,80})/i);
+  if (!match) return fallback;
+  const cleaned = match[1]
+    .replace(/\b(?:neu|neue|neuen|leer|leere|loeschen|löschen|delete|clear|reset|starten|machen|anlegen|erstellen)$/i, "")
+    .trim();
+  return titleCase(cleaned, fallback);
+}
+
+function planNewScene(_model, prompt) {
+  const name = sceneTitleFromPrompt(prompt);
+  return {
+    understood: true,
+    confidence: 0.93,
+    intent: "scene_new",
+    targetStateId: "",
+    actions: [{ type: "create_flow", name }],
+    assumptions: ["Die aktuelle Szene wird durch ein leeres kanonisches FSM-Modell ersetzt."],
+    explanation: "Ersetzt die aktuelle Szene durch ein leeres Editor-Modell. Es entsteht kein versteckter Zwischenzustand."
+  };
+}
+
 function shouldResetForWorkflow(model, prompt) {
   if (!model.states.length) return true;
   return /\b(?:new|fresh|blank|empty|from scratch|neu|frisch|leer|komplett neu)\b.{0,40}\b(?:flow|workflow|ablauf|prozess|app)\b/i.test(prompt);
@@ -570,6 +608,7 @@ function planPrompt(model, args = {}) {
   const prompt = compactText(args.prompt || "");
   const text = lower(prompt);
   if (!prompt) return fallbackPlan("Empty prompt.");
+  if (looksLikeNewScenePrompt(prompt)) return planNewScene(model, prompt, args);
   if (/timer|countdown|warte|delay|sekunde|second/.test(text)) return planTimer(model, prompt, args);
   if (/inner state|child state|unterstate|unter state|kindstate|kind state|nested state|verschachtel|inside state|state.*inside/.test(text)) return planInnerState(model, prompt, args);
   if (/(?:erstelle|erzeuge|mach|lege|create|build|add|neuer|neue|new)\b.*\b(?:state|zustand|screen|seite)\b|^(?:state|zustand|screen|seite)\s+(?!mit\b|with\b|zu\b|nach\b|to\b)[a-z0-9]/.test(text) && !/transition|übergang|verbinde|connect|wire|route|gehe zu|go to|workflow|flow|ablauf|prozess|process|app/.test(text)) return planState(model, prompt, args);
@@ -590,8 +629,9 @@ function fallbackPlan(reason) {
     targetStateId: "",
     actions: [],
     assumptions: [reason],
-    explanation: "Ich brauche eine konkrete Editor-Anweisung, z. B. State anlegen, Workflow erstellen, Timer hinzufügen, Inner State anlegen, States verbinden, Widget hinzufügen, Variable anlegen oder API/Liste konfigurieren.",
+    explanation: "Ich habe nichts geaendert. Sag kurz, was im Editor entstehen soll: State, Workflow, Widget, Variable, API/Liste, Timer oder neue leere Szene.",
     examples: [
+      "loesche alles und starte eine neue Szene",
       "füge timer 10s hinzu und weiter zu Done",
       "erstelle state Rechnung pruefen",
       "erstelle inner state Schritt 1",
@@ -622,6 +662,7 @@ function promptIntentMarkdown() {
     "- `upsert_state_variable`: phrases like `füge variable email vom typ email hinzu`.",
     "- `configure_fetch`: phrases like `lade API https://... als Liste`.",
     "- `create_workflow`: phrases like `baue checkout workflow`, `baue einen kaufprozess fuer drei software pakete`, `build login flow`, `Cart -> Shipping -> Payment -> Done`.",
+    "- `scene_new`: phrases like `loesche alles`, `neue Szene`, `clear canvas`.",
     "",
     "Machine contract reminders:",
     "",

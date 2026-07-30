@@ -514,6 +514,7 @@ test.describe("State Blueprint MCP", () => {
     expect(promptDoc).toContain("`upsert_state`");
     expect(promptDoc).toContain("`upsert_transition`");
     expect(promptDoc).toContain("`upsert_state_variable`");
+    expect(promptDoc).toContain("`scene_new`");
     expect(promptDoc).not.toContain("`add_transition`");
     expect(promptDoc).not.toContain("`add_state_variable`");
 
@@ -523,6 +524,9 @@ test.describe("State Blueprint MCP", () => {
     expect(planPrompt(promptModel, { prompt: "erstelle state Rechnung pruefen", selectedStateId: "start" }).intent).toBe("upsert_state");
     expect(planPrompt(promptModel, { prompt: "verbinde diesen State mit Checkout", selectedStateId: "start" }).intent).toBe("upsert_transition");
     expect(planPrompt(promptModel, { prompt: "füge Variable email vom Typ email hinzu", selectedStateId: "start" }).intent).toBe("upsert_state_variable");
+    const clearPlan = planPrompt(promptModel, { prompt: "alles löschen und neue Szene starten", selectedStateId: "start" });
+    expect(clearPlan.intent).toBe("scene_new");
+    expect(clearPlan.actions).toEqual([{ type: "create_flow", name: "Neue Szene" }]);
   });
 
   test("uses the editor definition discriminator for MCP roundtrips @smoke", () => {

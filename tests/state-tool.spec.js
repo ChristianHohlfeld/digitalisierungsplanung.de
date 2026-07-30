@@ -1186,6 +1186,12 @@ test.describe("State Blueprint tool", () => {
         Object.defineProperty(navigator, "gpu", { value: undefined, configurable: true });
       } catch (_) {}
     });
+    let promptRequests = 0;
+    await page.route("**/agent/editor/prompt", async route => {
+      promptRequests += 1;
+      if (promptRequests === 1) await new Promise(resolve => setTimeout(resolve, 250));
+      await route.continue();
+    });
     await openTool(page);
 
     await page.locator("#btnAiAgent").click();
@@ -1209,7 +1215,7 @@ test.describe("State Blueprint tool", () => {
       hasToolChips: false
     }));
     await expect.poll(async () => page.evaluate(() => document.querySelector("dp-agent-widget")?.shadowRoot?.textContent || ""))
-      .toContain("In-Browser KI");
+      .toContain("Lokale KI");
     await expect.poll(async () => page.evaluate(() => document.querySelector("dp-agent-widget")?.shadowRoot?.textContent || ""))
       .not.toContain("Server Agent");
     await expect.poll(async () => page.evaluate(() => document.querySelector("dp-agent-widget")?.shadowRoot?.textContent || ""))
@@ -1256,13 +1262,85 @@ test.describe("State Blueprint tool", () => {
     });
     await page.keyboard.press("Enter");
 
-    await expect.poll(async () => page.evaluate(() => document.querySelector("dp-agent-widget")?.shadowRoot?.textContent || ""))
-      .toContain("Contract");
     await expect.poll(async () => page.evaluate(() => {
       const input = document.querySelector("dp-agent-widget")?.shadowRoot?.querySelector(".input");
-      return input ? input.value : "missing";
-    }))
-      .toBe("");
+      return input ? input.disabled : true;
+    })).toBe(false);
+    await page.evaluate(() => {
+      const root = document.querySelector("dp-agent-widget").shadowRoot;
+      const input = root.querySelector(".input");
+      input.value = "erstelle state Queue Test";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.focus();
+    });
+    await page.keyboard.press("Enter");
+    await expect.poll(() => promptRequests).toBeGreaterThanOrEqual(2);
+    await expect(page.locator('[data-id="rechnung_pruefen"]')).toBeVisible();
+    await expect(page.locator('[data-id="queue_test"]')).toBeVisible();
+    await expect.poll(async () => page.evaluate(() => document.querySelector("dp-agent-widget")?.shadowRoot?.textContent || ""))
+      .toContain("Geprueft und direkt uebernommen");
+    await expect.poll(async () => page.evaluate(() => document.querySelector("dp-agent-widget")?.shadowRoot?.textContent || ""))
+      .not.toContain("Im Editor uebernehmen");
+    await expect.poll(async () => page.evaluate(() => document.querySelector("dp-agent-widget")?.shadowRoot?.textContent || ""))
+      .not.toContain("{\"editor\"");
+    await expect.poll(async () => page.evaluate(() => {
+      const input = document.querySelector("dp-agent-widget")?.shadowRoot?.querySelector(".input");
+      return input ? { value: input.value, disabled: input.disabled } : null;
+    })).toEqual({ value: "", disabled: false });
+
+    await page.evaluate(() => {
+      const root = document.querySelector("dp-agent-widget").shadowRoot;
+      const input = root.querySelector(".input");
+      input.value = "alles loeschen";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.focus();
+    });
+    await page.keyboard.press("Enter");
+    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(0);
+    await expect.poll(async () => JSON.parse(JSON.stringify(await page.evaluate(() => definitionPayload().model)))).toMatchObject({
+      initial: "",
+      states: [],
+      transitions: []
+    });
+  });
+
+  test("keeps the editor AI controls reachable on mobile @smoke", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.addInitScript(() => {
+      try {
+        Object.defineProperty(navigator, "gpu", { value: undefined, configurable: true });
+      } catch (_) {}
+    });
+    await openTool(page);
+
+    await page.locator("#btnAiAgent").click({ force: true });
+
+    const metrics = await page.evaluate(() => {
+      const root = document.querySelector("dp-agent-widget")?.shadowRoot;
+      const panel = root?.querySelector(".panel");
+      const close = root?.querySelector(".close");
+      const input = root?.querySelector(".input");
+      const rect = element => {
+        const box = element.getBoundingClientRect();
+        return { top: box.top, bottom: box.bottom, left: box.left, right: box.right, width: box.width, height: box.height };
+      };
+      return {
+        viewport: { width: innerWidth, height: innerHeight },
+        panel: rect(panel),
+        close: rect(close),
+        input: rect(input),
+        closeLabel: close?.getAttribute("aria-label") || "",
+        inputDisabled: input?.disabled === true
+      };
+    });
+
+    expect(metrics.panel.top).toBeGreaterThanOrEqual(48);
+    expect(metrics.panel.bottom).toBeLessThanOrEqual(metrics.viewport.height);
+    expect(metrics.close.top).toBeGreaterThanOrEqual(metrics.panel.top);
+    expect(metrics.close.bottom).toBeLessThan(metrics.viewport.height);
+    expect(metrics.input.bottom).toBeLessThanOrEqual(metrics.viewport.height);
+    expect(metrics.closeLabel).toBe("Minimieren");
+    expect(metrics.inputDisabled).toBe(false);
   });
 
   test("creates a complete Zustandsdiagramm from the UI with data, components, conditions, sets, preview, and export", async ({ page }) => {
@@ -2627,8 +2705,8 @@ test.describe("State Blueprint tool", () => {
     }).toEqual({
       name: "Digitalisierungsplanung.de kaufen",
       initial: "site_overview",
-      stateIds: ["site_improve", "site_map", "site_overview", "site_pricing", "site_scope"],
-      userTransitions: 4
+      stateIds: ["site_overview", "site_pricing"],
+      userTransitions: 1
     });
 
     await page.goto("/state.html?demo=zustand");
@@ -2674,8 +2752,8 @@ test.describe("State Blueprint tool", () => {
       name: "Digitalisierungsplanung.de kaufen",
       initial: "site_overview",
       hasStarterOnly: false,
-      stateIds: ["site_improve", "site_map", "site_overview", "site_pricing", "site_scope"],
-      userTransitions: 4
+      stateIds: ["site_overview", "site_pricing"],
+      userTransitions: 1
     });
   });
 
@@ -2868,8 +2946,8 @@ test.describe("State Blueprint tool", () => {
       name: "Digitalisierungsplanung.de kaufen",
       initial: "site_overview",
       hasOldLocalModel: false,
-      stateIds: ["site_improve", "site_map", "site_overview", "site_pricing", "site_scope"],
-      userTransitions: 4
+      stateIds: ["site_overview", "site_pricing"],
+      userTransitions: 1
     });
   });
 
@@ -2881,7 +2959,7 @@ test.describe("State Blueprint tool", () => {
     await page.getByRole("button", { name: "Beispielablauf laden" }).click();
     await page.getByRole("button", { name: "Mit Beispiel neu starten" }).click();
 
-    const productStateIds = ["site_improve", "site_map", "site_overview", "site_pricing", "site_scope"];
+    const productStateIds = ["site_overview", "site_pricing"];
     await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(productStateIds.length);
     await expect(page.locator('[data-id="site_overview"]')).toBeVisible();
     await expect(page.locator('[data-id="site_pricing"]')).toBeVisible();
@@ -2906,7 +2984,7 @@ test.describe("State Blueprint tool", () => {
       name: "Digitalisierungsplanung.de kaufen",
       initial: "site_overview",
       stateIds: productStateIds,
-      userTransitions: 4,
+      userTransitions: 1,
       boundary: { entryId: "site_overview", exitId: "site_pricing" },
       scopedDataOnly: true,
       hasLegacyRoutes: false
@@ -2924,47 +3002,19 @@ test.describe("State Blueprint tool", () => {
       await expectProductNoHorizontalOverflow();
     };
 
-    await expectProductStep("site_overview", "Lizenz kaufen");
-    await expect(productApp.getByRole("heading", { name: "Digitalisierungsplanung.de kaufen", exact: true })).toBeVisible();
+    await expectProductStep("site_overview", "Prozess-App-Editor kaufen");
+    await expect(productApp.getByRole("heading", { name: "Digitalisierungsplanung.de", exact: true })).toBeVisible();
     await expect(productApp.locator('.hero[style*="photo-1551434678-e076c223a692"]')).toBeVisible();
-    await expect(productApp.getByText("Kaufe eine monatliche Lizenz").first()).toBeVisible();
-    await expect(productApp.getByRole("link", { name: "Editor öffnen" }).first()).toHaveAttribute("href", /state\.html\?demo=zustand$/);
+    await expect(productApp.getByText("Der visuelle Editor").first()).toBeVisible();
+    await expect(productApp.getByRole("link", { name: "Editor ansehen" }).first()).toHaveAttribute("href", /state\.html\?demo=zustand$/);
 
-    await productApp.getByRole("button", { name: "Lizenz auswählen", exact: true }).click();
-    await expectProductStep("site_scope", "Bedarf klären");
-    await expect(runtimeSelect(productApp, "Wie viele Nutzer sollen starten?")).toBeVisible();
-    await expect(runtimeSelect(productApp, "Wofür brauchst du das Tool zuerst?")).toBeVisible();
-    const moveDate = runtimeDateInput(productApp, "Nutzung starten ab");
-    await expect(moveDate).toHaveValue("2026-09-01");
-    await moveDate.evaluate(input => {
-      window.__calendarShowPickerCalls = 0;
-      input.showPicker = () => { window.__calendarShowPickerCalls += 1; };
-    });
-    await moveDate.click();
-    await expect.poll(async () => productApp.locator("html").evaluate(() => window.__calendarShowPickerCalls || 0)).toBe(1);
-    await moveDate.focus();
-    await page.keyboard.press("ArrowUp");
-    await expect.poll(async () => moveDate.inputValue()).not.toBe("2026-09-01");
-    const changedMoveDate = await moveDate.inputValue();
-    expect(changedMoveDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    await expect(moveDate).toBeFocused();
-    await expect(runtimeSelect(productApp, "Wie viele Nutzer sollen starten?")).not.toBeFocused();
-    await expect.poll(async () => (await runtimeContext(page)).states?.site_scope?.start?.value).toBe(changedMoveDate);
-    await productApp.getByRole("button", { name: "Mehrwert ansehen", exact: true }).click();
-    await expectProductStep("site_map", "Mehrwert sehen");
-    await expect(productApp.getByText("In einem Tool").first()).toBeVisible();
-    await expect(productApp.getByText("Modell + UI").first()).toBeVisible();
-    await expect(runtimeSelect(productApp, "Was ist für den Kauf entscheidend?")).toBeVisible();
-    await productApp.getByRole("button", { name: "Empfehlung anzeigen", exact: true }).click();
-    await expectProductStep("site_improve", "Lizenzvorschlag");
-    await expect(runtimeSelect(productApp, "Welches Paket willst du buchen?")).toBeVisible();
-    await productApp.getByRole("button", { name: "Pakete buchen", exact: true }).click();
-    await expectProductStep("site_pricing", "Paket buchen");
-    await expect(productApp.getByText("Stripe Checkout fordert die Rechnungsadresse an").first()).toBeVisible();
+    await productApp.getByRole("button", { name: "Pakete ansehen", exact: true }).click();
+    await expectProductStep("site_pricing", "Paket wählen");
+    await expect(productApp.getByText("Der Checkout erfasst Rechnungsadresse").first()).toBeVisible();
     await expect(productApp.getByRole("link", { name: "Starter buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=starter&quantity=1");
     await expect(productApp.getByRole("link", { name: "Expert buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=expert&quantity=1");
     await expect(productApp.getByRole("link", { name: "Volumen buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=enterprise&quantity=1");
-    await expect(productApp.getByRole("link", { name: "Editor öffnen" }).first()).toHaveAttribute("href", /state\.html\?demo=zustand$/);
+    await expect(productApp.getByRole("link", { name: "Editor ansehen" }).first()).toHaveAttribute("href", /state\.html\?demo=zustand$/);
   });
 
   test("website demo graph reaches every state and binds every transition by contract id @smoke", async ({ page }) => {
@@ -2974,8 +3024,8 @@ test.describe("State Blueprint tool", () => {
     const transitionIds = transitions.map(transition => transition.id);
     const allEntityIds = [...stateIds, ...transitionIds];
     expect(new Set(allEntityIds).size).toBe(allEntityIds.length);
-    expect(stateIds).toHaveLength(5);
-    expect(transitionIds).toHaveLength(4);
+    expect(stateIds).toHaveLength(2);
+    expect(transitionIds).toHaveLength(1);
 
     const stateIdSet = new Set(stateIds);
     for (const transition of transitions) {
@@ -3145,10 +3195,10 @@ test.describe("State Blueprint tool", () => {
     expect(html).toContain("const EXPORTED_STATE_BLUEPRINT = ");
     expect(html).toContain('"name":"Digitalisierungsplanung.de kaufen"');
     expect(html).toContain('"site_overview"');
-    expect(html).toContain('"site_scope"');
-    expect(html).toContain('"site_map"');
-    expect(html).toContain('"site_improve"');
     expect(html).toContain('"site_pricing"');
+    expect(html).not.toContain('"site_scope"');
+    expect(html).not.toContain('"site_map"');
+    expect(html).not.toContain('"site_improve"');
     expect(html).not.toContain("Wohnung");
     expect(html).not.toContain("Besichtigung");
     expect(html).not.toContain("flow-debug");
@@ -3202,36 +3252,17 @@ test.describe("State Blueprint tool", () => {
       )).toBeLessThanOrEqual(2);
     };
 
-    await expectProductStandaloneShell("site_overview", "Lizenz kaufen", { footer: true });
+    await expectProductStandaloneShell("site_overview", "Prozess-App-Editor kaufen", { footer: true });
     await expect(standalone.locator("#runtimeRecorderControls")).toBeHidden();
-    await expect(standalone.getByRole("heading", { name: "Digitalisierungsplanung.de kaufen", exact: true })).toBeVisible();
-    await expect(standalone.getByText("Kaufe eine monatliche Lizenz").first()).toBeVisible();
-    await expect(standalone.getByRole("link", { name: "Editor öffnen" }).first()).toHaveAttribute("href", /state\.html\?demo=zustand$/);
+    await expect(standalone.getByRole("heading", { name: "Digitalisierungsplanung.de", exact: true })).toBeVisible();
+    await expect(standalone.getByText("Der visuelle Editor").first()).toBeVisible();
+    await expect(standalone.getByRole("link", { name: "Editor ansehen" }).first()).toHaveAttribute("href", /state\.html\?demo=zustand$/);
     await expect(standalone.locator("#flowDebug")).toHaveCount(0);
     await expectProductStandaloneNoHorizontalOverflow();
 
-    await standalone.getByRole("button", { name: "Lizenz auswählen", exact: true }).click();
-    await expectProductStandaloneShell("site_scope", "Bedarf klären");
-    await expect(runtimeSelect(standalone, "Wie viele Nutzer sollen starten?")).toBeVisible();
-    await expect(runtimeSelect(standalone, "Wofür brauchst du das Tool zuerst?")).toBeVisible();
-    const standaloneMoveDate = runtimeDateInput(standalone, "Nutzung starten ab");
-    await expect(standaloneMoveDate).toHaveValue("2026-09-01");
-    await standaloneMoveDate.focus();
-    await standalone.keyboard.press("ArrowUp");
-    await expect.poll(async () => standaloneMoveDate.inputValue()).not.toBe("2026-09-01");
-    const changedStandaloneMoveDate = await standaloneMoveDate.inputValue();
-    expect(changedStandaloneMoveDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    await expect(standaloneMoveDate).toBeFocused();
-    await expect(runtimeSelect(standalone, "Wie viele Nutzer sollen starten?")).not.toBeFocused();
-    await standalone.getByRole("button", { name: "Mehrwert ansehen", exact: true }).click();
-    await expectProductStandaloneShell("site_map", "Mehrwert sehen");
-    await expect(runtimeSelect(standalone, "Was ist für den Kauf entscheidend?")).toBeVisible();
-    await standalone.getByRole("button", { name: "Empfehlung anzeigen", exact: true }).click();
-    await expectProductStandaloneShell("site_improve", "Lizenzvorschlag");
-    await expect(runtimeSelect(standalone, "Welches Paket willst du buchen?")).toBeVisible();
-    await standalone.getByRole("button", { name: "Pakete buchen", exact: true }).click();
-    await expectProductStandaloneShell("site_pricing", "Paket buchen", { footer: true });
-    await expect(standalone.getByText("Stripe Checkout fordert die Rechnungsadresse an").first()).toBeVisible();
+    await standalone.getByRole("button", { name: "Pakete ansehen", exact: true }).click();
+    await expectProductStandaloneShell("site_pricing", "Paket wählen", { footer: true });
+    await expect(standalone.getByText("Der Checkout erfasst Rechnungsadresse").first()).toBeVisible();
     await expect(standalone.getByRole("link", { name: "Starter buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=starter&quantity=1");
     await expect(standalone.getByRole("link", { name: "Expert buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=expert&quantity=1");
     await expect(standalone.getByRole("link", { name: "Volumen buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=enterprise&quantity=1");
