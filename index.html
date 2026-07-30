@@ -1826,7 +1826,7 @@
 
     const IS_STANDALONE_EXPORT = true;
     const EXPORTED_STATE_BLUEPRINT = {"version":2,"name":"Digitalisierungsplanung.de kaufen","initial":"site_overview","boundary":{"entryId":"site_overview","exitId":"site_pricing","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"states":[{"id":"site_overview","title":"Prozess-App-Editor kaufen","components":[{"id":"site_overview_nav","type":"daisy","text":"","url":"","variant":"navbar","dataPath":"states.site_overview.nav","dataRole":"widget","dataLabel":"Kopf-Navigation"},{"id":"overview_hero","type":"daisy","text":"","url":"","variant":"hero","dataPath":"states.site_overview.hero","dataRole":"widget","dataLabel":"Titelbereich"},{"id":"overview_value","type":"daisy","text":"","url":"","variant":"feature-grid","dataPath":"states.site_overview.value","dataRole":"widget","dataLabel":"Produktnutzen"},{"id":"overview_alert","type":"daisy","text":"","url":"","variant":"alert","dataPath":"states.site_overview.alert","dataRole":"widget","dataLabel":"Kaufhinweis"},{"id":"site_overview_footer","type":"daisy","text":"","url":"","variant":"footer","dataPath":"states.site_overview.footer","dataRole":"widget","dataLabel":"Fußzeile"}],"data":{"nav":{"layout":"menu-submenu","brand":"Digitalisierungsplanung.de","selected":"Produkt","items":[],"parent":"","submenu":[],"submenuOpen":false},"hero":{"layout":"overlay","title":"Digitalisierungsplanung.de","body":"Der visuelle Editor, mit dem Teams Abläufe aufnehmen, Prozess-Apps bauen, im Browser testen und als HTML-Pilot exportieren.","actionLabel":"Pakete ansehen","transitionId":"site_overview_pricing","image":"https://images.unsplash.com/photo-1551434678-e076c223a692?auto=format\u0026fit=crop\u0026w=1600\u0026q=82"},"value":{"eyebrow":"Das Produkt","heading":"Aus Ablaufwissen wird eine nutzbare Prozess-App","body":"Digitalisierungsplanung.de hilft Fachteams, Prozesswissen sichtbar, testbar und als Web-Pilot nutzbar zu machen.","selected":"","items":[{"title":"Abläufe visuell bauen","body":"Schritte, Entscheidungen und Verantwortungen werden direkt im Editor sichtbar.","image":"https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format\u0026fit=crop\u0026w=900\u0026q=82","imageAlt":"Team arbeitet an einem digitalen Ablauf","features":["Drag \u0026 Drop","klare Zustände"]},{"title":"Screens sofort testen","body":"Formulare, Auswahlfelder, Kalender und Buttons laufen direkt im Browser.","features":["echte Eingaben","klickbarer Ablauf"]},{"title":"Pilot teilen","body":"Eine eigenständige HTML-App steht für Review, Freigabe und Pilotbetrieb bereit.","image":"https://images.unsplash.com/photo-1556761175-b413da4baf72?auto=format\u0026fit=crop\u0026w=900\u0026q=82","imageAlt":"Team prüft einen Web-Pilot","features":["HTML-Export","Team-Review"]}]},"alert":{"tone":"success","message":"Sie erwerben eine monatliche Softwarelizenz für den Editor. Preise starten bei 49,99 EUR pro Benutzer und Monat."},"footer":{"brand":"Digitalisierungsplanung.de","note":"Visueller Editor für Prozess-Apps, Team-Prüfung und HTML-Exporte.","columns":[{"title":"Produkt","items":[{"label":"Editor ansehen","url":"state.html?demo=zustand"}]}]}},"dataTypes":{"nav":"object","hero":"object","value":"object","alert":"object","footer":"object"},"dataSource":{"url":"","target":"states.site_overview.fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"subscriptions":[],"boundary":{"entryId":"","exitId":"","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"parentId":null,"x":120,"y":216},{"id":"site_pricing","title":"Paket wählen","components":[{"id":"site_pricing_nav","type":"daisy","text":"","url":"","variant":"navbar","dataPath":"states.site_pricing.nav","dataRole":"widget","dataLabel":"Kopf-Navigation"},{"id":"pricing_intro","type":"daisy","text":"","url":"","variant":"alert","dataPath":"states.site_pricing.intro","dataRole":"widget","dataLabel":"Kaufhinweis"},{"id":"pricing_plans","type":"daisy","text":"","url":"","variant":"pricing","dataPath":"states.site_pricing.plans","dataRole":"widget","dataLabel":"Preispläne"},{"id":"site_pricing_footer","type":"daisy","text":"","url":"","variant":"footer","dataPath":"states.site_pricing.footer","dataRole":"widget","dataLabel":"Fußzeile"}],"data":{"nav":{"layout":"menu-submenu","brand":"Digitalisierungsplanung.de","selected":"Pakete","items":[],"parent":"","submenu":[],"submenuOpen":false},"intro":{"tone":"success","message":"Wählen Sie ein Monatsabo. Der Checkout erfasst die Rechnungsadresse und berechnet die MwSt. automatisch."},"plans":{"selectedPlan":"","plans":[{"title":"Starter","badge":"Einstieg","price":"49,99 EUR","period":"pro Benutzer / Monat","body":"Für Einzelpersonen, die sofort erste Prozess-Apps bauen und als HTML exportieren möchten.","features":["1 Benutzer","visueller Editor","HTML-Export","zzgl. MwSt. im Checkout"],"actionLabel":"Starter buchen","url":"https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=starter\u0026quantity=1","checkout":{"mode":"checkout_session","plan":"starter"},"stripe":{"unitAmountCents":4999,"currency":"eur","quantityMode":"per_user","billingAddressCollection":"required","automaticTax":true,"taxBehavior":"exclusive","taxCode":"txcd_10103001"}},{"title":"Expert","badge":"Empfohlen","price":"199 EUR","period":"/Monat","body":"Für Teams, die Abläufe gemeinsam modellieren, testen und als Web-Pilot nutzen.","features":["Team-Arbeitsbereich","Screens gemeinsam prüfen","HTML-Pilot exportieren","zzgl. MwSt. im Checkout"],"actionLabel":"Expert buchen","url":"https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=expert\u0026quantity=1","highlight":true,"checkout":{"mode":"checkout_session","plan":"expert"},"stripe":{"unitAmountCents":19900,"currency":"eur","quantityMode":"workspace","billingAddressCollection":"required","automaticTax":true,"taxBehavior":"exclusive","taxCode":"txcd_10103001"}},{"title":"Volumen \u0026 Unternehmen","badge":"Volumen","price":"499 EUR","period":"/Monat","body":"Für mehrere Bereiche, mehr Nutzer und einen strukturierten Rollout.","features":["mehrere Bereiche","Rollout-Vorbereitung","Priorisierte Einführung","zzgl. MwSt. im Checkout"],"actionLabel":"Volumen buchen","url":"https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=enterprise\u0026quantity=1","checkout":{"mode":"checkout_session","plan":"enterprise"},"stripe":{"unitAmountCents":49900,"currency":"eur","quantityMode":"workspace","billingAddressCollection":"required","automaticTax":true,"taxBehavior":"exclusive","taxCode":"txcd_10103001"}}]},"footer":{"brand":"Digitalisierungsplanung.de","note":"Visueller Editor für Prozess-Apps, Team-Prüfung und HTML-Exporte.","columns":[{"title":"Produkt","items":[{"label":"Editor ansehen","url":"state.html?demo=zustand"}]}]}},"dataTypes":{"nav":"object","intro":"object","plans":"object","footer":"object"},"dataSource":{"url":"","target":"states.site_pricing.fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"subscriptions":[],"boundary":{"entryId":"","exitId":"","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"parentId":null,"x":552,"y":216}],"transitions":[{"id":"site_overview_pricing","from":"site_overview","to":"site_pricing","label":"Pakete ansehen","condition":"","triggerType":"button","triggerEvent":"button.site_overview_pricing.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""}]};
-    const EXPORTED_STATE_BLUEPRINT_SAVED_AT = "2026-07-30T13:12:47.407Z";
+    const EXPORTED_STATE_BLUEPRINT_SAVED_AT = "2026-07-30T13:58:41.176Z";
 
     let model = normalizeModel(JSON.parse(JSON.stringify(EXPORTED_STATE_BLUEPRINT)));
     let current = model.initial;
@@ -4043,10 +4043,127 @@
       const box = document.createElement("div");
       box.innerHTML = String(frame?.screen?.html || "");
       box.querySelectorAll(".runtime-record-marker, script, style").forEach(el => el.remove());
-      return String(box.innerText || box.textContent || "")
+      const clean = String(box.innerText || box.textContent || "")
         .replace(/\s+/g, " ")
-        .trim()
-        .slice(0, 360);
+        .trim();
+      const title = String(runtimeStateTitle(frame?.current) || "").trim();
+      const body = title && clean.toLowerCase().startsWith(title.toLowerCase())
+        ? clean.slice(title.length).trim()
+        : clean;
+      return (body || clean).slice(0, 320);
+    }
+
+    function runtimeRecorderFrameModel(payload = {}) {
+      const candidate = isPlainDataObject(payload?.model) ? payload.model : null;
+      return candidate || runtimeRecording.model || model;
+    }
+
+    function runtimeRecorderPayloadStates(payload = {}) {
+      const sourceModel = runtimeRecorderFrameModel(payload);
+      return Array.isArray(sourceModel?.states) ? sourceModel.states.filter(Boolean) : [];
+    }
+
+    function runtimeRecorderPayloadTransitions(payload = {}) {
+      const sourceModel = runtimeRecorderFrameModel(payload);
+      return Array.isArray(sourceModel?.transitions) ? sourceModel.transitions.filter(Boolean) : [];
+    }
+
+    function runtimeRecorderPayloadState(payload, id) {
+      const key = String(id || "");
+      return runtimeRecorderPayloadStates(payload).find(state => String(state?.id || "") === key) || null;
+    }
+
+    function runtimeRecorderPayloadStateTitle(payload, id) {
+      const state = runtimeRecorderPayloadState(payload, id);
+      return String(state?.title || id || "").trim();
+    }
+
+    function runtimeRecorderPayloadTransitionLabel(payload, transition) {
+      return String(transition?.label || transition?.id || defaultTransitionLabel()).trim();
+    }
+
+    function runtimeRecorderFrameVisitedIds(payload, frame) {
+      const ids = [];
+      const seen = new Set();
+      const add = id => {
+        const key = String(id || "").trim();
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        ids.push(key);
+      };
+      const sourceModel = runtimeRecorderFrameModel(payload);
+      add(sourceModel?.initial);
+      const frameIndex = Math.max(0, Number(frame?.index) || 0);
+      (Array.isArray(payload?.frames) ? payload.frames : []).forEach(item => {
+        if (frameIndex && Number(item?.index || 0) > frameIndex) return;
+        add(item?.detail?.from);
+        add(item?.current);
+        add(item?.detail?.to);
+      });
+      add(frame?.detail?.from);
+      add(frame?.current);
+      add(frame?.detail?.to);
+      return ids;
+    }
+
+    function runtimeRecorderGifMapStates(payload, frame, limit = 5) {
+      const allStates = runtimeRecorderPayloadStates(payload).filter(state => state && !state.virtualProxy);
+      const transitions = runtimeRecorderPayloadTransitions(payload);
+      const orderedStates = allStates.slice().sort((a, b) => {
+        const ax = Number(a?.x), bx = Number(b?.x), ay = Number(a?.y), by = Number(b?.y);
+        if (Number.isFinite(ax) && Number.isFinite(bx) && ax !== bx) return ax - bx;
+        if (Number.isFinite(ay) && Number.isFinite(by) && ay !== by) return ay - by;
+        return String(a?.title || a?.id || "").localeCompare(String(b?.title || b?.id || ""));
+      });
+      const byId = new Map(allStates.map(state => [String(state.id || ""), state]));
+      const ids = [];
+      const seen = new Set();
+      const add = id => {
+        const key = String(id || "").trim();
+        if (!key || seen.has(key) || !byId.has(key)) return;
+        seen.add(key);
+        ids.push(key);
+      };
+      runtimeRecorderFrameVisitedIds(payload, frame).forEach(add);
+      const activeId = String(frame?.current || "");
+      transitions.forEach(transition => {
+        if (String(transition?.from || "") === activeId) add(transition.to);
+      });
+      transitions.forEach(transition => {
+        if (String(transition?.to || "") === activeId) add(transition.from);
+      });
+      orderedStates.forEach(state => add(state.id));
+      const activeIndex = ids.indexOf(activeId);
+      let visibleIds = ids.slice(0, Math.max(1, limit));
+      if (activeIndex >= limit) {
+        const start = Math.max(0, Math.min(activeIndex - Math.floor(limit / 2), ids.length - limit));
+        visibleIds = ids.slice(start, start + limit);
+      }
+      return visibleIds.map(id => byId.get(id)).filter(Boolean);
+    }
+
+    function runtimeRecorderTransitionBetween(payload, fromId, toId) {
+      const from = String(fromId || "");
+      const to = String(toId || "");
+      return runtimeRecorderPayloadTransitions(payload).find(transition =>
+        String(transition?.from || "") === from && String(transition?.to || "") === to
+      ) || null;
+    }
+
+    function runtimeRecorderCurrentTransition(payload, frame) {
+      const detail = frame?.detail || {};
+      const transitionId = String(frame?.transitionId || detail.transitionId || "");
+      const transitions = runtimeRecorderPayloadTransitions(payload);
+      return transitions.find(transition => String(transition?.id || "") === transitionId) ||
+        runtimeRecorderTransitionBetween(payload, detail.from, frame?.current || detail.to) ||
+        null;
+    }
+
+    function runtimeRecorderTruncateCanvasText(ctx, text, maxWidth) {
+      let value = String(text || "").replace(/\s+/g, " ").trim();
+      if (!value || ctx.measureText(value).width <= maxWidth) return value;
+      while (value.length > 1 && ctx.measureText(value + "...").width > maxWidth) value = value.slice(0, -1);
+      return value.trim() + "...";
     }
 
     function runtimeRecorderWrapCanvasText(ctx, text, x, y, maxWidth, lineHeight, maxLines) {
@@ -4056,7 +4173,8 @@
       for (const word of words) {
         const candidate = line ? line + " " + word : word;
         if (ctx.measureText(candidate).width > maxWidth && line) {
-          ctx.fillText(line, x, y);
+          const lastLine = lines + 1 >= maxLines && words.indexOf(word) < words.length;
+          ctx.fillText(lastLine ? runtimeRecorderTruncateCanvasText(ctx, line, maxWidth) : line, x, y);
           y += lineHeight;
           lines += 1;
           line = word;
@@ -4066,77 +4184,207 @@
         }
       }
       if (line && lines < maxLines) {
-        ctx.fillText(line, x, y);
+        ctx.fillText(runtimeRecorderTruncateCanvasText(ctx, line, maxWidth), x, y);
         y += lineHeight;
       }
       return y;
     }
 
+    function runtimeRecorderDrawRoundedRect(ctx, x, y, width, height, radius, fill, stroke = "", lineWidth = 1) {
+      ctx.beginPath();
+      if (typeof ctx.roundRect === "function") ctx.roundRect(x, y, width, height, radius);
+      else {
+        ctx.moveTo(x + radius, y);
+        ctx.lineTo(x + width - radius, y);
+        ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+        ctx.lineTo(x + width, y + height - radius);
+        ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+        ctx.lineTo(x + radius, y + height);
+        ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+        ctx.lineTo(x, y + radius);
+        ctx.quadraticCurveTo(x, y, x + radius, y);
+      }
+      if (fill) {
+        ctx.fillStyle = fill;
+        ctx.fill();
+      }
+      if (stroke) {
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = lineWidth;
+        ctx.stroke();
+      }
+    }
+
+    function runtimeRecorderDrawArrow(ctx, fromX, fromY, toX, toY, color) {
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(fromX, fromY);
+      ctx.lineTo(toX, toY);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(toX, toY);
+      ctx.lineTo(toX - 8, toY - 5);
+      ctx.lineTo(toX - 8, toY + 5);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function runtimeRecorderFrameActionLabel(frame) {
+      const kind = String(frame?.kind || "");
+      const detail = frame?.detail || {};
+      if (kind === "start") return "Start der Aufnahme";
+      if (kind === "input") return detail.path ? "Eingabe" : "Eingabe erfasst";
+      if (kind === "click") return runtimeRecorderMarkerLabel("click", detail);
+      if (kind === "transition" || kind === "event") return String(frame?.label || runtimeRecorderMarkerLabel(kind, detail) || "Wechsel");
+      if (kind === "scroll") return "Scroll";
+      return String(frame?.label || kind || "Snapshot");
+    }
+
     function runtimeRecorderDrawGifFrame(ctx, payload, frame) {
       const width = ctx.canvas.width;
       const height = ctx.canvas.height;
+      const activeId = String(frame?.current || "");
+      const visitedIds = new Set(runtimeRecorderFrameVisitedIds(payload, frame));
+      const mapStates = runtimeRecorderGifMapStates(payload, frame, 5);
+      const currentTransition = runtimeRecorderCurrentTransition(payload, frame);
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
+      ctx.textBaseline = "alphabetic";
       ctx.fillStyle = "#020617";
       ctx.fillRect(0, 0, width, height);
-      const gradient = ctx.createLinearGradient(0, 0, width, height);
-      gradient.addColorStop(0, "rgba(56,189,248,.24)");
-      gradient.addColorStop(.5, "rgba(15,23,42,.35)");
-      gradient.addColorStop(1, "rgba(52,211,153,.18)");
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, width, height);
-      ctx.fillStyle = "rgba(8,24,39,.92)";
-      ctx.strokeStyle = "rgba(56,189,248,.38)";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      if (typeof ctx.roundRect === "function") ctx.roundRect(18, 18, width - 36, height - 36, 18);
-      else ctx.rect(18, 18, width - 36, height - 36);
-      ctx.fill();
-      ctx.stroke();
+
+      ctx.fillStyle = "#0f172a";
+      ctx.fillRect(0, 0, width, 58);
       ctx.fillStyle = "#7dd3fc";
-      ctx.font = "700 12px sans-serif";
-      ctx.fillText(String(payload.appName || "Zustand").toUpperCase(), 34, 44);
-      ctx.fillStyle = "#f8fbff";
-      ctx.font = "900 30px sans-serif";
-      runtimeRecorderWrapCanvasText(ctx, runtimeStateTitle(frame.current) || frame.current || "Start", 34, 82, width - 68, 32, 2);
+      ctx.font = "800 13px sans-serif";
+      ctx.fillText("ABLAUFAUFNAHME", 30, 25);
+      ctx.fillStyle = "#f8fafc";
+      ctx.font = "900 23px sans-serif";
+      ctx.fillText(runtimeRecorderTruncateCanvasText(ctx, String(payload?.appName || "Prozess"), width - 220), 30, 50);
+      runtimeRecorderDrawRoundedRect(ctx, width - 126, 17, 96, 26, 13, "#052e21", "#34d399", 1);
       ctx.fillStyle = "#bbf7d0";
-      ctx.font = "800 15px sans-serif";
-      runtimeRecorderWrapCanvasText(ctx, String(frame.label || ""), 34, 138, width - 68, 20, 2);
-      ctx.fillStyle = "#cbd5e1";
-      ctx.font = "500 13px sans-serif";
-      runtimeRecorderWrapCanvasText(ctx, runtimeRecorderFrameText(frame), 34, 182, width - 68, 18, 4);
-      const detail = frame.detail || {};
-      const kind = String(frame.kind || "");
-      if (["click", "input", "scroll", "transition", "event"].includes(kind)) {
-        const markerX = Number.isFinite(Number(detail.screenX)) ? Math.max(36, Math.min(width - 36, Number(detail.screenX) + 18)) : width - 70;
-        const markerY = Number.isFinite(Number(detail.screenY)) ? Math.max(36, Math.min(height - 36, Number(detail.screenY) + 18)) : 54;
-        ctx.fillStyle = kind === "input" ? "#34d399" : kind === "scroll" ? "#f59e0b" : kind === "transition" || kind === "event" ? "#fb7185" : "#38bdf8";
-        ctx.beginPath();
-        ctx.arc(markerX, markerY, 10, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = "rgba(255,255,255,.9)";
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.arc(markerX, markerY, 17, 0, Math.PI * 2);
-        ctx.stroke();
+      ctx.font = "800 12px sans-serif";
+      ctx.fillText(String(frame?.index || 0) + "/" + String(payload?.frameCount || 0), width - 91, 35);
+
+      const mapX = 30;
+      const mapY = 86;
+      const mapW = width - 60;
+      const nodeCount = Math.max(1, mapStates.length);
+      const nodeGap = nodeCount <= 2 ? 132 : nodeCount === 3 ? 72 : nodeCount === 4 ? 42 : 22;
+      const nodeW = Math.min(126, Math.floor((mapW - nodeGap * (nodeCount - 1)) / nodeCount));
+      const nodeH = 58;
+      const firstX = mapX + Math.max(0, Math.floor((mapW - nodeCount * nodeW - (nodeCount - 1) * nodeGap) / 2));
+      const nodeCenters = [];
+      mapStates.forEach((state, index) => {
+        const x = firstX + index * (nodeW + nodeGap);
+        const y = mapY;
+        const id = String(state?.id || "");
+        const active = id === activeId;
+        const visited = visitedIds.has(id);
+        const fill = active ? "#38bdf8" : visited ? "#064e3b" : "#081827";
+        const stroke = active ? "#7dd3fc" : visited ? "#34d399" : "#315f8c";
+        const text = active ? "#020617" : visited ? "#dcfce7" : "#e2e8f0";
+        runtimeRecorderDrawRoundedRect(ctx, x, y, nodeW, nodeH, 10, fill, stroke, active ? 3 : 2);
+        ctx.fillStyle = text;
+        ctx.font = "900 12px sans-serif";
+        ctx.fillText(String(index + 1).padStart(2, "0"), x + 10, y + 20);
+        ctx.font = active ? "900 14px sans-serif" : "800 13px sans-serif";
+        runtimeRecorderWrapCanvasText(ctx, runtimeRecorderPayloadStateTitle(payload, id), x + 10, y + 40, nodeW - 20, 14, 2);
+        nodeCenters.push({ id, x: x + nodeW / 2, y: y + nodeH / 2, left: x, right: x + nodeW });
+      });
+      for (let index = 0; index < nodeCenters.length - 1; index += 1) {
+        const from = nodeCenters[index];
+        const to = nodeCenters[index + 1];
+        const transition = runtimeRecorderTransitionBetween(payload, from.id, to.id);
+        const highlighted = currentTransition && String(currentTransition.from || "") === from.id && String(currentTransition.to || "") === to.id;
+        runtimeRecorderDrawArrow(ctx, from.right + 4, from.y, to.left - 5, to.y, highlighted ? "#34d399" : "#315f8c");
+        if (transition) {
+          ctx.fillStyle = highlighted ? "#bbf7d0" : "#94a3b8";
+          ctx.font = "700 10px sans-serif";
+          const label = runtimeRecorderTruncateCanvasText(ctx, runtimeRecorderPayloadTransitionLabel(payload, transition), Math.max(36, to.left - from.right - 18));
+          ctx.fillText(label, from.right + 8, from.y - 10);
+        }
       }
-      ctx.fillStyle = "#94a3b8";
-      ctx.font = "700 11px sans-serif";
-      ctx.fillText(String(frame.index || 0) + "/" + String(payload.frameCount || 0), width - 68, height - 34);
+
+      runtimeRecorderDrawRoundedRect(ctx, 30, 176, width - 60, height - 206, 14, "#06111f", "#1d3956", 2);
+      ctx.fillStyle = "#38bdf8";
+      ctx.font = "800 12px sans-serif";
+      ctx.fillText("AKTUELLER SCHRITT", 50, 204);
+      ctx.fillStyle = "#f8fafc";
+      ctx.font = "900 26px sans-serif";
+      runtimeRecorderWrapCanvasText(ctx, runtimeRecorderPayloadStateTitle(payload, activeId) || "Start", 50, 236, width - 100, 29, 2);
+      const actionLabel = runtimeRecorderFrameActionLabel(frame);
+      runtimeRecorderDrawRoundedRect(ctx, 50, 257, Math.min(250, Math.max(104, ctx.measureText(actionLabel).width + 28)), 28, 14, "#082f49", "#38bdf8", 1);
+      ctx.fillStyle = "#e0f2fe";
+      ctx.font = "800 12px sans-serif";
+      ctx.fillText(actionLabel, 64, 276);
+      ctx.fillStyle = "#cbd5e1";
+      ctx.font = "500 14px sans-serif";
+      runtimeRecorderWrapCanvasText(ctx, runtimeRecorderFrameText(frame), 50, 311, width - 100, 18, 2);
+      ctx.restore();
+    }
+
+    const RUNTIME_RECORDER_GIF_BASE_COLORS = [
+      [2, 6, 23], [6, 17, 31], [8, 24, 39], [15, 23, 42], [29, 57, 86], [49, 95, 140],
+      [56, 189, 248], [14, 165, 233], [125, 211, 252], [224, 242, 254], [248, 250, 252], [226, 232, 240],
+      [203, 213, 225], [148, 163, 184], [100, 116, 139], [52, 211, 153], [34, 197, 94], [6, 78, 59],
+      [5, 46, 33], [187, 247, 208], [245, 158, 11], [253, 230, 138], [251, 113, 133], [255, 228, 230],
+      [3, 16, 31], [8, 47, 73], [12, 74, 110], [30, 41, 59], [51, 65, 85], [0, 0, 0], [255, 255, 255]
+    ];
+    let runtimeRecorderGifCachedPaletteColors = null;
+    const runtimeRecorderGifColorCache = new Map();
+
+    function runtimeRecorderGifPaletteColors() {
+      if (runtimeRecorderGifCachedPaletteColors) return runtimeRecorderGifCachedPaletteColors;
+      const colors = [];
+      const seen = new Set();
+      const add = (r, g, b) => {
+        const color = [Math.max(0, Math.min(255, Math.round(r))), Math.max(0, Math.min(255, Math.round(g))), Math.max(0, Math.min(255, Math.round(b)))];
+        const key = color.join(",");
+        if (seen.has(key) || colors.length >= 256) return;
+        seen.add(key);
+        colors.push(color);
+      };
+      RUNTIME_RECORDER_GIF_BASE_COLORS.forEach(color => add(color[0], color[1], color[2]));
+      const levels = [0, 51, 102, 153, 204, 255];
+      for (const r of levels) for (const g of levels) for (const b of levels) add(r, g, b);
+      while (colors.length < 256) colors.push([0, 0, 0]);
+      runtimeRecorderGifCachedPaletteColors = colors.slice(0, 256);
+      return runtimeRecorderGifCachedPaletteColors;
     }
 
     function runtimeRecorderGifPalette() {
-      const levels = [0, 51, 102, 153, 204, 255];
-      const palette = [];
-      for (const r of levels) for (const g of levels) for (const b of levels) palette.push(r, g, b);
-      while (palette.length < 256 * 3) palette.push(0, 0, 0);
-      return palette.slice(0, 256 * 3);
+      return runtimeRecorderGifPaletteColors().flat();
     }
 
     function runtimeRecorderGifColorIndex(r, g, b, a) {
       if (a < 128) return 0;
-      const ri = Math.max(0, Math.min(5, Math.round(r / 51)));
-      const gi = Math.max(0, Math.min(5, Math.round(g / 51)));
-      const bi = Math.max(0, Math.min(5, Math.round(b / 51)));
-      return ri * 36 + gi * 6 + bi;
+      const rr = Math.max(0, Math.min(255, Math.round(r)));
+      const gg = Math.max(0, Math.min(255, Math.round(g)));
+      const bb = Math.max(0, Math.min(255, Math.round(b)));
+      const cacheKey = ((rr >> 3) << 10) | ((gg >> 3) << 5) | (bb >> 3);
+      const cached = runtimeRecorderGifColorCache.get(cacheKey);
+      if (cached !== undefined) return cached;
+      const colors = runtimeRecorderGifPaletteColors();
+      let bestIndex = 0;
+      let bestDistance = Number.POSITIVE_INFINITY;
+      for (let index = 0; index < colors.length; index += 1) {
+        const color = colors[index];
+        const dr = rr - color[0];
+        const dg = gg - color[1];
+        const db = bb - color[2];
+        const distance = dr * dr + dg * dg + db * db;
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestIndex = index;
+          if (distance === 0) break;
+        }
+      }
+      if (runtimeRecorderGifColorCache.size > 32768) runtimeRecorderGifColorCache.clear();
+      runtimeRecorderGifColorCache.set(cacheKey, bestIndex);
+      return bestIndex;
     }
 
     function runtimeRecorderGifIndices(ctx) {
@@ -4207,8 +4455,8 @@
     }
 
     function runtimeRecorderGifBytes(payload) {
-      const width = 480;
-      const height = 270;
+      const width = 640;
+      const height = 360;
       const frames = Array.isArray(payload.frames) ? payload.frames : [];
       const gifFrames = frames.length <= 80
         ? frames
@@ -4218,6 +4466,7 @@
       canvas.height = height;
       const ctx = canvas.getContext("2d", { willReadFrequently: true });
       if (!ctx) return null;
+      ctx.imageSmoothingEnabled = false;
       const out = [];
       const writeText = text => { for (const ch of text) out.push(ch.charCodeAt(0)); };
       const writeU16 = value => { out.push(value & 255, (value >> 8) & 255); };

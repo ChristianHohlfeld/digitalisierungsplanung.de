@@ -2108,15 +2108,41 @@ test.describe("Core source contracts", () => {
     expect(exported.kind).toBe("state-blueprint-runtime-recording");
     expect(exported.model.initial).toBe("start");
     expect(exported.frames[0].screen.html).toContain("Betrag");
-    const gifHeader = await app.locator("body").evaluate(() => {
-      const bytes = runtimeRecorderGifBytes(runtimeRecorderExportPayload());
+    const gifHeader = await app.locator("body").evaluate(async () => {
+      const payload = runtimeRecorderExportPayload();
+      const bytes = runtimeRecorderGifBytes(payload);
+      const url = URL.createObjectURL(new Blob([bytes], { type: "image/gif" }));
+      const image = new Image();
+      try {
+        await new Promise((resolve, reject) => {
+          image.onload = resolve;
+          image.onerror = reject;
+          image.src = url;
+        });
+      } finally {
+        URL.revokeObjectURL(url);
+      }
       return {
         length: bytes.length,
-        header: Array.from(bytes.slice(0, 6)).map(value => String.fromCharCode(value)).join("")
+        header: Array.from(bytes.slice(0, 6)).map(value => String.fromCharCode(value)).join(""),
+        width: bytes[6] + bytes[7] * 256,
+        height: bytes[8] + bytes[9] * 256,
+        decodedWidth: image.naturalWidth,
+        decodedHeight: image.naturalHeight,
+        paletteStart: Array.from(bytes.slice(13, 22)),
+        mapStateIds: runtimeRecorderGifMapStates(payload, payload.frames[payload.frames.length - 1]).map(state => state.id),
+        frameText: runtimeRecorderFrameText(payload.frames[payload.frames.length - 1])
       };
     });
     expect(gifHeader.length).toBeGreaterThan(100);
     expect(gifHeader.header).toBe("GIF89a");
+    expect(gifHeader.width).toBe(640);
+    expect(gifHeader.height).toBe(360);
+    expect(gifHeader.decodedWidth).toBe(640);
+    expect(gifHeader.decodedHeight).toBe(360);
+    expect(gifHeader.paletteStart).toEqual([2, 6, 23, 6, 17, 31, 8, 24, 39]);
+    expect(gifHeader.mapStateIds).toEqual(["start", "check"]);
+    expect(gifHeader.frameText).toContain("Sachliche Pruefung laeuft.");
 
     await expect(app.locator("#runtimeReplayPrevButton")).toHaveCount(0);
     await expect(app.locator("#runtimeReplayNextButton")).toHaveCount(0);
