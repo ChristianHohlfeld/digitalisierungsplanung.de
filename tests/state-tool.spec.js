@@ -1220,6 +1220,19 @@ test.describe("State Blueprint tool", () => {
       .not.toContain("Server Agent");
     await expect.poll(async () => page.evaluate(() => document.querySelector("dp-agent-widget")?.shadowRoot?.textContent || ""))
       .not.toContain("Externes Chat-Backend");
+    await expect.poll(async () => page.evaluate(() => {
+      const button = document.querySelector("dp-agent-widget")?.shadowRoot?.querySelector(".send");
+      if (!button) return null;
+      return {
+        label: button.getAttribute("aria-label"),
+        text: button.textContent,
+        iconWidth: getComputedStyle(button, "::before").borderLeftWidth
+      };
+    })).toEqual({
+      label: "Senden",
+      text: "",
+      iconWidth: "13px"
+    });
 
     await page.locator('[data-id="auth_start"]').click();
     await page.evaluate(() => {
@@ -1261,6 +1274,8 @@ test.describe("State Blueprint tool", () => {
       input.focus();
     });
     await page.keyboard.press("Enter");
+    await expect.poll(async () => page.evaluate(() => document.querySelector("dp-agent-widget")?.shadowRoot?.querySelector(".send")?.textContent ?? "missing"))
+      .toBe("");
 
     await expect.poll(async () => page.evaluate(() => {
       const input = document.querySelector("dp-agent-widget")?.shadowRoot?.querySelector(".input");

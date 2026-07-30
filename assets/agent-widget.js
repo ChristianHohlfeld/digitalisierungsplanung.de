@@ -45,7 +45,8 @@
     .settings input, .settings select { width: 100%; height: 34px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: #111827; padding: 0 8px; }
     .form { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 10px 12px; border-top: 1px solid #e2e8f0; background: #ffffff; }
     textarea { width: 100%; min-height: 42px; max-height: 130px; resize: none; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 11px; color: #111827; background: #fff; line-height: 1.35; }
-    .send { width: 42px; height: 42px; border: 0; border-radius: 8px; background: #0ea5e9; color: #001018; font-weight: 900; cursor: pointer; }
+    .send { position: relative; width: 42px; height: 42px; display: grid; place-items: center; border: 0; border-radius: 8px; background: #0ea5e9; color: #001018; font-size: 0; font-weight: 900; cursor: pointer; }
+    .send::before { content: ""; width: 0; height: 0; border-top: 7px solid transparent; border-bottom: 7px solid transparent; border-left: 13px solid currentColor; transform: translateX(2px); }
     .send:disabled { opacity: .55; cursor: not-allowed; }
     @media (max-width: 760px) { .panel { left: 8px; right: 8px; bottom: 72px; bottom: max(72px, calc(env(safe-area-inset-bottom) + 72px)); width: auto; height: min(560px, calc(100dvh - 136px)); max-height: calc(100dvh - 136px); min-height: 320px; } .launcher { right: 12px; bottom: 12px; } }
     @media (max-height: 520px) { .panel { top: max(10px, env(safe-area-inset-top)); bottom: 10px; height: auto; min-height: 0; max-height: none; } }
@@ -276,7 +277,7 @@
           <main class="messages"></main>
           <form class="form">
             <textarea class="input" rows="1" placeholder="${editorBridge ? "Sag, was im Editor entstehen soll..." : "Sag, was am Prozess entstehen soll..."}"></textarea>
-            <button class="send" type="submit" aria-label="Senden">></button>
+            <button class="send" type="submit" aria-label="Senden"></button>
           </form>
         </section>
       `;
@@ -372,7 +373,7 @@
       const button = this.shadowRoot.querySelector(".send");
       if (!button || !input) return;
       button.disabled = !input.value.trim();
-      button.textContent = this.sending ? "..." : ">";
+      button.setAttribute("aria-busy", this.sending ? "true" : "false");
     }
 
     addMessage(role, content, options = {}) {
