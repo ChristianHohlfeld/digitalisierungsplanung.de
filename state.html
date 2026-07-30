@@ -6283,7 +6283,7 @@
           badge: "Einstieg",
           price: "49,99 EUR",
           period: "pro Benutzer / Monat",
-          body: "F\u00fcr eine Person, die sofort erste Prozess-Apps bauen und als HTML exportieren will.",
+          body: "F\u00fcr Einzelpersonen, die sofort erste Prozess-Apps bauen und als HTML exportieren m\u00f6chten.",
           features: ["1 Benutzer", "visueller Editor", "HTML-Export", "zzgl. MwSt. im Checkout"],
           actionLabel: "Starter buchen",
           url: "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=starter&quantity=1",
@@ -6368,10 +6368,10 @@
             items: [
               { title: "Abl\u00e4ufe visuell bauen", body: "Schritte, Entscheidungen und Verantwortungen werden direkt im Editor sichtbar.", image: images.editor, imageAlt: "Team arbeitet an einem digitalen Ablauf", features: ["Drag & Drop", "klare Zust\u00e4nde"] },
               { title: "Screens sofort testen", body: "Formulare, Auswahlfelder, Kalender und Buttons laufen direkt im Browser.", features: ["echte Eingaben", "klickbarer Ablauf"] },
-              { title: "Pilot teilen", body: "Exportiere eine eigenst\u00e4ndige HTML-App f\u00fcr Review, Freigabe und Pilotbetrieb.", image: images.pilot, imageAlt: "Team pr\u00fcft einen Web-Pilot", features: ["HTML-Export", "Team-Review"] }
+              { title: "Pilot teilen", body: "Eine eigenst\u00e4ndige HTML-App steht f\u00fcr Review, Freigabe und Pilotbetrieb bereit.", image: images.pilot, imageAlt: "Team pr\u00fcft einen Web-Pilot", features: ["HTML-Export", "Team-Review"] }
             ]
           },
-          alert: { tone: "success", message: "Du kaufst eine monatliche Softwarelizenz f\u00fcr den Editor. Preise starten bei 49,99 EUR pro Benutzer und Monat." },
+          alert: { tone: "success", message: "Sie erwerben eine monatliche Softwarelizenz f\u00fcr den Editor. Preise starten bei 49,99 EUR pro Benutzer und Monat." },
           footer: footerData()
         }),
         makeState("site_pricing", "Paket w\u00e4hlen", 560, 220, [
@@ -6381,7 +6381,7 @@
           ...footer("site_pricing")
         ], {
           nav: nav("Pakete"),
-          intro: { tone: "success", message: "W\u00e4hle ein Monatsabo. Der Checkout erfasst Rechnungsadresse und berechnet die MwSt. automatisch." },
+          intro: { tone: "success", message: "W\u00e4hlen Sie ein Monatsabo. Der Checkout erfasst die Rechnungsadresse und berechnet die MwSt. automatisch." },
           plans: { selectedPlan: "", plans: pricingPlans },
           footer: footerData()
         })
