@@ -2110,9 +2110,44 @@ test.describe("Core source contracts", () => {
     expect(exported.frames[0].screen.html).toContain("Betrag");
     const gifHeader = await app.locator("body").evaluate(async () => {
       const payload = runtimeRecorderExportPayload();
-      const firstFrame = payload.frames[0];
-      const currentFrame = payload.frames[payload.frames.length - 1];
+      const presentationFrames = runtimeRecorderGifPresentationFrames(payload);
+      const gifPayload = { ...payload, frames: presentationFrames, frameCount: presentationFrames.length };
+      const firstFrame = presentationFrames[0];
+      const currentFrame = presentationFrames[presentationFrames.length - 1];
       const bytes = runtimeRecorderGifBytes(payload);
+      const encodedFrameCount = (() => {
+        let offset = 13;
+        let frameCount = 0;
+        const globalColorTableSize = bytes[10] & 0x80 ? 3 * (1 << ((bytes[10] & 0x07) + 1)) : 0;
+        offset += globalColorTableSize;
+        const skipSubBlocks = () => {
+          while (offset < bytes.length) {
+            const size = bytes[offset++];
+            if (!size) break;
+            offset += size;
+          }
+        };
+        while (offset < bytes.length) {
+          const block = bytes[offset++];
+          if (block === 0x3b) break;
+          if (block === 0x21) {
+            offset += 1;
+            skipSubBlocks();
+            continue;
+          }
+          if (block === 0x2c) {
+            frameCount += 1;
+            const packed = bytes[offset + 8];
+            offset += 9;
+            if (packed & 0x80) offset += 3 * (1 << ((packed & 0x07) + 1));
+            offset += 1;
+            skipSubBlocks();
+            continue;
+          }
+          break;
+        }
+        return frameCount;
+      })();
       const url = URL.createObjectURL(new Blob([bytes], { type: "image/gif" }));
       const image = new Image();
       try {
@@ -2125,7 +2160,7 @@ test.describe("Core source contracts", () => {
         expected.width = 640;
         expected.height = 360;
         const expectedContext = expected.getContext("2d", { willReadFrequently: true });
-        runtimeRecorderDrawGifFrame(expectedContext, payload, firstFrame);
+        runtimeRecorderDrawGifFrame(expectedContext, gifPayload, firstFrame);
         const decoded = document.createElement("canvas");
         decoded.width = image.naturalWidth;
         decoded.height = image.naturalHeight;
@@ -2153,8 +2188,12 @@ test.describe("Core source contracts", () => {
           decodedHeight: image.naturalHeight,
           averagePixelDiff,
           maxPixelDiff,
+          encodedFrameCount,
+          presentationKinds: presentationFrames.map(frame => frame.kind),
+          presentationActionLabels: presentationFrames.map(frame => runtimeRecorderFrameActionLabel(gifPayload, frame)),
+          presentationFrameTexts: presentationFrames.map(frame => runtimeRecorderFrameText(frame)),
           paletteStart: Array.from(bytes.slice(13, 22)),
-          mapStateIds: runtimeRecorderGifMapStates(payload, currentFrame).map(state => state.id),
+          mapStateIds: runtimeRecorderGifMapStates(gifPayload, currentFrame).map(state => state.id),
           frameText: runtimeRecorderFrameText(currentFrame)
         };
       } finally {
@@ -2169,6 +2208,12 @@ test.describe("Core source contracts", () => {
     expect(gifHeader.decodedHeight).toBe(360);
     expect(gifHeader.averagePixelDiff).toBeLessThan(3);
     expect(gifHeader.maxPixelDiff).toBeLessThan(90);
+    expect(gifHeader.encodedFrameCount).toBe(gifHeader.presentationKinds.length);
+    expect(gifHeader.presentationKinds).toEqual(["start", "input", "transition"]);
+    expect(gifHeader.presentationActionLabels).toEqual(["", "Betrag: 42.5", "Zur Pruefung -> Pruefung"]);
+    expect(gifHeader.presentationActionLabels.join(" ")).not.toContain("Start der Aufnahme");
+    expect(gifHeader.presentationActionLabels.join(" ")).not.toContain("states.start.form.value");
+    expect(gifHeader.presentationFrameTexts).toEqual(["Betrag", "Betrag", "Sachliche Pruefung laeuft."]);
     expect(gifHeader.paletteStart).toEqual([2, 6, 23, 6, 17, 31, 8, 24, 39]);
     expect(gifHeader.mapStateIds).toEqual(["start", "check"]);
     expect(gifHeader.frameText).toContain("Sachliche Pruefung laeuft.");
