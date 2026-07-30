@@ -526,12 +526,13 @@ function planPrompt(model, args = {}) {
   const prompt = compactText(args.prompt || "");
   const text = lower(prompt);
   if (!prompt) return fallbackPlan("Empty prompt.");
-  if (looksLikeWorkflowPrompt(prompt)) return planWorkflow(model, prompt, args);
   if (/timer|countdown|warte|delay|sekunde|second/.test(text)) return planTimer(model, prompt, args);
   if (/inner state|child state|unterstate|unter state|kindstate|kind state|nested state|verschachtel|inside state|state.*inside/.test(text)) return planInnerState(model, prompt, args);
   if (/api|fetch|endpoint|daten laden|lade daten|json/.test(text)) return planFetch(model, prompt, args);
   if (/transition|übergang|verbinde|connect|wire|route|gehe zu|go to|nach .*state|zu .*state/.test(text)) return planTransition(model, prompt, args);
   if (/variable|statevar|state var|feld|email|password|passwort|typ/.test(text) && !/input|formular|form|component|komponente|preset/.test(text)) return planVariable(model, prompt, args);
+
+  if (looksLikeWorkflowPrompt(prompt)) return planWorkflow(model, prompt, args);
   if (/preset|component|komponente|daisy|card|karte|hero|modal|navbar|button|knopf|input|formular|form|image|bild|liste|list|table|tabelle|checkbox|toggle/.test(text)) return planComponent(model, prompt, args);
   return fallbackPlan("No supported intent matched the prompt.");
 }
