@@ -772,9 +772,22 @@ test("serves App Intelligence widget config and enforces MCP broker policy", asy
       assert.equal(config.schemaVersion, 1);
       assert.equal(config.widget.authRequired, true);
       assert.equal(config.widget.editorPromptPath, "/agent/editor/prompt");
+      assert.equal(config.widget.defaultModel, "Qwen2.5-3B-Instruct-q4f16_1-MLC");
+      assert.deepEqual(config.widget.modelCandidates.slice(0, 3), [
+        "Qwen2.5-3B-Instruct-q4f16_1-MLC",
+        "Qwen2.5-1.5B-Instruct-q4f16_1-MLC",
+        "Qwen2.5-0.5B-Instruct-q4f16_1-MLC"
+      ]);
       assert.equal(config.policy.noBrowserSecrets, true);
       assert.equal(config.policy.noModelShadowState, true);
       assert.doesNotMatch(configText, /agent-secret|mcp-secret|admin-secret/);
+      assert.equal(config.contractContext.sourceOfTruth, "product-contract");
+      assert.equal(config.contractContext.endpoints.contract, "/contract");
+      const stripePresetContext = config.contractContext.presets.find(preset => preset.id === "builtin_daisy_stripe_pricing");
+      assert.ok(stripePresetContext);
+      assert.equal(stripePresetContext.variant, "pricing");
+      assert.match(stripePresetContext.hint, /schreibt in states\.stripe_pricing/);
+      assert.deepEqual(stripePresetContext.packageIds, ["website.builder"]);
       const tools = new Map(config.mcpServers[0].tools.map(tool => [tool.name, tool]));
       assert.equal(tools.get("state_blueprint_validate").readOnly, true);
       assert.equal(tools.get("state_blueprint_apply_prompt").requiresConfirmation, true);
@@ -817,6 +830,21 @@ test("serves App Intelligence widget config and enforces MCP broker policy", asy
       const validation = await validationResponse.json();
       assert.equal(validation.ok, true);
       assert.equal(validation.result.structuredContent.ok, true);
+
+      const actionCatalogResponse = await fetch(httpUrl(realtime, "/agent/mcp/tool"), {
+        method: "POST",
+        headers: {
+          Origin: ORIGIN,
+          authorization: "Bearer agent-secret",
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({ name: "state_blueprint_action_catalog", arguments: {} })
+      });
+      assert.equal(actionCatalogResponse.status, 200);
+      const actionCatalog = await actionCatalogResponse.json();
+      const mcpStripePreset = actionCatalog.result.structuredContent.presetContext.presets.find(preset => preset.id === "builtin_daisy_stripe_pricing");
+      assert.ok(mcpStripePreset);
+      assert.match(mcpStripePreset.hint, /pricing/);
 
       const exportResponse = await fetch(httpUrl(realtime, "/agent/mcp/tool"), {
         method: "POST",
@@ -960,6 +988,9 @@ test("runs server-side agent chat with an OpenAI-compatible MCP tool loop", asyn
       }]);
       assert.equal(calls.length, 2);
       assert.ok(calls[0].body.tools.some(tool => tool.function.name === "state_blueprint_validate"));
+      assert.ok(calls[0].body.messages.some(message =>
+        message.role === "system" && /Current MCP IST-Zustand from state_blueprint_get_model/.test(message.content)
+      ));
       assert.ok(calls[1].body.messages.some(message => message.role === "tool"));
       assert.doesNotMatch(JSON.stringify(calls), /agent-secret|mcp-secret/);
     });

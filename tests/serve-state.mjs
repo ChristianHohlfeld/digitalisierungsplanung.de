@@ -104,6 +104,10 @@ createServer(async (req, res) => {
     }
     return;
   }
+  if (url.pathname === "/agent/config") {
+    writeJson(res, 200, agentWidget.publicAgentConfig({ eventCatalog: eventCatalog.DEFAULT_EVENT_CATALOG }));
+    return;
+  }
   if (url.pathname === "/contract") {
     res.writeHead(200, {
       "content-type": "application/json; charset=utf-8",

@@ -5,10 +5,19 @@
   const DEFAULT_CHAT_PATH = "/agent/chat";
   const DEFAULT_MCP_TOOL_PATH = "/agent/mcp/tool";
   const DEFAULT_EDITOR_PROMPT_PATH = "/agent/editor/prompt";
-  const DEFAULT_MODEL = "Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC";
+  const DEFAULT_MODEL = "Qwen2.5-3B-Instruct-q4f16_1-MLC";
+  const DEFAULT_MODEL_CANDIDATES = Object.freeze([
+    DEFAULT_MODEL,
+    "Qwen2.5-1.5B-Instruct-q4f16_1-MLC",
+    "Qwen2.5-0.5B-Instruct-q4f16_1-MLC"
+  ]);
   const DEFAULT_WEBLLM_PACKAGE = "https://esm.run/@mlc-ai/web-llm";
   const STORAGE_KEY = "digitalisierungsplanung.agentWidget.settings.v1";
-  const LOCAL_ENGINE_REGISTRY = new Map();
+  const LOCAL_ENGINE_REGISTRY_KEY = "__digitalisierungsplanungAgentLocalEngines";
+  const LOCAL_ENGINE_REGISTRY = globalThis[LOCAL_ENGINE_REGISTRY_KEY] instanceof Map
+    ? globalThis[LOCAL_ENGINE_REGISTRY_KEY]
+    : new Map();
+  globalThis[LOCAL_ENGINE_REGISTRY_KEY] = LOCAL_ENGINE_REGISTRY;
 
   const css = `
     :host { all: initial; color-scheme: light; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
@@ -91,9 +100,11 @@
       this.sending = false;
       this.sendQueue = [];
       this.chatGeneration = 0;
+      this.activeModel = "";
       this.localEngineState = "idle";
       this.localEngineProgress = 0;
       this.localEngineError = "";
+      this.presetNoticeShown = false;
       this.open = this.getAttribute("data-open") === "true";
     }
 
@@ -115,6 +126,19 @@
       return this.settings.model || this.getAttribute("data-model") || this.config?.widget?.defaultModel || DEFAULT_MODEL;
     }
 
+    modelCandidates() {
+      const configured = Array.isArray(this.config?.widget?.modelCandidates)
+        ? this.config.widget.modelCandidates
+        : DEFAULT_MODEL_CANDIDATES;
+      return [this.activeModel, this.model(), ...configured, ...DEFAULT_MODEL_CANDIDATES]
+        .map(value => String(value || "").trim())
+        .filter((value, index, values) => value && values.indexOf(value) === index);
+    }
+
+    statusModel() {
+      return this.activeModel || this.modelCandidates()[0] || this.model();
+    }
+
     authToken() {
       return this.sessionAuthToken || "";
     }
@@ -133,11 +157,11 @@
 
     readyStatusText() {
       if (this.editorBridge()) {
-        this.syncLocalEngineState(this.localEngineEntry());
-        if (this.engine) return `Lokale KI aktiv: ${this.model()}`;
-        if (this.loadingEngine || this.localEngineState === "loading") return `Lokale KI laedt: ${this.model()} (${this.localEngineProgress || 0}%)`;
+        this.syncLocalEngineState(this.bestLocalEngineEntry());
+        if (this.engine) return `Lokale KI aktiv: ${this.statusModel()} (Browser-Cache bleibt erhalten)`;
+        if (this.loadingEngine || this.localEngineState === "loading") return `Lokale KI wird vorbereitet: ${this.statusModel()} (${this.localEngineProgress || 0}%)`;
         if (this.localEngineState === "unavailable") return "Lokale KI nicht verfuegbar. Editor-Aenderungen laufen direkt.";
-        return "Lokale KI noch nicht geladen. Editor-Aenderungen laufen direkt.";
+        return "Lokale KI noch nicht geladen. Editor-Aenderungen und Presets laufen direkt aus dem Contract.";
       }
       return this.mode() === "server" ? "Externes Backend bereit" : "In-Browser KI bereit";
     }
@@ -146,23 +170,40 @@
       return this.getAttribute("data-webllm-src") || this.config?.widget?.webLlmPackageUrl || DEFAULT_WEBLLM_PACKAGE;
     }
 
-    localEngineKey() {
-      return `${this.localPackageUrl()}::${this.model()}`;
+    localEngineKey(model = this.statusModel()) {
+      return `${this.localPackageUrl()}::${model}`;
     }
 
-    localEngineEntry() {
-      const key = this.localEngineKey();
+    localEngineEntry(model = this.statusModel()) {
+      const key = this.localEngineKey(model);
       if (!LOCAL_ENGINE_REGISTRY.has(key)) {
         LOCAL_ENGINE_REGISTRY.set(key, {
           key,
+          model,
           engine: null,
           loading: null,
           state: "idle",
           progress: 0,
-          error: ""
+          error: "",
+          retryAfter: 0,
+          readyAt: 0
         });
       }
       return LOCAL_ENGINE_REGISTRY.get(key);
+    }
+
+    existingLocalEngineEntry(model) {
+      return LOCAL_ENGINE_REGISTRY.get(this.localEngineKey(model)) || null;
+    }
+
+    bestLocalEngineEntry() {
+      const candidates = this.modelCandidates();
+      const active = this.activeModel ? this.existingLocalEngineEntry(this.activeModel) : null;
+      if (active?.engine || active?.loading) return active;
+      const live = candidates
+        .map(model => this.existingLocalEngineEntry(model))
+        .find(entry => entry?.engine || entry?.loading);
+      return live || active || this.localEngineEntry(candidates[0]);
     }
 
     syncLocalEngineState(entry) {
@@ -171,15 +212,19 @@
       this.localEngineState = entry?.state || "idle";
       this.localEngineProgress = entry?.progress || 0;
       this.localEngineError = entry?.error || "";
+      if (entry?.model && (entry.engine || entry.loading || entry.state === "ready" || entry.state === "loading")) {
+        this.activeModel = entry.model;
+      }
     }
 
-    resetLocalEngineEntry(error = null) {
-      const entry = this.localEngineEntry();
+    resetLocalEngineEntry(error = null, model = this.statusModel()) {
+      const entry = this.localEngineEntry(model);
       entry.engine = null;
       entry.loading = null;
       entry.state = "idle";
       entry.progress = 0;
       entry.error = error?.message || String(error || "");
+      entry.retryAfter = 0;
       this.syncLocalEngineState(entry);
       return entry;
     }
@@ -324,6 +369,7 @@
           this.settings.model = event.currentTarget.value.trim();
           this.engine = null;
           this.loadingEngine = null;
+          this.activeModel = "";
           writeSettings(this.settings);
         });
         modelInput.value = this.model();
@@ -413,6 +459,33 @@
       return bubble;
     }
 
+    contractContext() {
+      return this.config?.contractContext || {};
+    }
+
+    presetPromptLines(limit = 32) {
+      const presets = Array.isArray(this.contractContext().presets) ? this.contractContext().presets : [];
+      return presets.slice(0, limit).map(preset => {
+        const packages = Array.isArray(preset.packageIds) && preset.packageIds.length
+          ? ` Pakete: ${preset.packageIds.join(", ")}.`
+          : "";
+        const hint = safeText(preset.hint || preset.description || preset.title).trim();
+        return `- ${preset.id}: ${hint}${hint.endsWith(".") ? "" : "."}${packages}`;
+      });
+    }
+
+    showPresetNotice() {
+      if (this.presetNoticeShown) return;
+      const count = Number(this.contractContext().counts?.presets || 0);
+      if (!count) return;
+      const examples = this.presetPromptLines(4).join("\n");
+      this.addMessage("assistant", [
+        `Preset-Wissen frisch aus /contract geladen: ${count} Bausteine.`,
+        examples
+      ].filter(Boolean).join("\n"), { meta: "Single Source of Truth: Product Contract" });
+      this.presetNoticeShown = true;
+    }
+
     async loadConfig() {
       try {
         const response = await fetch(this.getAttribute("data-config-path") || DEFAULT_CONFIG_PATH, { cache: "no-store" });
@@ -422,6 +495,7 @@
         if (!this.editorBridge() && tools.length) {
           this.addToolChips(tools);
         }
+        this.showPresetNotice();
         const modeSelect = this.shadowRoot.querySelector(".mode");
         if (modeSelect) modeSelect.value = this.mode();
         const modelInput = this.shadowRoot.querySelector(".model");
@@ -450,11 +524,22 @@
       this.shadowRoot.querySelector(".messages").appendChild(wrap);
     }
 
-    async ensureLocalEngine() {
-      const entry = this.localEngineEntry();
+    async ensureLocalEngineForModel(model) {
+      const entry = this.localEngineEntry(model);
       this.syncLocalEngineState(entry);
-      if (entry.engine) return entry.engine;
-      if (entry.loading) return entry.loading;
+      if (entry.engine) {
+        this.activeModel = model;
+        return entry.engine;
+      }
+      if (entry.loading) {
+        this.setStatus(`Lokale KI wird bereits vorbereitet: ${model} (${entry.progress || 0}%)`, "loading");
+        entry.engine = await entry.loading;
+        entry.state = "ready";
+        entry.error = "";
+        entry.readyAt = Date.now();
+        this.syncLocalEngineState(entry);
+        return entry.engine;
+      }
       if (!navigator.gpu) {
         entry.state = "unavailable";
         entry.error = "WebGPU nicht verfuegbar";
@@ -468,14 +553,14 @@
       entry.error = "";
       this.syncLocalEngineState(entry);
       entry.loading = (async () => {
-        this.setStatus(`WebLLM Paket laden: ${this.model()}`, "loading");
+        this.setStatus(`WebLLM vorbereiten: ${model}`, "loading");
         const webllm = await import(packageUrl);
-        return webllm.CreateMLCEngine(this.model(), {
+        return webllm.CreateMLCEngine(model, {
           initProgressCallback: report => {
             const percent = Math.round(Number(report.progress || 0) * 100);
             entry.progress = percent;
             this.syncLocalEngineState(entry);
-            this.setStatus(`Lokales Modell laden: ${this.model()} (${percent}%)`, "loading");
+            this.setStatus(`Lokales Modell vorbereiten: ${model} (${percent}%, Cache oder erster Download)`, "loading");
           }
         });
       })();
@@ -484,18 +569,51 @@
         entry.engine = await entry.loading;
         entry.state = "ready";
         entry.error = "";
+        entry.retryAfter = 0;
+        entry.readyAt = Date.now();
       } catch (error) {
         entry.engine = null;
-        entry.state = "idle";
+        entry.state = "failed";
         entry.error = error?.message || String(error || "");
-        this.setStatus("Lokale KI noch nicht bereit. Editor-Aenderungen laufen direkt.", "ready");
+        entry.retryAfter = Date.now() + 10 * 60 * 1000;
         throw error;
       } finally {
         entry.loading = null;
         this.syncLocalEngineState(entry);
       }
-      this.setStatus(`Lokale KI aktiv: ${this.model()}`, "ready");
+      this.activeModel = model;
+      this.setStatus(`Lokale KI aktiv: ${model} (Browser-Cache bleibt erhalten)`, "ready");
       return entry.engine;
+    }
+
+    async ensureLocalEngine() {
+      if (!navigator.gpu) {
+        const entry = this.localEngineEntry(this.modelCandidates()[0]);
+        entry.state = "unavailable";
+        entry.error = "WebGPU nicht verfuegbar";
+        this.syncLocalEngineState(entry);
+        this.setStatus(this.readyStatusText(), "ready");
+        throw new Error("WebGPU ist in diesem Browser nicht verfuegbar.");
+      }
+      const candidates = this.modelCandidates();
+      let lastError = null;
+      for (let index = 0; index < candidates.length; index += 1) {
+        const model = candidates[index];
+        const entry = this.localEngineEntry(model);
+        if (entry.state === "failed" && entry.retryAfter && Date.now() < entry.retryAfter) {
+          lastError = new Error(entry.error || `${model} ist gerade nicht verfuegbar.`);
+          continue;
+        }
+        try {
+          return await this.ensureLocalEngineForModel(model);
+        } catch (error) {
+          lastError = error;
+          const nextModel = candidates[index + 1] || "";
+          if (nextModel) this.setStatus(`${model} passt hier nicht. Fallback: ${nextModel}`, "loading");
+        }
+      }
+      this.setStatus("Lokale KI nicht bereit. Editor-Aenderungen laufen direkt.", "ready");
+      throw lastError || new Error("Lokale KI konnte nicht geladen werden.");
     }
 
     systemPrompt() {
@@ -517,7 +635,10 @@
         "Schreibende Tools werden vom Broker bestätigt, bevor sie ausgeführt werden.",
         "",
         "MCP Tools:",
-        toolList
+        toolList,
+        "",
+        "Frisches Preset-Wissen aus /contract. Nutze diese IDs und erfinde keine Presets:",
+        this.presetPromptLines(36).join("\n")
       ].join("\n");
     }
 
@@ -529,8 +650,46 @@
         "{\"editor\":{\"prompt\":\"<kurze konkrete Aenderung>\"}}",
         "Fuer Smalltalk, Erklaerungen oder Rueckfragen antworte als normaler Chat ohne JSON.",
         "Nutze keine versteckten Zustaende und keinen zweiten Schatten-State im Chat.",
-        "Der Editor liefert den Snapshot und wendet Aenderungen nur ueber den Contract-Endpunkt an."
+        "Der Editor liefert den Snapshot und wendet Aenderungen nur ueber den Contract-Endpunkt an.",
+        "",
+        "Frisches Preset-Wissen aus /contract. Nutze diese IDs und erfinde keine Presets:",
+        this.presetPromptLines(36).join("\n")
       ].join("\n");
+    }
+
+    editorSnapshotPrompt(snapshot) {
+      const model = snapshot?.model || {};
+      const states = Array.isArray(model.states) ? model.states : [];
+      const transitions = Array.isArray(model.transitions) ? model.transitions : [];
+      const initialState = states.find(state => state.id === model.initial) || null;
+      const stateLines = states.slice(0, 28).map(state => {
+        const components = Array.isArray(state.components) ? state.components : [];
+        const componentText = components.slice(0, 8)
+          .map(component => [component.id, component.type, component.variant].filter(Boolean).join(":"))
+          .join(", ");
+        return `- ${state.id}: ${state.title || ""}${state.parentId ? ` parent=${state.parentId}` : ""}${componentText ? ` components=${componentText}` : ""}`;
+      });
+      const transitionLines = transitions.slice(0, 28).map(transition =>
+        `- ${transition.id}: ${transition.from} -> ${transition.to}; trigger=${transition.triggerType || "button"}; label=${transition.label || ""}`
+      );
+      return [
+        "Aktueller IST-Zustand aus dem Editor-Snapshot. Das ist die Wahrheit fuer diese Anfrage; kein Chat-Shadow-State:",
+        `Modell: ${model.name || "State App"}; initial=${model.initial || ""}${initialState?.title ? ` (${initialState.title})` : ""}; states=${states.length}; transitions=${transitions.length}; selected=${snapshot?.selectedStateId || ""}`,
+        "States:",
+        stateLines.join("\n") || "- keine",
+        "Uebergaenge:",
+        transitionLines.join("\n") || "- keine"
+      ].join("\n");
+    }
+
+    async localChatMessages() {
+      const messages = [{ role: "system", content: this.editorBridge() ? this.editorSystemPrompt() : this.systemPrompt() }];
+      if (this.editorBridge()) {
+        const snapshot = await this.requestEditorSnapshot();
+        messages.push({ role: "system", content: this.editorSnapshotPrompt(snapshot) });
+      }
+      messages.push(...this.messages.slice(-10));
+      return messages;
     }
 
     extractMcpCall(text) {
@@ -597,6 +756,7 @@
         body: JSON.stringify({
           prompt,
           model: snapshot.model,
+          initialStateId: snapshot.model?.initial || "",
           selectedStateId: snapshot.selectedStateId || ""
         })
       });
@@ -712,10 +872,7 @@
       let complete = "";
       try {
         const stream = await engine.chat.completions.create({
-          messages: [
-            { role: "system", content: this.editorBridge() ? this.editorSystemPrompt() : this.systemPrompt() },
-            ...this.messages.slice(-10)
-          ],
+          messages: await this.localChatMessages(),
           temperature: 0.2,
           stream: true
         });
@@ -727,7 +884,7 @@
         if (this.localEngineDisposedError(error) && retryDisposed) {
           if (bubble) bubble.remove();
           this.resetLocalEngineEntry(error);
-          this.setStatus("Lokale KI-Session erneuert. Browser-Cache bleibt erhalten.", "loading");
+          this.setStatus("Lokale KI-Session wird neu verbunden. Modell bleibt im Browser-Cache.", "loading");
           return this.sendLocal(promptText, generation, { retryDisposed: false });
         }
         throw error;

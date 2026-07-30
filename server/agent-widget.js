@@ -5,6 +5,7 @@ const { URL } = require("node:url");
 const stateBlueprintMcp = require("../mcp/state-blueprint-server");
 const { applyActions, modelSummary, validateModel } = require("../mcp/state-blueprint-core");
 const { planPrompt } = require("../mcp/state-blueprint-intents");
+const { agentContractContext, presetPromptLines } = require("./agent-contract-context");
 
 const AGENT_SCHEMA_VERSION = 1;
 const DEFAULT_AGENT_PATH = "/agent.html";
@@ -13,7 +14,12 @@ const DEFAULT_AGENT_CHAT_PATH = "/agent/chat";
 const DEFAULT_AGENT_MCP_TOOL_PATH = "/agent/mcp/tool";
 const DEFAULT_AGENT_EDITOR_PROMPT_PATH = "/agent/editor/prompt";
 const DEFAULT_AGENT_WIDGET_SCRIPT_PATH = "/assets/agent-widget.js";
-const DEFAULT_AGENT_MODEL = "Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC";
+const DEFAULT_AGENT_MODEL = "Qwen2.5-3B-Instruct-q4f16_1-MLC";
+const DEFAULT_AGENT_MODEL_CANDIDATES = Object.freeze([
+  DEFAULT_AGENT_MODEL,
+  "Qwen2.5-1.5B-Instruct-q4f16_1-MLC",
+  "Qwen2.5-0.5B-Instruct-q4f16_1-MLC"
+]);
 const DEFAULT_AGENT_WEBLLM_PACKAGE_URL = "https://esm.run/@mlc-ai/web-llm";
 const MAX_AGENT_MESSAGES = 16;
 const MAX_AGENT_MESSAGE_CHARS = 12000;
@@ -129,6 +135,7 @@ function openAiTools() {
 
 function publicAgentConfig(config = {}) {
   const providerUrl = chatCompletionsUrl(config);
+  const contractContext = agentContractContext(config);
   return {
     schemaVersion: AGENT_SCHEMA_VERSION,
     name: "App Intelligence",
@@ -141,6 +148,8 @@ function publicAgentConfig(config = {}) {
       editorPromptPath: config.agentEditorPromptPath || DEFAULT_AGENT_EDITOR_PROMPT_PATH,
       defaultMode: "local-webllm",
       defaultModel: config.agentModel || DEFAULT_AGENT_MODEL,
+      modelCandidates: [config.agentModel || DEFAULT_AGENT_MODEL, ...DEFAULT_AGENT_MODEL_CANDIDATES]
+        .filter((value, index, values) => value && values.indexOf(value) === index),
       webLlmPackageUrl: config.agentWebLlmPackageUrl || DEFAULT_AGENT_WEBLLM_PACKAGE_URL,
       authRequired: agentAuthSecrets(config).length > 0
     },
@@ -164,6 +173,7 @@ function publicAgentConfig(config = {}) {
       toolPath: config.agentMcpToolPath || DEFAULT_AGENT_MCP_TOOL_PATH,
       tools: publicTools()
     }],
+    contractContext,
     policy: {
       noBrowserSecrets: true,
       noModelShadowState: true,
@@ -242,7 +252,13 @@ function executeMcpTool(config, payload) {
       name: request.name,
       arguments: request.arguments
     }
-  }, { modelPath: config.mcpModelPath });
+  }, {
+    modelPath: config.mcpModelPath,
+    eventCatalog: config.eventCatalog,
+    presetLibrary: config.presetLibrary,
+    productContractPath: config.productContractPath,
+    presetsAdminCatalogPath: config.presetsAdminCatalogPath
+  });
   if (!result?.result) throw agentError("agent_mcp_tool_failed", 502);
   return {
     ok: !result.result.isError,
@@ -263,6 +279,8 @@ function systemPrompt(config = {}) {
         : "read";
     return `- ${tool.name}: ${mode}. ${tool.description}`;
   });
+  const contractContext = agentContractContext(config);
+  const presetLines = presetPromptLines(contractContext, 40);
   return [
     "You are App Intelligence for digitalisierungsplanung.de.",
     "Help users create, inspect, validate, export, and load State Blueprint FSM workflows.",
@@ -272,8 +290,36 @@ function systemPrompt(config = {}) {
     "For writes, explain the change and let the broker require confirmation.",
     "",
     "Available MCP tools:",
-    ...toolLines
+    ...toolLines,
+    "",
+    "Fresh preset knowledge from the product contract. Treat /contract as the source of truth; do not invent preset IDs:",
+    ...presetLines
   ].join("\n");
+}
+
+function currentMcpModelContext(config = {}) {
+  try {
+    const snapshot = executeMcpTool(config, {
+      name: "state_blueprint_get_model",
+      arguments: { includeValidation: true },
+      confirmed: true
+    });
+    const content = snapshot.result?.structuredContent || {};
+    const model = content.model || {};
+    const states = Array.isArray(model.states) ? model.states : [];
+    const transitions = Array.isArray(model.transitions) ? model.transitions : [];
+    const initial = states.find(state => state.id === model.initial) || null;
+    return [
+      "Current MCP IST-Zustand from state_blueprint_get_model. Treat this as the workflow truth for this request.",
+      `Model: ${model.name || "State App"}; initial=${model.initial || ""}${initial?.title ? ` (${initial.title})` : ""}; states=${states.length}; transitions=${transitions.length}; validation=${content.validation?.ok === true ? "ok" : "unknown"}`,
+      "States:",
+      states.slice(0, 28).map(state => `- ${state.id}: ${state.title || ""}`).join("\n") || "- none",
+      "Transitions:",
+      transitions.slice(0, 28).map(transition => `- ${transition.id}: ${transition.from} -> ${transition.to}; trigger=${transition.triggerType || "button"}; label=${transition.label || ""}`).join("\n") || "- none"
+    ].join("\n");
+  } catch (error) {
+    return `Current MCP IST-Zustand could not be read: ${error.message || String(error)}. Do not invent workflow facts.`;
+  }
 }
 
 function normalizeChatRequest(payload = {}) {
@@ -376,6 +422,7 @@ async function runAgentChat(config, payload = {}) {
   const request = normalizeChatRequest(payload);
   const conversation = [
     { role: "system", content: systemPrompt(config) },
+    { role: "system", content: currentMcpModelContext(config) },
     ...request.messages
   ];
   const toolRuns = [];
@@ -466,6 +513,7 @@ module.exports = {
   DEFAULT_AGENT_EDITOR_PROMPT_PATH,
   DEFAULT_AGENT_WIDGET_SCRIPT_PATH,
   DEFAULT_AGENT_MODEL,
+  DEFAULT_AGENT_MODEL_CANDIDATES,
   DEFAULT_AGENT_WEBLLM_PACKAGE_URL,
   READ_ONLY_TOOLS,
   WRITING_TOOLS,

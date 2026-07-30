@@ -18,6 +18,7 @@ const {
   planPrompt,
   promptIntentMarkdown
 } = require("./state-blueprint-intents");
+const { agentContractContext } = require("../server/agent-contract-context");
 
 const SERVER_VERSION = "0.1.0";
 const PROTOCOL_VERSION = "2025-11-25";
@@ -463,7 +464,12 @@ function callTool(name, args = {}, options = {}) {
     return { modelPath, validation, summary: modelSummary(workspace.model) };
   }
   if (name === "state_blueprint_action_catalog") {
-    return { modelPath, actions: actionCatalog, promptExamples };
+    return {
+      modelPath,
+      actions: actionCatalog,
+      promptExamples,
+      presetContext: agentContractContext(options)
+    };
   }
   if (name === "state_blueprint_command_catalog") {
     return { modelPath, commands: commandCatalog };
@@ -498,6 +504,12 @@ function listResources() {
       mimeType: "application/json"
     },
     {
+      uri: "state-blueprint://presets",
+      name: "State Blueprint contract presets",
+      description: "Fresh preset IDs, variants, packages, and usage hints derived from the product contract.",
+      mimeType: "application/json"
+    },
+    {
       uri: "state-blueprint://prompt-intents",
       name: "State Blueprint prompt intents",
       description: "Natural-language phrases and intent defaults for state_blueprint_plan_prompt.",
@@ -521,7 +533,16 @@ function readResource(uri, options = {}) {
       contents: [{
         uri,
         mimeType: "application/json",
-        text: JSON.stringify({ actions: actionCatalog, promptExamples }, null, 2)
+        text: JSON.stringify({ actions: actionCatalog, promptExamples, presetContext: agentContractContext(options) }, null, 2)
+      }]
+    };
+  }
+  if (uri === "state-blueprint://presets") {
+    return {
+      contents: [{
+        uri,
+        mimeType: "application/json",
+        text: JSON.stringify(agentContractContext(options), null, 2)
       }]
     };
   }

@@ -1372,11 +1372,13 @@ test.describe("State Blueprint tool", () => {
       body: `
         export async function CreateMLCEngine(model, options) {
           globalThis.__agentCreateCalls = (globalThis.__agentCreateCalls || 0) + 1;
+          globalThis.__agentCreateModels = [...(globalThis.__agentCreateModels || []), model];
           options?.initProgressCallback?.({ progress: 1 });
           return {
             chat: {
               completions: {
-                create() {
+                create(payload) {
+                  globalThis.__agentLastMessages = payload?.messages || [];
                   return (async function* () {
                     globalThis.__agentCompletionCalls = (globalThis.__agentCompletionCalls || 0) + 1;
                     if (globalThis.__agentDisposeOnce) {
@@ -1417,8 +1419,22 @@ test.describe("State Blueprint tool", () => {
       .toContain("Lokale Antwort 2");
     await expect.poll(async () => page.evaluate(() => ({
       createCalls: window.__agentCreateCalls || 0,
-      completionCalls: window.__agentCompletionCalls || 0
-    }))).toEqual({ createCalls: 2, completionCalls: 2 });
+      completionCalls: window.__agentCompletionCalls || 0,
+      createModels: window.__agentCreateModels || [],
+      hasCurrentSnapshot: (window.__agentLastMessages || []).some(message => /Aktueller IST-Zustand/.test(message.content || "")),
+      hasInitialState: (window.__agentLastMessages || []).some(message => /initial=auth_start/.test(message.content || "")),
+      hasPresetContext: (window.__agentLastMessages || []).some(message => /Frisches Preset-Wissen aus \/contract/.test(message.content || ""))
+    }))).toEqual({
+      createCalls: 2,
+      completionCalls: 2,
+      createModels: [
+        "Qwen2.5-3B-Instruct-q4f16_1-MLC",
+        "Qwen2.5-3B-Instruct-q4f16_1-MLC"
+      ],
+      hasCurrentSnapshot: true,
+      hasInitialState: true,
+      hasPresetContext: true
+    });
 
     await sendChat("hi nochmal");
     await expect.poll(async () => page.evaluate(() => document.querySelector("dp-agent-widget")?.shadowRoot?.textContent || ""))
@@ -1439,8 +1455,83 @@ test.describe("State Blueprint tool", () => {
       text: "Chat geloescht. Editor-Modell bleibt unveraendert; neue Aenderungen uebernehme ich direkt.",
       messages: 0,
       queue: 0,
-      status: "Lokale KI aktiv: Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC"
+      status: "Lokale KI aktiv: Qwen2.5-3B-Instruct-q4f16_1-MLC (Browser-Cache bleibt erhalten)"
     });
+  });
+
+  test("falls back to a smaller local editor AI model without retrying the larger one @smoke", async ({ page }) => {
+    await page.addInitScript(() => {
+      try {
+        Object.defineProperty(navigator, "gpu", { value: {}, configurable: true });
+      } catch (_) {}
+    });
+    await page.route("**/fallback-webllm.js", route => route.fulfill({
+      status: 200,
+      contentType: "text/javascript",
+      body: `
+        export async function CreateMLCEngine(model, options) {
+          globalThis.__agentCreateModels = [...(globalThis.__agentCreateModels || []), model];
+          options?.initProgressCallback?.({ progress: 1 });
+          if (model === "Qwen2.5-3B-Instruct-q4f16_1-MLC") throw new Error("out of memory");
+          return {
+            chat: {
+              completions: {
+                create(payload) {
+                  globalThis.__agentLastMessages = payload?.messages || [];
+                  return (async function* () {
+                    yield { choices: [{ delta: { content: "Fallback lokal aktiv" } }] };
+                  })();
+                }
+              }
+            }
+          };
+        }
+      `
+    }));
+    await openTool(page);
+
+    await page.locator("#btnAiAgent").click();
+    await page.waitForFunction(() => document.querySelector("dp-agent-widget")?.shadowRoot?.querySelector(".panel:not(.hidden)"));
+    await page.evaluate(() => {
+      const widget = document.querySelector("dp-agent-widget");
+      widget.setAttribute("data-webllm-src", "/fallback-webllm.js");
+    });
+
+    const sendChat = async text => {
+      await page.evaluate(value => {
+        const root = document.querySelector("dp-agent-widget").shadowRoot;
+        const input = root.querySelector(".input");
+        input.value = value;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.focus();
+      }, text);
+      await page.keyboard.press("Enter");
+    };
+
+    await sendChat("hi");
+    await expect.poll(async () => page.evaluate(() => document.querySelector("dp-agent-widget")?.shadowRoot?.textContent || ""))
+      .toContain("Fallback lokal aktiv");
+    await expect.poll(async () => page.evaluate(() => ({
+      models: window.__agentCreateModels || [],
+      status: document.querySelector("dp-agent-widget")?.shadowRoot?.querySelector(".status-text")?.textContent || "",
+      hasCurrentSnapshot: (window.__agentLastMessages || []).some(message => /Aktueller IST-Zustand/.test(message.content || "")),
+      hasInitialState: (window.__agentLastMessages || []).some(message => /initial=auth_start/.test(message.content || ""))
+    }))).toEqual({
+      models: [
+        "Qwen2.5-3B-Instruct-q4f16_1-MLC",
+        "Qwen2.5-1.5B-Instruct-q4f16_1-MLC"
+      ],
+      status: "Lokale KI aktiv: Qwen2.5-1.5B-Instruct-q4f16_1-MLC (Browser-Cache bleibt erhalten)",
+      hasCurrentSnapshot: true,
+      hasInitialState: true
+    });
+
+    await sendChat("hi nochmal");
+    await expect.poll(async () => page.evaluate(() => window.__agentCreateModels || []))
+      .toEqual([
+        "Qwen2.5-3B-Instruct-q4f16_1-MLC",
+        "Qwen2.5-1.5B-Instruct-q4f16_1-MLC"
+      ]);
   });
 
   test("keeps the editor AI usable after an editor prompt error @smoke", async ({ page }) => {
@@ -1494,7 +1585,7 @@ test.describe("State Blueprint tool", () => {
         text: root.textContent
       };
     })).toEqual(expect.objectContaining({
-      status: "Lokale KI noch nicht geladen. Editor-Aenderungen laufen direkt.",
+      status: "Lokale KI noch nicht geladen. Editor-Aenderungen und Presets laufen direkt aus dem Contract.",
       inputDisabled: false
     }));
     await expect.poll(async () => page.evaluate(() => document.querySelector("dp-agent-widget")?.shadowRoot?.textContent || ""))
