@@ -613,7 +613,7 @@ test("serves one central admin hub from the server route index", async () => {
     const index = await indexResponse.json();
     assert.equal(index.schemaVersion, 1);
     assert.equal(index.release.releaseId, "release-60");
-    assert.deepEqual(index.tools.map(tool => tool.id), ["events", "presets", "console", "contract", "mcp", "system"]);
+    assert.deepEqual(index.tools.map(tool => tool.id), ["events", "presets", "console", "contract", "mcp", "agent", "system"]);
     const germanText = JSON.stringify({ tools: index.tools, endpoints: index.endpoints });
     const asciiUmlautSpellings = [
       ["f", "uer"].join(""),
@@ -633,6 +633,12 @@ test("serves one central admin hub from the server route index", async () => {
     assert.ok(index.endpoints.some(endpoint => endpoint.method === "POST" && endpoint.path === "/emit"));
     assert.ok(index.endpoints.some(endpoint => endpoint.method === "POST" && endpoint.path === "/assets/inline-image"));
     assert.ok(index.endpoints.some(endpoint => endpoint.method === "POST" && endpoint.path === "/mcp"));
+    assert.ok(index.endpoints.some(endpoint => endpoint.method === "GET" && endpoint.path === "/agent.html"));
+    assert.ok(index.endpoints.some(endpoint => endpoint.method === "GET" && endpoint.path === "/assets/agent-widget.js"));
+    assert.ok(index.endpoints.some(endpoint => endpoint.method === "GET" && endpoint.path === "/agent/config"));
+    assert.ok(index.endpoints.some(endpoint => endpoint.method === "POST" && endpoint.path === "/agent/editor/prompt"));
+    assert.ok(index.endpoints.some(endpoint => endpoint.method === "POST" && endpoint.path === "/agent/chat"));
+    assert.ok(index.endpoints.some(endpoint => endpoint.method === "POST" && endpoint.path === "/agent/mcp/tool"));
     for (const endpoint of index.endpoints.filter(endpoint => endpoint.method !== "WSS")) {
       const method = endpoint.method.includes("GET") ? "GET" : "POST";
       const response = await fetch(httpUrl(realtime, endpoint.path), {
@@ -728,6 +734,234 @@ test("serves secret-protected State Blueprint MCP JSON-RPC over HTTP", async () 
       assert.equal(modelPayload.result.structuredContent.modelPath, path.resolve(mcpModelPath));
       assert.equal(modelPayload.result.structuredContent.validation.ok, true);
       assert.equal(modelPayload.result.structuredContent.model.name, "State App");
+    });
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("serves App Intelligence widget config and enforces MCP broker policy", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "realtime-agent-"));
+  const mcpModelPath = path.join(tempDir, "state-blueprint.workspace.json");
+  try {
+    await withRealtimeServer({
+      roomSecret: SECRET,
+      adminSecret: "admin-secret",
+      mcpSecret: "mcp-secret",
+      agentSecret: "agent-secret",
+      mcpModelPath
+    }, async realtime => {
+      const pageResponse = await fetch(httpUrl(realtime, "/agent.html"));
+      assert.equal(pageResponse.status, 200);
+      assert.match(await pageResponse.text(), /<dp-agent-widget/);
+
+      const scriptResponse = await fetch(httpUrl(realtime, "/assets/agent-widget.js"));
+      assert.equal(scriptResponse.status, 200);
+      const widgetScript = await scriptResponse.text();
+      assert.match(widgetScript, /customElements\.define\("dp-agent-widget"/);
+      assert.doesNotMatch(widgetScript, /settings\.authToken/);
+      assert.doesNotMatch(widgetScript, /JSON\.stringify\(settings\)/);
+
+      const configResponse = await fetch(httpUrl(realtime, "/agent/config"), {
+        headers: { Origin: ORIGIN }
+      });
+      assert.equal(configResponse.status, 200);
+      assert.equal(configResponse.headers.get("access-control-allow-origin"), ORIGIN);
+      const config = await configResponse.json();
+      const configText = JSON.stringify(config);
+      assert.equal(config.schemaVersion, 1);
+      assert.equal(config.widget.authRequired, true);
+      assert.equal(config.widget.editorPromptPath, "/agent/editor/prompt");
+      assert.equal(config.policy.noBrowserSecrets, true);
+      assert.equal(config.policy.noModelShadowState, true);
+      assert.doesNotMatch(configText, /agent-secret|mcp-secret|admin-secret/);
+      const tools = new Map(config.mcpServers[0].tools.map(tool => [tool.name, tool]));
+      assert.equal(tools.get("state_blueprint_validate").readOnly, true);
+      assert.equal(tools.get("state_blueprint_apply_prompt").requiresConfirmation, true);
+
+      const editorPromptResponse = await fetch(httpUrl(realtime, "/agent/editor/prompt"), {
+        method: "POST",
+        headers: { Origin: ORIGIN, "content-type": "application/json" },
+        body: JSON.stringify({
+          prompt: "baue einen kaufprozess fuer drei software pakete",
+          model: { version: 2, name: "State App", initial: "", states: [], transitions: [] }
+        })
+      });
+      assert.equal(editorPromptResponse.status, 200);
+      const editorPrompt = await editorPromptResponse.json();
+      assert.equal(editorPrompt.ok, true);
+      assert.equal(editorPrompt.mode, "editor-bridge");
+      assert.equal(editorPrompt.sourceOfTruth, "browser-model-snapshot");
+      assert.equal(editorPrompt.plan.intent, "create_workflow");
+      assert.equal(editorPrompt.validation.ok, true);
+      assert.ok(editorPrompt.previewModel.states.length >= 2);
+      assert.equal("modelPath" in editorPrompt, false);
+
+      const unauthorized = await fetch(httpUrl(realtime, "/agent/mcp/tool"), {
+        method: "POST",
+        headers: { Origin: ORIGIN, "content-type": "application/json" },
+        body: JSON.stringify({ name: "state_blueprint_validate", arguments: {} })
+      });
+      assert.equal(unauthorized.status, 401);
+
+      const validationResponse = await fetch(httpUrl(realtime, "/agent/mcp/tool"), {
+        method: "POST",
+        headers: {
+          Origin: ORIGIN,
+          authorization: "Bearer agent-secret",
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({ name: "state_blueprint_validate", arguments: {} })
+      });
+      assert.equal(validationResponse.status, 200);
+      const validation = await validationResponse.json();
+      assert.equal(validation.ok, true);
+      assert.equal(validation.result.structuredContent.ok, true);
+
+      const exportResponse = await fetch(httpUrl(realtime, "/agent/mcp/tool"), {
+        method: "POST",
+        headers: {
+          Origin: ORIGIN,
+          authorization: "Bearer agent-secret",
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({ name: "state_blueprint_export_definition", arguments: {} })
+      });
+      assert.equal(exportResponse.status, 200);
+      const exported = await exportResponse.json();
+      assert.equal(exported.ok, true);
+      assert.equal(exported.result.structuredContent.kind, "state-blueprint-definition");
+
+      const exportFileBlockedResponse = await fetch(httpUrl(realtime, "/agent/mcp/tool"), {
+        method: "POST",
+        headers: {
+          Origin: ORIGIN,
+          authorization: "Bearer agent-secret",
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          name: "state_blueprint_export_definition",
+          arguments: { outputPath: path.join(tempDir, "download.state.json") }
+        })
+      });
+      assert.equal(exportFileBlockedResponse.status, 200);
+      const exportFileBlocked = await exportFileBlockedResponse.json();
+      assert.equal(exportFileBlocked.needsConfirmation, true);
+
+      const writeBlockedResponse = await fetch(httpUrl(realtime, "/agent/mcp/tool"), {
+        method: "POST",
+        headers: {
+          Origin: ORIGIN,
+          authorization: "Bearer agent-secret",
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          name: "state_blueprint_apply_prompt",
+          arguments: { prompt: "baue checkout workflow", dryRun: true }
+        })
+      });
+      assert.equal(writeBlockedResponse.status, 200);
+      const writeBlocked = await writeBlockedResponse.json();
+      assert.equal(writeBlocked.needsConfirmation, true);
+      assert.equal(writeBlocked.reason, "write_requires_confirmation");
+
+      const writeConfirmedResponse = await fetch(httpUrl(realtime, "/agent/mcp/tool"), {
+        method: "POST",
+        headers: {
+          Origin: ORIGIN,
+          authorization: "Bearer mcp-secret",
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          name: "state_blueprint_apply_prompt",
+          arguments: { prompt: "baue checkout workflow", dryRun: true },
+          confirmed: true
+        })
+      });
+      assert.equal(writeConfirmedResponse.status, 200);
+      const writeConfirmed = await writeConfirmedResponse.json();
+      assert.equal(writeConfirmed.ok, true);
+      assert.equal(writeConfirmed.result.structuredContent.dryRun, true);
+      assert.equal(writeConfirmed.result.structuredContent.validation.ok, true);
+    });
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("runs server-side agent chat with an OpenAI-compatible MCP tool loop", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "realtime-agent-chat-"));
+  const mcpModelPath = path.join(tempDir, "state-blueprint.workspace.json");
+  const calls = [];
+  let callCount = 0;
+  const agentModelFetcher = async (_url, options) => {
+    callCount += 1;
+    const body = JSON.parse(options.body);
+    calls.push({ headers: options.headers, body });
+    if (callCount === 1) {
+      return new Response(JSON.stringify({
+        choices: [{
+          message: {
+            role: "assistant",
+            content: "",
+            tool_calls: [{
+              id: "call_validate",
+              type: "function",
+              function: {
+                name: "state_blueprint_validate",
+                arguments: "{}"
+              }
+            }]
+          }
+        }]
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    return new Response(JSON.stringify({
+      choices: [{
+        message: {
+          role: "assistant",
+          content: "Die aktuelle State Blueprint Datei ist contract-konform."
+        }
+      }]
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+
+  try {
+    await withRealtimeServer({
+      roomSecret: SECRET,
+      agentSecret: "agent-secret",
+      mcpSecret: "mcp-secret",
+      mcpModelPath,
+      agentModelBaseUrl: "https://llm.example.test",
+      agentModel: "qwen-state-agent",
+      agentModelFetcher
+    }, async realtime => {
+      const response = await fetch(httpUrl(realtime, "/agent/chat"), {
+        method: "POST",
+        headers: {
+          Origin: ORIGIN,
+          authorization: "Bearer agent-secret",
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          messages: [{ role: "user", content: "Prüf bitte den State Blueprint." }]
+        })
+      });
+      assert.equal(response.status, 200);
+      const payload = await response.json();
+      assert.equal(payload.ok, true);
+      assert.equal(payload.mode, "server");
+      assert.equal(payload.message.content, "Die aktuelle State Blueprint Datei ist contract-konform.");
+      assert.deepEqual(payload.toolRuns, [{
+        name: "state_blueprint_validate",
+        ok: true,
+        needsConfirmation: false,
+        mutatesWorkspace: false
+      }]);
+      assert.equal(calls.length, 2);
+      assert.ok(calls[0].body.tools.some(tool => tool.function.name === "state_blueprint_validate"));
+      assert.ok(calls[1].body.messages.some(message => message.role === "tool"));
+      assert.doesNotMatch(JSON.stringify(calls), /agent-secret|mcp-secret/);
     });
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });

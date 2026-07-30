@@ -327,6 +327,7 @@ const actionCatalog = [
 
 const promptExamples = [
   { prompt: "baue checkout workflow", intent: "create_workflow" },
+  { prompt: "baue einen kaufprozess fuer drei software pakete", intent: "create_workflow" },
   { prompt: "füge timer 10s hinzu und weiter zu Done", intent: "add_timer" },
   { prompt: "erstelle inner state Schritt 1", intent: "add_inner_state" },
   { prompt: "verbinde diesen State mit Checkout", intent: "upsert_transition" },

@@ -9,6 +9,7 @@ const require = createRequire(import.meta.url);
 const eventCatalog = require("../server/event-catalog.js");
 const presetLibrary = require("../server/preset-library.js");
 const productContract = require("../server/product-contract.js");
+const agentWidget = require("../server/agent-widget.js");
 let adminPresetLibrary = presetLibrary.loadPresetLibraryFile();
 
 const types = {
@@ -91,6 +92,15 @@ createServer(async (req, res) => {
       writeJson(res, 200, { ok: true, preset });
     } catch (error) {
       writeJson(res, error.status || 400, { error: error.code || "preset_api_import_failed" });
+    }
+    return;
+  }
+  if (url.pathname === "/agent/editor/prompt" && req.method === "POST") {
+    try {
+      const payload = await readJson(req);
+      writeJson(res, 200, agentWidget.planEditorPrompt({}, payload));
+    } catch (error) {
+      writeJson(res, error.status || 400, { error: error.code || "agent_editor_prompt_failed", validation: error.validation });
     }
     return;
   }

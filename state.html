@@ -5677,6 +5677,7 @@
     <button id="btnFit">Einpassen</button>
     <button id="btnRun">App zurücksetzen</button>
     <button id="btnPause" title="Timer und automatische Änderungen pausieren" aria-pressed="false">Pausieren</button>
+    <button id="btnAiAgent" title="KI-Assistent" aria-label="KI-Assistent">KI</button>
     <details class="topbar-menu" id="topbarMore">
       <summary title="Mehr" aria-label="Mehr">
         <svg class="topbar-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle></svg>
@@ -5688,6 +5689,7 @@
         <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnFit">Einpassen</button>
         <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnRun">App zurücksetzen</button>
         <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnPause">Pausieren</button>
+        <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnAiAgent">KI-Assistent</button>
         <div class="topbar-mobile-divider" aria-hidden="true"></div>
         <button id="btnWebsiteExample" type="button">Beispielablauf laden</button>
         <button id="btnResetView" type="button">Ansicht zurücksetzen</button>
@@ -5924,6 +5926,7 @@
     const previewTitleTextEl = document.querySelector(".preview-title-text");
     const syncStateEl = document.getElementById("syncState");
     const btnPause = document.getElementById("btnPause");
+    const btnAiAgent = document.getElementById("btnAiAgent");
     const btnTogglePreview = document.getElementById("btnTogglePreview");
     const previewResizeHandleEl = document.getElementById("previewResizeHandle");
     const mobileSheetHandleEl = document.getElementById("mobileSheetHandle");
@@ -24795,6 +24798,112 @@
       loadEditorModel(starterModel(), true);
     }
 
+
+    let editorAgentElement = null;
+    let editorAgentLoadPromise = null;
+    let editorAgentSelectionSnapshot = null;
+
+    function editorAgentServiceUrl(path) {
+      const route = String(path || "");
+      if (location.hostname === "digitalisierungsplanung.de" || location.hostname === "www.digitalisierungsplanung.de") {
+        return "https://realtime.digitalisierungsplanung.de" + route;
+      }
+      return route;
+    }
+
+    function loadEditorAgentScript() {
+      if (customElements.get("dp-agent-widget")) return Promise.resolve();
+      if (editorAgentLoadPromise) return editorAgentLoadPromise;
+      editorAgentLoadPromise = new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = editorAgentServiceUrl("/assets/agent-widget.js");
+        script.async = true;
+        script.onload = () => resolve();
+        script.onerror = () => {
+          editorAgentLoadPromise = null;
+          reject(new Error("KI-Assistent konnte nicht geladen werden."));
+        };
+        document.head.appendChild(script);
+      });
+      return editorAgentLoadPromise;
+    }
+
+    function handleEditorAgentSnapshot(event) {
+      const detail = event.detail || {};
+      try {
+        const snapshot = modelSnapshotValue();
+        const selectedStateIds = selectedNodeIdList();
+        const selectedTransitionIds = selectedEdgeIdList();
+        editorAgentSelectionSnapshot = {
+          stateId: selectedStateIds.length === 1 ? selectedStateIds[0] : currentLayerId || model.initial || "",
+          transitionId: selectedTransitionIds.length === 1 ? selectedTransitionIds[0] : ""
+        };
+        detail.resolve?.({
+          ok: true,
+          model: snapshot,
+          selectedStateId: editorAgentSelectionSnapshot.stateId,
+          selectedTransitionId: editorAgentSelectionSnapshot.transitionId
+        });
+      } catch (error) {
+        detail.reject?.(error instanceof Error ? error : new Error(String(error)));
+      }
+    }
+
+    function handleEditorAgentApply(event) {
+      const detail = event.detail || {};
+      const previewModel = detail.previewModel;
+      try {
+        if (!previewModel || typeof previewModel !== "object") throw new Error("Der KI-Vorschlag enthaelt kein gueltiges Modell.");
+        const nextModel = normalizeModel(JSON.parse(JSON.stringify(previewModel)));
+        const issue = modelTransitionTriggerContractIssue(nextModel);
+        if (issue) throw new Error(issue.message || "Der KI-Vorschlag verletzt den Trigger-Contract.");
+        model = nextModel;
+        const targetStateId = detail.targetStateId || editorAgentSelectionSnapshot?.stateId || model.initial || "";
+        const targetState = byId(targetStateId);
+        currentLayerId = targetState?.parentId || null;
+        selected = normalizeSelection(targetState ? { nodes: [targetState.id], edges: [] } : { nodes: [], edges: [] });
+        const saved = saveEditorState("agent:prompt", true);
+        draw();
+        renderStateExplorer();
+        refreshInspectorForSelection();
+        syncToApp(true);
+        detail.resolve?.({ ok: saved !== false });
+      } catch (error) {
+        detail.reject?.(error instanceof Error ? error : new Error(String(error)));
+      }
+    }
+
+    function installEditorAgentBridge() {
+      if (editorAgentElement) return editorAgentElement;
+      const widget = document.createElement("dp-agent-widget");
+      widget.setAttribute("data-config-path", editorAgentServiceUrl("/agent/config"));
+      widget.setAttribute("data-chat-path", editorAgentServiceUrl("/agent/chat"));
+      widget.setAttribute("data-mcp-tool-path", editorAgentServiceUrl("/agent/mcp/tool"));
+      widget.setAttribute("data-editor-prompt-path", editorAgentServiceUrl("/agent/editor/prompt"));
+      widget.setAttribute("data-editor-bridge", "state-blueprint");
+      widget.setAttribute("data-disable-launcher", "true");
+      widget.setAttribute("data-mode", "server");
+      widget.addEventListener("dp-agent-editor-snapshot", handleEditorAgentSnapshot);
+      widget.addEventListener("dp-agent-editor-apply", handleEditorAgentApply);
+      document.body.appendChild(widget);
+      editorAgentElement = widget;
+      return widget;
+    }
+
+    async function openEditorAgent() {
+      btnAiAgent.disabled = true;
+      try {
+        await loadEditorAgentScript();
+        const widget = installEditorAgentBridge();
+        widget.openPanel?.();
+      } catch (error) {
+        console.error(error);
+        modalAlert(error?.message || "KI-Assistent konnte nicht geoeffnet werden.", "KI-Assistent");
+      } finally {
+        btnAiAgent.disabled = false;
+      }
+    }
+
     function closeTopbarMenus() {
       document.querySelectorAll(".topbar-menu[open]").forEach(menu => {
         menu.open = false;
@@ -24852,6 +24961,7 @@
     syncTopbarProxyActions();
 
     document.getElementById("btnNew").onclick = () => runTopbarAction(requestNewCanvas);
+    btnAiAgent.onclick = () => runTopbarAction(openEditorAgent);
 
     document.getElementById("btnWebsiteExample").onclick = () => runTopbarAction(async () => {
       if (modelMatchesExampleEntry("zustand")) return;

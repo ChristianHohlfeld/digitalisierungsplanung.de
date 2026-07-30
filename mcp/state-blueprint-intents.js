@@ -353,11 +353,17 @@ function workflowSpec(prompt) {
       titles: explicitTitles
     };
   }
+  if (/kauf|paket|pakete|lizenz|abo|subscription|pricing|preis|preise/.test(text)) {
+    return {
+      name: "Lizenzkauf Ablauf",
+      titles: ["Paket auswaehlen", "Lizenzdaten", "Checkout", "Freischaltung"]
+    };
+  }
   if (/checkout|kasse|warenkorb|cart|zahlung|payment|bestell/.test(text)) {
     const german = /kasse|warenkorb|zahlung|bestell/.test(text);
     return {
       name: german ? "Checkout Ablauf" : "Checkout Flow",
-      titles: german ? ["Warenkorb", "Adresse", "Zahlung", "Prüfen", "Fertig"] : ["Cart", "Shipping", "Payment", "Review", "Done"]
+      titles: german ? ["Warenkorb", "Adresse", "Zahlung", "Pruefen", "Fertig"] : ["Cart", "Shipping", "Payment", "Review", "Done"]
     };
   }
   if (/login|auth|anmeld|sign ?in/.test(text)) {
@@ -388,8 +394,9 @@ function shouldResetForWorkflow(model, prompt) {
 function looksLikeWorkflowPrompt(prompt) {
   const text = lower(prompt);
   if (workflowTitlesFromPrompt(prompt).length >= 2) return true;
-  return /\b(?:baue|bau|erstelle|erzeuge|mach|create|build|add)\b/.test(text) &&
-    /\b(?:flow|workflow|ablauf|prozess|process|app)\b/.test(text);
+  if (workflowSpec(prompt)) return true;
+  return /(?:baue|bau|erstelle|erzeuge|mach|create|build|add)/.test(text) &&
+    /(?:flow|workflow|ablauf|prozess|process|app|state|states|zustand|zustaende|screen|screens|schritt|schritte|step|steps)/.test(text);
 }
 
 function planWorkflow(model, prompt, args) {
@@ -545,7 +552,8 @@ function fallbackPlan(reason) {
       "füge Card Preset hinzu",
       "füge Variable email vom Typ email hinzu",
       "lade API https://example.test/items als Liste",
-      "baue checkout workflow"
+      "baue checkout workflow",
+      "baue einen kaufprozess fuer drei software pakete"
     ]
   };
 }
@@ -565,7 +573,7 @@ function promptIntentMarkdown() {
     "- `add_component`: phrases like `füge Card Preset hinzu`, `add modal`, `add email input`.",
     "- `upsert_state_variable`: phrases like `füge variable email vom typ email hinzu`.",
     "- `configure_fetch`: phrases like `lade API https://... als Liste`.",
-    "- `create_workflow`: phrases like `baue checkout workflow`, `build login flow`, `Cart -> Shipping -> Payment -> Done`.",
+    "- `create_workflow`: phrases like `baue checkout workflow`, `baue einen kaufprozess fuer drei software pakete`, `build login flow`, `Cart -> Shipping -> Payment -> Done`.",
     "",
     "Machine contract reminders:",
     "",

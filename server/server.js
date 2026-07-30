@@ -15,10 +15,11 @@ const presetLibrary = require("./preset-library");
 const adminTools = require("./admin-tools");
 const presetCatalog = require("./preset-catalog");
 const productContract = require("./product-contract");
+const agentWidget = require("./agent-widget");
 const { loadReleaseInfo, parseReleaseSource } = require("./release");
 const stateBlueprintMcp = require("../mcp/state-blueprint-server");
 
-const DEFAULT_ALLOWED_ORIGINS = ["https://digitalisierungsplanung.de"];
+const DEFAULT_ALLOWED_ORIGINS = ["https://digitalisierungsplanung.de", "https://www.digitalisierungsplanung.de"];
 const DEFAULT_PATH = "/ws";
 const DEFAULT_TOKEN_PATH = "/token";
 const DEFAULT_EVENTS_PATH = "/events";
@@ -35,6 +36,12 @@ const DEFAULT_PRESETS_ADMIN_PARSE_PATH = "/presets-admin/parse";
 const DEFAULT_PRESETS_ADMIN_IMPORT_PATH = "/presets-admin/import";
 const DEFAULT_IMAGE_INLINE_PATH = "/assets/inline-image";
 const DEFAULT_MCP_PATH = "/mcp";
+const DEFAULT_AGENT_PATH = agentWidget.DEFAULT_AGENT_PATH;
+const DEFAULT_AGENT_CONFIG_PATH = agentWidget.DEFAULT_AGENT_CONFIG_PATH;
+const DEFAULT_AGENT_CHAT_PATH = agentWidget.DEFAULT_AGENT_CHAT_PATH;
+const DEFAULT_AGENT_MCP_TOOL_PATH = agentWidget.DEFAULT_AGENT_MCP_TOOL_PATH;
+const DEFAULT_AGENT_EDITOR_PROMPT_PATH = agentWidget.DEFAULT_AGENT_EDITOR_PROMPT_PATH;
+const DEFAULT_AGENT_WIDGET_SCRIPT_PATH = agentWidget.DEFAULT_AGENT_WIDGET_SCRIPT_PATH;
 const DEFAULT_VERSION_PATH = "/version";
 const DEFAULT_STRIPE_API_BASE_URL = "https://api.stripe.com";
 const DEFAULT_STRIPE_CHECKOUT_PATH = presetCatalog.STRIPE_CHECKOUT_DEFAULTS.path;
@@ -558,6 +565,14 @@ function loadConfig(options = {}) {
     presetsAdminImportPath: options.presetsAdminImportPath || env.REALTIME_PRESETS_ADMIN_IMPORT_PATH || DEFAULT_PRESETS_ADMIN_IMPORT_PATH,
     imageInlinePath: options.imageInlinePath || env.REALTIME_IMAGE_INLINE_PATH || DEFAULT_IMAGE_INLINE_PATH,
     mcpPath: options.mcpPath || env.REALTIME_MCP_PATH || DEFAULT_MCP_PATH,
+    agentPath: options.agentPath || env.REALTIME_AGENT_PATH || DEFAULT_AGENT_PATH,
+    agentConfigPath: options.agentConfigPath || env.REALTIME_AGENT_CONFIG_PATH || DEFAULT_AGENT_CONFIG_PATH,
+    agentChatPath: options.agentChatPath || env.REALTIME_AGENT_CHAT_PATH || DEFAULT_AGENT_CHAT_PATH,
+    agentMcpToolPath: options.agentMcpToolPath || env.REALTIME_AGENT_MCP_TOOL_PATH || DEFAULT_AGENT_MCP_TOOL_PATH,
+    agentEditorPromptPath: options.agentEditorPromptPath || env.REALTIME_AGENT_EDITOR_PROMPT_PATH || DEFAULT_AGENT_EDITOR_PROMPT_PATH,
+    agentWidgetScriptPath: options.agentWidgetScriptPath || env.REALTIME_AGENT_WIDGET_SCRIPT_PATH || DEFAULT_AGENT_WIDGET_SCRIPT_PATH,
+    agentHtmlPath: path.resolve(options.agentHtmlPath || env.REALTIME_AGENT_HTML_PATH || path.join(__dirname, "agent.html")),
+    agentWidgetAssetPath: path.resolve(options.agentWidgetAssetPath || env.REALTIME_AGENT_WIDGET_ASSET_PATH || path.join(repoDir, "assets", "agent-widget.js")),
     versionPath: options.versionPath || env.REALTIME_VERSION_PATH || DEFAULT_VERSION_PATH,
     stripeCheckoutPath: options.stripeCheckoutPath || env.REALTIME_STRIPE_CHECKOUT_PATH || DEFAULT_STRIPE_CHECKOUT_PATH,
     stripeApiBaseUrl: options.stripeApiBaseUrl || env.REALTIME_STRIPE_API_BASE_URL || DEFAULT_STRIPE_API_BASE_URL,
@@ -573,6 +588,13 @@ function loadConfig(options = {}) {
     releaseFile,
     adminSecret: options.adminSecret ?? env.REALTIME_ADMIN_SECRET ?? "",
     mcpSecret: options.mcpSecret ?? env.REALTIME_MCP_SECRET ?? env.MCP_SECRET ?? "",
+    agentSecret: options.agentSecret ?? env.REALTIME_AGENT_SECRET ?? "",
+    agentModel: options.agentModel || env.REALTIME_AGENT_MODEL || agentWidget.DEFAULT_AGENT_MODEL,
+    agentModelBaseUrl: options.agentModelBaseUrl || env.REALTIME_AGENT_MODEL_BASE_URL || "",
+    agentChatCompletionsUrl: options.agentChatCompletionsUrl || env.REALTIME_AGENT_CHAT_COMPLETIONS_URL || "",
+    agentModelApiKey: options.agentModelApiKey ?? env.REALTIME_AGENT_MODEL_API_KEY ?? "",
+    agentWebLlmPackageUrl: options.agentWebLlmPackageUrl || env.REALTIME_AGENT_WEBLLM_PACKAGE_URL || agentWidget.DEFAULT_AGENT_WEBLLM_PACKAGE_URL,
+    agentModelFetcher: options.agentModelFetcher || globalThis.fetch,
     gitPushToken: options.gitPushToken ?? env.REALTIME_GIT_PUSH_TOKEN ?? "",
     gitRunner: options.gitRunner || defaultGitRunner,
     presetApiFetcher: options.presetApiFetcher || fetchPresetApiDefinition,
@@ -692,6 +714,18 @@ function writeHtml(response, statusCode, body, headers = {}) {
     "content-type": "text/html; charset=utf-8",
     "cache-control": "no-store",
     "content-security-policy": "default-src 'none'; connect-src 'self' https://cdn.jsdelivr.net; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://cdn.jsdelivr.net; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    "x-content-type-options": "nosniff",
+    "referrer-policy": "no-referrer",
+    "content-length": Buffer.byteLength(body),
+    ...headers
+  });
+  response.end(body);
+}
+
+function writeScript(response, statusCode, body, headers = {}) {
+  response.writeHead(statusCode, {
+    "content-type": "application/javascript; charset=utf-8",
+    "cache-control": "no-store",
     "x-content-type-options": "nosniff",
     "referrer-policy": "no-referrer",
     "content-length": Buffer.byteLength(body),
@@ -1288,6 +1322,54 @@ function createRealtimeServer(options = {}) {
     }
     return { done: false, headers: mcpHeaders };
   };
+  const prepareAgentEditorResponse = (request, response) => {
+    const origin = request.headers.origin || "";
+    const headers = origin ? corsHeadersForOrigin(origin, request) : {};
+    if (!headers) {
+      writeJson(response, 403, { error: "origin_not_allowed" });
+      return { done: true };
+    }
+    const editorHeaders = {
+      ...headers,
+      "access-control-allow-methods": "POST, OPTIONS",
+      "access-control-allow-headers": "content-type"
+    };
+    if (request.method === "OPTIONS") {
+      response.writeHead(204, editorHeaders);
+      response.end();
+      return { done: true };
+    }
+    return { done: false, headers: editorHeaders };
+  };
+  const prepareAgentToolResponse = (request, response) => {
+    const origin = request.headers.origin || "";
+    const headers = origin ? corsHeadersForOrigin(origin, request) : {};
+    if (!headers) {
+      writeJson(response, 403, { error: "origin_not_allowed" });
+      return { done: true };
+    }
+    const agentHeaders = {
+      ...headers,
+      "access-control-allow-methods": "POST, OPTIONS",
+      "access-control-allow-headers": "authorization, content-type"
+    };
+    if (request.method === "OPTIONS") {
+      response.writeHead(204, agentHeaders);
+      response.end();
+      return { done: true };
+    }
+    const secrets = agentWidget.agentAuthSecrets(config);
+    if (!secrets.length) {
+      writeJson(response, 503, { error: "agent_secret_required" }, agentHeaders);
+      return { done: true };
+    }
+    const token = bearerToken(request);
+    if (!secrets.some(secret => timingSafeEqualString(token, secret))) {
+      writeJson(response, 401, { error: "unauthorized" }, agentHeaders);
+      return { done: true };
+    }
+    return { done: false, headers: agentHeaders };
+  };
 
   const server = options.server || http.createServer((request, response) => {
     const url = new URL(request.url || "/", "http://localhost");
@@ -1349,6 +1431,37 @@ function createRealtimeServer(options = {}) {
     }
     if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.mcpPath) {
       void handleMcpRequest(request, response);
+      return;
+    }
+    if (request.method === "GET" && url.pathname === config.agentPath) {
+      writeHtml(response, 200, fs.readFileSync(config.agentHtmlPath, "utf8"));
+      return;
+    }
+    if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.agentWidgetScriptPath) {
+      const prepared = prepareCatalogResponse(request, response);
+      if (prepared.done) return;
+      writeScript(response, 200, fs.readFileSync(config.agentWidgetAssetPath, "utf8"), prepared.headers);
+      return;
+    }
+    if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.agentConfigPath) {
+      const prepared = prepareCatalogResponse(request, response);
+      if (prepared.done) return;
+      writeJson(response, 200, {
+        ...agentWidget.publicAgentConfig(config),
+        release: releaseResponse(config)
+      }, prepared.headers);
+      return;
+    }
+    if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.agentEditorPromptPath) {
+      void handleAgentEditorPromptRequest(request, response);
+      return;
+    }
+    if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.agentMcpToolPath) {
+      void handleAgentMcpToolRequest(request, response);
+      return;
+    }
+    if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.agentChatPath) {
+      void handleAgentChatRequest(request, response);
       return;
     }
     if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.eventsPath) {
@@ -1663,6 +1776,76 @@ function createRealtimeServer(options = {}) {
       writeJson(response, 200, result, prepared.headers);
     } catch (error) {
       writeJson(response, 500, { error: error.code || "mcp_request_failed", message: error.message }, prepared.headers);
+    }
+  }
+
+  async function handleAgentEditorPromptRequest(request, response) {
+    const prepared = prepareAgentEditorResponse(request, response);
+    if (prepared.done) return;
+
+    let payload;
+    try {
+      payload = await readJsonBody(request, MAX_MCP_BODY_BYTES);
+    } catch (error) {
+      const status = error.code === "payload_too_large" ? 413 : 400;
+      writeJson(response, status, { error: error.code || "invalid_json" }, prepared.headers);
+      return;
+    }
+
+    try {
+      writeJson(response, 200, agentWidget.planEditorPrompt(config, payload), prepared.headers);
+    } catch (error) {
+      writeJson(response, error.status || 500, {
+        error: error.code || "agent_editor_prompt_failed",
+        ...(error.detail ? { detail: error.detail } : {}),
+        ...(error.validation ? { validation: error.validation } : {})
+      }, prepared.headers);
+    }
+  }
+
+  async function handleAgentMcpToolRequest(request, response) {
+    const prepared = prepareAgentToolResponse(request, response);
+    if (prepared.done) return;
+
+    let payload;
+    try {
+      payload = await readJsonBody(request, MAX_MCP_BODY_BYTES);
+    } catch (error) {
+      const status = error.code === "payload_too_large" ? 413 : 400;
+      writeJson(response, status, { error: error.code || "invalid_json" }, prepared.headers);
+      return;
+    }
+
+    try {
+      writeJson(response, 200, agentWidget.executeMcpTool(config, payload), prepared.headers);
+    } catch (error) {
+      writeJson(response, error.status || 500, {
+        error: error.code || "agent_mcp_tool_failed",
+        ...(error.detail ? { detail: error.detail } : {})
+      }, prepared.headers);
+    }
+  }
+
+  async function handleAgentChatRequest(request, response) {
+    const prepared = prepareAgentToolResponse(request, response);
+    if (prepared.done) return;
+
+    let payload;
+    try {
+      payload = await readJsonBody(request, MAX_MCP_BODY_BYTES);
+    } catch (error) {
+      const status = error.code === "payload_too_large" ? 413 : 400;
+      writeJson(response, status, { error: error.code || "invalid_json" }, prepared.headers);
+      return;
+    }
+
+    try {
+      writeJson(response, 200, await agentWidget.runAgentChat(config, payload), prepared.headers);
+    } catch (error) {
+      writeJson(response, error.status || 500, {
+        error: error.code || "agent_chat_failed",
+        ...(error.detail ? { detail: error.detail } : {})
+      }, prepared.headers);
     }
   }
 
