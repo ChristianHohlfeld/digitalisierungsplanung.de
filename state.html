@@ -24330,7 +24330,7 @@
         evt.stopImmediatePropagation();
         return;
       }
-      if (!editable && mod && evt.code === "Space") {
+      if (mod && evt.code === "Space") {
         evt.preventDefault();
         evt.stopImmediatePropagation();
         stateExplorerCollapsed = !stateExplorerCollapsed;
