@@ -2110,6 +2110,8 @@ test.describe("Core source contracts", () => {
     expect(exported.frames[0].screen.html).toContain("Betrag");
     const gifHeader = await app.locator("body").evaluate(async () => {
       const payload = runtimeRecorderExportPayload();
+      const firstFrame = payload.frames[0];
+      const currentFrame = payload.frames[payload.frames.length - 1];
       const bytes = runtimeRecorderGifBytes(payload);
       const url = URL.createObjectURL(new Blob([bytes], { type: "image/gif" }));
       const image = new Image();
@@ -2119,20 +2121,45 @@ test.describe("Core source contracts", () => {
           image.onerror = reject;
           image.src = url;
         });
+        const expected = document.createElement("canvas");
+        expected.width = 640;
+        expected.height = 360;
+        const expectedContext = expected.getContext("2d", { willReadFrequently: true });
+        runtimeRecorderDrawGifFrame(expectedContext, payload, firstFrame);
+        const decoded = document.createElement("canvas");
+        decoded.width = image.naturalWidth;
+        decoded.height = image.naturalHeight;
+        const decodedContext = decoded.getContext("2d", { willReadFrequently: true });
+        decodedContext.drawImage(image, 0, 0);
+        const expectedPixels = expectedContext.getImageData(0, 0, 640, 360).data;
+        const decodedPixels = decodedContext.getImageData(0, 0, 640, 360).data;
+        let pixelDiff = 0;
+        let maxPixelDiff = 0;
+        for (let index = 0; index < expectedPixels.length; index += 4) {
+          const diff =
+            Math.abs(expectedPixels[index] - decodedPixels[index]) +
+            Math.abs(expectedPixels[index + 1] - decodedPixels[index + 1]) +
+            Math.abs(expectedPixels[index + 2] - decodedPixels[index + 2]);
+          pixelDiff += diff;
+          maxPixelDiff = Math.max(maxPixelDiff, diff);
+        }
+        const averagePixelDiff = pixelDiff / (640 * 360);
+        return {
+          length: bytes.length,
+          header: Array.from(bytes.slice(0, 6)).map(value => String.fromCharCode(value)).join(""),
+          width: bytes[6] + bytes[7] * 256,
+          height: bytes[8] + bytes[9] * 256,
+          decodedWidth: image.naturalWidth,
+          decodedHeight: image.naturalHeight,
+          averagePixelDiff,
+          maxPixelDiff,
+          paletteStart: Array.from(bytes.slice(13, 22)),
+          mapStateIds: runtimeRecorderGifMapStates(payload, currentFrame).map(state => state.id),
+          frameText: runtimeRecorderFrameText(currentFrame)
+        };
       } finally {
         URL.revokeObjectURL(url);
       }
-      return {
-        length: bytes.length,
-        header: Array.from(bytes.slice(0, 6)).map(value => String.fromCharCode(value)).join(""),
-        width: bytes[6] + bytes[7] * 256,
-        height: bytes[8] + bytes[9] * 256,
-        decodedWidth: image.naturalWidth,
-        decodedHeight: image.naturalHeight,
-        paletteStart: Array.from(bytes.slice(13, 22)),
-        mapStateIds: runtimeRecorderGifMapStates(payload, payload.frames[payload.frames.length - 1]).map(state => state.id),
-        frameText: runtimeRecorderFrameText(payload.frames[payload.frames.length - 1])
-      };
     });
     expect(gifHeader.length).toBeGreaterThan(100);
     expect(gifHeader.header).toBe("GIF89a");
@@ -2140,6 +2167,8 @@ test.describe("Core source contracts", () => {
     expect(gifHeader.height).toBe(360);
     expect(gifHeader.decodedWidth).toBe(640);
     expect(gifHeader.decodedHeight).toBe(360);
+    expect(gifHeader.averagePixelDiff).toBeLessThan(3);
+    expect(gifHeader.maxPixelDiff).toBeLessThan(90);
     expect(gifHeader.paletteStart).toEqual([2, 6, 23, 6, 17, 31, 8, 24, 39]);
     expect(gifHeader.mapStateIds).toEqual(["start", "check"]);
     expect(gifHeader.frameText).toContain("Sachliche Pruefung laeuft.");
