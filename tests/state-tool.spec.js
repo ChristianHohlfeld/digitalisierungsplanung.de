@@ -1161,6 +1161,25 @@ async function traverseWebsiteDemoShard(page, shardIndex, shardCount) {
 }
 
 test.describe("State Blueprint tool", () => {
+  test("shows actionable diagnostics when the editor AI widget script cannot load @smoke", async ({ page }) => {
+    await page.route("**/assets/agent-widget.js", route => route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "agent_widget_unavailable" })
+    }));
+    await openTool(page);
+
+    await page.locator("#btnAiAgent").click();
+
+    const dialog = page.getByRole("dialog", { name: "KI-Assistent" });
+    await expect(dialog).toBeVisible();
+    await expect(page.locator("#modalMessage")).toContainText("KI-Assistent konnte nicht geladen werden.");
+    await expect(page.locator("#modalMessage")).toContainText("/assets/agent-widget.js");
+    await expect(page.locator("#modalMessage")).toContainText("Status: HTTP 503");
+    await expect(page.locator("#modalMessage")).toContainText("Content-Type: application/json");
+    await expect(page.locator("#modalMessage")).toContainText("Realtime-Deploy");
+  });
+
   test("creates a complete Zustandsdiagramm from the UI with data, components, conditions, sets, preview, and export", async ({ page }) => {
     await openTool(page);
     await page.locator("#btnNew").click();

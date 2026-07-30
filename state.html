@@ -24811,17 +24811,86 @@
       return route;
     }
 
+    function editorAgentScriptUrl() {
+      return new URL(editorAgentServiceUrl("/assets/agent-widget.js"), location.href).href;
+    }
+
+    function editorAgentScriptContentTypeOk(contentType) {
+      const type = String(contentType || "").toLowerCase().split(";")[0].trim();
+      return !type || [
+        "application/javascript",
+        "text/javascript",
+        "application/ecmascript",
+        "text/ecmascript"
+      ].includes(type);
+    }
+
+    function editorAgentScriptRegisteredError(scriptUrl) {
+      return new Error([
+        "KI-Assistent konnte nicht geladen werden.",
+        `Script: ${scriptUrl}`,
+        "Status: Script geladen, aber dp-agent-widget wurde nicht registriert.",
+        "Nächster Schritt: Browser-Konsole auf JavaScript-Fehler prüfen."
+      ].join("\n"));
+    }
+
+    async function editorAgentLoadError(scriptUrl, originalError = null) {
+      const lines = [
+        "KI-Assistent konnte nicht geladen werden.",
+        `Script: ${scriptUrl}`
+      ];
+      const controller = typeof AbortController === "function" ? new AbortController() : null;
+      const timeout = controller ? setTimeout(() => controller.abort(), 4500) : null;
+      try {
+        const response = await fetch(scriptUrl, {
+          method: "GET",
+          cache: "no-store",
+          credentials: "omit",
+          signal: controller?.signal
+        });
+        const statusText = [response.status, response.statusText].filter(Boolean).join(" ");
+        lines.push(`Status: HTTP ${statusText}`);
+        const contentType = response.headers.get("content-type") || "";
+        if (contentType) lines.push(`Content-Type: ${contentType}`);
+        const corsOrigin = response.headers.get("access-control-allow-origin") || "";
+        if (corsOrigin) lines.push(`CORS: ${corsOrigin}`);
+        if (!response.ok) {
+          lines.push("Nächster Schritt: Realtime-Deploy und Route /assets/agent-widget.js prüfen.");
+        } else if (!editorAgentScriptContentTypeOk(contentType)) {
+          lines.push("Nächster Schritt: Route liefert kein JavaScript aus.");
+        } else {
+          lines.push("Script ist erreichbar. Prüfe Browser-Konsole, CSP, Adblocker oder Script-Ausführung.");
+        }
+      } catch (diagnosticError) {
+        lines.push(`Abrufprüfung fehlgeschlagen: ${diagnosticError?.message || String(diagnosticError)}`);
+        lines.push("Nächster Schritt: Netzwerk, HTTPS-Zertifikat, DNS oder Origin/CORS prüfen.");
+      } finally {
+        if (timeout) clearTimeout(timeout);
+      }
+      if (originalError?.message) lines.push(`Browser: ${originalError.message}`);
+      return new Error(lines.join("\n"));
+    }
+
     function loadEditorAgentScript() {
       if (customElements.get("dp-agent-widget")) return Promise.resolve();
       if (editorAgentLoadPromise) return editorAgentLoadPromise;
       editorAgentLoadPromise = new Promise((resolve, reject) => {
         const script = document.createElement("script");
-        script.src = editorAgentServiceUrl("/assets/agent-widget.js");
+        script.src = editorAgentScriptUrl();
         script.async = true;
-        script.onload = () => resolve();
-        script.onerror = () => {
+        script.onload = () => {
+          if (customElements.get("dp-agent-widget")) {
+            resolve();
+            return;
+          }
           editorAgentLoadPromise = null;
-          reject(new Error("KI-Assistent konnte nicht geladen werden."));
+          script.remove();
+          reject(editorAgentScriptRegisteredError(script.src));
+        };
+        script.onerror = event => {
+          editorAgentLoadPromise = null;
+          script.remove();
+          editorAgentLoadError(script.src, event instanceof Error ? event : null).then(reject);
         };
         document.head.appendChild(script);
       });
@@ -24895,6 +24964,9 @@
       try {
         await loadEditorAgentScript();
         const widget = installEditorAgentBridge();
+        if (typeof widget.openPanel !== "function") {
+          throw editorAgentScriptRegisteredError(editorAgentScriptUrl());
+        }
         widget.openPanel?.();
       } catch (error) {
         console.error(error);
