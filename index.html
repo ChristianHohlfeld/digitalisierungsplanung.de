@@ -1826,7 +1826,7 @@
 
     const IS_STANDALONE_EXPORT = true;
     const EXPORTED_STATE_BLUEPRINT = {"version":2,"name":"Digitalisierungsplanung.de kaufen","initial":"site_overview","boundary":{"entryId":"site_overview","exitId":"site_pricing","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"states":[{"id":"site_overview","title":"Prozess-App-Editor kaufen","components":[{"id":"site_overview_nav","type":"daisy","text":"","url":"","variant":"navbar","dataPath":"states.site_overview.nav","dataRole":"widget","dataLabel":"Kopf-Navigation"},{"id":"overview_hero","type":"daisy","text":"","url":"","variant":"hero","dataPath":"states.site_overview.hero","dataRole":"widget","dataLabel":"Titelbereich"},{"id":"overview_value","type":"daisy","text":"","url":"","variant":"feature-grid","dataPath":"states.site_overview.value","dataRole":"widget","dataLabel":"Produktnutzen"},{"id":"overview_alert","type":"daisy","text":"","url":"","variant":"alert","dataPath":"states.site_overview.alert","dataRole":"widget","dataLabel":"Kaufhinweis"},{"id":"site_overview_footer","type":"daisy","text":"","url":"","variant":"footer","dataPath":"states.site_overview.footer","dataRole":"widget","dataLabel":"Fußzeile"}],"data":{"nav":{"layout":"menu-submenu","brand":"Digitalisierungsplanung.de","selected":"Produkt","items":[],"parent":"","submenu":[],"submenuOpen":false},"hero":{"layout":"overlay","title":"Digitalisierungsplanung.de","body":"Der visuelle Editor, mit dem Teams Abläufe aufnehmen, Prozess-Apps bauen, im Browser testen und als HTML-Pilot exportieren.","actionLabel":"Pakete ansehen","transitionId":"site_overview_pricing","image":"https://images.unsplash.com/photo-1551434678-e076c223a692?auto=format\u0026fit=crop\u0026w=1600\u0026q=82"},"value":{"eyebrow":"Das Produkt","heading":"Aus Ablaufwissen wird eine nutzbare Prozess-App","body":"Digitalisierungsplanung.de hilft Fachteams, Prozesswissen sichtbar, testbar und als Web-Pilot nutzbar zu machen.","selected":"","items":[{"title":"Abläufe visuell bauen","body":"Schritte, Entscheidungen und Verantwortungen werden direkt im Editor sichtbar.","image":"https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format\u0026fit=crop\u0026w=900\u0026q=82","imageAlt":"Team arbeitet an einem digitalen Ablauf","features":["Drag \u0026 Drop","klare Zustände"]},{"title":"Screens sofort testen","body":"Formulare, Auswahlfelder, Kalender und Buttons laufen direkt im Browser.","features":["echte Eingaben","klickbarer Ablauf"]},{"title":"Pilot teilen","body":"Eine eigenständige HTML-App steht für Review, Freigabe und Pilotbetrieb bereit.","image":"https://images.unsplash.com/photo-1556761175-b413da4baf72?auto=format\u0026fit=crop\u0026w=900\u0026q=82","imageAlt":"Team prüft einen Web-Pilot","features":["HTML-Export","Team-Review"]}]},"alert":{"tone":"success","message":"Sie erwerben eine monatliche Softwarelizenz für den Editor. Preise starten bei 49,99 EUR pro Benutzer und Monat."},"footer":{"brand":"Digitalisierungsplanung.de","note":"Visueller Editor für Prozess-Apps, Team-Prüfung und HTML-Exporte.","columns":[{"title":"Produkt","items":[{"label":"Editor ansehen","url":"state.html?demo=zustand"}]}]}},"dataTypes":{"nav":"object","hero":"object","value":"object","alert":"object","footer":"object"},"dataSource":{"url":"","target":"states.site_overview.fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"subscriptions":[],"boundary":{"entryId":"","exitId":"","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"parentId":null,"x":120,"y":216},{"id":"site_pricing","title":"Paket wählen","components":[{"id":"site_pricing_nav","type":"daisy","text":"","url":"","variant":"navbar","dataPath":"states.site_pricing.nav","dataRole":"widget","dataLabel":"Kopf-Navigation"},{"id":"pricing_intro","type":"daisy","text":"","url":"","variant":"alert","dataPath":"states.site_pricing.intro","dataRole":"widget","dataLabel":"Kaufhinweis"},{"id":"pricing_plans","type":"daisy","text":"","url":"","variant":"pricing","dataPath":"states.site_pricing.plans","dataRole":"widget","dataLabel":"Preispläne"},{"id":"site_pricing_footer","type":"daisy","text":"","url":"","variant":"footer","dataPath":"states.site_pricing.footer","dataRole":"widget","dataLabel":"Fußzeile"}],"data":{"nav":{"layout":"menu-submenu","brand":"Digitalisierungsplanung.de","selected":"Pakete","items":[],"parent":"","submenu":[],"submenuOpen":false},"intro":{"tone":"success","message":"Wählen Sie ein Monatsabo. Der Checkout erfasst die Rechnungsadresse und berechnet die MwSt. automatisch."},"plans":{"selectedPlan":"","plans":[{"title":"Starter","badge":"Einstieg","price":"49,99 EUR","period":"pro Benutzer / Monat","body":"Für Einzelpersonen, die sofort erste Prozess-Apps bauen und als HTML exportieren möchten.","features":["1 Benutzer","visueller Editor","HTML-Export","zzgl. MwSt. im Checkout"],"actionLabel":"Starter buchen","url":"https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=starter\u0026quantity=1","checkout":{"mode":"checkout_session","plan":"starter"},"stripe":{"unitAmountCents":4999,"currency":"eur","quantityMode":"per_user","billingAddressCollection":"required","automaticTax":true,"taxBehavior":"exclusive","taxCode":"txcd_10103001"}},{"title":"Expert","badge":"Empfohlen","price":"199 EUR","period":"/Monat","body":"Für Teams, die Abläufe gemeinsam modellieren, testen und als Web-Pilot nutzen.","features":["Team-Arbeitsbereich","Screens gemeinsam prüfen","HTML-Pilot exportieren","zzgl. MwSt. im Checkout"],"actionLabel":"Expert buchen","url":"https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=expert\u0026quantity=1","highlight":true,"checkout":{"mode":"checkout_session","plan":"expert"},"stripe":{"unitAmountCents":19900,"currency":"eur","quantityMode":"workspace","billingAddressCollection":"required","automaticTax":true,"taxBehavior":"exclusive","taxCode":"txcd_10103001"}},{"title":"Volumen \u0026 Unternehmen","badge":"Volumen","price":"499 EUR","period":"/Monat","body":"Für mehrere Bereiche, mehr Nutzer und einen strukturierten Rollout.","features":["mehrere Bereiche","Rollout-Vorbereitung","Priorisierte Einführung","zzgl. MwSt. im Checkout"],"actionLabel":"Volumen buchen","url":"https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=enterprise\u0026quantity=1","checkout":{"mode":"checkout_session","plan":"enterprise"},"stripe":{"unitAmountCents":49900,"currency":"eur","quantityMode":"workspace","billingAddressCollection":"required","automaticTax":true,"taxBehavior":"exclusive","taxCode":"txcd_10103001"}}]},"footer":{"brand":"Digitalisierungsplanung.de","note":"Visueller Editor für Prozess-Apps, Team-Prüfung und HTML-Exporte.","columns":[{"title":"Produkt","items":[{"label":"Editor ansehen","url":"state.html?demo=zustand"}]}]}},"dataTypes":{"nav":"object","intro":"object","plans":"object","footer":"object"},"dataSource":{"url":"","target":"states.site_pricing.fetch","select":"","timeoutMs":8000,"retries":2},"repeat":{"path":"","as":"item","index":"i"},"dataWires":[],"subscriptions":[],"boundary":{"entryId":"","exitId":"","entryDisabled":false,"exitDisabled":false,"title":"","note":""},"parentId":null,"x":552,"y":216}],"transitions":[{"id":"site_overview_pricing","from":"site_overview","to":"site_pricing","label":"Pakete ansehen","condition":"","triggerType":"button","triggerEvent":"button.site_overview_pricing.clicked","timerMs":3000,"set":{},"groupEntryId":"","groupExitId":""}]};
-    const EXPORTED_STATE_BLUEPRINT_SAVED_AT = "2026-07-31T06:41:27.291Z";
+    const EXPORTED_STATE_BLUEPRINT_SAVED_AT = "2026-07-31T06:52:55.628Z";
 
     let model = normalizeModel(JSON.parse(JSON.stringify(EXPORTED_STATE_BLUEPRINT)));
     let current = model.initial;
@@ -4042,54 +4042,6 @@
       return (String(value || "zustand").toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || "zustand");
     }
 
-    function runtimeRecorderFrameText(frame) {
-      const box = document.createElement("div");
-      box.innerHTML = String(frame?.screen?.html || "");
-      box.querySelectorAll(".runtime-record-marker, script, style, .actions, .action, .condition-feedback, button").forEach(el => el.remove());
-      const clean = String(box.innerText || box.textContent || "")
-        .replace(/\s+/g, " ")
-        .trim();
-      const title = String(runtimeStateTitle(frame?.current) || "").trim();
-      const body = title && clean.toLowerCase().startsWith(title.toLowerCase())
-        ? clean.slice(title.length).trim()
-        : clean;
-      return (body || clean).slice(0, 320);
-    }
-
-    function runtimeRecorderPayloadDataLabel(payload, path) {
-      const target = String(path || "").trim();
-      if (!target) return "Eingabe";
-      let bestPath = "";
-      let bestLabel = "";
-      for (const state of runtimeRecorderPayloadStates(payload)) {
-        for (const component of normalizeComponents(state?.components)) {
-          const dataPath = String(component?.dataPath || "").trim();
-          if (!dataPath) continue;
-          if (target === dataPath || target.startsWith(dataPath + ".")) {
-            const label = String(component?.dataLabel || component?.text || component?.id || "").trim();
-            if (label && dataPath.length >= bestPath.length) {
-              bestPath = dataPath;
-              bestLabel = label;
-            }
-          }
-        }
-      }
-      if (bestLabel) return bestLabel;
-      const segments = target.split(".").filter(Boolean);
-      const fallback = segments[segments.length - 1] === "value" && segments.length > 1 ? segments[segments.length - 2] : segments[segments.length - 1];
-      return fallback ? fallback.replace(/[_-]+/g, " ") : "Eingabe";
-    }
-
-    function runtimeRecorderDisplayValue(value) {
-      if (value === undefined || value === null) return "";
-      if (typeof value === "boolean") return value ? "Ja" : "Nein";
-      if (typeof value === "number") return String(value);
-      if (typeof value === "string") return value.trim().slice(0, 60);
-      if (Array.isArray(value)) return value.map(item => String(item ?? "").trim()).filter(Boolean).join(", ").slice(0, 60);
-      return "";
-    }
-
-
     function runtimeRecorderFrameModel(payload = {}) {
       const candidate = isPlainDataObject(payload?.model) ? payload.model : null;
       return candidate || runtimeRecording.model || model;
@@ -4100,10 +4052,6 @@
       return Array.isArray(sourceModel?.states) ? sourceModel.states.filter(Boolean) : [];
     }
 
-    function runtimeRecorderPayloadTransitions(payload = {}) {
-      const sourceModel = runtimeRecorderFrameModel(payload);
-      return Array.isArray(sourceModel?.transitions) ? sourceModel.transitions.filter(Boolean) : [];
-    }
 
     function runtimeRecorderPayloadState(payload, id) {
       const key = String(id || "");
@@ -4115,116 +4063,11 @@
       return String(state?.title || id || "").trim();
     }
 
-    function runtimeRecorderPayloadTransitionLabel(payload, transition) {
-      return String(transition?.label || transition?.id || defaultTransitionLabel()).trim();
-    }
-
-    function runtimeRecorderFrameVisitedIds(payload, frame) {
-      const ids = [];
-      const seen = new Set();
-      const add = id => {
-        const key = String(id || "").trim();
-        if (!key || seen.has(key)) return;
-        seen.add(key);
-        ids.push(key);
-      };
-      const sourceModel = runtimeRecorderFrameModel(payload);
-      add(sourceModel?.initial);
-      const frameIndex = Math.max(0, Number(frame?.index) || 0);
-      (Array.isArray(payload?.frames) ? payload.frames : []).forEach(item => {
-        if (frameIndex && Number(item?.index || 0) > frameIndex) return;
-        add(item?.detail?.from);
-        add(item?.current);
-        add(item?.detail?.to);
-      });
-      add(frame?.detail?.from);
-      add(frame?.current);
-      add(frame?.detail?.to);
-      return ids;
-    }
-
-    function runtimeRecorderGifMapStates(payload, frame, limit = 5) {
-      const allStates = runtimeRecorderPayloadStates(payload).filter(state => state && !state.virtualProxy);
-      const transitions = runtimeRecorderPayloadTransitions(payload);
-      const orderedStates = allStates.slice().sort((a, b) => {
-        const ax = Number(a?.x), bx = Number(b?.x), ay = Number(a?.y), by = Number(b?.y);
-        if (Number.isFinite(ax) && Number.isFinite(bx) && ax !== bx) return ax - bx;
-        if (Number.isFinite(ay) && Number.isFinite(by) && ay !== by) return ay - by;
-        return String(a?.title || a?.id || "").localeCompare(String(b?.title || b?.id || ""));
-      });
-      const byId = new Map(allStates.map(state => [String(state.id || ""), state]));
-      const ids = [];
-      const seen = new Set();
-      const add = id => {
-        const key = String(id || "").trim();
-        if (!key || seen.has(key) || !byId.has(key)) return;
-        seen.add(key);
-        ids.push(key);
-      };
-      runtimeRecorderFrameVisitedIds(payload, frame).forEach(add);
-      const activeId = String(frame?.current || "");
-      transitions.forEach(transition => {
-        if (String(transition?.from || "") === activeId) add(transition.to);
-      });
-      transitions.forEach(transition => {
-        if (String(transition?.to || "") === activeId) add(transition.from);
-      });
-      orderedStates.forEach(state => add(state.id));
-      const activeIndex = ids.indexOf(activeId);
-      let visibleIds = ids.slice(0, Math.max(1, limit));
-      if (activeIndex >= limit) {
-        const start = Math.max(0, Math.min(activeIndex - Math.floor(limit / 2), ids.length - limit));
-        visibleIds = ids.slice(start, start + limit);
-      }
-      return visibleIds.map(id => byId.get(id)).filter(Boolean);
-    }
-
-    function runtimeRecorderTransitionBetween(payload, fromId, toId) {
-      const from = String(fromId || "");
-      const to = String(toId || "");
-      return runtimeRecorderPayloadTransitions(payload).find(transition =>
-        String(transition?.from || "") === from && String(transition?.to || "") === to
-      ) || null;
-    }
-
-    function runtimeRecorderCurrentTransition(payload, frame) {
-      const detail = frame?.detail || {};
-      const transitionId = String(frame?.transitionId || detail.transitionId || "");
-      const transitions = runtimeRecorderPayloadTransitions(payload);
-      return transitions.find(transition => String(transition?.id || "") === transitionId) ||
-        runtimeRecorderTransitionBetween(payload, detail.from, frame?.current || detail.to) ||
-        null;
-    }
-
     function runtimeRecorderTruncateCanvasText(ctx, text, maxWidth) {
       let value = String(text || "").replace(/\s+/g, " ").trim();
       if (!value || ctx.measureText(value).width <= maxWidth) return value;
       while (value.length > 1 && ctx.measureText(value + "...").width > maxWidth) value = value.slice(0, -1);
       return value.trim() + "...";
-    }
-
-    function runtimeRecorderWrapCanvasText(ctx, text, x, y, maxWidth, lineHeight, maxLines) {
-      const words = String(text || "").split(/\s+/).filter(Boolean);
-      let line = "";
-      let lines = 0;
-      for (const word of words) {
-        const candidate = line ? line + " " + word : word;
-        if (ctx.measureText(candidate).width > maxWidth && line) {
-          const lastLine = lines + 1 >= maxLines && words.indexOf(word) < words.length;
-          ctx.fillText(lastLine ? runtimeRecorderTruncateCanvasText(ctx, line, maxWidth) : line, x, y);
-          y += lineHeight;
-          lines += 1;
-          line = word;
-          if (lines >= maxLines) return y;
-        } else {
-          line = candidate;
-        }
-      }
-      if (line && lines < maxLines) {
-        ctx.fillText(runtimeRecorderTruncateCanvasText(ctx, line, maxWidth), x, y);
-        y += lineHeight;
-      }
-      return y;
     }
 
     function runtimeRecorderDrawRoundedRect(ctx, x, y, width, height, radius, fill, stroke = "", lineWidth = 1) {
@@ -4252,22 +4095,6 @@
       }
     }
 
-    function runtimeRecorderDrawArrow(ctx, fromX, fromY, toX, toY, color) {
-      ctx.strokeStyle = color;
-      ctx.fillStyle = color;
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(fromX, fromY);
-      ctx.lineTo(toX, toY);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(toX, toY);
-      ctx.lineTo(toX - 8, toY - 5);
-      ctx.lineTo(toX - 8, toY + 5);
-      ctx.closePath();
-      ctx.fill();
-    }
-
     function runtimeRecorderGifFrameDelayMs(frame) {
       const value = Number(frame?.delayMs);
       if (Number.isFinite(value) && value > 0) return Math.max(80, Math.min(2200, Math.round(value)));
@@ -4288,20 +4115,6 @@
         index: index + 1,
         delayMs: runtimeRecorderGifFrameDelayMs(frame)
       }));
-    }
-
-    function runtimeRecorderGifEscapeHtml(value) {
-      return String(value ?? "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;");
-    }
-
-    function runtimeRecorderGifStyleText() {
-      return Array.from(document.querySelectorAll("style"))
-        .map(style => String(style.textContent || ""))
-        .join("\n");
     }
 
     function runtimeRecorderGifSafeScreenFragment(frame) {
@@ -4363,13 +4176,6 @@
       screen.appendChild(scroll);
       root.appendChild(screen);
       return root;
-    }
-
-    function runtimeRecorderGifFrameHtml(payload, frame, width, height) {
-      const root = runtimeRecorderBuildGifFrameElement(payload, frame, width, height);
-      const html = root.outerHTML;
-      root.remove();
-      return html;
     }
 
     function runtimeRecorderCssIsVisibleColor(value) {
