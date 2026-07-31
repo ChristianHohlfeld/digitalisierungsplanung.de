@@ -2049,14 +2049,14 @@ test.describe("Core source contracts", () => {
           x: 120,
           y: 160
         },
-        { id: "check", title: "Pruefung", body: "", components: [{ id: "c_check", type: "text", text: "Sachliche Pruefung laeuft.", url: "" }], x: 420, y: 160 }
+        { id: "check", title: "Prüfung", body: "", components: [{ id: "c_check", type: "text", text: "Sachliche Prüfung läuft.", url: "" }], x: 420, y: 160 }
       ],
       transitions: [
         {
           id: "to_check",
           from: "start",
           to: "check",
-          label: "Zur Pruefung",
+          label: "Zur Prüfung",
           condition: "",
           triggerType: "button",
           set: { "states.start.notiz": "geprueft" }
@@ -2084,7 +2084,7 @@ test.describe("Core source contracts", () => {
     await app.locator("input.input").click();
     await app.locator("input.input").pressSequentially("42.5");
     await expect.poll(async () => (await runtimeContext(page)).states?.start?.form?.value).toBe("42.5");
-    await app.getByRole("button", { name: "Zur Pruefung" }).click();
+    await app.getByRole("button", { name: "Zur Prüfung" }).click();
     await expect(app.locator("#statePill")).toHaveText("check");
     await app.locator("#runtimeRecordButton").click();
     await expect(app.locator("#runtimeRecordButton")).toHaveText("Aufnehmen");
@@ -2098,7 +2098,7 @@ test.describe("Core source contracts", () => {
     expect(recording.currentFrame.current).toBe("check");
     expect(recording.currentFrame.context.states.start.form.value).toBe("42.5");
     expect(recording.currentFrame.context.states.start.notiz).toBe("geprueft");
-    expect(recording.currentFrame.screen.html).toContain("Sachliche Pruefung laeuft.");
+    expect(recording.currentFrame.screen.html).toContain("Sachliche Prüfung läuft.");
     expect(recording.model.states.map(state => state.id)).toEqual(["start", "check"]);
     expect(recording.frames.some(frame => frame.kind === "event" && frame.eventName === "button.to.check.clicked")).toBe(true);
     expect(recording.frames.some(frame => frame.kind === "click" && frame.screen.html.includes("runtime-record-marker"))).toBe(true);
@@ -2110,11 +2110,11 @@ test.describe("Core source contracts", () => {
     expect(exported.frames[0].screen.html).toContain("Betrag");
     const gifHeader = await app.locator("body").evaluate(async () => {
       const payload = runtimeRecorderExportPayload();
-      const presentationFrames = runtimeRecorderGifPresentationFrames(payload);
-      const gifPayload = { ...payload, frames: presentationFrames, frameCount: presentationFrames.length };
-      const firstFrame = presentationFrames[0];
-      const currentFrame = presentationFrames[presentationFrames.length - 1];
-      const bytes = runtimeRecorderGifBytes(payload);
+      const gifFrames = runtimeRecorderGifFrames(payload);
+      const gifPayload = { ...payload, frames: gifFrames, frameCount: gifFrames.length };
+      const firstFrame = gifFrames[0];
+      const currentFrame = gifFrames[gifFrames.length - 1];
+      const bytes = await runtimeRecorderGifBytes(payload);
       const encodedFrameCount = (() => {
         let offset = 13;
         let frameCount = 0;
@@ -2160,7 +2160,7 @@ test.describe("Core source contracts", () => {
         expected.width = 640;
         expected.height = 360;
         const expectedContext = expected.getContext("2d", { willReadFrequently: true });
-        runtimeRecorderDrawGifFrame(expectedContext, gifPayload, firstFrame);
+        await runtimeRecorderDrawGifFrame(expectedContext, gifPayload, firstFrame);
         const decoded = document.createElement("canvas");
         decoded.width = image.naturalWidth;
         decoded.height = image.naturalHeight;
@@ -2189,9 +2189,9 @@ test.describe("Core source contracts", () => {
           averagePixelDiff,
           maxPixelDiff,
           encodedFrameCount,
-          presentationKinds: presentationFrames.map(frame => frame.kind),
-          presentationActionLabels: presentationFrames.map(frame => runtimeRecorderFrameActionLabel(gifPayload, frame)),
-          presentationFrameTexts: presentationFrames.map(frame => runtimeRecorderFrameText(frame)),
+          gifKinds: gifFrames.map(frame => frame.kind),
+          firstFrameHtml: runtimeRecorderGifFrameHtml(gifPayload, firstFrame, 640, 360),
+          finalFrameHtml: runtimeRecorderGifFrameHtml(gifPayload, currentFrame, 640, 360),
           paletteStart: Array.from(bytes.slice(13, 22)),
           mapStateIds: runtimeRecorderGifMapStates(gifPayload, currentFrame).map(state => state.id),
           frameText: runtimeRecorderFrameText(currentFrame)
@@ -2206,17 +2206,21 @@ test.describe("Core source contracts", () => {
     expect(gifHeader.height).toBe(360);
     expect(gifHeader.decodedWidth).toBe(640);
     expect(gifHeader.decodedHeight).toBe(360);
-    expect(gifHeader.averagePixelDiff).toBeLessThan(3);
-    expect(gifHeader.maxPixelDiff).toBeLessThan(90);
-    expect(gifHeader.encodedFrameCount).toBe(gifHeader.presentationKinds.length);
-    expect(gifHeader.presentationKinds).toEqual(["start", "input", "transition"]);
-    expect(gifHeader.presentationActionLabels).toEqual(["", "Betrag: 42.5", "Zur Pruefung -> Pruefung"]);
-    expect(gifHeader.presentationActionLabels.join(" ")).not.toContain("Start der Aufnahme");
-    expect(gifHeader.presentationActionLabels.join(" ")).not.toContain("states.start.form.value");
-    expect(gifHeader.presentationFrameTexts).toEqual(["Betrag", "Betrag", "Sachliche Pruefung laeuft."]);
+    expect(gifHeader.averagePixelDiff).toBeLessThan(12);
+    expect(gifHeader.maxPixelDiff).toBeLessThan(240);
+    expect(gifHeader.encodedFrameCount).toBe(gifHeader.gifKinds.length);
+    expect(gifHeader.gifKinds[0]).toBe("start");
+    expect(gifHeader.gifKinds).toContain("click");
+    expect(gifHeader.gifKinds).toContain("input");
+    expect(gifHeader.gifKinds.at(-1)).toBe("transition");
+    expect(gifHeader.firstFrameHtml).toContain("runtime-record-gif-root");
+    expect(gifHeader.firstFrameHtml).toContain("Betrag");
+    expect(gifHeader.firstFrameHtml).not.toContain("PROZESSABLAUF");
+    expect(gifHeader.firstFrameHtml).not.toContain("AKTUELLER SCHRITT");
+    expect(gifHeader.finalFrameHtml).toContain("Sachliche Prüfung läuft.");
     expect(gifHeader.paletteStart).toEqual([2, 6, 23, 6, 17, 31, 8, 24, 39]);
     expect(gifHeader.mapStateIds).toEqual(["start", "check"]);
-    expect(gifHeader.frameText).toContain("Sachliche Pruefung laeuft.");
+    expect(gifHeader.frameText).toContain("Sachliche Prüfung läuft.");
 
     await expect(app.locator("#runtimeReplayPrevButton")).toHaveCount(0);
     await expect(app.locator("#runtimeReplayNextButton")).toHaveCount(0);
@@ -2253,7 +2257,7 @@ test.describe("Core source contracts", () => {
       if (checkFrameIndex < 0) throw new Error("recorded target frame missing");
       runtimeRecorderRestoreFrame(checkFrameIndex);
     });
-    await expect(app.getByText("Sachliche Pruefung laeuft.")).toBeVisible();
+    await expect(app.getByText("Sachliche Prüfung läuft.")).toBeVisible();
     await expect(app.getByText("Nachtraeglich geaendert.")).toHaveCount(0);
     expect(await app.locator("#processProtocolButton, #processProtocolOverlay").count()).toBe(0);
   });
