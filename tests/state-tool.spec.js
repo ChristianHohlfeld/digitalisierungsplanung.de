@@ -3255,11 +3255,20 @@ test.describe("State Blueprint tool", () => {
     await expect(productApp.getByRole("heading", { name: "Digitalisierungsplanung.de", exact: true })).toBeVisible();
     await expect(productApp.locator('.hero[style*="photo-1551434678-e076c223a692"]')).toBeVisible();
     await expect(productApp.getByText("Der visuelle Editor").first()).toBeVisible();
+    await expect(productApp.locator(".daisy-feature-card")).toHaveCount(3);
+    await expect(productApp.locator(".daisy-feature-image")).toHaveCount(3);
+    expect(await productApp.locator(".daisy-feature-image").evaluateAll(images =>
+      images.map(image => ({ alt: image.alt, src: image.currentSrc || image.src }))
+    )).toEqual([
+      expect.objectContaining({ alt: "Team modelliert einen Prozess im Editor", src: expect.stringContaining("images.unsplash.com") }),
+      expect.objectContaining({ alt: "Prozess-App-Screens werden im Browser getestet", src: expect.stringContaining("data:image/svg+xml") }),
+      expect.objectContaining({ alt: "Team prüft einen HTML-Pilot", src: expect.stringContaining("images.unsplash.com") })
+    ]);
     await expect(productApp.getByRole("link", { name: "Editor ansehen" }).first()).toHaveAttribute("href", /state\.html\?demo=zustand$/);
 
     await productApp.getByRole("button", { name: "Pakete ansehen", exact: true }).click();
     await expectProductStep("site_pricing", "Paket wählen");
-    await expect(productApp.getByText("Der Checkout erfasst die Rechnungsadresse").first()).toBeVisible();
+    await expect(productApp.getByText("Stripe erfasst die Rechnungsadresse").first()).toBeVisible();
     await expect(productApp.getByRole("link", { name: "Starter buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=starter&quantity=1");
     await expect(productApp.getByRole("link", { name: "Expert buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=expert&quantity=1");
     await expect(productApp.getByRole("link", { name: "Volumen buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=enterprise&quantity=1");
@@ -3505,13 +3514,15 @@ test.describe("State Blueprint tool", () => {
     await expect(standalone.locator("#runtimeRecorderControls")).toBeHidden();
     await expect(standalone.getByRole("heading", { name: "Digitalisierungsplanung.de", exact: true })).toBeVisible();
     await expect(standalone.getByText("Der visuelle Editor").first()).toBeVisible();
+    await expect(standalone.locator(".daisy-feature-card")).toHaveCount(3);
+    await expect(standalone.locator(".daisy-feature-image")).toHaveCount(3);
     await expect(standalone.getByRole("link", { name: "Editor ansehen" }).first()).toHaveAttribute("href", /state\.html\?demo=zustand$/);
     await expect(standalone.locator("#flowDebug")).toHaveCount(0);
     await expectProductStandaloneNoHorizontalOverflow();
 
     await standalone.getByRole("button", { name: "Pakete ansehen", exact: true }).click();
     await expectProductStandaloneShell("site_pricing", "Paket wählen", { footer: true });
-    await expect(standalone.getByText("Der Checkout erfasst die Rechnungsadresse").first()).toBeVisible();
+    await expect(standalone.getByText("Stripe erfasst die Rechnungsadresse").first()).toBeVisible();
     await expect(standalone.getByRole("link", { name: "Starter buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=starter&quantity=1");
     await expect(standalone.getByRole("link", { name: "Expert buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=expert&quantity=1");
     await expect(standalone.getByRole("link", { name: "Volumen buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=enterprise&quantity=1");

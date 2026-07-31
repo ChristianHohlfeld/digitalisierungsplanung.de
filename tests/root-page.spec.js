@@ -78,6 +78,15 @@ test.describe("Root demo export", () => {
     await expect(page.getByRole("button", { name: "Pakete ansehen" }).first()).toBeVisible();
     await expect(page.locator(".hero .card-actions.justify-center")).toHaveCSS("justify-content", "center");
     await expect(page.locator(".navbar")).toContainText("Digitalisierungsplanung.de");
+    await expect(page.locator(".daisy-feature-card")).toHaveCount(3);
+    await expect(page.locator(".daisy-feature-image")).toHaveCount(3);
+    expect(await page.locator(".daisy-feature-image").evaluateAll(images =>
+      images.map(image => ({ alt: image.alt, src: image.currentSrc || image.src }))
+    )).toEqual([
+      expect.objectContaining({ alt: "Team modelliert einen Prozess im Editor", src: expect.stringContaining("images.unsplash.com") }),
+      expect.objectContaining({ alt: "Prozess-App-Screens werden im Browser getestet", src: expect.stringContaining("data:image/svg+xml") }),
+      expect.objectContaining({ alt: "Team prüft einen HTML-Pilot", src: expect.stringContaining("images.unsplash.com") })
+    ]);
 
     const footerGeometry = () => page.locator(".footer").evaluate(footer => {
       const style = getComputedStyle(footer);
@@ -143,7 +152,7 @@ test.describe("Root demo export", () => {
     await expectDemoStep("site_overview", "Prozess-App-Editor kaufen");
     await page.getByRole("button", { name: "Pakete ansehen", exact: true }).click();
     await expectDemoStep("site_pricing", "Paket wählen");
-    await expect(page.getByText("Der Checkout erfasst die Rechnungsadresse").first()).toBeVisible();
+    await expect(page.getByText("Stripe erfasst die Rechnungsadresse").first()).toBeVisible();
     await expect(page.getByRole("link", { name: "Starter buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=starter&quantity=1");
     await expect(page.getByRole("link", { name: "Expert buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=expert&quantity=1");
     await expect(page.getByRole("link", { name: "Volumen buchen", exact: true })).toHaveAttribute("href", "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=enterprise&quantity=1");
