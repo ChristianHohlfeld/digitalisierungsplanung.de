@@ -102,6 +102,23 @@
       }
     },
     {
+      "id": "custom_card_preset",
+      "variant": "card",
+      "title": "card Preset",
+      "description": "",
+      "categoryId": "websuite-builder",
+      "packageIds": [
+        "website.builder"
+      ],
+      "data": {
+        "title": "Karte",
+        "body": "This card has holo aura",
+        "image": "",
+        "imageAlt": "",
+        "actionLabel": "Weiter"
+      }
+    },
+    {
       "id": "custom_email_password_validated",
       "variant": "input",
       "title": "input Preset",
