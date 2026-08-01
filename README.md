@@ -1,5 +1,7 @@
 # Digitalisierungsplanung
 
+<!-- deploy-trigger: rollback-baseline-2026-07-31 -->
+
 Zustand macht Geschäftsprozesse sichtbar, prüfbar und ausführbar. Ein Ablauf wird als Zustandsdiagramm gebaut: Zustände, Übergänge, Auslöser, Bedingungen, Daten und Darstellung liegen in einem gemeinsamen JSON-Modell.
 
 Der wichtigste Gedanke: Nur verstandene Prozesse lassen sich sauber digitalisieren.
