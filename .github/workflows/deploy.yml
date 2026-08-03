@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - release-version.js
   workflow_dispatch:
 
 concurrency:
@@ -14,6 +16,9 @@ jobs:
   contract-tests:
     name: Contracts (${{ matrix.shard }})
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.60.0-noble
+      options: --ipc=host
     timeout-minutes: 25
     strategy:
       fail-fast: false
@@ -32,13 +37,11 @@ jobs:
           else
             npm install
           fi
-      - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
       - name: Run server contract tests
         if: matrix.shard == '1/4'
         run: npm run test:server
       - name: Run browser contract shard
-        run: npm run test:browser -- --shard=${{ matrix.shard }} --reporter=line
+        run: npm run test:browser -- --shard=${{ matrix.shard }} --reporter=line,github
 
   deploy:
     needs: contract-tests
@@ -51,18 +54,26 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Bump service worker deploy stamp
+      - name: Advance shared frontend/backend release
         if: github.ref == 'refs/heads/main'
         env:
-          SW_VERSION: deploy-${{ github.run_number }}-${{ github.run_attempt }}
+          RELEASE_INCREMENT: "1"
+          RELEASE_SOURCE_COMMIT: ${{ github.sha }}
         run: |
-          SW_BUILT_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")" node scripts/write-sw-version.mjs
-          if git diff --quiet -- sw-version.js; then
-            echo "Service worker deploy stamp is current."
+          git fetch origin main
+          REMOTE_HEAD="$(git rev-parse origin/main)"
+          if [ "$REMOTE_HEAD" != "${GITHUB_SHA}" ]; then
+            echo "Stale deploy run for ${GITHUB_SHA}; origin/main is ${REMOTE_HEAD}. Skipping release stamp."
+            exit 0
+          fi
+          RELEASE_BUILT_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")" node scripts/write-release-version.mjs
+          if git diff --quiet -- release-version.js; then
+            echo "Release stamp is current."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add sw-version.js
-          git commit -m "Bump service worker deploy stamp [skip ci]"
+          git add release-version.js
+          RELEASE_ID="$(sed -n 's/^globalThis\.ZUSTAND_RELEASE_ID = "\([^"]*\)";$/\1/p' release-version.js)"
+          git commit -m "Advance shared release to ${RELEASE_ID}"
           git push origin HEAD:main

@@ -26,7 +26,7 @@ module.exports = defineConfig({
   webServer: {
     command: "node tests/serve-state.mjs",
     url: "http://127.0.0.1:8124/state.html",
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 60000
   }
 });

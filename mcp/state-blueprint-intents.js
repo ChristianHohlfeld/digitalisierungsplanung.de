@@ -18,7 +18,11 @@ function lower(text) {
   return compactText(text).toLowerCase();
 }
 
-function titleCase(text, fallback = "Next") {
+function asciiLower(text) {
+  return lower(text).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ß/g, "ss");
+}
+
+function titleCase(text, fallback = "Weiter") {
   const raw = compactText(text).replace(/^["']|["']$/g, "");
   if (!raw) return fallback;
   return raw.replace(/\b\w/g, ch => ch.toUpperCase());
@@ -36,7 +40,7 @@ function findState(model, idOrTitle) {
 }
 
 function targetState(model, args = {}) {
-  return findState(model, args.selectedStateId || args.stateId || "") ||
+  return findState(model, args.selectedStateId || "") ||
     findState(model, model.initial || "") ||
     model.states[0] ||
     null;
@@ -70,7 +74,7 @@ function quotedText(prompt) {
   return match ? match[1].trim() : "";
 }
 
-function targetTitleFromPrompt(prompt, fallback = "Next") {
+function targetTitleFromPrompt(prompt, fallback = "Weiter") {
   const text = compactText(prompt);
   const quoted = quotedText(text);
   if (quoted) return quoted;
@@ -81,7 +85,7 @@ function targetTitleFromPrompt(prompt, fallback = "Next") {
     .trim() || fallback;
 }
 
-function childTitleFromPrompt(prompt, fallback = "Step") {
+function childTitleFromPrompt(prompt, fallback = "Schritt") {
   const quoted = quotedText(prompt);
   if (quoted) return quoted;
   const match = compactText(prompt).match(/\b(?:inner state|child state|unterstate|unter state|kindstate|kind state|nested state)\s+([A-Za-z0-9äöüÄÖÜß _-]{1,80})/i);
@@ -91,9 +95,48 @@ function childTitleFromPrompt(prompt, fallback = "Step") {
     .trim() || fallback;
 }
 
-function shouldCreateTimedExit(prompt) {
-  const text = lower(prompt);
-  return /timer|countdown|zeit|warte|delay|sekunde|second/.test(text);
+function stateTitleFromPrompt(prompt, fallback = "Neuer State") {
+  const quoted = quotedText(prompt);
+  if (quoted) return quoted;
+  const text = compactText(prompt);
+  const match = text.match(/\b(?:state|zustand|screen|seite)\s+([A-Za-z0-9äöüÄÖÜß _-]{1,80})/i);
+  const raw = match ? match[1] : text
+    .replace(/^(?:bitte\s+)?(?:erstelle|erzeuge|mach|lege|create|build|add)\s+/i, "")
+    .replace(/^(?:einen|eine|nen|neuen|neue|new)\s+/i, "");
+  return raw
+    .replace(/\b(?:hinzu|anlegen|erstellen|create|add|state|zustand|screen|seite)$/i, "")
+    .trim() || fallback;
+}
+
+function planState(model, prompt, args) {
+  const source = targetState(model, args);
+  const title = stateTitleFromPrompt(prompt);
+  const existing = findState(model, title);
+  const id = existing?.id || normalizeId(title);
+  const sourceX = Number(source?.x);
+  const sourceY = Number(source?.y);
+  const x = (Number.isFinite(sourceX) ? sourceX + 288 : 96 + Math.max(0, model.states.length) * 288);
+  const y = Number.isFinite(sourceY) ? sourceY : 120;
+  const actions = [{
+    type: "upsert_state",
+    id,
+    title: titleCase(title, "Neuer State"),
+    parentId: existing?.parentId || args.parentId || null,
+    x,
+    y
+  }];
+  if (!model.states.length) actions.push({ type: "set_initial", stateId: id });
+  return {
+    understood: true,
+    confidence: 0.82,
+    intent: "upsert_state",
+    targetStateId: id,
+    actions,
+    assumptions: existing
+      ? [`State "${existing.id}" wird aktualisiert, weil er bereits existiert.`]
+      : ["Der neue State wird ohne versteckte Transition angelegt."],
+    explanation: "Legt einen echten State im kanonischen Modell an. Verbindungen bleiben explizite Transitionen."
+  };
 }
 
 function planTimer(model, prompt, args) {
@@ -112,7 +155,7 @@ function planTimer(model, prompt, args) {
   actions.push({
     type: "upsert_state_variable",
     stateId,
-    path: scope,
+    path: "timer",
     valueType: "object",
     value: {
       duration,
@@ -138,14 +181,14 @@ function planTimer(model, prompt, args) {
     }
   });
 
-  const targetTitle = targetTitleFromPrompt(prompt, "Next");
+  const targetTitle = targetTitleFromPrompt(prompt, "Weiter");
   target = findState(model, targetTitle);
   const targetId = target?.id || normalizeId(targetTitle);
   if (!target) {
     const x = Number(state?.x || 96) + 288;
     const y = Number(state?.y || 120);
-    actions.push({ type: "upsert_state", id: targetId, title: titleCase(targetTitle, "Next"), parentId: state?.parentId || null, x, y });
-    assumptions.push(`Timer completion creates target state "${titleCase(targetTitle, "Next")}".`);
+    actions.push({ type: "upsert_state", id: targetId, title: titleCase(targetTitle, "Weiter"), parentId: state?.parentId || null, x, y });
+    assumptions.push(`Timer completion creates target state "${titleCase(targetTitle, "Weiter")}".`);
   }
   actions.push({
     type: "upsert_transition",
@@ -180,12 +223,12 @@ function planInnerState(model, prompt, args) {
     assumptions.push("No state existed, so a Parent state is created.");
   }
   const parentId = parent?.id || "parent";
-  const title = childTitleFromPrompt(prompt, "Step");
+  const title = childTitleFromPrompt(prompt, "Schritt");
   const childId = normalizeId(title);
   actions.push({
     type: "upsert_state",
     id: childId,
-    title: titleCase(title, "Step"),
+    title: titleCase(title, "Schritt"),
     parentId,
     x: 120,
     y: 120
@@ -213,19 +256,19 @@ function planTransition(model, prompt, args) {
     assumptions.push("No source state existed, so a Start state is created.");
   }
   const sourceId = source?.id || "start";
-  const title = targetTitleFromPrompt(prompt, "Next");
+  const title = targetTitleFromPrompt(prompt, "Weiter");
   const target = findState(model, title);
   const targetId = target?.id || normalizeId(title);
   if (!target) {
     actions.push({
       type: "upsert_state",
       id: targetId,
-      title: titleCase(title, "Next"),
+      title: titleCase(title, "Weiter"),
       parentId: source?.parentId || null,
       x: Number(source?.x || 96) + 288,
       y: Number(source?.y || 120)
     });
-    assumptions.push(`Target state "${titleCase(title, "Next")}" is created because it did not exist.`);
+    assumptions.push(`Target state "${titleCase(title, "Weiter")}" is created because it did not exist.`);
   }
   const timer = /timer|zeit|delay|auto|automatisch|after|nach \d+/i.test(prompt);
   actions.push({
@@ -242,7 +285,7 @@ function planTransition(model, prompt, args) {
   return {
     understood: true,
     confidence: 0.84,
-    intent: "add_transition",
+    intent: "upsert_transition",
     targetStateId: sourceId,
     actions,
     assumptions,
@@ -293,7 +336,7 @@ function planComponent(model, prompt, args) {
   const variant = componentIntent(prompt);
   const scope = `${stateScope(stateId)}.${variant}`;
   const value = daisyDefaults[variant] || daisyDefaults.card;
-  actions.push({ type: "upsert_state_variable", stateId, path: scope, valueType: "object", value });
+  actions.push({ type: "upsert_state_variable", stateId, path: variant, valueType: "object", value });
   actions.push({
     type: "add_component",
     stateId,
@@ -358,6 +401,12 @@ function workflowSpec(prompt) {
       titles: explicitTitles
     };
   }
+  if (/kauf|paket|pakete|lizenz|abo|subscription|pricing|preis|preise/.test(text)) {
+    return {
+      name: "Lizenzkauf Ablauf",
+      titles: ["Paket auswaehlen", "Lizenzdaten", "Checkout", "Freischaltung"]
+    };
+  }
   if (/checkout|kasse|warenkorb|cart|zahlung|payment|bestell/.test(text)) {
     const german = /kasse|warenkorb|zahlung|bestell/.test(text);
     return {
@@ -385,6 +434,40 @@ function workflowSpec(prompt) {
   return null;
 }
 
+function looksLikeNewScenePrompt(prompt) {
+  const text = asciiLower(prompt);
+  const clearWords = "(?:loesch|loesche|loeschen|losch|losche|loschen|delete|clear|reset|leere|zuruecksetzen)";
+  const sceneWords = "(?:alles|canvas|szene|scene|modell|model|workflow|flow|ablauf)";
+  return new RegExp(`\\b${clearWords}\\b.{0,60}\\b${sceneWords}\\b`).test(text) ||
+    new RegExp(`\\b${sceneWords}\\b.{0,60}\\b${clearWords}\\b`).test(text) ||
+    /\b(?:neue|neuen|new|fresh|blank|leere|leer)\s+(?:szene|scene|canvas|modell|model|workflow|flow)\b/.test(text);
+}
+
+function sceneTitleFromPrompt(prompt, fallback = "Neue Szene") {
+  const quoted = quotedText(prompt);
+  if (quoted) return titleCase(quoted, fallback);
+  const text = compactText(prompt);
+  const match = text.match(/\b(?:szene|scene|workflow|flow|ablauf|modell|model|app)\s+(?:namens|called|named|fuer|für|zu|zum)?\s*([A-Za-z0-9Ã¤Ã¶Ã¼Ã„Ã–ÃœÃŸ _-]{3,80})/i);
+  if (!match) return fallback;
+  const cleaned = match[1]
+    .replace(/\b(?:neu|neue|neuen|leer|leere|loeschen|löschen|delete|clear|reset|starten|machen|anlegen|erstellen)$/i, "")
+    .trim();
+  return titleCase(cleaned, fallback);
+}
+
+function planNewScene(_model, prompt) {
+  const name = sceneTitleFromPrompt(prompt);
+  return {
+    understood: true,
+    confidence: 0.93,
+    intent: "scene_new",
+    targetStateId: "",
+    actions: [{ type: "create_flow", name }],
+    assumptions: ["Die aktuelle Szene wird durch ein leeres kanonisches FSM-Modell ersetzt."],
+    explanation: "Ersetzt die aktuelle Szene durch ein leeres Editor-Modell. Es entsteht kein versteckter Zwischenzustand."
+  };
+}
+
 function shouldResetForWorkflow(model, prompt) {
   if (!model.states.length) return true;
   return /\b(?:new|fresh|blank|empty|from scratch|neu|frisch|leer|komplett neu)\b.{0,40}\b(?:flow|workflow|ablauf|prozess|app)\b/i.test(prompt);
@@ -393,8 +476,9 @@ function shouldResetForWorkflow(model, prompt) {
 function looksLikeWorkflowPrompt(prompt) {
   const text = lower(prompt);
   if (workflowTitlesFromPrompt(prompt).length >= 2) return true;
-  return /\b(?:baue|bau|erstelle|erzeuge|mach|create|build|add)\b/.test(text) &&
-    /\b(?:flow|workflow|ablauf|prozess|process|app)\b/.test(text);
+  if (workflowSpec(prompt)) return true;
+  return /(?:baue|bau|erstelle|erzeuge|mach|create|build|add)/.test(text) &&
+    /(?:flow|workflow|ablauf|prozess|process|app|state|states|zustand|zustaende|screen|screens|schritt|schritte|step|steps)/.test(text);
 }
 
 function planWorkflow(model, prompt, args) {
@@ -417,7 +501,7 @@ function planWorkflow(model, prompt, args) {
       parentId,
       x: 96 + index * 288,
       y: 120,
-      components: [{ id: componentId(id, "summary"), type: "text", text: `${title} step`, url: "" }]
+      components: [{ id: componentId(id, "summary"), type: "text", text: `${title} Schritt`, url: "" }]
     };
     actions.push({ type: "upsert_state", ...state });
     return state;
@@ -481,7 +565,7 @@ function planVariable(model, prompt, args) {
   return {
     understood: true,
     confidence: 0.75,
-    intent: "add_state_variable",
+    intent: "upsert_state_variable",
     targetStateId: stateId,
     actions,
     assumptions,
@@ -504,7 +588,7 @@ function planFetch(model, prompt, args) {
   actions.push({ type: "configure_fetch", stateId, url, target, select: "" });
   if (/list|liste|repeat|wiederhol/.test(lower(prompt))) {
     actions.push({ type: "configure_repeat", stateId, path: repeatPath, as: "item", index: "i", manual: true });
-    actions.push({ type: "upsert_data_wire", stateId, id: `${normalizeId(stateId)}_fetch_title`, sourcePath: `${repeatPath}.title`, scopePath: repeatPath, itemPath: "title", role: "title", componentType: "heading", label: "Title" });
+    actions.push({ type: "upsert_data_wire", stateId, id: `${normalizeId(stateId)}_fetch_title`, sourcePath: `${repeatPath}.title`, scopePath: repeatPath, itemPath: "title", role: "title", componentType: "heading", label: "Titel" });
     actions.push({ type: "add_component", stateId, component: { id: `${normalizeId(stateId)}_fetch_title_render`, type: "dataWire", wireId: `${normalizeId(stateId)}_fetch_title` } });
     assumptions.push(`The state is configured to repeat over ${repeatPath}.`);
   }
@@ -521,15 +605,18 @@ function planFetch(model, prompt, args) {
 }
 
 function planPrompt(model, args = {}) {
-  const prompt = compactText(args.prompt || args.message || "");
+  const prompt = compactText(args.prompt || "");
   const text = lower(prompt);
   if (!prompt) return fallbackPlan("Empty prompt.");
-  if (looksLikeWorkflowPrompt(prompt)) return planWorkflow(model, prompt, args);
+  if (looksLikeNewScenePrompt(prompt)) return planNewScene(model, prompt, args);
   if (/timer|countdown|warte|delay|sekunde|second/.test(text)) return planTimer(model, prompt, args);
   if (/inner state|child state|unterstate|unter state|kindstate|kind state|nested state|verschachtel|inside state|state.*inside/.test(text)) return planInnerState(model, prompt, args);
+  if (/(?:erstelle|erzeuge|mach|lege|create|build|add|neuer|neue|new)\b.*\b(?:state|zustand|screen|seite)\b|^(?:state|zustand|screen|seite)\s+(?!mit\b|with\b|zu\b|nach\b|to\b)[a-z0-9]/.test(text) && !/transition|übergang|verbinde|connect|wire|route|gehe zu|go to|workflow|flow|ablauf|prozess|process|app/.test(text)) return planState(model, prompt, args);
   if (/api|fetch|endpoint|daten laden|lade daten|json/.test(text)) return planFetch(model, prompt, args);
-  if (/transition|übergang|uebergang|verbinde|connect|wire|route|gehe zu|go to|nach .*state|zu .*state/.test(text)) return planTransition(model, prompt, args);
+  if (/transition|übergang|verbinde|connect|wire|route|gehe zu|go to|nach .*state|zu .*state/.test(text)) return planTransition(model, prompt, args);
   if (/variable|statevar|state var|feld|email|password|passwort|typ/.test(text) && !/input|formular|form|component|komponente|preset/.test(text)) return planVariable(model, prompt, args);
+
+  if (looksLikeWorkflowPrompt(prompt)) return planWorkflow(model, prompt, args);
   if (/preset|component|komponente|daisy|card|karte|hero|modal|navbar|button|knopf|input|formular|form|image|bild|liste|list|table|tabelle|checkbox|toggle/.test(text)) return planComponent(model, prompt, args);
   return fallbackPlan("No supported intent matched the prompt.");
 }
@@ -542,15 +629,18 @@ function fallbackPlan(reason) {
     targetStateId: "",
     actions: [],
     assumptions: [reason],
-    explanation: "Use direct actions or one of the prompt intents: create workflow, add timer, add inner state, add transition, add preset/component, add variable, configure API/list.",
+    explanation: "Ich habe nichts geaendert. Sag kurz, was im Editor entstehen soll: State, Workflow, Widget, Variable, API/Liste, Timer oder neue leere Szene.",
     examples: [
+      "loesche alles und starte eine neue Szene",
       "füge timer 10s hinzu und weiter zu Done",
+      "erstelle state Rechnung pruefen",
       "erstelle inner state Schritt 1",
       "verbinde diesen State mit Checkout",
       "füge Card Preset hinzu",
       "füge Variable email vom Typ email hinzu",
       "lade API https://example.test/items als Liste",
-      "baue checkout workflow"
+      "baue checkout workflow",
+      "baue einen kaufprozess fuer drei software pakete"
     ]
   };
 }
@@ -564,13 +654,15 @@ function promptIntentMarkdown() {
     "",
     "Supported intents:",
     "",
+    "- `upsert_state`: phrases like `erstelle state Rechnung pruefen`, `create state Review`.",
     "- `add_timer`: phrases like `füge timer hinzu`, `add countdown 10s`, `warte 5 Sekunden und weiter zu Done`.",
     "- `add_inner_state`: phrases like `erstelle inner state Step 1`, `add child state Details`.",
-    "- `add_transition`: phrases like `verbinde mit Checkout`, `add transition to Done`, `gehe zu Error`.",
+    "- `upsert_transition`: phrases like `verbinde mit Checkout`, `upsert transition to Done`, `gehe zu Error`.",
     "- `add_component`: phrases like `füge Card Preset hinzu`, `add modal`, `add email input`.",
-    "- `add_state_variable`: phrases like `füge variable email vom typ email hinzu`.",
+    "- `upsert_state_variable`: phrases like `füge variable email vom typ email hinzu`.",
     "- `configure_fetch`: phrases like `lade API https://... als Liste`.",
-    "- `create_workflow`: phrases like `baue checkout workflow`, `build login flow`, `Cart -> Shipping -> Payment -> Done`.",
+    "- `create_workflow`: phrases like `baue checkout workflow`, `baue einen kaufprozess fuer drei software pakete`, `build login flow`, `Cart -> Shipping -> Payment -> Done`.",
+    "- `scene_new`: phrases like `loesche alles`, `neue Szene`, `clear canvas`.",
     "",
     "Machine contract reminders:",
     "",

@@ -3,7 +3,6 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
-const vm = require("node:vm");
 const {
   blankModel,
   normalizeModel,
@@ -19,11 +18,15 @@ const {
   planPrompt,
   promptIntentMarkdown
 } = require("./state-blueprint-intents");
+const { agentContractContext } = require("../server/agent-contract-context");
 
 const SERVER_VERSION = "0.1.0";
 const PROTOCOL_VERSION = "2025-11-25";
 const DEFAULT_MODEL_PATH = path.resolve(process.cwd(), "state-blueprint.workspace.json");
-const modelPath = path.resolve(process.env.STATE_BLUEPRINT_MODEL_PATH || DEFAULT_MODEL_PATH);
+
+function currentModelPath(options = {}) {
+  return path.resolve(options.modelPath || process.env.STATE_BLUEPRINT_MODEL_PATH || DEFAULT_MODEL_PATH);
+}
 
 function readJsonFile(filePath, fallback = null) {
   try {
@@ -61,19 +64,10 @@ function extractGeneratedAppHtml() {
   const appMatch = hostHtml.match(/const APP_HTML = "((?:\\.|[^"\\])*)";/);
   if (!appMatch) throw new Error("Could not find generated app HTML template in state.html.");
   const appHtml = JSON.parse(`"${appMatch[1]}"`);
-  const enhancerMatch = hostHtml.match(/function enhanceGeneratedAppHtml\(html\) \{[\s\S]*?\r?\n    \}\r?\n\r?\n    const GENERATED_APP_HTML/);
-  if (!enhancerMatch) throw new Error("Could not find generated app enhancer in state.html.");
-  const enhancerSource = enhancerMatch[0].replace(/\r?\n\r?\n    const GENERATED_APP_HTML[\s\S]*$/, "");
-  const sandbox = { appHtml, generatedAppHtml: "" };
-  vm.runInNewContext(
-    `${enhancerSource}\ngeneratedAppHtml = enhanceGeneratedAppHtml(appHtml);`,
-    sandbox,
-    { timeout: 1000 }
-  );
-  if (typeof sandbox.generatedAppHtml !== "string" || !sandbox.generatedAppHtml.includes("<!doctype html>")) {
+  if (!appHtml.includes("<!doctype html>")) {
     throw new Error("Could not prepare generated app HTML.");
   }
-  return sandbox.generatedAppHtml;
+  return appHtml;
 }
 
 function buildStandaloneAppHtml(appHtml, payload) {
@@ -88,47 +82,86 @@ function buildStandaloneAppHtml(appHtml, payload) {
   ].join("\n");
   const html = appHtml
     .replace(/<title>[\s\S]*?<\/title>/, `<title>${escapeHtml(payload.model.name || "Zustand")}</title>`)
-    .replace(/    let model = loadModel\(\) \|\| blankModel\(\);/, bootstrap)
-    .replace(/    function saveModel\(\) \{\n      try \{ localStorage\.setItem\(STORAGE_KEY, JSON\.stringify\(model\)\); \} catch \(_\) \{\}\n    \}/,
-      "    function saveModel() {}")
-    .replace(/      saveModel\(\);\n      const oldContext = context;/,
-      "      const oldContext = context;")
-    .replace(/    window\.addEventListener\("message", evt => \{/, "    if (!IS_STANDALONE_EXPORT) window.addEventListener(\"message\", evt => {")
-    .replace(/    window\.addEventListener\("storage", evt => \{/, "    if (!IS_STANDALONE_EXPORT) window.addEventListener(\"storage\", evt => {");
+    .replace(/    const IS_STANDALONE_EXPORT = false;\n    let model = blankModel\(\);/, bootstrap)
+    .replace(/    window\.addEventListener\("message", evt => \{/, "    if (!IS_STANDALONE_EXPORT) window.addEventListener(\"message\", evt => {");
   if (!html.includes("EXPORTED_STATE_BLUEPRINT")) throw new Error("Could not prepare standalone app export.");
   return html;
 }
 
-function loadWorkspace() {
-  const stored = readJsonFile(modelPath, null);
-  if (!stored) return normalizeWorkspace({ model: blankModel("State App"), stateTemplates: [] });
-  if (stored.kind === "state-blueprint-definition" || stored.kind === "state-blueprint.definition") {
-    return normalizeWorkspace({
-      model: normalizeModel(stored.model),
-      stateTemplates: Array.isArray(stored.stateTemplates) ? stored.stateTemplates : [],
-      editor: { camera: stored.camera, previewCollapsed: stored.previewCollapsed }
-    });
+function parseDefinitionInput(args = {}) {
+  const hasDefinition = Object.prototype.hasOwnProperty.call(args, "definition");
+  const hasJson = Object.prototype.hasOwnProperty.call(args, "json");
+  if (hasDefinition && hasJson) throw new Error("Use either definition or json, not both.");
+  if (!hasDefinition && !hasJson) throw new Error("Load expects a formal .state.json object in definition or a JSON string in json.");
+  let definition = hasDefinition ? args.definition : args.json;
+  if (typeof definition === "string") {
+    try {
+      definition = JSON.parse(definition);
+    } catch (_) {
+      throw new Error("json must contain valid formal .state.json JSON.");
+    }
   }
-  if (stored.model) {
-    return normalizeWorkspace({
-      model: normalizeModel(stored.model),
-      stateTemplates: Array.isArray(stored.stateTemplates) ? stored.stateTemplates : [],
-      editor: stored.editor,
-      clipboard: stored.clipboard,
-      history: stored.history
-    });
+  if (!definition || typeof definition !== "object" || Array.isArray(definition)) {
+    throw new Error("Load expects a formal .state.json object.");
   }
-  return normalizeWorkspace({ model: normalizeModel(stored), stateTemplates: [] });
+  return definition;
 }
 
-function saveWorkspace(workspace) {
+function validatedDefinitionWorkspace(definition) {
+  if (definition.kind !== "state-blueprint-definition" || definition.schemaVersion !== 2) {
+    throw new Error('Import expects kind "state-blueprint-definition" with schemaVersion 2.');
+  }
+  if (Array.isArray(definition.stateTemplates) && definition.stateTemplates.length) {
+    throw new Error("Imported definitions must not contain local stateTemplates.");
+  }
+  const validation = validateModel(definition.model);
+  if (!validation.ok) {
+    const error = new Error("Imported definition violates the model contract.");
+    error.validation = validation;
+    throw error;
+  }
+  return {
+    validation,
+    workspace: {
+      model: validation.model,
+      editor: { camera: definition.camera, previewCollapsed: definition.previewCollapsed }
+    }
+  };
+}
+
+function loadWorkspace(options = {}) {
+  const modelPath = currentModelPath(options);
+  const stored = readJsonFile(modelPath, null);
+  if (!stored) return normalizeWorkspace({ model: blankModel("State App") });
+  const canonicalModel = input => {
+    const validation = validateModel(input);
+    if (validation.ok) return validation.model;
+    const error = new Error("Stored model violates the canonical model contract.");
+    error.validation = validation;
+    throw error;
+  };
+  if (stored.kind !== "state-blueprint.workspace" || stored.schemaVersion !== 1 || !stored.model) {
+    throw new Error("Stored MCP data must use state-blueprint.workspace schemaVersion 1. Import definitions through state_blueprint_import_definition.");
+  }
+  if (Array.isArray(stored.stateTemplates) && stored.stateTemplates.length) {
+    throw new Error("Stored MCP data must not contain local stateTemplates.");
+  }
+  return normalizeWorkspace({
+    model: canonicalModel(stored.model),
+    editor: stored.editor,
+    clipboard: stored.clipboard,
+    history: stored.history
+  });
+}
+
+function saveWorkspace(workspace, options = {}) {
+  const modelPath = currentModelPath(options);
   const normalized = normalizeWorkspace(workspace);
   const payload = {
     kind: "state-blueprint.workspace",
     schemaVersion: 1,
     savedAt: new Date().toISOString(),
     model: normalized.model,
-    stateTemplates: normalized.stateTemplates,
     editor: normalized.editor,
     clipboard: normalized.clipboard,
     history: normalized.history
@@ -216,8 +249,7 @@ const tools = [
     description: "Translate a natural-language edit request such as 'füge timer hinzu' into ordered State Blueprint actions without writing them.",
     inputSchema: jsonSchema({
       prompt: { type: "string", description: "Natural language edit request in German or English." },
-      selectedStateId: { type: "string", description: "Optional state that should be treated like the UI selection." },
-      stateId: { type: "string", description: "Alias for selectedStateId." }
+      selectedStateId: { type: "string", description: "Optional state that should be treated like the UI selection." }
     }, ["prompt"])
   },
   {
@@ -226,7 +258,6 @@ const tools = [
     inputSchema: jsonSchema({
       prompt: { type: "string", description: "Natural language edit request in German or English." },
       selectedStateId: { type: "string", description: "Optional state that should be treated like the UI selection." },
-      stateId: { type: "string", description: "Alias for selectedStateId." },
       dryRun: { type: "boolean", description: "Plan and validate without writing." },
       allowUnknown: { type: "boolean", description: "Return unknown intents instead of failing." }
     }, ["prompt"])
@@ -238,8 +269,11 @@ const tools = [
   },
   {
     name: "state_blueprint_export_definition",
-    description: "Return a formal .state.json definition payload compatible with the app import/export flow.",
-    inputSchema: jsonSchema({})
+    description: "Return or write a formal .state.json definition payload compatible with the app Save/Load flow.",
+    inputSchema: jsonSchema({
+      outputPath: { type: "string", description: "Optional file path to write the final loadable .state.json. Relative paths resolve from the current working directory." },
+      includeDefinition: { type: "boolean", description: "Return the definition JSON in the response. Defaults to true when outputPath is omitted." }
+    })
   },
   {
     name: "state_blueprint_export_html",
@@ -251,10 +285,11 @@ const tools = [
   },
   {
     name: "state_blueprint_import_definition",
-    description: "Import a formal State Blueprint definition payload into the MCP workspace file.",
+    description: "Load/import a formal State Blueprint .state.json definition into the MCP workspace file.",
     inputSchema: jsonSchema({
-      definition: { type: "object", description: "Formal state-blueprint-definition JSON." }
-    }, ["definition"])
+      definition: { type: "object", description: "Formal state-blueprint-definition JSON object." },
+      json: { type: "string", description: "Stringified formal .state.json payload. Use instead of definition." }
+    })
   },
   {
     name: "state_blueprint_action_catalog",
@@ -293,11 +328,12 @@ const actionCatalog = [
 
 const promptExamples = [
   { prompt: "baue checkout workflow", intent: "create_workflow" },
+  { prompt: "baue einen kaufprozess fuer drei software pakete", intent: "create_workflow" },
   { prompt: "füge timer 10s hinzu und weiter zu Done", intent: "add_timer" },
   { prompt: "erstelle inner state Schritt 1", intent: "add_inner_state" },
-  { prompt: "verbinde diesen State mit Checkout", intent: "add_transition" },
+  { prompt: "verbinde diesen State mit Checkout", intent: "upsert_transition" },
   { prompt: "füge Card Preset hinzu", intent: "add_component" },
-  { prompt: "füge Variable email vom Typ email hinzu", intent: "add_state_variable" },
+  { prompt: "füge Variable email vom Typ email hinzu", intent: "upsert_state_variable" },
   { prompt: "lade API https://example.test/items als Liste", intent: "configure_fetch" }
 ];
 
@@ -309,15 +345,16 @@ function toolResult(value, isError = false) {
   };
 }
 
-function callTool(name, args = {}) {
+function callTool(name, args = {}, options = {}) {
+  const modelPath = currentModelPath(options);
   if (name === "state_blueprint_get_model") {
-    const workspace = loadWorkspace();
+    const workspace = loadWorkspace(options);
     const result = { modelPath, model: workspace.model };
     if (args.includeValidation) result.validation = validateModel(workspace.model);
     return result;
   }
   if (name === "state_blueprint_replace_model") {
-    const workspace = loadWorkspace();
+    const workspace = loadWorkspace(options);
     const validation = validateModel(args.model);
     if (!validation.ok && !args.allowInvalid) {
       const error = new Error("Model contract validation failed.");
@@ -325,26 +362,26 @@ function callTool(name, args = {}) {
       throw error;
     }
     workspace.model = validation.model;
-    if (!args.allowInvalid) saveWorkspace(workspace);
+    if (!args.allowInvalid) saveWorkspace(workspace, options);
     return { modelPath, dryRun: Boolean(args.allowInvalid), validation, model: workspace.model };
   }
   if (name === "state_blueprint_apply_actions") {
-    const workspace = loadWorkspace();
+    const workspace = loadWorkspace(options);
     const result = applyActions(workspace.model, args.actions || [], { allowInvalid: Boolean(args.allowInvalid) });
     if (!args.dryRun) {
       workspace.model = result.model;
-      saveWorkspace(workspace);
+      saveWorkspace(workspace, options);
     }
     return { modelPath, dryRun: Boolean(args.dryRun), ...result };
   }
   if (name === "state_blueprint_apply_commands") {
-    const workspace = loadWorkspace();
+    const workspace = loadWorkspace(options);
     const result = applyCommands(workspace, args.commands || [], { allowInvalid: Boolean(args.allowInvalid) });
-    if (!args.dryRun) saveWorkspace(result.workspace);
+    if (!args.dryRun) saveWorkspace(result.workspace, options);
     return { modelPath, dryRun: Boolean(args.dryRun), ...result };
   }
   if (name === "state_blueprint_plan_prompt") {
-    const workspace = loadWorkspace();
+    const workspace = loadWorkspace(options);
     const plan = planPrompt(workspace.model, args);
     const dryRun = plan.actions.length
       ? applyActions(workspace.model, plan.actions, { allowInvalid: true })
@@ -357,7 +394,7 @@ function callTool(name, args = {}) {
     };
   }
   if (name === "state_blueprint_apply_prompt") {
-    const workspace = loadWorkspace();
+    const workspace = loadWorkspace(options);
     const plan = planPrompt(workspace.model, args);
     if (!plan.understood && !args.allowUnknown) throw new Error(plan.explanation || "Prompt could not be mapped to State Blueprint actions.");
     const result = plan.actions.length
@@ -365,20 +402,44 @@ function callTool(name, args = {}) {
       : { model: workspace.model, results: [], validation: validateModel(workspace.model) };
     if (!args.dryRun) {
       workspace.model = result.model;
-      saveWorkspace(workspace);
+      saveWorkspace(workspace, options);
     }
     return { modelPath, dryRun: Boolean(args.dryRun), plan, ...result };
   }
   if (name === "state_blueprint_validate") {
-    return { modelPath, ...validateModel(loadWorkspace().model) };
+    return { modelPath, ...validateModel(loadWorkspace(options).model) };
   }
   if (name === "state_blueprint_export_definition") {
-    const workspace = loadWorkspace();
-    return definitionPayload(workspace.model, workspace.stateTemplates, workspace.editor);
+    const workspace = loadWorkspace(options);
+    const payload = definitionPayload(workspace.model, [], workspace.editor);
+    const includeDefinition = Object.prototype.hasOwnProperty.call(args, "includeDefinition")
+      ? Boolean(args.includeDefinition)
+      : !args.outputPath;
+    const text = JSON.stringify(payload, null, 2) + "\n";
+    if (!args.outputPath && includeDefinition) return payload;
+    let outputPath = "";
+    if (args.outputPath) {
+      outputPath = path.resolve(process.cwd(), String(args.outputPath));
+      fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+      fs.writeFileSync(outputPath, text, "utf8");
+    }
+    return {
+      modelPath,
+      outputPath,
+      file: outputPath ? {
+        path: outputPath,
+        name: path.basename(outputPath),
+        mimeType: "application/json",
+        bytes: Buffer.byteLength(text, "utf8")
+      } : undefined,
+      mimeType: "application/json",
+      bytes: Buffer.byteLength(text, "utf8"),
+      definition: includeDefinition ? payload : undefined
+    };
   }
   if (name === "state_blueprint_export_html") {
-    const workspace = loadWorkspace();
-    const payload = definitionPayload(workspace.model, workspace.stateTemplates, workspace.editor);
+    const workspace = loadWorkspace(options);
+    const payload = definitionPayload(workspace.model, [], workspace.editor);
     const html = buildStandaloneAppHtml(extractGeneratedAppHtml(), payload);
     const includeHtml = Object.prototype.hasOwnProperty.call(args, "includeHtml")
       ? Boolean(args.includeHtml)
@@ -398,26 +459,17 @@ function callTool(name, args = {}) {
     };
   }
   if (name === "state_blueprint_import_definition") {
-    const definition = args.definition || {};
-    if (definition.kind !== "state-blueprint-definition" || definition.schemaVersion !== 2) {
-      throw new Error('Import expects kind "state-blueprint-definition" with schemaVersion 2.');
-    }
-    const validation = validateModel(definition.model);
-    if (!validation.ok) {
-      const error = new Error("Imported definition violates the model contract.");
-      error.validation = validation;
-      throw error;
-    }
-    const workspace = {
-      model: validation.model,
-      stateTemplates: Array.isArray(definition.stateTemplates) ? definition.stateTemplates : [],
-      editor: { camera: definition.camera, previewCollapsed: definition.previewCollapsed }
-    };
-    saveWorkspace(workspace);
+    const { validation, workspace } = validatedDefinitionWorkspace(parseDefinitionInput(args));
+    saveWorkspace(workspace, options);
     return { modelPath, validation, summary: modelSummary(workspace.model) };
   }
   if (name === "state_blueprint_action_catalog") {
-    return { modelPath, actions: actionCatalog, promptExamples };
+    return {
+      modelPath,
+      actions: actionCatalog,
+      promptExamples,
+      presetContext: agentContractContext(options)
+    };
   }
   if (name === "state_blueprint_command_catalog") {
     return { modelPath, commands: commandCatalog };
@@ -452,6 +504,12 @@ function listResources() {
       mimeType: "application/json"
     },
     {
+      uri: "state-blueprint://presets",
+      name: "State Blueprint contract presets",
+      description: "Fresh preset IDs, variants, packages, and usage hints derived from the product contract.",
+      mimeType: "application/json"
+    },
+    {
       uri: "state-blueprint://prompt-intents",
       name: "State Blueprint prompt intents",
       description: "Natural-language phrases and intent defaults for state_blueprint_plan_prompt.",
@@ -460,13 +518,13 @@ function listResources() {
   ];
 }
 
-function readResource(uri) {
+function readResource(uri, options = {}) {
   if (uri === "state-blueprint://model") {
     return {
       contents: [{
         uri,
         mimeType: "application/json",
-        text: JSON.stringify(loadWorkspace().model, null, 2)
+        text: JSON.stringify(loadWorkspace(options).model, null, 2)
       }]
     };
   }
@@ -475,7 +533,16 @@ function readResource(uri) {
       contents: [{
         uri,
         mimeType: "application/json",
-        text: JSON.stringify({ actions: actionCatalog, promptExamples }, null, 2)
+        text: JSON.stringify({ actions: actionCatalog, promptExamples, presetContext: agentContractContext(options) }, null, 2)
+      }]
+    };
+  }
+  if (uri === "state-blueprint://presets") {
+    return {
+      contents: [{
+        uri,
+        mimeType: "application/json",
+        text: JSON.stringify(agentContractContext(options), null, 2)
       }]
     };
   }
@@ -505,14 +572,19 @@ function readResource(uri) {
         text: [
           "# State Blueprint MCP Contract",
           "",
-          "- The model JSON is the only edited artifact.",
+          "- The canonical model JSON is the only persisted product definition; editor session data stays in the workspace envelope.",
           "- Runtime truth remains the single global state/event bus.",
+          "- MCP persistence uses only `state-blueprint.workspace` schemaVersion 1; definitions enter through the import tool.",
+          "- `state_blueprint_export_definition` may write the final loadable `.state.json`; `state_blueprint_import_definition` is the matching JSON load path.",
+          "- Tool, action, command, and field names are exact. There are no compatibility aliases.",
           "- State variables are declared as `state.data` plus `state.dataTypes`; they are defaults, not local runtime storage.",
+          "- State-variable declaration paths are local; runtime references use fully qualified `states.<id>.*` bus paths.",
           "- Render data is expressed as `dataWires` and structured components, never as hidden HTML blobs or component-local stores.",
           "- Transition triggers, conditions, timers, and `set` patches live on transitions.",
           "- Realtime event-catalog data is not copied into the model; transitions keep only concrete `realtime.*` refs.",
           "- Nested flows use boundary input/output references and proxy transitions instead of cross-layer direct wires.",
-          "- Tools apply actions in the order given and validate before writing."
+          "- Actions are dependency-ordered; commands retain their declared order. Both validate before writing.",
+          "- Preview, editor HTML export, and MCP HTML export use the same canonical runtime source."
         ].join("\n")
       }]
     };
@@ -537,7 +609,7 @@ function errorResponse(id, error) {
   };
 }
 
-function handleMessage(message) {
+function handleMessage(message, options = {}) {
   const { id, method, params = {} } = message || {};
   if (method === "notifications/initialized" || id === undefined || id === null && String(method || "").startsWith("notifications/")) return null;
   try {
@@ -552,9 +624,9 @@ function handleMessage(message) {
       });
     }
     if (method === "tools/list") return response(id, { tools });
-    if (method === "tools/call") return response(id, toolResult(callTool(params.name, params.arguments || {})));
+    if (method === "tools/call") return response(id, toolResult(callTool(params.name, params.arguments || {}, options)));
     if (method === "resources/list") return response(id, { resources: listResources() });
-    if (method === "resources/read") return response(id, readResource(params.uri));
+    if (method === "resources/read") return response(id, readResource(params.uri, options));
     if (method === "ping") return response(id, {});
     return errorResponse(id, new Error(`Unsupported MCP method: ${method}`));
   } catch (error) {
@@ -567,26 +639,48 @@ function writeMessage(message) {
   process.stdout.write(JSON.stringify(message) + "\n");
 }
 
-let buffer = "";
-process.stdin.setEncoding("utf8");
-process.stdin.on("data", chunk => {
-  buffer += chunk;
-  let newlineIndex = buffer.indexOf("\n");
-  while (newlineIndex >= 0) {
-    const line = buffer.slice(0, newlineIndex).trim();
-    buffer = buffer.slice(newlineIndex + 1);
-    if (line) {
-      try {
-        const result = handleMessage(JSON.parse(line));
-        if (result) writeMessage(result);
-      } catch (error) {
-        writeMessage(errorResponse(null, error));
+function startStdioServer() {
+  let buffer = "";
+  process.stdin.setEncoding("utf8");
+  process.stdin.on("data", chunk => {
+    buffer += chunk;
+    let newlineIndex = buffer.indexOf("\n");
+    while (newlineIndex >= 0) {
+      const line = buffer.slice(0, newlineIndex).trim();
+      buffer = buffer.slice(newlineIndex + 1);
+      if (line) {
+        try {
+          const result = handleMessage(JSON.parse(line));
+          if (result) writeMessage(result);
+        } catch (error) {
+          writeMessage(errorResponse(null, error));
+        }
       }
+      newlineIndex = buffer.indexOf("\n");
     }
-    newlineIndex = buffer.indexOf("\n");
-  }
-});
+  });
 
-process.stdin.on("end", () => {
-  process.exit(0);
-});
+  process.stdin.on("end", () => {
+    process.exit(0);
+  });
+}
+
+if (require.main === module) {
+  startStdioServer();
+}
+
+module.exports = {
+  SERVER_VERSION,
+  PROTOCOL_VERSION,
+  tools,
+  actionCatalog,
+  promptExamples,
+  currentModelPath,
+  loadWorkspace,
+  saveWorkspace,
+  callTool,
+  listResources,
+  readResource,
+  handleMessage,
+  startStdioServer
+};

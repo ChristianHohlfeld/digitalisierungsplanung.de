@@ -1,5 +1,7 @@
 # Digitalisierungsplanung
 
+<!-- deploy-trigger: rollback-baseline-2026-07-31 -->
+
 Zustand macht Geschäftsprozesse sichtbar, prüfbar und ausführbar. Ein Ablauf wird als Zustandsdiagramm gebaut: Zustände, Übergänge, Auslöser, Bedingungen, Daten und Darstellung liegen in einem gemeinsamen JSON-Modell.
 
 Der wichtigste Gedanke: Nur verstandene Prozesse lassen sich sauber digitalisieren.
@@ -12,18 +14,23 @@ Der wichtigste Gedanke: Nur verstandene Prozesse lassen sich sauber digitalisier
 | --- | --- |
 | Öffentliche Startseite | `https://digitalisierungsplanung.de/` |
 | Werkzeug öffnen | `https://digitalisierungsplanung.de/state.html` |
-| Beispiel im Werkzeug laden | `https://digitalisierungsplanung.de/state.html?demo=zustand` |
+| Beispielablauf im Werkzeug laden | `https://digitalisierungsplanung.de/state.html?demo=zustand` |
 | Werkzeug mit Echtzeit-Raum | `https://digitalisierungsplanung.de/state.html?room=<raum-id>` |
+| Realtime Admin Hub | `https://realtime.digitalisierungsplanung.de/` |
 | Echtzeit-Konsole | `https://realtime.digitalisierungsplanung.de/console.html?room=<raum-id>` |
+| Echtzeit-Event-Designer | `https://realtime.digitalisierungsplanung.de/events-admin.html` |
 | Ereigniskatalog | `https://realtime.digitalisierungsplanung.de/events` |
+| MCP JSON-RPC | `https://realtime.digitalisierungsplanung.de/mcp` |
+| Release-ID | `https://realtime.digitalisierungsplanung.de/version` |
 | WebSocket | `wss://realtime.digitalisierungsplanung.de/ws` |
 
 ## Grundvertrag
 
-Es gibt genau eine fachliche Wahrheit:
+Es gibt zwei fachliche Wahrheiten mit einer festen Grenze:
 
 ```text
-globaler JSON-Datenbus
+normalisiertes JSON-Modell = persistierte Struktur
+globaler JSON-Daten-/Ereignisbus = veränderliche Laufzeit
 ```
 
 Regeln:
@@ -38,13 +45,17 @@ Regeln:
 - Verschachtelte Zustände laufen über echte Eingänge, Ausgänge und Verbindungen.
 - Wenn kein echter Ausgang erreichbar ist, stoppt der Ablauf.
 - Externe Ereignisse schreiben zuerst in den Datenbus. Erst danach kann ein Übergang reagieren.
+- Ein geklickter Durchlauf kann als isolierte Replay-Aufnahme aufgezeichnet und vorwärts oder rückwärts abgespielt werden.
 
-Der ausführliche Vertrag steht in [`statereadme.md`](statereadme.md).
+Der normative Kernvertrag steht in [`docs/state-contract.md`](docs/state-contract.md).
+Der ausführliche Architektur- und Auditkontext steht in
+[`statereadme.md`](statereadme.md).
 
 ## Hauptdateien
 
 - [`index.html`](index.html): veröffentlichte Startseite, aus dem Werkzeug exportiert
 - [`state.html`](state.html): das komplette Werkzeug
+- [`docs/state-contract.md`](docs/state-contract.md): normativer Kernvertrag
 - [`statereadme.md`](statereadme.md): Prinzipien, Architektur und Richtung
 - [`docs/state-blueprint-api.md`](docs/state-blueprint-api.md): Programmierschnittstelle
 - [`docs/state-blueprint-mcp.md`](docs/state-blueprint-mcp.md): MCP-Schnittstelle
@@ -60,6 +71,7 @@ Der ausführliche Vertrag steht in [`statereadme.md`](statereadme.md).
 - Vorlagen für häufige Oberflächenbausteine
 - verschachtelte Zustände mit Eingang und Ausgang
 - Datenladen beim Betreten eines Zustands
+- isolierte Replay-Aufnahme für geklickte Abläufe mit Eingaben, Zustandswechseln und Rücklauf
 - Speichern, Laden, Einlesen und Ausgeben
 - Echtzeit-Ereignisse aus `/events`
 - PWA-Dateien und statische HTML-Ausgabe
@@ -78,15 +90,19 @@ PWA-Bilder neu erzeugen:
 npm run build:pwa-assets
 ```
 
-Service-Worker-Version neu schreiben:
+Gemeinsame Frontend-/Backend-Release-ID lokal um eins erhöhen:
 
 ```bash
-npm run build:sw-version
+npm run build:release-version
 ```
 
-Der Service Worker hält bewusst keinen App- oder Asset-Cache. Er entfernt
-vorhandene Cache-Storage-Bestände und lädt gleich-originige Ressourcen mit
-Cache-Buster und `no-store` aus dem Netz.
+CI führt denselben Schritt erst nach allen Verträgen aus. Die Datei enthält
+danach die aktuelle `release-N`-ID; `/version` und `/healthz` melden exakt
+dieselbe ID für den Backend-Prozess.
+
+Die App registriert keinen Service Worker. `disable-sw.js` und der
+`sw.js`-Tombstone melden noch vorhandene alte Worker ab und löschen ausschließlich
+alte Cache-Storage-Bestände; es gibt keinen Fetch-Interceptor und keinen Cache.
 
 ## Echtzeit
 
@@ -94,12 +110,88 @@ Der Server in [`server/`](server/) ist nur Transport. Er speichert keine fachlic
 
 | Route | Zweck |
 | --- | --- |
+| `GET /` | zentraler Realtime Admin Hub |
+| `GET /admin.html` | gleicher Admin Hub als explizite Route |
+| `GET /admin/routes` | JSON-Index aller sichtbaren Realtime-Tools und Endpunkte |
 | `GET /healthz` | Gesundheitsprüfung |
-| `GET /events` | erlaubte Echtzeit-Ereignisse |
+| `GET /version` | gemeinsame Frontend-/Backend-Release-ID |
+| `GET /contract` | zentraler Product Contract: Trigger-Typen, Datentypen, Datasets, Quellen, Presets, Preset-Pakete, Abo-Pläne und State-Beiträge |
+| `GET /events` | kanonischer Realtime-Katalog mit Ereignissen, Emittern, Datentypen und State-Beiträgen |
 | `GET /token` | signiertes Raum-Token für den Browser |
 | `GET /console.html` | Testoberfläche für Ereignisse |
+| `GET /events-admin.html` | einfacher Designer für Event-Type, Datensatz und Felder |
+| `GET/POST /events-admin/catalog` | validieren, committen und pushen von `server/event-catalog.json` |
+| `GET /presets-admin.html` | Designer für offizielle DaisyUI-Snippets, Presets, Kategorien und Pakete |
+| `GET/POST /presets-admin/catalog` | vollständige Preset-Library laden, validieren, committen und pushen |
+| `POST /presets-admin/parse` | DaisyUI-Markup ohne Persistenz in eine strukturierte Preset-Definition übersetzen |
+| `POST /presets-admin/import` | kanonische Preset-Definition von einer öffentlichen HTTPS-API als Entwurf importieren |
+| `POST /assets/inline-image` | öffentliches Bild ohne Persistenz als Data URI für einen eigenständigen HTML-Export laden |
 | `POST /emit` | authentifiziertes Ereignis von außen |
 | `WSS /ws` | WebSocket-Verbindung |
+
+Der harte Contract kommt aus [`server/event-catalog.json`](server/event-catalog.json)
+und wird vom Server unter `/contract` als Product Contract ausgeliefert:
+Trigger-Typen, Value-Types mit Constraints, `realtime.*`-Datasets, Quellen,
+Standard-Presets aus `server/preset-catalog.js`, verwaltete Presets und
+Kategorien aus `server/preset-library.json`, Preset-Pakete,
+Abo-Pläne und kollisionsfreie State-Beiträge. Jedes Contract-Feld liefert neben `fieldTypes`
+auch `fieldSchemas` mit `type`, `jsonType`, `default` und `constraints`
+wie `min`, `max`, `maxLength`, `format`, `protocols`, `maxDepth` oder
+`maxItems`. `/emit` und WebSocket-Runtime-Events prüfen dieselben Schemas,
+bevor ein Event in den Raum darf. `/events` bleibt der schlanke Live-Katalog
+für Realtime-Events. Der Canvas speichert keine Katalogkopie, sondern nur
+konkrete Referenzen wie `triggerType: realtime` und `triggerEvent`.
+`state.html` lädt `/contract` beim Start mit `no-store`; wenn der Product
+Contract nicht erreichbar ist, startet der Editor nicht mit lokalen
+Fallback-Typen oder lokalen Preset-Definitionen.
+
+Preset-Pakete sind reine Server-Metadaten für Verkauf, Anzeige und spätere
+Freischaltung. Der Canvas speichert keine Paketkopie; ein Preset schreibt
+weiter nur seinen eindeutigen `stateContribution` in den globalen JSON-State.
+Die drei Standard-Abos sind `starter`, `expert` und `enterprise`. Das
+Stripe-Pricing-Preset speichert Checkout-Ziele als URL-only Felder im
+globalen State; `/stripe/checkout` erzeugt daraus bei konfiguriertem
+`REALTIME_STRIPE_SECRET_KEY` oder `STRIPE_SECRET_KEY` eine Stripe Checkout
+Session aus denselben Contract-Preisen. Zusatzpakete wie `bi.analytics`,
+`sales.crm`, `knowledge.portal` und `integration.automation` bleiben um die
+monatlichen Kernpakete herum separat zubuchbar.
+
+Im Editor liegen alle mitgelieferten Vorlagen zunächst gemeinsam unter
+**Websuite Builder**. Der Preset Designer kann weitere Kategorien und Pakete
+anlegen. Ein eingefügtes DaisyUI-v5.6.18-Beispiel wird serverseitig strukturell
+geparst; gespeichert werden ausschließlich Variante und Defaultdaten, niemals
+der HTML-Snippet. `Definition erzeugen` verändert den Contract noch nicht.
+Alternativ lädt `Webhook/API-URL` eine exakte Preset-Definition als Entwurf.
+URL und Rohantwort werden nicht gespeichert.
+Erst `In Contract speichern` validiert die gesamte Library, schreibt
+`server/preset-library.json`, erhöht die gemeinsame Release-ID und pusht den
+Commit nach `main`.
+
+Verwaltete Presets enthalten keine fertigen Transition-IDs. Der Canvas erzeugt
+beim Einfügen für jede fachliche Aktion eine eigene ID und bindet sie genau
+einmal. Eine explizite UI-Bindung bleibt beim Wechsel des Trigger-Typs eindeutig,
+rendert aber ausschließlich für `button` ein Control; Timer, Change, Event,
+Realtime, API und Auto erhalten weder Ersatzbutton noch lokale Fallback-Aktion.
+Ein UI-Aktionsslot besitzt entweder genau eine Transition-ID oder genau eine
+URL, niemals beides.
+
+Trigger bleiben Eigentum der Transition. Pro effektiver aktiver Quelle darf
+dieselbe Triggeridentität nur einmal vorkommen. Conditions gehören nicht zur
+Identität und dürfen keinen mehrfach belegten Event priorisieren. Ein Timer ist einmal
+zulässig, `auto` ist exklusiv. Der Editor speichert keinen Konflikt, Import/API/MCP
+lehnen ihn ab und die gemeinsame Preview-/Export-Runtime bleibt bei Fremdmodellen
+fail-closed. Zulässige fachliche Typen sind ausschließlich `button`, `change`,
+`event`, `realtime`, `api`, `timer` und `auto`; internes `flow` dient nur der
+Child-Führung. Unbekannte Werte werden nicht als Alias akzeptiert oder
+normalisiert. Server-getriebene Condition-Pfade unter `events.*`, `realtime.*`
+und `emitters.*` müssen exakt im Product Contract deklariert sein.
+
+Der Designer arbeitet in der gleichen Reihenfolge wie der Canvas-Vertrag:
+Event-Type, Dataset-Key, Felder, Quelle. Das Admin-Secret bleibt lokal im
+Browser gespeichert; beim Speichern validiert der Server den Contract, committet
+`server/event-catalog.json` und `release-version.js` als eine Einheit und pusht
+nach GitHub. Es gibt kein Pinning alter Contract-Versionen: Runtime und
+Frontend verwenden immer den aktuellen `release-N`-Stand.
 
 Ein Ereignis von außen senden:
 
@@ -107,7 +199,7 @@ Ein Ereignis von außen senden:
 curl -X POST https://realtime.digitalisierungsplanung.de/emit \
   -H "authorization: Bearer $REALTIME_EMIT_SECRET" \
   -H "content-type: application/json" \
-  -d '{"roomId":"demo","name":"realtime.sip.call.incoming","detail":{"caller":"+491234","callee":"100","callId":"abc-123"}}'
+  -d '{"roomId":"demo","emitterId":"sip.threecx","name":"realtime.sip.call.incoming","detail":{"caller":"+491234","callee":"100","callId":"abc-123"}}'
 ```
 
 Dazu passender Übergang im Werkzeug:
@@ -122,24 +214,44 @@ Der Browser-Ursprung ist produktiv auf `https://digitalisierungsplanung.de` begr
 ## Server-Veröffentlichung
 
 Der Echtzeit-Server läuft auf dem Droplet lokal unter `127.0.0.1:8788`. Nginx veröffentlicht ihn unter `realtime.digitalisierungsplanung.de`.
+`index.html`, `state.html`, Assets und `release-version.js` bleiben auf der Root-Domain `digitalisierungsplanung.de` und werden nicht vom Droplet ausgeliefert.
 
 Wichtige Dateien:
 
 - [`server/server.js`](server/server.js): Server
 - [`server/ecosystem.config.cjs`](server/ecosystem.config.cjs): PM2-Prozess
 - [`server/deploy.sh`](server/deploy.sh): Veröffentlichung auf dem Droplet
+- [`server/auto-deploy.sh`](server/auto-deploy.sh): atomare automatische Aktualisierung
 - [`server/nginx/realtime.digitalisierungsplanung.de.conf`](server/nginx/realtime.digitalisierungsplanung.de.conf): produktive Nginx-Datei
 - [`server/nginx/realtime.digitalisierungsplanung.de.bootstrap.conf`](server/nginx/realtime.digitalisierungsplanung.de.bootstrap.conf): erste HTTP-Konfiguration für Zertifikate
 
-Aktualisierung auf dem Droplet:
+Server deployen und automatische Aktualisierung installieren oder auffrischen:
 
 ```bash
 cd /var/www/digitalisierungsplanung.de
-git pull --ff-only origin main
-bash server/deploy.sh
+git fetch --prune --force origin +refs/heads/main:refs/remotes/origin/main
+git reset --hard origin/main
+git clean -ffd
+sudo bash server/deploy.sh
 ```
 
-Wenn nur statische Dateien geändert wurden, reicht der Push nach `main`. Der Droplet-Schritt ist nur für Server-, Nginx-, Paket- oder Umgebungsänderungen nötig.
+`deploy.sh` installiert oder aktualisiert den Systemd-Timer am Ende automatisch.
+Danach prüft der Timer jede Minute `origin/main`. Er reagiert erst auf
+eine nach vollständigem CI-Lauf hochgezählte `release-N`-ID, verwirft lokale
+Änderungen im Server-Checkout, deployt exakt den freigegebenen Commit und prüft
+PM2, Nginx sowie die gleiche ID in `/healthz`. Bei einem Fehlschlag wird der
+Marker nicht weitergeschrieben; der Timer versucht denselben neuesten grünen
+Release erneut. Nicht freigegebene `main`-Zwischenstände werden nicht deployed.
+
+```bash
+sudo bash server/auto-deploy.sh --once
+sudo bash server/auto-deploy.sh --status
+journalctl -u digitalisierungsplanung-auto-deploy.service -n 100 --no-pager
+```
+
+Secrets bleiben außerhalb des Repositories in
+`/etc/digitalisierungsplanung-realtime.env`. `origin/main` gewinnt im
+Anwendungsverzeichnis ausdrücklich gegen lokale Dateien und Änderungen.
 
 Produktive Prüfungen:
 
@@ -152,10 +264,33 @@ npm run server:smoke:emit:prod
 
 Die Schnittstellen bearbeiten dasselbe Modell wie das Werkzeug. Sie klicken nicht die Oberfläche und halten keinen zweiten Speicher.
 
+Der MCP-Workspace hat genau eine Form:
+`state-blueprint.workspace` mit `schemaVersion: 1`. Formale `.state.json`-Dateien
+werden über das Importwerkzeug eingelesen. Nackte Modelle, alte Feldnamen und
+Aliasbefehle werden nicht migriert. Preview, Editor-Export und MCP-Export nutzen
+dieselbe eingebettete Runtime.
+
+`state_blueprint_export_definition` kann die finale `.state.json` mit
+`outputPath` als Download-Datei schreiben. `state_blueprint_import_definition`
+laedt dieselbe Definition wieder aus einem JSON-Objekt oder JSON string und
+persistiert danach ausschliesslich den MCP-Workspace.
+
 Start:
 
 ```bash
 STATE_BLUEPRINT_MODEL_PATH=./state-blueprint.workspace.json npm run mcp:state
+```
+
+Auf dem Realtime-Server ist derselbe MCP-Handler als secret-geschützter
+JSON-RPC-Endpunkt verfügbar. Akzeptiert wird `REALTIME_MCP_SECRET`; falls der
+Server bewusst mit einem gemeinsamen Secret betrieben wird, auch
+`REALTIME_ADMIN_SECRET` oder `REALTIME_EMIT_SECRET`:
+
+```bash
+curl -X POST https://realtime.digitalisierungsplanung.de/mcp \
+  -H "authorization: Bearer $REALTIME_MCP_SECRET" \
+  -H "content-type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
 ```
 
 Wichtige Werkzeuge:
@@ -163,6 +298,7 @@ Wichtige Werkzeuge:
 - `state_blueprint_get_model`
 - `state_blueprint_replace_model`
 - `state_blueprint_apply_actions`
+- `state_blueprint_apply_commands`
 - `state_blueprint_plan_prompt`
 - `state_blueprint_apply_prompt`
 - `state_blueprint_validate`
@@ -170,6 +306,7 @@ Wichtige Werkzeuge:
 - `state_blueprint_export_html`
 - `state_blueprint_import_definition`
 - `state_blueprint_action_catalog`
+- `state_blueprint_command_catalog`
 
 Dokumentation:
 
@@ -206,7 +343,7 @@ npm run test:state-explorer
 npm run test:state-render
 ```
 
-`npm test` führt die Server-Tests und die wichtigsten Playwright-Abläufe aus. `npm run test:full` führt den vollständigen Bestand lokal in einem Lauf aus. GitHub Actions verteilt dieselben 320 Browserfälle vollständig auf vier parallele Shards, führt die 14 Serverfälle einmal aus und schreibt erst nach dem Gesamterfolg einen neuen `sw-version.js`-Stempel.
+`npm test` führt die Server-Tests und die wichtigsten Playwright-Abläufe aus. `npm run test:full` führt den vollständigen Bestand lokal aus. GitHub Actions verteilt dieselben Browserfälle vollständig auf vier parallele Shards, führt die Serverfälle einmal aus und erhöht nach jedem Gesamterfolg auf `main` die gemeinsame Release-Sequenz in `release-version.js`.
 
 ## Ordner
 
@@ -215,9 +352,9 @@ npm run test:state-render
 |-- index.html
 |-- state.html
 |-- manifest.webmanifest
-|-- register-sw.js
+|-- disable-sw.js
 |-- sw.js
-|-- sw-version.js
+|-- release-version.js
 |-- package.json
 |-- playwright.config.js
 |-- statereadme.md
@@ -236,8 +373,9 @@ npm run test:state-render
 
 1. Änderungen auf `main` pushen.
 2. GitHub Actions führt alle Server- und Browserfälle in vier vollständigen Browser-Shards aus.
-3. Nach grünem Lauf wird `sw-version.js` aktualisiert.
-4. GitHub Pages veröffentlicht die statische Seite.
-5. Bei Server-Änderungen zusätzlich auf dem Droplet `git pull --ff-only origin main && bash server/deploy.sh` ausführen.
+3. Nach grünem Lauf wird die gemeinsame `release-N`-ID in `release-version.js` inkrementiert.
+4. GitHub Pages veröffentlicht die Root-Domain-Dateien.
+5. Der Droplet-Timer erkennt die neue ID, synchronisiert den Remote-Stand mit Force und deployt/verifiziert nur `realtime.digitalisierungsplanung.de`.
 
 Anspruch: ein schlanker Kern, ein Modell, ein Datenbus, eine ausführbare Oberfläche.
+"" 

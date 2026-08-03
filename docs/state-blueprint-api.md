@@ -26,8 +26,18 @@ STATE_BLUEPRINT_MODEL_PATH=./state-blueprint.workspace.json npm run mcp:state
 Ohne `STATE_BLUEPRINT_MODEL_PATH` liest und schreibt der Server
 `./state-blueprint.workspace.json`.
 
+Die Datei verwendet ausschließlich `kind: "state-blueprint.workspace"` mit
+`schemaVersion: 1`. Ein nacktes Modell oder eine
+`state-blueprint-definition` ist keine Workspace-Datei und wird abgelehnt.
+Formale `.state.json`-Definitionen gelangen ausschließlich über
+`state_blueprint_import_definition` in den Workspace. Werkzeug-, Aktions-,
+Befehls- und Feldnamen sind exakt; es gibt keine Aliasnamen oder Migration.
+
 Der Server spricht MCP JSON-RPC über stdio. Jede Antwort liefert JSON-Text in
 `content[0].text` und denselben Wert in `structuredContent`.
+
+Remote ist derselbe Handler über `POST https://realtime.digitalisierungsplanung.de/mcp`
+mit `authorization: Bearer $REALTIME_MCP_SECRET` erreichbar.
 
 Minimaler JSON-RPC-Aufruf:
 
@@ -46,8 +56,8 @@ Minimaler JSON-RPC-Aufruf:
 | `state_blueprint_plan_prompt` | Wandelt eine unterstützte Textanweisung in Modellaktionen um, ohne zu schreiben. |
 | `state_blueprint_apply_prompt` | Wandelt eine unterstützte Textanweisung in Modellaktionen um und wendet sie an. |
 | `state_blueprint_validate` | Validiert das Modell gegen den FSM-/Bus-Vertrag. |
-| `state_blueprint_export_definition` | Liefert die formale `.state.json`-Definition. |
-| `state_blueprint_import_definition` | Importiert eine formale `.state.json`-Definition. |
+| `state_blueprint_export_definition` | Liefert die formale `.state.json`-Definition oder schreibt sie als Datei. |
+| `state_blueprint_import_definition` | Laedt/importiert eine formale `.state.json`-Definition aus Objekt oder JSON string. |
 | `state_blueprint_export_html` | Baut dieselbe eigenständige HTML-App wie der Editor-Export. |
 | `state_blueprint_action_catalog` | Liefert Modellaktionsnamen und Prompt-Beispiele. |
 | `state_blueprint_command_catalog` | Liefert alle programmatischen Editorbefehle. |
@@ -72,6 +82,31 @@ werden soll.
 Modellaktionen werden vor der Ausführung in Abhängigkeitsreihenfolge gebracht, damit
 Zustände vor Übergängen existieren. Das Ergebnis wird normalisiert und validiert,
 bevor es geschrieben wird.
+
+Explizite Komponenten- und DaisyUI-Aktionsbindungen referenzieren eine vorhandene
+ausgehende Transition-ID. Mehrere Controls dürfen dieselbe Transition auslösen;
+sie erzeugen dadurch keinen weiteren Trigger. Die ID darf auch nach einem
+Triggerwechsel als Slot-Zuordnung bestehen bleiben; nur `triggerType: "button"`
+rendert daraus ein interaktives Control. Fehlende und fremde Referenzen machen
+das Modell ungültig.
+Ein Aktionsslot darf alternativ eine URL enthalten. Eine nicht leere
+Transition-ID und eine URL im selben Slot sind ungültig.
+
+Der Trigger wird ausschliesslich an der Transition modelliert. Bezogen auf die
+effektive Quelle (`from`, bei Parent-Ausgaengen `groupExitId`) darf dieselbe
+Triggeridentitaet nur einmal vorkommen. Conditions gehoeren nicht zur Identitaet;
+sie sind Guards nach einem passenden Trigger. Fuer `realtime` kann die
+Identitaet einen strukturierten `triggerMatch` enthalten. Matches desselben
+Events muessen disjunkt sein: unterschiedliche Werte auf demselben skalaren
+Feld sind erlaubt, Zahlenbereiche duerfen sich nicht schneiden, unterschiedliche
+Felder gelten als potenziell ueberlappend, und ein fehlender Match ist ein
+exklusiver catch-all. Ein Timer ist hoechstens einmal erlaubt, `auto` ist
+exklusiv. Interne `flow`-Kanten zaehlen nicht als fachliche Trigger.
+Zulaessige fachliche Typen sind ausschliesslich `button`, `change`, `event`,
+`realtime`, `api`, `timer` und `auto`; `flow` ist ausschliesslich intern.
+Andere Werte und ungueltige Kombinationen werden ohne Alias oder Normalisierung
+abgelehnt. Condition-Pfade unter `events.*`, `realtime.*` und `emitters.*`
+muessen aus dem Product Contract kommen.
 
 Nutze `state_blueprint_apply_commands`, wenn ein externe Anwendung die App wie ein
 Nutzer steuern soll, aber ohne DOM-Klicks. Befehle laufen über dieselben
@@ -105,7 +140,7 @@ Wichtige Befehle:
 | `selection.set`, `selection.clear`, `selection.all` | Editor-Auswahl setzen. |
 | `layer.open`, `layer.back`, `layer.root` | Arbeitsebenen navigieren. |
 | `viewport.set_camera`, `viewport.reset`, `viewport.fit` | Pan/Zoom programmatisch setzen. |
-| `preview.set_collapsed`, `preview.pause`, `ui.set_panel` | Editor-UI-Zustand steuern. |
+| `preview.set_collapsed`, `ui.set_panel` | Editor-UI-Zustand steuern. |
 | `graph.copy_selection`, `graph.paste`, `graph.duplicate_selection`, `graph.delete_selection` | Graph-Auswahl kopieren, einfügen, duplizieren oder löschen. |
 | `graph.collapse_to_parent`, `graph.degroup_parent` | Zustände zu einem echten Parent-Zustand gruppieren oder wieder auflösen. |
 | `history.undo`, `history.redo` | Befehlsbasierte Editor-Änderungen rückgängig machen oder wiederholen. |
@@ -139,7 +174,8 @@ Benennt den Ablauf um, ohne Zustände oder Übergänge zu ändern.
 ### `replace_model`
 
 Ersetzt das ganze kanonische Modell. Das ist für vollständige Importe oder
-generierte Modellneubauten gedacht. Das Modell wird normalisiert und validiert.
+generierte Modellneubauten gedacht. Die rohe Eingabe wird validiert und nur bei
+Erfolg kanonisch übernommen; sie wird nicht repariert oder migriert.
 
 ```json
 {
@@ -155,7 +191,7 @@ generierte Modellneubauten gedacht. Das Modell wird normalisiert und validiert.
 }
 ```
 
-### `upsert_state` / `add_state`
+### `upsert_state`
 
 Erzeugt oder aktualisiert einen Zustand.
 
@@ -167,7 +203,6 @@ Felder:
 | `title` | string | nein | Menschlich lesbarer Name. |
 | `parentId` | string | nein | Legt den Zustand in eine Parent-Ebene. Leer bedeutet Root. |
 | `x`, `y` | number | nein | Koordinaten auf der Arbeitsfläche, am Raster ausgerichtet. |
-| `renderMode` | `state` oder `component` | nein | Normale Zustandsansicht oder komponentenartiger Zustand. |
 | `components` | array | nein | Strukturierte Render-Zeilen. Keine `html`-, `localState`- oder versteckten Store-Felder. |
 | `data` | object | nein | Zustandsbezogene Vorgaben und Form für den globalen Bus. |
 | `dataTypes` | object | nein | Typdeklarationen für Pfade aus `data`. |
@@ -176,6 +211,9 @@ Felder:
 | `dataWires` | array | nein | Daten-zu-Darstellung-Zuordnungen. |
 | `subscriptions` | array | nein | Bus-Pfade, für die sich dieser Zustand interessiert. |
 | `boundary` | object | nein | Eingangs-/Ausgangsdaten für Kind-Ebenen. |
+
+`renderMode` ist kein Vertragsfeld. Sichtbare Komponenten gehören immer direkt
+zu ihrem State.
 
 Beispiel: Zustand mit Textkomponente erzeugen.
 
@@ -235,7 +273,7 @@ Setzt den initialen Runtime-Zustand.
 { "type": "set_initial", "stateId": "cart" }
 ```
 
-### `upsert_transition` / `add_transition`
+### `upsert_transition`
 
 Create or update one explicit FSM transition. Endpoints must be existing states
 in the same layer. Cross-layer flow must use boundary input/output references.
@@ -244,21 +282,22 @@ Fields:
 
 | Feld | Typ | Erforderlich | Hinweise |
 | --- | --- | --- | --- |
-| `id` | string | nein | Stabile Übergangsidentität. |
+| `id` | string | nein | Stabile Uebergangsidentitaet. |
 | `from` | Zustands-ID | ja | Quellzustand. |
 | `to` | Zustands-ID | ja | Zielzustand. |
-| `label` | string | nein | Nutzereigene Beschriftung für Schaltfläche oder Kante. Ohne Angabe exakt `Weiter`; Quelle und Ziel bleiben davon getrennte `from`-/`to`-Referenzen. |
-| `triggerType` | `button`, `change`, `event`, `realtime`, `timer`, `auto` | nein | Standard ist `button`. |
-| `triggerEvent` | string | nein | Expliziter Ereignisname. Wird für Schaltfläche/Timer/Auto erzeugt, wenn leer. Realtime-Übergänge behalten eine konkrete `realtime.*`-Referenz. |
-| `timerMs` | number | nein | Dauer für Timer-Übergänge. |
-| `condition` | string | nein | Bedingung über Bus-Pfade. |
-| `set` | object | nein | Patch, der beim Übergang in den globalen Bus geschrieben wird. |
+| `label` | string | nein | Nutzereigene Beschriftung fuer Schaltflaeche oder Kante. Ohne Angabe exakt `Weiter`; Quelle und Ziel bleiben davon getrennte `from`-/`to`-Referenzen. |
+| `triggerType` | `button`, `change`, `event`, `realtime`, `api`, `timer`, `auto` | nein | Standard ist `button`. |
+| `triggerEvent` | string | nein | Konkreter Ereignisname. Wird nur fuer Schaltflaeche/Timer/Auto erzeugt. Change, Event, Realtime und API verlangen eine konkrete Referenz. |
+| `triggerMatch` | object | nein | Nur fuer `realtime`: `{ field, operator, value }` gegen Product-Contract-Felder. Skalare Felder erlauben `equals`; Zahlen erlauben `equals`, `gt`, `gte`, `lt`, `lte`, `between`. Matches desselben Events muessen disjunkt sein. |
+| `timerMs` | number | nein | Dauer fuer Timer-Uebergaenge. |
+| `condition` | string | nein | Bedingung ueber Bus-Pfade. |
+| `set` | object | nein | Patch, der beim Uebergang in den globalen Bus geschrieben wird. |
 | `groupEntryId`, `groupExitId` | Zustands-ID | nein | Editor-Projektionshinweise, kein Runtime-Zustand. |
 
 Das Label wird bei einer Zustandsumbenennung oder beim Umverdrahten nicht
-automatisch verändert. Bekannte alte Generatorwerte `Zu <aktueller Zieltitel>`
-und `To <aktueller Zieltitel>` werden nur bei exakter Übereinstimmung zu
-`Weiter`; andere und eigene Namen bleiben unverändert.
+automatisch verändert. Die Normalisierung interpretiert den Inhalt nicht anhand
+von Quelle, Ziel, Sprache oder Präfixen. Ein leeres Label wird `Weiter`; jedes
+vorhandene nicht leere Label bleibt nach dem Trimmen unverändert.
 
 Schaltflächen-Übergang:
 
@@ -270,7 +309,7 @@ Schaltflächen-Übergang:
   "to": "shipping",
   "label": "Zur Kasse",
   "triggerType": "button",
-  "set": { "checkoutStarted": true }
+  "set": { "states.cart.checkoutStarted": true }
 }
 ```
 
@@ -285,7 +324,7 @@ Timer-Übergang:
   "label": "Geladen",
   "triggerType": "timer",
   "timerMs": 2000,
-  "set": { "loaded": true }
+  "set": { "states.loading.loaded": true }
 }
 ```
 
@@ -300,14 +339,15 @@ Bus-Änderungs-Übergang:
   "label": "Weiter",
   "triggerType": "change",
   "triggerEvent": "change.states.form.accepted",
-  "condition": "accepted == true"
+  "condition": "states.form.accepted == true"
 }
 ```
 
-Short state-scoped paths such as `accepted` are normalized to
-`states.<source-state-id>.accepted`.
+Relative Runtime-Pfade wie `accepted` sind ungueltig. Bedingungen, Wirkungen,
+Datenverbindungen und Render-Bindungen verwenden immer den vollstaendigen
+Buspfad.
 
-Realtime-Übergang:
+Realtime-Uebergang mit formalem Match:
 
 ```json
 {
@@ -318,12 +358,41 @@ Realtime-Übergang:
   "label": "Eingehender Anruf",
   "triggerType": "realtime",
   "triggerEvent": "realtime.sip.call.incoming",
+  "triggerMatch": { "field": "caller", "operator": "equals", "value": "+491234" },
   "condition": "events.realtime.sip.call.incoming.count > 0"
 }
 ```
 
-Realtime event definitions stay on the Realtime API (`/events`). The model stores
-no `model.realtime` contract copy.
+Realtime event definitions and matchable fields stay on the Realtime API (`/events`) and Product Contract (`/contract`). The model stores no `model.realtime` contract copy.
+
+API-Antwort:
+
+```json
+{
+  "type": "upsert_transition",
+  "id": "products_loaded",
+  "from": "products",
+  "to": "results",
+  "label": "Geladen",
+  "triggerType": "api",
+  "triggerEvent": "fetch.states.products.fetch.success"
+}
+```
+Der Fehlerpfad verwendet entsprechend `fetch.states.products.fetch.error`.
+`api` ist ein eigener Trigger und kein Alias fuer `change` oder `event`.
+Conditions gehoeren nicht zur Triggeridentitaet; derselbe konkrete Trigger darf
+pro effektiver Quelle nur einmal vorkommen. Fuer `realtime` entscheidet ein
+optionaler, typisierter `triggerMatch` ueber die konkrete Teilmenge des Events;
+ueberlappende Teilmengen sind ungueltig.
+
+Conditions erlauben ausschließlich `&&`, `||`, `!`, die Operatoren `==`, `!=`,
+`>`, `>=`, `<`, `<=` sowie boolesche, endliche numerische oder gequotete
+String-Literale. `null`, `undefined`, freie Ausdrücke und implizite
+Typumwandlung sind verboten.
+
+Preset categories, package metadata, and managed preset definitions stay on the
+Product Contract (`/contract`). The model and MCP workspace store only the
+materialized states, components, transitions, and their canonical bus paths.
 
 ### `delete_transition`
 
@@ -338,8 +407,11 @@ removed.
 
 Deklariert oder aktualisiert eine zustandsbezogene Variable im globalen Busbaum.
 
-Important: the API always scopes unqualified paths under `states.<stateId>`.
-That prevents collisions between states.
+`path` ist immer ein zustandsrelativer Feldpfad innerhalb der Modellkonfiguration
+`state.data`. Die API speichert
+keinen qualifizierten Schlüssel und ergänzt keinen Präfix. Die Runtime stellt
+die Deklaration beim State-Eintritt ausschließlich unter
+`states.<stateId>.<path>` bereit.
 
 ```json
 {
@@ -355,8 +427,8 @@ Stored result:
 
 ```json
 {
-  "data": { "states.form": { "email": "" } },
-  "dataTypes": { "states.form.email": "email" }
+  "data": { "email": "" },
+  "dataTypes": { "email": "email" }
 }
 ```
 
@@ -373,8 +445,8 @@ Entfernt einen deklarierten Bus-Pfad aus einem Zustand. Passende Datenverbindung
 
 ### `configure_fetch`
 
-Configure state-entry fetch. Fetch is an entry effect of the active state, never
-a render side effect.
+Konfiguriert Fetch als Eintrittseffekt des aktiven Zustands. Fetch ist niemals
+ein Render-Nebeneffekt.
 
 Fields:
 
@@ -424,7 +496,7 @@ Fields:
 | --- | --- | --- |
 | `id` | string | Stabile Verbindungs-ID. |
 | `stateId` | string | Besitzender Zustand. |
-| `sourcePath` / `path` | Bus-Pfad | Zu lesender Wert. |
+| `sourcePath` | Bus-Pfad | Zu lesender Wert. |
 | `scopePath` | Bus-Pfad | Optionaler Listenpfad für Wiederholung. |
 | `itemPath` | Pfad | Optionaler Pfad innerhalb jedes Listeneintrags. |
 | `role` | string | `image`, `title`, `price`, `description`, `field`, `link`, `note`. |
@@ -627,7 +699,7 @@ Regeln:
 ```json
 {
   "actions": [
-    { "type": "delete_transition", "id": "a_to_c" },
+    { "type": "delete_transition", "transitionId": "a_to_c" },
     { "type": "upsert_state", "id": "b", "title": "Prüfen", "x": 360, "y": 120 },
     { "type": "upsert_transition", "id": "a_to_b", "from": "a", "to": "b", "label": "Prüfen" },
     { "type": "upsert_transition", "id": "b_to_c", "from": "b", "to": "c", "label": "Weiter" }
@@ -776,11 +848,38 @@ Timer-Übergänge werden nicht als Schaltflächen gerendert.
 {"name":"state_blueprint_export_definition","arguments":{}}
 ```
 
+Definition in eine Datei schreiben:
+
+```json
+{
+  "name": "state_blueprint_export_definition",
+  "arguments": {
+    "outputPath": "./dist/ablauf.state.json",
+    "includeDefinition": false
+  }
+}
+```
+
 ### Import `.state.json`
 
 ```json
 {"name":"state_blueprint_import_definition","arguments":{"definition":{"kind":"state-blueprint-definition","schemaVersion":2,"model":{"version":2,"name":"Importiert","states":[],"transitions":[]},"stateTemplates":[]}}}
 ```
+
+Dasselbe Laden geht ohne Dateipfad mit einem JSON string:
+
+```json
+{
+  "name": "state_blueprint_import_definition",
+  "arguments": {
+    "json": "{\"kind\":\"state-blueprint-definition\",\"schemaVersion\":2,\"model\":{\"version\":2,\"name\":\"Importiert\",\"states\":[],\"transitions\":[]},\"stateTemplates\":[]}"
+  }
+}
+```
+
+Der Import schreibt wieder den MCP-Workspace im Schema
+`state-blueprint.workspace`/`schemaVersion: 1`; die `.state.json` selbst wird
+nicht als Workspace-Datei behandelt.
 
 ### Eigenständiges HTML exportieren
 
@@ -886,7 +985,7 @@ wenn sie eine eigene Historie braucht.
 
 ## Vertragsprüfungen
 
-Vor dem Schreiben lehnt die API diese Fälle ab oder normalisiert sie:
+Vor dem Schreiben lehnt die API diese Fälle ab:
 
 - Übergänge, deren Endpunkte nicht existieren.
 - Übergänge über Ebenen hinweg ohne Boundary-Proxies.
@@ -894,7 +993,13 @@ Vor dem Schreiben lehnt die API diese Fälle ab oder normalisiert sie:
 - Datentyp-Einträge ohne passendes `state.data`.
 - Datenverbindungs-Komponenten, die auf fehlende Verbindungen zeigen.
 - Übergangsschaltflächen, die auf fehlende Übergänge zeigen.
-- Kollisionen von Zustandsvariablen, indem neue Variablen unter `states.<stateId>` gescopet werden.
+- nicht lokale `path`-Werte in `state.data`-Deklarationen.
+- nackte Modelle, Definitionen oder falsche Schema-Versionen als MCP-Workspace.
+- entfernte Aktions-, Befehls- und Aliasfeldformen; es gibt keine Kompatibilitätsaliasse.
+
+Ein lokaler Deklarationspfad wie `email` wird in `state.data` gespeichert. Die
+Runtime stellt ihn genau einmal unter `states.<stateId>.email` bereit; es
+entsteht kein zweiter veränderlicher Zustand.
 
 Empfohlener Schreibablauf für Agenten:
 

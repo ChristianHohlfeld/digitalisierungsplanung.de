@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [ -f /etc/digitalisierungsplanung-realtime.env ]; then
+ENV_FILE="${REALTIME_ENV_FILE:-/etc/digitalisierungsplanung-realtime.env}"
+
+if [[ -f "$ENV_FILE" ]]; then
   set -a
   # shellcheck disable=SC1091
-  . /etc/digitalisierungsplanung-realtime.env
+  . "$ENV_FILE"
   set +a
 fi
 

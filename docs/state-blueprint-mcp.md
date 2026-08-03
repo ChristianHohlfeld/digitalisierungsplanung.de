@@ -11,12 +11,42 @@ UI-zu-API-Zuordnung steht in [`state-blueprint-api.md`](./state-blueprint-api.md
 
 ## Start
 
+Lokal über stdio:
+
 ```bash
 STATE_BLUEPRINT_MODEL_PATH=./state-blueprint.workspace.json npm run mcp:state
 ```
 
 Ohne `STATE_BLUEPRINT_MODEL_PATH` nutzt der Server
 `./state-blueprint.workspace.json`.
+
+Remote über den Realtime-Server:
+
+```bash
+curl -X POST https://realtime.digitalisierungsplanung.de/mcp \
+  -H "authorization: Bearer $REALTIME_MCP_SECRET" \
+  -H "content-type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+```
+
+Der HTTPS-Endpunkt verwendet denselben MCP-Core wie stdio. Er persistiert nur
+die `state-blueprint.workspace`-Datei aus `STATE_BLUEPRINT_MODEL_PATH` und
+akzeptiert Requests nur mit Bearer-Secret. Primär ist `REALTIME_MCP_SECRET`;
+bei bewusst gemeinsamem Server-Secret funktionieren auch `REALTIME_ADMIN_SECRET`
+oder `REALTIME_EMIT_SECRET`.
+
+Persistiert wird ausschließlich `state-blueprint.workspace` in
+`schemaVersion: 1`. Nackte Modelle und formale Definitionen sind keine
+Workspace-Dateien; Definitionen werden nur mit
+`state_blueprint_import_definition` importiert. Namen und Felder der
+öffentlichen Werkzeuge, Aktionen und Befehle sind exakt und besitzen keine
+Kompatibilitätsaliasse.
+
+`state_blueprint_export_definition` gibt die formale `.state.json` wie der
+Editor-Speichern-Flow zurueck und kann sie mit `outputPath` direkt als Datei
+schreiben. `state_blueprint_import_definition` ist der passende Load-Flow; er
+nimmt entweder `definition` als JSON-Objekt oder `json` als JSON string entgegen
+und schreibt danach wieder nur den MCP-Workspace.
 
 ## Werkzeuge
 
@@ -49,13 +79,48 @@ nicht über DOM-Klicks.
   Datenverbindungen, Boundary und Editor-Session.
 - Runtime-Daten werden nicht in Komponenten, HTML oder lokalen Stores versteckt.
 - UI-Aktionen feuern nur explizit gebundene Übergänge oder Bus-Ereignisse.
+- Jede explizite UI-Aktionsbindung besitzt eine vorhandene ausgehende
+  Transition-ID. Mehrere Controls dürfen dieselbe Transition auslösen, ohne
+  einen weiteren Trigger zu erzeugen. Nur ein `button`-Trigger rendert dafür ein
+  Control; andere Trigger erzeugen keinen Ersatzbutton und keine lokale
+  Fallback-Aktion.
+- Ein Aktionsslot besitzt entweder eine Transition-ID oder eine URL. Beides im
+  selben Slot ist ein Contract-Fehler.
+- Trigger bleiben an Transitionen. Pro effektiver Quelle darf jede konkrete
+  Triggeridentität nur einmal vorkommen. Conditions sind keine
+  Prioritäts- oder Eindeutigkeitsregel; derselbe Event darf deshalb nicht von
+  mehreren Ausgängen beansprucht werden. Ein Timer ist einmal zulässig und
+  `auto` ist exklusiv. MCP-Aktionen mit einem Konflikt werden nicht angewendet.
+- Zulässige fachliche `triggerType`-Werte sind ausschließlich `button`,
+  `change`, `event`, `realtime`, `api`, `timer` und `auto`; internes `flow` ist nur
+  strukturelle Child-Führung. Andere Werte werden weder als Alias akzeptiert
+  noch zu `button` normalisiert.
 - `transition.set` ist Wirkung nach einem Ereignis, nicht die Quelle einer
   Schaltflächen-Bindung.
 - Realtime-Übergänge speichern `triggerType: "realtime"` plus konkrete
   `realtime.*`-Ereignisse; Ereigniskataloge werden nicht ins Modell kopiert.
+- API-Übergänge speichern `triggerType: "api"` plus exakt
+  `fetch.<target>.success` oder `fetch.<target>.error`; sie sind kein
+  `change`- oder `event`-Alias.
+- Conditions verwenden nur die kanonische Grammatik aus
+  [`state-contract.md`](./state-contract.md). `null`, `undefined` und freie
+  JavaScript-Ausdrücke werden abgelehnt.
+- Preset-Kategorien, Paketmetadaten und Preset-Definitionen bleiben im
+  serverseitigen Product Contract; MCP persistiert sie ebenso wenig im Modell
+  wie der Editor.
 - Verschachtelter Ablauf läuft über Boundary-Eingang/-Ausgang und Proxy-Übergänge.
+- Zusammengesetzte Definitionen und Presets deklarieren ihren internen
+  Boundary-Einstieg selbst. Import und MCP wählen niemals das erste, letzte
+  oder geometrisch nächste Child als Ersatz.
 - Exportierte Definitionen enthalten keine Undo-Historie und keinen
   Editor-Zwischenablage.
+- Lokale `state.data`-Pfade deklarieren Defaults; Runtime-Referenzen sind immer
+  vollqualifizierte `states.<id>.*`-Buspfade.
+- Server-getriebene Runtime-Felder unter `events.*`, `realtime.*` und
+  `emitters.*` gehören in den Product Contract; MCP kopiert diese Feldliste
+  nicht ins Modell.
+- Preview, Editor-HTML-Export und MCP-HTML-Export verwenden dieselbe kanonische
+  Runtime-Quelle.
 
 ## MCP-Ressourcen
 
@@ -74,9 +139,30 @@ nicht über DOM-Klicks.
     { "type": "upsert_state", "id": "formular", "title": "Formular", "x": 96, "y": 120 },
     { "type": "upsert_state_variable", "stateId": "formular", "path": "email", "valueType": "email", "value": "" },
     { "type": "upsert_state", "id": "fertig", "title": "Fertig", "x": 360, "y": 120 },
-    { "type": "upsert_transition", "id": "formular_fertig", "from": "formular", "to": "fertig", "label": "Absenden", "condition": "email" },
+    { "type": "upsert_transition", "id": "formular_fertig", "from": "formular", "to": "fertig", "label": "Absenden", "condition": "states.formular.email" },
     { "type": "set_initial", "stateId": "formular" }
   ]
+}
+```
+
+## Beispiel: Definition exportieren und laden
+
+```json
+{
+  "name": "state_blueprint_export_definition",
+  "arguments": {
+    "outputPath": "./dist/ablauf.state.json",
+    "includeDefinition": false
+  }
+}
+```
+
+```json
+{
+  "name": "state_blueprint_import_definition",
+  "arguments": {
+    "json": "{\"kind\":\"state-blueprint-definition\",\"schemaVersion\":2,\"model\":{\"version\":2,\"name\":\"Importiert\",\"states\":[],\"transitions\":[]},\"stateTemplates\":[]}"
+  }
 }
 ```
 

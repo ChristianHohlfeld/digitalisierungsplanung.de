@@ -1,2 +1,0 @@
-self.ZUSTAND_SW_VERSION = "deploy-43-1";
-self.ZUSTAND_SW_BUILT_AT = "2026-07-10T22:45:53Z";

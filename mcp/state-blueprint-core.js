@@ -1,8 +1,12 @@
 "use strict";
 
+const eventCatalog = require("../server/event-catalog");
+const productContract = require("../server/product-contract");
+const valueTypes = require("../server/value-types");
+
 const ROOT_LAYER_ID = "__root__";
 const GRID_SIZE = 24;
-const NODE_W = 168;
+const NODE_W = 192;
 const NODE_H = 96;
 const WORLD_MIN_X = -10000;
 const WORLD_MIN_Y = -8000;
@@ -10,16 +14,34 @@ const WORLD_MAX_X = 20000;
 const WORLD_MAX_Y = 16000;
 const STATE_VARIABLE_TYPES = ["text", "email", "password", "number", "boolean", "url", "image", "object", "list"];
 const COMPONENT_TYPES = ["heading", "text", "image", "list", "link", "note", "divider", "daisy", "transitionButton", "dataWire"];
-const TRANSITION_TRIGGER_TYPES = ["button", "change", "event", "realtime", "timer", "auto"];
+const TRANSITION_TRIGGER_TYPES = ["button", "change", "event", "realtime", "api", "timer", "auto"];
+const TRANSITION_TRIGGER_CONTRACT_TYPES = new Set([...TRANSITION_TRIGGER_TYPES, "flow"]);
 const DATA_WIRE_ROLES = ["image", "title", "price", "description", "field", "link", "note"];
 const FORBIDDEN_COMPONENT_STATE_KEYS = ["localState", "stateStore", "store", "html"];
+const REPOSITORY_PRODUCT_CONTRACT = productContract.productContractResponse(eventCatalog.loadEventCatalogFile());
+const CONTRACT_READABLE_PATHS = new Set(
+  REPOSITORY_PRODUCT_CONTRACT.stateContributions.flatMap(contribution => [
+    contribution.root,
+    ...(Array.isArray(contribution.fields) ? contribution.fields : [])
+  ])
+);
+const CONTRACT_REALTIME_EVENTS = new Set(
+  (REPOSITORY_PRODUCT_CONTRACT.triggerTypes.find(type => type.id === "realtime")?.events || [])
+    .map(event => event.name)
+);
+const CONTRACT_REALTIME_EVENTS_BY_NAME = new Map(
+  (REPOSITORY_PRODUCT_CONTRACT.triggerTypes.find(type => type.id === "realtime")?.events || [])
+    .map(event => [event.name, event])
+);
+const TRIGGER_MATCH_TYPES = new Set(["realtime"]);
+const TRIGGER_MATCH_OPERATORS = new Set(["equals", "gt", "gte", "lt", "lte", "between"]);
 
 function isPlainObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function clone(value) {
-  return JSON.parse(JSON.stringify(value ?? null));
+  return structuredClone(value);
 }
 
 function clamp(value, min, max) {
@@ -85,50 +107,416 @@ function stateDataScopeForId(id) {
 }
 
 function stateVariableActualPath(state, value) {
+  const localPath = stateVariableLocalPath(value);
+  if (!localPath) return "";
+  const scope = stateDataScopeForId(state?.id);
+  return scope ? `${scope}.${localPath}` : localPath;
+}
+
+function stateVariableLocalPath(value) {
+  const raw = normalizeBindingPath(value, "");
+  return raw && !raw.startsWith("states.") ? raw : "";
+}
+
+function runtimeActionPath(value) {
   const raw = normalizeBindingPath(value, "");
   if (!raw) return "";
-  const scope = stateDataScopeForId(state?.id);
-  if (!scope) return raw;
-  if (raw === scope || raw.startsWith(`${scope}.`)) return raw;
-  if (raw.startsWith("states.")) return "";
-  return `${scope}.${raw}`;
+  return runtimeBusPathIsReadable(raw) ? raw : "";
 }
 
-function stateScopedActionPath(state, value) {
-  const raw = normalizeBindingPath(value, "");
-  if (!raw) return "";
-  if (/^(states|state|events|runtime|realtime)(\.|$)/.test(raw)) return raw;
-  return stateVariableActualPath(state, raw) || raw;
+function runtimeBusPathIsReadable(value) {
+  const path = normalizeBindingPath(value, "");
+  return /^states\.[a-zA-Z_][a-zA-Z0-9_]*\./.test(path)
+    || path === "state.current"
+    || path === "runtime.paused"
+    || CONTRACT_READABLE_PATHS.has(path);
 }
 
-function escapeRegExp(text) {
-  return String(text).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function runtimeBusPathIsWritable(value) {
+  return /^states\.[a-zA-Z_][a-zA-Z0-9_]*\./.test(normalizeBindingPath(value, ""));
 }
 
-function ensureStateVariableScopeRoot(state, data = state?.data) {
-  const source = normalizeDataObject(data);
-  const scope = stateDataScopeForId(state?.id);
-  if (!scope) return source;
-  if (!isPlainObject(source[scope])) {
-    const existing = dataObjectValueAtPath(source, scope);
-    source[scope] = isPlainObject(existing) ? existing : {};
+function runtimeComponentDataPathIsValid(value) {
+  return /^states\.[a-zA-Z_][a-zA-Z0-9_]*(?:\.|$)/.test(normalizeBindingPath(value, ""));
+}
+
+function conditionRuntimePaths(condition) {
+  const withoutStrings = String(condition || "").replace(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/g, " ");
+  return withoutStrings.match(/[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*/g) || [];
+}
+
+function conditionContractIssue(condition) {
+  const text = String(condition || "").trim();
+  if (!text) return "";
+  const pathPattern = "[a-zA-Z_][a-zA-Z0-9_]*(?:\\.(?:[a-zA-Z_][a-zA-Z0-9_]*|\\d+))*";
+  const pathOnly = new RegExp(`^${pathPattern}$`);
+  const comparison = new RegExp(`^(${pathPattern})\\s*(==|!=|>=|<=|>|<)\\s*(.+)$`);
+  const literal = /^(?:true|false|-?\d+(?:\.\d+)?|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')$/;
+  for (const orPart of text.split("||")) {
+    if (!orPart.trim()) return "Condition contains an empty OR branch.";
+    for (let atom of orPart.split("&&")) {
+      atom = atom.trim();
+      if (!atom) return "Condition contains an empty AND branch.";
+      if (atom === "true" || atom === "false") continue;
+      if (atom.startsWith("!")) {
+        const path = atom.slice(1).trim();
+        if (!pathOnly.test(path) || !runtimeBusPathIsReadable(path)) return `Invalid condition atom: ${atom}`;
+        continue;
+      }
+      const match = atom.match(comparison);
+      if (match) {
+        if (!runtimeBusPathIsReadable(match[1]) || !literal.test(match[3].trim())) return `Invalid condition comparison: ${atom}`;
+        if ([">", ">=", "<", "<="].includes(match[2]) && !/^-?\d+(?:\.\d+)?$/.test(match[3].trim())) {
+          return `Numeric comparison requires a numeric literal: ${atom}`;
+        }
+        continue;
+      }
+      if (!pathOnly.test(atom) || !runtimeBusPathIsReadable(atom)) return `Invalid condition atom: ${atom}`;
+    }
   }
-  return source;
+  return "";
+}
+
+function runtimeReferenceContractIssuesForState(state) {
+  const stateId = String(state?.id || "");
+  const issues = [];
+  const add = (code, path, message) => issues.push({ code, stateId, path, message });
+  for (const component of Array.isArray(state?.components) ? state.components : []) {
+    if (component?.dataPath && !runtimeComponentDataPathIsValid(component.dataPath)) {
+      add("invalid_component_data_path", String(component.dataPath), "Component dataPath must use states.<id> or states.<id>.<field>.");
+    }
+    for (const value of [component?.text, component?.url, ...(Array.isArray(component?.items) ? component.items.flatMap(item => [item?.text, item?.url]) : [])]) {
+      if (/\{\{[\s\S]*?\}\}/.test(String(value || ""))) {
+        add("invalid_component_template", String(value || ""), "Component text must be literal; bind runtime data through dataPath or dataWires.");
+      }
+    }
+  }
+  for (const wire of Array.isArray(state?.dataWires) ? state.dataWires : []) {
+    if (!runtimeBusPathIsReadable(wire?.sourcePath || wire?.path)) add("invalid_data_wire_source", String(wire?.sourcePath || wire?.path || ""), "Data-wire sourcePath must use a fully qualified runtime bus path.");
+    if (wire?.scopePath && !runtimeBusPathIsReadable(wire.scopePath)) add("invalid_data_wire_scope", String(wire.scopePath), "Data-wire scopePath must use a fully qualified runtime bus path.");
+  }
+  if (state?.dataSource?.target && !runtimeBusPathIsWritable(state.dataSource.target)) {
+    add("invalid_data_source_target", String(state.dataSource.target), "Fetch target must use states.<id>.<field>.");
+  }
+  if (state?.repeat?.path && !runtimeBusPathIsReadable(state.repeat.path)) {
+    add("invalid_repeat_path", String(state.repeat.path), "Repeat path must use a fully qualified runtime bus path.");
+  }
+  for (const subscription of Array.isArray(state?.subscriptions) ? state.subscriptions : []) {
+    if (subscription !== "*" && !runtimeBusPathIsReadable(subscription)) add("invalid_subscription_path", String(subscription), "Subscription must be * or a fully qualified runtime bus path.");
+  }
+  return issues;
+}
+
+function normalizeTriggerMatch(value) {
+  if (!isPlainObject(value)) return {};
+  const field = normalizeBindingPath(value.field || "", "");
+  const operator = String(value.operator || "").trim();
+  if (!field || !TRIGGER_MATCH_OPERATORS.has(operator)) return {};
+  const out = { field, operator };
+  if (operator === "between") {
+    const range = normalizeTriggerMatchRange(value.value);
+    if (!range) return {};
+    out.value = range;
+  } else if (Object.hasOwn(value, "value")) out.value = clone(value.value);
+  else out.value = "";
+  return out;
+}
+
+function triggerMatchIsEmpty(match) {
+  return !isPlainObject(match) || !normalizeBindingPath(match.field || "", "") || !TRIGGER_MATCH_OPERATORS.has(String(match.operator || ""));
+}
+
+function canonicalTriggerMatchValue(value) {
+  if (typeof value === "number") return Number.isFinite(value) ? JSON.stringify(value) : "";
+  if (typeof value === "boolean" || typeof value === "string") return JSON.stringify(value);
+  if (isPlainObject(value) && Number.isFinite(value.min) && Number.isFinite(value.max)) {
+    return JSON.stringify({
+      min: value.min,
+      minInclusive: value.minInclusive !== false,
+      max: value.max,
+      maxInclusive: value.maxInclusive !== false
+    });
+  }
+  return "";
+}
+
+function canonicalTriggerMatchKey(match) {
+  const normalized = normalizeTriggerMatch(match);
+  if (triggerMatchIsEmpty(normalized)) return "*";
+  const value = canonicalTriggerMatchValue(normalized.value);
+  if (!value) return "";
+  return `${normalized.field}:${normalized.operator}:${value}`;
+}
+
+function triggerMatchOperatorsForSchema(schema) {
+  const type = String(schema?.type || "").trim();
+  if (type === "number") return new Set(["equals", "gt", "gte", "lt", "lte", "between"]);
+  if (["boolean", "text", "email", "url", "image"].includes(type)) return new Set(["equals"]);
+  return new Set();
+}
+
+function normalizeTriggerMatchRange(value) {
+  if (!isPlainObject(value)) return null;
+  const min = Number(value.min);
+  const max = Number(value.max);
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+  const minInclusive = value.minInclusive !== false;
+  const maxInclusive = value.maxInclusive !== false;
+  if (min > max) return null;
+  if (min === max && (!minInclusive || !maxInclusive)) return null;
+  return { min, minInclusive, max, maxInclusive };
+}
+
+function triggerMatchInterval(match, schema) {
+  const normalized = normalizeTriggerMatch(match);
+  if (triggerMatchIsEmpty(normalized) || String(schema?.type || "") !== "number") return null;
+  if (normalized.operator === "equals") {
+    if (!valueTypes.validateValueAgainstSchema(normalized.value, schema).ok) return null;
+    return { min: normalized.value, minInclusive: true, max: normalized.value, maxInclusive: true };
+  }
+  if (normalized.operator === "gt" || normalized.operator === "gte") {
+    if (!valueTypes.validateValueAgainstSchema(normalized.value, schema).ok) return null;
+    return { min: normalized.value, minInclusive: normalized.operator === "gte", max: Infinity, maxInclusive: false };
+  }
+  if (normalized.operator === "lt" || normalized.operator === "lte") {
+    if (!valueTypes.validateValueAgainstSchema(normalized.value, schema).ok) return null;
+    return { min: -Infinity, minInclusive: false, max: normalized.value, maxInclusive: normalized.operator === "lte" };
+  }
+  if (normalized.operator === "between") {
+    const range = normalizeTriggerMatchRange(normalized.value);
+    if (!range) return null;
+    if (!valueTypes.validateValueAgainstSchema(range.min, schema).ok || !valueTypes.validateValueAgainstSchema(range.max, schema).ok) return null;
+    return range;
+  }
+  return null;
+}
+
+function triggerMatchIntervalsOverlap(left, right) {
+  if (!left || !right) return true;
+  if (left.max < right.min) return false;
+  if (right.max < left.min) return false;
+  if (left.max === right.min && !(left.maxInclusive && right.minInclusive)) return false;
+  if (right.max === left.min && !(right.maxInclusive && left.minInclusive)) return false;
+  return true;
+}
+
+function transitionTriggerMatchesCanOverlap(left, right) {
+  const leftMatch = normalizeTriggerMatch(left?.triggerMatch);
+  const rightMatch = normalizeTriggerMatch(right?.triggerMatch);
+  if (triggerMatchIsEmpty(leftMatch) || triggerMatchIsEmpty(rightMatch)) return true;
+  if (leftMatch.field !== rightMatch.field) return true;
+  const event = CONTRACT_REALTIME_EVENTS_BY_NAME.get(normalizeTransitionEvent(left?.triggerEvent || ""));
+  const schema = event?.matchFieldSchemas?.[leftMatch.field] || event?.detailSchemas?.[leftMatch.field] || valueTypes.fieldSchemaForType(event?.detail?.[leftMatch.field] || "text");
+  if (String(schema?.type || "") === "number") {
+    return triggerMatchIntervalsOverlap(triggerMatchInterval(leftMatch, schema), triggerMatchInterval(rightMatch, schema));
+  }
+  return canonicalTriggerMatchValue(leftMatch.value) === canonicalTriggerMatchValue(rightMatch.value);
+}
+
+function triggerMatchContractIssues(transition) {
+  const match = normalizeTriggerMatch(transition?.triggerMatch);
+  if (triggerMatchIsEmpty(match)) return [];
+  const transitionId = String(transition?.id || "");
+  const triggerType = String(transition?.triggerType || "button");
+  const eventName = normalizeTransitionEvent(transition?.triggerEvent || "");
+  const issues = [];
+  const add = (code, message) => issues.push({ code, transitionId, path: match.field, message });
+  if (!TRIGGER_MATCH_TYPES.has(triggerType)) {
+    add("invalid_trigger_match_type", "triggerMatch is only supported for Product Contract realtime events.");
+    return issues;
+  }
+  const event = CONTRACT_REALTIME_EVENTS_BY_NAME.get(eventName);
+  if (!event) {
+    add("invalid_trigger_match_event", "triggerMatch must reference an event declared by the Product Contract.");
+    return issues;
+  }
+  const allowedFields = new Set(event.matchFields || Object.keys(event.detail || {}));
+  if (!allowedFields.has(match.field)) {
+    add("invalid_trigger_match_field", "triggerMatch.field must be declared as a matchable Product Contract event field.");
+    return issues;
+  }
+  const schema = event.matchFieldSchemas?.[match.field] || event.detailSchemas?.[match.field] || valueTypes.fieldSchemaForType(event.detail?.[match.field]);
+  const operators = triggerMatchOperatorsForSchema(schema);
+  if (!operators.has(match.operator)) {
+    add("invalid_trigger_match_operator", "triggerMatch.operator is not allowed for this field type.");
+    return issues;
+  }
+  const validation = String(schema?.type || "") === "number" && match.operator === "between"
+    ? (() => {
+        const interval = triggerMatchInterval(match, schema);
+        return interval && Number.isFinite(interval.min) && Number.isFinite(interval.max) ? { ok: true } : { ok: false };
+      })()
+    : valueTypes.validateValueAgainstSchema(match.value, schema);
+  if (!validation.ok) {
+    add("invalid_trigger_match_value", "triggerMatch.value must match the Product Contract field type and constraints.");
+  }
+  return issues;
+}
+
+function runtimeReferenceContractIssuesForTransition(transition) {
+  const transitionId = String(transition?.id || "");
+  const issues = [];
+  const conditionIssue = conditionContractIssue(transition?.condition);
+  if (conditionIssue) issues.push({ code: "invalid_transition_condition", transitionId, message: conditionIssue });
+  for (const path of Object.keys(isPlainObject(transition?.set) ? transition.set : {})) {
+    if (!runtimeBusPathIsWritable(path)) issues.push({ code: "invalid_transition_set_path", transitionId, path, message: "Transition set paths must use states.<id>.<field>." });
+  }
+  const literals = new Set(["true", "false"]);
+  for (const path of conditionRuntimePaths(transition?.condition)) {
+    if (!literals.has(path) && !runtimeBusPathIsReadable(path)) {
+      issues.push({ code: "invalid_transition_condition_path", transitionId, path, message: "Transition condition references must use fully qualified runtime bus paths." });
+    }
+  }
+  const triggerType = String(transition?.triggerType || "button");
+  const triggerEvent = String(transition?.triggerEvent || "");
+  if (triggerEvent && normalizeTransitionEvent(triggerEvent) !== triggerEvent) {
+    issues.push({ code: "invalid_transition_event_name", transitionId, path: triggerEvent, message: "Transition event names must already be canonical." });
+  }
+  if (triggerType === "change") {
+    const path = triggerEvent.startsWith("change.") ? triggerEvent.slice("change.".length) : triggerEvent;
+    if (!path || !runtimeBusPathIsReadable(path)) issues.push({ code: "invalid_change_trigger_path", transitionId, path, message: "Change triggers must reference one concrete fully qualified runtime bus path." });
+  }
+  if (triggerType === "api" && !/^fetch\.[a-z0-9_.]+\.(success|error)$/.test(triggerEvent)) {
+    issues.push({ code: "invalid_api_trigger_event", transitionId, path: triggerEvent, message: "API triggers must reference fetch.<target>.success or fetch.<target>.error." });
+  }
+  if (triggerType === "event" && triggerEvent.startsWith("fetch.")) {
+    issues.push({ code: "invalid_event_trigger_namespace", transitionId, path: triggerEvent, message: "Fetch result events belong to triggerType api." });
+  }
+  if (triggerType === "realtime" && !CONTRACT_REALTIME_EVENTS.has(triggerEvent)) {
+    issues.push({ code: "invalid_realtime_trigger_event", transitionId, path: triggerEvent, message: "Realtime triggers must reference an event declared by the Product Contract." });
+  }
+  issues.push(...triggerMatchContractIssues(transition));
+  return issues;
+}
+
+function assertRuntimeReferenceContract(entity, kind) {
+  const issues = kind === "transition"
+    ? runtimeReferenceContractIssuesForTransition(entity)
+    : runtimeReferenceContractIssuesForState(entity);
+  if (!issues.length) return;
+  const error = new Error(issues.map(issue => issue.message).join("; "));
+  error.validation = { ok: false, issues };
+  throw error;
 }
 
 function normalizeDataObject(value) {
   return isPlainObject(value) ? clone(value) : {};
 }
 
+function normalizeStateDataValue(value) {
+  if (Array.isArray(value)) return value.map(normalizeStateDataValue);
+  if (!isPlainObject(value)) return value;
+  const out = {};
+  for (const [key, child] of Object.entries(value)) {
+    out[key] = normalizeStateDataValue(child);
+  }
+  return out;
+}
+
+function normalizeStateDataObject(value) {
+  return isPlainObject(value) ? normalizeStateDataValue(value) : {};
+}
+
+function stateDataContractIssues(value, stateId) {
+  const issues = [];
+  if (value === undefined) return issues;
+  if (!isPlainObject(value)) {
+    return [{
+      code: "invalid_state_data",
+      stateId,
+      message: "state.data must be an object with local identifier keys."
+    }];
+  }
+  const visit = (node, path) => {
+    if (node === null || node === undefined) {
+      issues.push({
+        code: "invalid_state_data_value",
+        stateId,
+        path,
+        message: `state.data value "${path}" must be defined and must not be null.`
+      });
+      return;
+    }
+    if (typeof node === "number" && !Number.isFinite(node)) {
+      issues.push({ code: "invalid_state_data_value", stateId, path, message: `state.data value "${path}" must be a finite JSON number.` });
+      return;
+    }
+    if (!["boolean", "number", "object", "string"].includes(typeof node)) {
+      issues.push({ code: "invalid_state_data_value", stateId, path, message: `state.data value "${path}" must be a JSON value.` });
+      return;
+    }
+    if (Array.isArray(node)) {
+      for (let index = 0; index < node.length; index += 1) {
+        if (!Object.prototype.hasOwnProperty.call(node, index)) {
+          issues.push({ code: "invalid_state_data_value", stateId, path: `${path}[${index}]`, message: `state.data value "${path}[${index}]" must not be an array hole.` });
+          continue;
+        }
+        visit(node[index], `${path}[${index}]`);
+      }
+      return;
+    }
+    if (typeof node !== "object") return;
+    if (!isPlainObject(node)) {
+      issues.push({ code: "invalid_state_data_value", stateId, path, message: `state.data value "${path}" must be a plain JSON object.` });
+      return;
+    }
+    for (const [key, child] of Object.entries(node)) {
+      const childPath = path ? `${path}.${key}` : key;
+      if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key)) {
+        issues.push({
+          code: "invalid_state_data_key",
+          stateId,
+          path: childPath,
+          message: `state.data key "${childPath}" must be a local identifier without dots.`
+        });
+      }
+      visit(child, childPath);
+    }
+  };
+  visit(value, "");
+  return issues;
+}
+
+function stateDataTypeContractIssues(value, data, stateId) {
+  if (value === undefined) return [];
+  if (!isPlainObject(value)) {
+    return [{
+      code: "invalid_state_data_types",
+      stateId,
+      message: "state.dataTypes must be an object keyed by local state.data paths."
+    }];
+  }
+  const dataObject = isPlainObject(data) ? data : {};
+  const issues = [];
+  for (const path of Object.keys(value)) {
+    const cleanPath = normalizeDataTypePath(path, "");
+    if (!cleanPath || !dataObjectHasPath(dataObject, cleanPath)) {
+      issues.push({
+        code: "invalid_state_data_type_path",
+        stateId,
+        path,
+        message: `state.dataTypes path "${path}" must reference a local path declared in state.data.`
+      });
+    }
+  }
+  return issues;
+}
+
+function assertStateDataContract(value, dataTypes, stateId) {
+  const issues = [
+    ...stateDataContractIssues(value, stateId),
+    ...stateDataTypeContractIssues(dataTypes, value, stateId)
+  ];
+  if (!issues.length) return;
+  const error = new Error(issues.map(issue => issue.message).join("; "));
+  error.validation = { ok: false, issues };
+  throw error;
+}
+
 function dataObjectPathSegments(dataObject, path) {
   const key = String(path || "").trim();
   if (!key) return [];
-  const parts = key.split(".").filter(Boolean);
-  for (let index = parts.length; index >= 1; index -= 1) {
-    const prefix = parts.slice(0, index).join(".");
-    if (Object.prototype.hasOwnProperty.call(dataObject, prefix)) return [prefix, ...parts.slice(index)];
-  }
-  return parts;
+  return key.split(".").filter(Boolean);
 }
 
 function dataObjectValueAtPath(data, path) {
@@ -215,49 +603,31 @@ function normalizeDataTypes(value, data = {}) {
   return out;
 }
 
-function stateScopedVariablePaths(state) {
-  const scope = stateDataScopeForId(state?.id);
-  const scopedRoot = dataObjectValueAtPath(state?.data, scope);
-  const rows = [];
-  const walk = (path, value) => {
-    if (!path) return;
-    if (isPlainObject(value)) {
-      Object.entries(value).forEach(([key, child]) => walk(`${path}.${key}`, child));
-      return;
-    }
-    rows.push(path);
-  };
-  if (isPlainObject(scopedRoot)) Object.entries(scopedRoot).forEach(([key, value]) => walk(`${scope}.${key}`, value));
-  return rows.sort((a, b) => b.length - a.length);
-}
-
-function rewriteStateScopedCondition(state, condition) {
-  let text = String(condition || "");
-  const scope = stateDataScopeForId(state?.id);
-  if (!scope) return text;
-  for (const fullPath of stateScopedVariablePaths(state)) {
-    const shortPath = fullPath.slice(scope.length + 1);
-    if (!shortPath || text.includes(fullPath)) continue;
-    const pattern = new RegExp(`(^|[^A-Za-z0-9_.$])${escapeRegExp(shortPath)}(?=$|[^A-Za-z0-9_])`, "g");
-    text = text.replace(pattern, (_, prefix) => prefix + fullPath);
-  }
+function validateTransitionCondition(condition) {
+  const text = String(condition || "");
+  const issues = runtimeReferenceContractIssuesForTransition({ condition: text, set: {} });
+  if (issues.length) throw new Error(issues[0].message);
   return text;
 }
 
-function normalizeStateScopedPatch(state, patch) {
+function normalizeTransitionPatch(patch) {
+  if (patch === undefined) return {};
+  const invalidValuePath = firstInvalidJsonValuePath(patch, "transition.set");
+  if (invalidValuePath) throw new Error(`${invalidValuePath} must be a fully defined JSON value.`);
   const out = {};
   for (const [key, value] of Object.entries(normalizeDataObject(patch))) {
-    const path = stateScopedActionPath(state, key);
-    if (path) out[path] = clone(value);
+    if (!runtimeBusPathIsWritable(key)) throw new Error("Transition set paths must use states.<id>.<field>.");
+    out[key] = clone(value);
   }
   return out;
 }
 
-function normalizeStateScopedTransitionEvent(state, eventName, fallback = "") {
+function normalizeTransitionEventName(eventName, fallback = "") {
   const event = normalizeTransitionEvent(eventName, fallback);
   if (!event.startsWith("change.")) return event;
-  const scopedPath = stateScopedActionPath(state, event.slice("change.".length));
-  return scopedPath ? `change.${scopedPath}` : event;
+  const path = event.slice("change.".length);
+  if (!runtimeBusPathIsReadable(path)) throw new Error("Change triggers must reference a fully qualified runtime bus path.");
+  return event;
 }
 
 function normalizeListItems(items, fallbackText = "") {
@@ -350,7 +720,7 @@ function normalizeDataWireComponentType(value, role = "field") {
   return "text";
 }
 
-function dataPathLabel(path, fallback = "Value") {
+function dataPathLabel(path, fallback = "Wert") {
   const parts = String(path || "").split(".").filter(Boolean).filter(part => !/^\d+$/.test(part));
   const raw = parts.pop() || fallback;
   const spaced = raw.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ").trim();
@@ -390,13 +760,13 @@ function normalizeDataWires(value) {
     .slice(0, 80);
 }
 
-function normalizeDataSource(value) {
+function normalizeDataSource(value, fallbackTarget = "") {
   const source = isPlainObject(value) ? value : {};
   const timeout = Number(source.timeoutMs);
   const retries = Number(source.retries);
   return {
     url: String(source.url || ""),
-    target: normalizeContextPath(source.target, "fetch"),
+    target: normalizeContextPath(source.target, fallbackTarget),
     select: normalizeContextPath(source.select, ""),
     timeoutMs: clamp(Number.isFinite(timeout) ? timeout : 8000, 1000, 30000),
     retries: clamp(Number.isFinite(retries) ? Math.round(retries) : 2, 0, 5)
@@ -420,26 +790,35 @@ function normalizeRepeatConfig(value) {
 
 function normalizeBoundaryConfig(value) {
   const source = isPlainObject(value) ? value : {};
-  const boundary = {
+  return {
     entryId: String(source.entryId || ""),
     exitId: String(source.exitId || ""),
     entryDisabled: Boolean(source.entryDisabled),
     exitDisabled: Boolean(source.exitDisabled),
-    title: String(source.title || source.layerTitle || ""),
-    note: String(source.note || source.comment || "")
+    title: String(source.title || ""),
+    note: String(source.note || "")
   };
-  if (source.entryTriggerType !== undefined) {
-    const entryTriggerType = normalizeTransitionTriggerType({ triggerType: source.entryTriggerType });
-    boundary.entryTriggerType = entryTriggerType;
-    boundary.entryTriggerEvent = normalizeTransitionEvent(
-      source.entryTriggerEvent || (entryTriggerType === "change" ? "" : defaultTransitionEvent({
-        id: "runtime.enter.child." + eventSegment(source.entryId || "entry"),
-        label: source.entryId || "entry",
-        triggerType: entryTriggerType
-      }))
-    );
+}
+
+function firstInvalidJsonValuePath(value, path) {
+  if (value === null || value === undefined) return path;
+  if (typeof value === "number" && !Number.isFinite(value)) return path;
+  if (!["boolean", "number", "object", "string"].includes(typeof value)) return path;
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index += 1) {
+      if (!Object.prototype.hasOwnProperty.call(value, index)) return `${path}[${index}]`;
+      const found = firstInvalidJsonValuePath(value[index], `${path}[${index}]`);
+      if (found) return found;
+    }
+    return "";
   }
-  return boundary;
+  if (typeof value !== "object") return "";
+  if (!isPlainObject(value)) return path;
+  for (const [key, child] of Object.entries(value)) {
+    const found = firstInvalidJsonValuePath(child, `${path}.${key}`);
+    if (found) return found;
+  }
+  return "";
 }
 
 function normalizeSubscriptionPath(value) {
@@ -461,13 +840,12 @@ function normalizeSubscriptions(value) {
   return result.slice(0, 64);
 }
 
-function normalizeStateRenderMode(value) {
-  return String(value || "").trim() === "component" ? "component" : "state";
+function normalizeTransitionTriggerType(transition) {
+  return transition?.triggerType === undefined ? "button" : String(transition.triggerType);
 }
 
-function normalizeTransitionTriggerType(transition) {
-  const value = String(transition?.triggerType || "button").toLowerCase();
-  return TRANSITION_TRIGGER_TYPES.includes(value) ? value : "button";
+function transitionTriggerContractType(transition) {
+  return transition?.triggerType === undefined ? "button" : String(transition.triggerType);
 }
 
 function normalizeTransitionTimerMs(value) {
@@ -499,20 +877,13 @@ function byModelId(model, id) {
   return model?.states?.find?.(state => state.id === id) || null;
 }
 
-function legacyGeneratedTransitionLabels(transition, model) {
-  const target = byModelId(model, transition?.to);
-  const title = String(target?.title || target?.id || "").trim();
-  return title ? [`Zu ${title}`, `To ${title}`] : [];
-}
-
 function defaultTransitionLabel() {
   return "Weiter";
 }
 
-function normalizeTransitionLabel(transition, model) {
+function normalizeTransitionLabel(transition) {
   const label = String(transition?.label || "").trim();
-  if (!label || legacyGeneratedTransitionLabels(transition, model).includes(label)) return defaultTransitionLabel();
-  return label;
+  return label || defaultTransitionLabel();
 }
 
 function boundaryProxyId(parentId, side, transitionId) {
@@ -550,20 +921,10 @@ function endpointParentId(model, id) {
   return state ? stateParentId(state) : boundaryProxyLayerId(id);
 }
 
-function transitionIdentityKey(transition) {
-  if (transition?.boundaryFlow) {
-    return `boundary:${transition.boundaryFlow.parentId || ""}:${transition.boundaryFlow.side || ""}`;
-  }
-  if (isBoundaryProxyId(transition?.from) || isBoundaryProxyId(transition?.to)) {
-    return `proxy:${transition?.from || ""}->${transition?.to || ""}`;
-  }
-  return `normal:${transition?.from || ""}->${transition?.to || ""}`;
-}
-
 function normalizeModel(input) {
   const m = isPlainObject(input) ? clone(input) : {};
   m.version = 2;
-  m.name = String(m.name || "State App");
+  m.name = String(m.name || "Unbenannter Ablauf");
   m.boundary = normalizeBoundaryConfig(m.boundary);
   delete m.realtime;
   m.states = Array.isArray(m.states) ? m.states : [];
@@ -578,14 +939,16 @@ function normalizeModel(input) {
 
   const usedStateIds = new Set();
   for (const state of m.states) {
-    state.id = uniqueId(usedStateIds, state.id || state.title, "state");
+    const explicitId = String(state.id || "").trim();
+    state.id = explicitId || uniqueId(usedStateIds, state.title, "state");
+    usedStateIds.add(state.id);
     state.title = String(state.title || state.id);
-    state.renderMode = normalizeStateRenderMode(state.renderMode);
+    delete state.renderMode;
     state.components = normalizeComponents(state.components);
     delete state.body;
-    state.data = normalizeDataObject(state.data);
+    state.data = normalizeStateDataObject(state.data);
     state.dataTypes = normalizeDataTypes(state.dataTypes, state.data);
-    state.dataSource = normalizeDataSource(state.dataSource);
+    state.dataSource = normalizeDataSource(state.dataSource, `${stateDataScopeForId(state.id)}.fetch`);
     state.repeat = normalizeRepeatConfig(state.repeat);
     state.dataWires = normalizeDataWires(state.dataWires);
     const wireIds = new Set(state.dataWires.map(wire => wire.id));
@@ -593,7 +956,7 @@ function normalizeModel(input) {
       .filter(component => component.type !== "dataWire" || wireIds.has(component.wireId));
     state.subscriptions = normalizeSubscriptions(state.subscriptions);
     state.boundary = normalizeBoundaryConfig(state.boundary);
-    state.x = snapClampToGrid(Number.isFinite(Number(state.x)) ? Number(state.x) : 100, WORLD_MIN_X, WORLD_MAX_X - 168);
+    state.x = snapClampToGrid(Number.isFinite(Number(state.x)) ? Number(state.x) : 100, WORLD_MIN_X, WORLD_MAX_X - NODE_W);
     state.y = snapClampToGrid(Number.isFinite(Number(state.y)) ? Number(state.y) : 100, WORLD_MIN_Y, WORLD_MAX_Y - NODE_H);
   }
 
@@ -627,7 +990,6 @@ function normalizeModel(input) {
   }
 
   const isKnownEndpoint = id => ids.has(id) || isBoundaryProxyId(id);
-  const pairs = new Set();
   const usedTransitionIds = new Set(ids);
   m.transitions = m.transitions
     .filter(transition => isPlainObject(transition))
@@ -636,19 +998,18 @@ function normalizeModel(input) {
       if (endpointParentId(m, transition.from) !== endpointParentId(m, transition.to)) return false;
       if (transition.groupEntryId && (!ids.has(transition.groupEntryId) || stateParentId(byModelId(m, transition.groupEntryId)) !== transition.to)) transition.groupEntryId = "";
       if (transition.groupExitId && (!ids.has(transition.groupExitId) || stateParentId(byModelId(m, transition.groupExitId)) !== transition.from)) transition.groupExitId = "";
-      const pair = transitionIdentityKey(transition);
-      if (pairs.has(pair)) return false;
-      pairs.add(pair);
       return true;
     })
     .map(transition => {
-      const id = uniqueRawId(usedTransitionIds, transition.id || uniqueId([], transition.label, "t"), "t");
+      const explicitId = String(transition.id || "").trim();
+      const id = explicitId || uniqueRawId(usedTransitionIds, uniqueId([], transition.label, "t"), "t");
+      usedTransitionIds.add(id);
       const triggerType = normalizeTransitionTriggerType(transition);
       const rawTriggerEvent = normalizeTransitionEvent(transition.triggerEvent || "");
-      return {
+      const normalized = {
         ...transition,
         id,
-        label: normalizeTransitionLabel(transition, m),
+        label: normalizeTransitionLabel(transition),
         condition: String(transition.condition || ""),
         set: normalizeDataObject(transition.set),
         triggerType,
@@ -657,6 +1018,10 @@ function normalizeModel(input) {
         groupEntryId: typeof transition.groupEntryId === "string" ? transition.groupEntryId : "",
         groupExitId: typeof transition.groupExitId === "string" ? transition.groupExitId : ""
       };
+      const triggerMatch = normalizeTriggerMatch(transition.triggerMatch);
+      if (!triggerMatchIsEmpty(triggerMatch)) normalized.triggerMatch = triggerMatch;
+      else delete normalized.triggerMatch;
+      return normalized;
     });
 
   delete m.editorGroups;
@@ -682,15 +1047,280 @@ function modelSummary(model) {
   };
 }
 
+function collectTransitionBindingEntries(value, path, entries = []) {
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => collectTransitionBindingEntries(item, `${path}[${index}]`, entries));
+    return entries;
+  }
+  if (!isPlainObject(value)) return entries;
+  for (const [key, child] of Object.entries(value)) {
+    const childPath = `${path}.${key}`;
+    if (/transitionId$/i.test(key)) {
+      const transitionId = String(child || "").trim();
+      if (transitionId) {
+        const prefix = key.slice(0, key.length - "TransitionId".length);
+        const urlKeys = prefix
+          ? [`${prefix}Url`, `${prefix}Href`, ...(prefix.toLowerCase() === "primary" ? ["url", "href"] : [])]
+          : ["url", "href"];
+        entries.push({
+          transitionId,
+          path: childPath,
+          targetConflict: urlKeys.some(urlKey => String(value[urlKey] || "").trim())
+        });
+      }
+      continue;
+    }
+    collectTransitionBindingEntries(child, childPath, entries);
+  }
+  return entries;
+}
+
+function componentTransitionBindingEntries(model, state, component) {
+  if (component.type === "transitionButton") {
+    const transitionId = String(component.transitionId || "").trim();
+    return transitionId ? [{ transitionId, path: `components.${component.id}.transitionId` }] : [];
+  }
+  if (component.type !== "daisy") return [];
+  const dataPath = String(component.dataPath || "").trim();
+  if (!dataPath) return [];
+  const owner = model.states.find(candidate => {
+    const scope = stateDataScopeForId(candidate.id);
+    return dataPath === scope || dataPath.startsWith(scope + ".");
+  });
+  if (!owner) return [];
+  const scope = stateDataScopeForId(owner.id);
+  const localPath = dataPath === scope ? "" : dataPath.slice(scope.length + 1);
+  const value = localPath ? dataObjectValueAtPath(owner.data, localPath) : owner.data;
+  return collectTransitionBindingEntries(value, `states.${owner.id}.data${localPath ? "." + localPath : ""}`);
+}
+
+function effectiveTransitionTriggerStateId(transition) {
+  return String(transition?.groupExitId || transition?.from || "");
+}
+
+function transitionTriggerBaseKey(transition) {
+  const triggerType = normalizeTransitionTriggerType(transition);
+  if (triggerType === "flow") return "";
+  if (triggerType === "button") return `button:${transition.id}`;
+  if (triggerType === "auto" || triggerType === "timer") return triggerType;
+  const eventName = normalizeTransitionEvent(transition?.triggerEvent || "");
+  return triggerType === "change"
+    ? eventName ? `change:${eventName}` : ""
+    : eventName ? `${triggerType}:${eventName}` : "";
+}
+
+function transitionTriggerContractKey(transition) {
+  const baseKey = transitionTriggerBaseKey(transition);
+  if (!baseKey) return "";
+  const triggerType = normalizeTransitionTriggerType(transition);
+  if (!["change", "event", "realtime", "api"].includes(triggerType)) return baseKey;
+  const matchKey = canonicalTriggerMatchKey(transition?.triggerMatch);
+  return matchKey ? `${baseKey}|match:${matchKey}` : "";
+}
+
+function transitionTriggerContractIssues(transitions) {
+  const issues = [];
+  const byState = new Map();
+  for (const transition of transitions) {
+    const contractType = transitionTriggerContractType(transition);
+    if (!TRANSITION_TRIGGER_CONTRACT_TYPES.has(contractType)) {
+      issues.push({
+        code: "invalid_transition_trigger_type",
+        transitionId: String(transition?.id || ""),
+        triggerType: contractType,
+        message: "Transition triggerType must be one of button, change, event, realtime, api, timer, auto, flow."
+      });
+      continue;
+    }
+    const triggerType = normalizeTransitionTriggerType(transition);
+    const technicalBoundaryFlow = Boolean(
+      transition?.boundaryFlow ||
+      isBoundaryProxyId(transition?.from) ||
+      isBoundaryProxyId(transition?.to)
+    );
+    if (triggerType === "flow" && !technicalBoundaryFlow) {
+      issues.push({
+        code: "invalid_public_flow_trigger",
+        transitionId: String(transition?.id || ""),
+        message: "flow is reserved for derived boundary projections."
+      });
+      continue;
+    }
+    if (technicalBoundaryFlow) continue;
+    const stateId = effectiveTransitionTriggerStateId(transition);
+    if (!byState.has(stateId)) byState.set(stateId, []);
+    byState.get(stateId).push(transition);
+  }
+  for (const [stateId, outgoing] of byState) {
+    if (outgoing.some(transition => normalizeTransitionTriggerType(transition) === "auto") && outgoing.length !== 1) {
+      issues.push({
+        code: "exclusive_auto_trigger",
+        stateId,
+        transitionIds: outgoing.map(transition => transition.id),
+        message: "An auto transition must be the only outgoing trigger of its effective state."
+      });
+      continue;
+    }
+    const claims = new Map();
+    const eventClaims = new Map();
+    for (const transition of outgoing) {
+      const matchIssues = triggerMatchContractIssues(transition);
+      if (matchIssues.length) {
+        issues.push(...matchIssues.map(issue => ({ ...issue, stateId })));
+        continue;
+      }
+      const triggerKey = transitionTriggerContractKey(transition);
+      const triggerBaseKey = transitionTriggerBaseKey(transition);
+      if (!triggerKey) {
+        issues.push({ code: "missing_transition_trigger", stateId, transitionId: transition.id, message: "Each transition must define one concrete trigger." });
+        continue;
+      }
+      const matchKey = canonicalTriggerMatchKey(transition?.triggerMatch);
+      if (claims.has(triggerKey)) {
+        issues.push({
+          code: "duplicate_transition_trigger",
+          stateId,
+          triggerKey,
+          transitionIds: [claims.get(triggerKey), transition.id],
+          message: "Each trigger identity may be claimed only once per effective state."
+        });
+        continue;
+      }
+      claims.set(triggerKey, transition.id);
+      if (triggerBaseKey && ["change", "event", "realtime", "api"].includes(normalizeTransitionTriggerType(transition))) {
+        const existing = eventClaims.get(triggerBaseKey) || [];
+        const hasCatchAll = existing.some(item => item.matchKey === "*");
+        if ((matchKey === "*" && existing.length) || (matchKey !== "*" && hasCatchAll)) {
+          issues.push({
+            code: "ambiguous_transition_trigger_match",
+            stateId,
+            triggerKey: triggerBaseKey,
+            transitionIds: [...existing.map(item => item.id), transition.id],
+            message: "A catch-all trigger may not share one event with specific triggerMatch rules."
+          });
+          continue;
+        }
+        const overlapping = matchKey !== "*" ? existing.find(item => transitionTriggerMatchesCanOverlap(item.transition, transition)) : null;
+        if (overlapping) {
+          issues.push({
+            code: "ambiguous_transition_trigger_match",
+            stateId,
+            triggerKey: triggerBaseKey,
+            transitionIds: [overlapping.id, transition.id],
+            message: "Trigger match rules for one event must be mathematically disjoint."
+          });
+          continue;
+        }
+        existing.push({ id: transition.id, matchKey, transition });
+        eventClaims.set(triggerBaseKey, existing);
+      }
+    }
+  }
+  return issues;
+}
+
 function validateModel(model) {
   const rawContractIssues = [];
+  if (!isPlainObject(model)) {
+    return {
+      ok: false,
+      issues: [{ code: "invalid_model", message: "Model must be an object." }],
+      warnings: [],
+      summary: modelSummary(blankModel()),
+      model: blankModel()
+    };
+  }
+  if (model.version !== 2) rawContractIssues.push({ code: "invalid_model_version", message: "Model version must be 2." });
+  if (!Array.isArray(model.states)) rawContractIssues.push({ code: "invalid_states", message: "Model states must be an array." });
+  if (!Array.isArray(model.transitions)) rawContractIssues.push({ code: "invalid_transitions", message: "Model transitions must be an array." });
+  rawContractIssues.push(...transitionTriggerContractIssues(Array.isArray(model?.transitions) ? model.transitions : []));
+  const forbiddenBoundaryKeys = ["layerTitle", "comment", "entryTriggerType", "entryTriggerEvent"];
+  const inspectBoundary = (boundary, path) => {
+    if (!isPlainObject(boundary)) return;
+    for (const key of forbiddenBoundaryKeys) {
+      if (Object.prototype.hasOwnProperty.call(boundary, key)) {
+        rawContractIssues.push({
+          code: "invalid_boundary_field",
+          path: `${path}.${key}`,
+          message: `${path}.${key} is not part of the canonical boundary contract.`
+        });
+      }
+    }
+  };
+  inspectBoundary(model?.boundary, "model.boundary");
   const rawStateIds = new Set();
+  const rawStateById = new Map();
   for (const state of Array.isArray(model?.states) ? model.states : []) {
     const id = String(state?.id || "").trim();
-    if (id) rawStateIds.add(id);
+    if (!id) {
+      rawContractIssues.push({ code: "missing_state_id", message: "Every state must define an ID." });
+      continue;
+    }
+    if (rawStateIds.has(id)) {
+      rawContractIssues.push({ code: "duplicate_state_id", stateId: id, message: `State ID ${id} must be unique.` });
+      continue;
+    }
+    rawStateIds.add(id);
+    rawStateById.set(id, state);
   }
+  if (rawStateIds.size && !rawStateIds.has(String(model.initial || ""))) {
+    rawContractIssues.push({ code: "missing_initial", message: "Initial state must reference an existing state." });
+  }
+  for (const [id, state] of rawStateById) {
+    const parentId = state?.parentId == null || state.parentId === "" ? null : String(state.parentId);
+    if (parentId && (!rawStateIds.has(parentId) || parentId === id)) {
+      rawContractIssues.push({ code: "invalid_parent", stateId: id, message: `Parent of ${id} must reference another state.` });
+    }
+    const seen = new Set([id]);
+    let current = state;
+    while (current?.parentId) {
+      const parent = String(current.parentId);
+      if (seen.has(parent)) {
+        rawContractIssues.push({ code: "cyclic_parent", stateId: id, message: `Parent chain of ${id} must not contain a cycle.` });
+        break;
+      }
+      seen.add(parent);
+      current = rawStateById.get(parent);
+    }
+  }
+  const validateBoundaryReference = (boundary, parentId, side) => {
+    const endpointId = String(boundary?.[side === "entry" ? "entryId" : "exitId"] || "");
+    if (!endpointId) return false;
+    const endpoint = rawStateById.get(endpointId);
+    if (!endpoint || (endpoint.parentId || null) !== parentId) {
+      rawContractIssues.push({
+        code: `invalid_boundary_${side}`,
+        stateId: parentId || "",
+        message: `${side === "entry" ? "Entry" : "Exit"} boundary must reference a direct child of its layer.`
+      });
+      return false;
+    }
+    return true;
+  };
+  validateBoundaryReference(model.boundary, null, "entry");
+  validateBoundaryReference(model.boundary, null, "exit");
+  for (const [id, state] of rawStateById) {
+    const children = [...rawStateById.values()].filter(candidate => (candidate.parentId || null) === id);
+    const hasEntry = validateBoundaryReference(state.boundary, id, "entry");
+    validateBoundaryReference(state.boundary, id, "exit");
+    if (children.length && !state?.boundary?.entryDisabled && !hasEntry) {
+      rawContractIssues.push({
+        code: "missing_boundary_entry",
+        stateId: id,
+        message: `Parent ${id} must define boundary.entryId or explicitly disable automatic entry.`
+      });
+    }
+  }
+  const rawTransitionIds = new Set();
   for (const transition of Array.isArray(model?.transitions) ? model.transitions : []) {
     const id = String(transition?.id || "").trim();
+    if (!id) {
+      rawContractIssues.push({ code: "missing_transition_id", message: "Every transition must define an ID." });
+    } else if (rawTransitionIds.has(id)) {
+      rawContractIssues.push({ code: "duplicate_transition_id", transitionId: id, message: `Transition ID ${id} must be unique.` });
+    } else {
+      rawTransitionIds.add(id);
+    }
     if (id && rawStateIds.has(id)) {
       rawContractIssues.push({
         code: "state_transition_id_collision",
@@ -698,8 +1328,31 @@ function validateModel(model) {
         message: "State and transition IDs must share one global namespace."
       });
     }
+    if (transition?.boundaryFlow || isBoundaryProxyId(transition?.from) || isBoundaryProxyId(transition?.to)) continue;
+    const from = String(transition?.from || "");
+    const to = String(transition?.to || "");
+    if (!rawStateIds.has(from) || !rawStateIds.has(to)) {
+      rawContractIssues.push({ code: "missing_transition_endpoint", transitionId: id, message: `Transition ${id || "<unknown>"} must reference existing states.` });
+      continue;
+    }
+    const fromParent = rawStateById.get(from)?.parentId || null;
+    const toParent = rawStateById.get(to)?.parentId || null;
+    if (fromParent !== toParent) {
+      rawContractIssues.push({ code: "cross_layer_transition", transitionId: id, message: `Transition ${id} must stay inside one layer.` });
+    }
   }
   for (const state of Array.isArray(model?.states) ? model.states : []) {
+    if (Object.prototype.hasOwnProperty.call(state || {}, "renderMode")) {
+      rawContractIssues.push({
+        code: "invalid_state_render_mode",
+        stateId: String(state?.id || ""),
+        message: "renderMode is not part of the contract; visible components belong to their state."
+      });
+    }
+    inspectBoundary(state?.boundary, `model.states.${String(state?.id || "")}.boundary`);
+    rawContractIssues.push(...stateDataContractIssues(state?.data, String(state?.id || "")));
+    rawContractIssues.push(...stateDataTypeContractIssues(state?.dataTypes, state?.data, String(state?.id || "")));
+    rawContractIssues.push(...runtimeReferenceContractIssuesForState(state));
     for (const component of Array.isArray(state?.components) ? state.components : []) {
       for (const forbidden of hiddenComponentStateKeys(component)) {
         rawContractIssues.push({
@@ -711,20 +1364,51 @@ function validateModel(model) {
       }
     }
   }
+  for (const transition of Array.isArray(model?.transitions) ? model.transitions : []) {
+    rawContractIssues.push(...runtimeReferenceContractIssuesForTransition(transition));
+    if (isPlainObject(transition?.set)) {
+      const invalidValuePath = firstInvalidJsonValuePath(transition.set, "transition.set");
+      if (invalidValuePath) {
+        rawContractIssues.push({
+          code: "invalid_transition_set_value",
+          transitionId: String(transition?.id || ""),
+          path: invalidValuePath,
+          message: `${invalidValuePath} must be a fully defined JSON value.`
+        });
+      }
+    }
+  }
   const normalized = normalizeModel(model);
   const issues = [...rawContractIssues];
   const warnings = [];
   const ids = new Set(normalized.states.map(state => state.id));
+  const transitionById = new Map(normalized.transitions.map(transition => [transition.id, transition]));
   if (normalized.states.length && !ids.has(normalized.initial)) issues.push({ code: "missing_initial", message: "Initial state must reference an existing state." });
-
   for (const state of normalized.states) {
-    const data = normalizeDataObject(state.data);
+    const data = normalizeStateDataObject(state.data);
     for (const [path] of Object.entries(normalizeDataTypes(state.dataTypes, data))) {
       if (!dataObjectHasPath(data, path)) warnings.push({ code: "orphan_data_type", stateId: state.id, path, message: "Data type path has no matching state.data value." });
     }
     for (const component of normalizeComponents(state.components)) {
-      if (component.type === "transitionButton" && !normalized.transitions.some(transition => transition.id === component.transitionId)) {
-        warnings.push({ code: "missing_transition_button_target", stateId: state.id, componentId: component.id, message: "Transition button references a missing transition." });
+      if (component.type === "transitionButton" && !String(component.transitionId || "").trim()) {
+        issues.push({ code: "empty_transition_action_binding", stateId: state.id, componentId: component.id, message: "Transition action bindings must reference one transition ID." });
+      }
+      for (const binding of componentTransitionBindingEntries(normalized, state, component)) {
+        if (binding.targetConflict) {
+          issues.push({ code: "transition_action_target_conflict", stateId: state.id, componentId: component.id, transitionId: binding.transitionId, path: binding.path, message: "A UI action slot must target either one transition or one URL, never both." });
+          continue;
+        }
+        const transition = transitionById.get(binding.transitionId);
+        if (!transition) {
+          issues.push({ code: "missing_transition_action_target", stateId: state.id, componentId: component.id, transitionId: binding.transitionId, path: binding.path, message: "Transition action binding references a missing transition." });
+          continue;
+        }
+        const direct = transition.from === state.id;
+        const parentExit = Boolean(state.parentId && transition.from === state.parentId && transition.groupExitId === state.id);
+        if (!direct && !parentExit) {
+          issues.push({ code: "foreign_transition_action_target", stateId: state.id, componentId: component.id, transitionId: binding.transitionId, path: binding.path, message: "Transition action binding must reference an outgoing transition of its rendered state." });
+          continue;
+        }
       }
       if (component.type === "dataWire" && !normalizeDataWires(state.dataWires).some(wire => wire.id === component.wireId)) {
         warnings.push({ code: "missing_data_wire_target", stateId: state.id, componentId: component.id, message: "Data-wire component references a missing data wire." });
@@ -797,25 +1481,32 @@ function ensureBoundaryFlowTransition(model, parentId, side, stateId) {
 }
 
 function createState(model, args) {
+  if (Object.prototype.hasOwnProperty.call(args || {}, "renderMode")) {
+    throw new Error("renderMode is not part of the contract; visible components belong to their state.");
+  }
+  if (args?.boundary && ["layerTitle", "comment", "entryTriggerType", "entryTriggerEvent"].some(key => Object.prototype.hasOwnProperty.call(args.boundary, key))) {
+    throw new Error("State boundary contains a non-contract field.");
+  }
   assertNoHiddenComponentStateInComponents(args.components);
   const existingIds = new Set(model.states.map(state => state.id));
   const id = uniqueId(existingIds, args.id || args.title, "state");
   const parentId = args.parentId ? String(args.parentId) : null;
   if (parentId && !byModelId(model, parentId)) throw new Error(`Parent state not found: ${parentId}`);
+  assertStateDataContract(args.data, args.dataTypes, id);
+  assertRuntimeReferenceContract({ ...args, id }, "state");
   const state = {
     id,
     title: String(args.title || id),
-    renderMode: normalizeStateRenderMode(args.renderMode),
     components: normalizeComponents(args.components),
-    data: normalizeDataObject(args.data),
-    dataTypes: normalizeDataTypes(args.dataTypes, args.data),
-    dataSource: normalizeDataSource(args.dataSource),
+    data: normalizeStateDataObject(args.data),
+    dataTypes: normalizeDataTypes(args.dataTypes, normalizeStateDataObject(args.data)),
+    dataSource: normalizeDataSource(args.dataSource, `${stateDataScopeForId(id)}.fetch`),
     repeat: normalizeRepeatConfig(args.repeat),
     dataWires: normalizeDataWires(args.dataWires),
     subscriptions: normalizeSubscriptions(args.subscriptions),
     boundary: normalizeBoundaryConfig(args.boundary),
     parentId,
-    x: snapClampToGrid(Number.isFinite(Number(args.x)) ? Number(args.x) : 120 + model.states.length * GRID_SIZE * 7, WORLD_MIN_X, WORLD_MAX_X - 168),
+    x: snapClampToGrid(Number.isFinite(Number(args.x)) ? Number(args.x) : 120 + model.states.length * NODE_W, WORLD_MIN_X, WORLD_MAX_X - NODE_W),
     y: snapClampToGrid(Number.isFinite(Number(args.y)) ? Number(args.y) : 120 + model.states.length * GRID_SIZE * 4, WORLD_MIN_Y, WORLD_MAX_Y - NODE_H)
   };
   model.states.push(state);
@@ -824,23 +1515,36 @@ function createState(model, args) {
 }
 
 function upsertState(model, args) {
+  if (Object.prototype.hasOwnProperty.call(args || {}, "renderMode")) {
+    throw new Error("renderMode is not part of the contract; visible components belong to their state.");
+  }
+  if (args?.boundary && ["layerTitle", "comment", "entryTriggerType", "entryTriggerEvent"].some(key => Object.prototype.hasOwnProperty.call(args.boundary, key))) {
+    throw new Error("State boundary contains a non-contract field.");
+  }
   if ("components" in args) assertNoHiddenComponentStateInComponents(args.components);
   const id = args.id ? String(args.id) : "";
   const existing = id ? byModelId(model, id) : null;
   if (!existing) return createState(model, args);
+  assertRuntimeReferenceContract({ ...existing, ...args, id: existing.id }, "state");
+  if ("data" in args || "dataTypes" in args) {
+    assertStateDataContract(
+      "data" in args ? args.data : existing.data,
+      "dataTypes" in args ? args.dataTypes : existing.dataTypes,
+      existing.id
+    );
+  }
   if ("title" in args) existing.title = String(args.title || existing.id);
-  if ("renderMode" in args) existing.renderMode = normalizeStateRenderMode(args.renderMode);
   if ("parentId" in args) {
     const parentId = args.parentId ? String(args.parentId) : null;
     if (parentId && !byModelId(model, parentId)) throw new Error(`Parent state not found: ${parentId}`);
     existing.parentId = parentId && parentId !== existing.id ? parentId : null;
   }
-  if ("x" in args) existing.x = snapClampToGrid(Number(args.x), WORLD_MIN_X, WORLD_MAX_X - 168);
+  if ("x" in args) existing.x = snapClampToGrid(Number(args.x), WORLD_MIN_X, WORLD_MAX_X - NODE_W);
   if ("y" in args) existing.y = snapClampToGrid(Number(args.y), WORLD_MIN_Y, WORLD_MAX_Y - NODE_H);
   if ("components" in args) existing.components = normalizeComponents(args.components);
-  if ("data" in args) existing.data = normalizeDataObject(args.data);
+  if ("data" in args) existing.data = normalizeStateDataObject(args.data);
   if ("dataTypes" in args) existing.dataTypes = normalizeDataTypes(args.dataTypes, existing.data);
-  if ("dataSource" in args) existing.dataSource = normalizeDataSource(args.dataSource);
+  if ("dataSource" in args) existing.dataSource = normalizeDataSource(args.dataSource, `${stateDataScopeForId(existing.id)}.fetch`);
   if ("repeat" in args) existing.repeat = normalizeRepeatConfig(args.repeat);
   if ("dataWires" in args) existing.dataWires = normalizeDataWires(args.dataWires);
   if ("subscriptions" in args) existing.subscriptions = normalizeSubscriptions(args.subscriptions);
@@ -863,19 +1567,49 @@ function descendantStateIds(model, rootIds) {
   return ids;
 }
 
+function fallbackInitialAfterDelete(model, ids) {
+  const initialState = byModelId(model, model.initial);
+  const initialLayerId = stateParentId(initialState);
+  const survivors = model.states.filter(state => !ids.has(state.id));
+  if (!survivors.length) return "";
+  return (
+    survivors.find(state => stateParentId(state) === initialLayerId) ||
+    survivors.find(state => !stateParentId(state)) ||
+    survivors[0]
+  )?.id || "";
+}
+
 function deleteState(model, args) {
-  const id = String(args.id || args.stateId || "");
+  const id = String(args.id || "");
   if (!id) throw new Error("delete_state requires id.");
   const ids = args.deleteDescendants === false ? new Set([id]) : descendantStateIds(model, [id]);
+  const initialRemoved = ids.has(model.initial);
+  const nextInitial = initialRemoved ? fallbackInitialAfterDelete(model, ids) : model.initial;
   model.states = model.states.filter(state => !ids.has(state.id));
   model.transitions = model.transitions.filter(transition =>
     !ids.has(transition.from) &&
     !ids.has(transition.to) &&
-    !ids.has(transition.groupEntryId) &&
-    !ids.has(transition.groupExitId) &&
     !ids.has(transition.boundaryFlow?.stateId)
   );
-  if (ids.has(model.initial)) model.initial = model.states[0]?.id || "";
+  const clearBoundaryReference = (boundary, parentId) => {
+    const hasChildren = model.states.some(state => stateParentId(state) === parentId);
+    if (ids.has(boundary.entryId)) {
+      boundary.entryId = "";
+      boundary.entryDisabled = hasChildren;
+    }
+    if (ids.has(boundary.exitId)) {
+      boundary.exitId = "";
+      boundary.exitDisabled = hasChildren;
+    }
+  };
+  clearBoundaryReference(model.boundary, null);
+  for (const state of model.states) clearBoundaryReference(state.boundary, state.id);
+  for (const transition of model.transitions) {
+    if (ids.has(transition.groupEntryId)) transition.groupEntryId = "";
+    if (ids.has(transition.groupExitId)) transition.groupExitId = "";
+  }
+  if (!model.states.length) model.initial = "";
+  else if (initialRemoved) model.initial = nextInitial;
   return { deleted: [...ids] };
 }
 
@@ -900,13 +1634,13 @@ function ensureDefaultBoundaryTransitions(model, parentId = null) {
 }
 
 function selectedStateIdsFromCommand(workspace, command) {
-  const explicit = Array.isArray(command.stateIds) ? command.stateIds : Array.isArray(command.ids) ? command.ids : [];
+  const explicit = Array.isArray(command.stateIds) ? command.stateIds : [];
   if (explicit.length) return explicit.map(String).filter(Boolean);
   return normalizeEditorSelection(workspace.editor?.selected, workspace.model).nodes;
 }
 
 function selectedEdgeIdsFromCommand(workspace, command) {
-  const explicit = Array.isArray(command.transitionIds) ? command.transitionIds : Array.isArray(command.edgeIds) ? command.edgeIds : [];
+  const explicit = Array.isArray(command.transitionIds) ? command.transitionIds : [];
   if (explicit.length) return explicit.map(String).filter(Boolean);
   return normalizeEditorSelection(workspace.editor?.selected, workspace.model).edges;
 }
@@ -924,9 +1658,8 @@ function collapseEntryStateForModel(model, stateIds) {
     !transition.boundaryFlow
   );
   const incoming = new Set(selectedTransitions.map(transition => transition.to));
-  return states.find(state => !incoming.has(state.id)) ||
-    states.slice().sort((a, b) => a.x - b.x || a.y - b.y || String(a.id).localeCompare(String(b.id)))[0] ||
-    null;
+  const candidates = states.filter(state => !incoming.has(state.id));
+  return candidates.length === 1 ? candidates[0] : null;
 }
 
 function collapseExitStateForModel(model, stateIds) {
@@ -938,9 +1671,8 @@ function collapseExitStateForModel(model, stateIds) {
     !transition.boundaryFlow
   );
   const outgoing = new Set(selectedTransitions.map(transition => transition.from));
-  return states.find(state => !outgoing.has(state.id)) ||
-    states.slice().sort((a, b) => b.x - a.x || b.y - a.y || String(a.id).localeCompare(String(b.id)))[0] ||
-    null;
+  const candidates = states.filter(state => !outgoing.has(state.id));
+  return candidates.length === 1 ? candidates[0] : null;
 }
 
 function stateBounds(states) {
@@ -987,8 +1719,8 @@ function collapseStatesToParent(model, args = {}) {
     boundary: {
       entryId: entry.id,
       exitId: exit.id,
-      entryTriggerType: args.entryTriggerType || "auto",
-      entryTriggerEvent: args.entryTriggerEvent || ""
+      entryDisabled: false,
+      exitDisabled: false
     }
   });
 
@@ -1028,10 +1760,7 @@ function childBoundaryState(model, parent, side) {
   const children = statesInLayer(model, parent.id);
   const boundary = normalizeBoundaryConfig(parent.boundary);
   const configuredId = side === "input" ? boundary.entryId : boundary.exitId;
-  const configured = children.find(state => state.id === configuredId);
-  if (configured) return configured;
-  return side === "input" ? children.slice().sort((a, b) => a.x - b.x || a.y - b.y || String(a.id).localeCompare(String(b.id)))[0] || null
-    : children.slice().sort((a, b) => b.x - a.x || b.y - a.y || String(a.id).localeCompare(String(b.id)))[0] || null;
+  return children.find(state => state.id === configuredId) || null;
 }
 
 function removeBoundaryFlowsForParent(model, parentId) {
@@ -1044,14 +1773,14 @@ function removeBoundaryFlowsForParent(model, parentId) {
 }
 
 function degroupParentState(model, args = {}) {
-  const parent = findStateOrThrow(model, args.parentId || args.id || args.stateId);
+  const parent = findStateOrThrow(model, args.parentId);
   const children = statesInLayer(model, parent.id);
   if (!children.length) throw new Error("graph.degroup_parent requires a parent with children.");
   const childIds = new Set(children.map(child => child.id));
   const outerParentId = stateParentId(parent);
   const outerBoundary = normalizeBoundaryConfig(layerContainerBoundary(model, outerParentId));
-  const entry = childBoundaryState(model, parent, "input") || children[0];
-  const exit = childBoundaryState(model, parent, "output") || children[children.length - 1] || entry;
+  const entry = childBoundaryState(model, parent, "input");
+  const exit = childBoundaryState(model, parent, "output");
   if (!entry || !exit) throw new Error("Cannot degroup without entry and exit children.");
 
   for (const transition of model.transitions) {
@@ -1091,25 +1820,33 @@ function upsertTransition(model, args) {
     ...model.states.map(state => state.id),
     ...model.transitions.map(transition => transition.id)
   ]);
-  const target = existing || { id: uniqueRawId(usedIds, args.id || uniqueId([], args.label, "t"), "t") };
-  const sourceState = byModelId(model, from);
+  const target = { ...(existing || { id: uniqueRawId(usedIds, args.id || uniqueId([], args.label, "t"), "t") }) };
   target.from = from;
   target.to = to;
-  target.label = String(args.label || target.label || defaultTransitionLabel(target, model));
-  target.condition = rewriteStateScopedCondition(sourceState, args.condition || "");
-  target.set = normalizeStateScopedPatch(sourceState, args.set);
-  target.triggerType = normalizeTransitionTriggerType(args);
-  target.triggerEvent = normalizeStateScopedTransitionEvent(sourceState, args.triggerEvent || (target.triggerType === "change" ? "" : defaultTransitionEvent(target)));
+  target.label = String(args.label || target.label || defaultTransitionLabel());
+  target.condition = validateTransitionCondition(args.condition || "");
+  target.set = normalizeTransitionPatch(args.set);
+  const triggerType = transitionTriggerContractType(args);
+  if (!TRANSITION_TRIGGER_CONTRACT_TYPES.has(triggerType) || triggerType === "flow") {
+    throw new Error("upsert_transition triggerType must be one of button, change, event, realtime, api, timer, auto.");
+  }
+  target.triggerType = triggerType;
+  target.triggerEvent = normalizeTransitionEventName(args.triggerEvent || (target.triggerType === "change" ? "" : defaultTransitionEvent(target)));
+  const triggerMatch = normalizeTriggerMatch(args.triggerMatch);
+  if (!triggerMatchIsEmpty(triggerMatch)) target.triggerMatch = triggerMatch;
+  else delete target.triggerMatch;
   target.timerMs = normalizeTransitionTimerMs(args.timerMs);
   target.groupEntryId = String(args.groupEntryId || "");
   target.groupExitId = String(args.groupExitId || "");
-  if (!existing) model.transitions.push(target);
-  return target;
+  assertRuntimeReferenceContract(target, "transition");
+  if (existing) Object.assign(existing, target);
+  else model.transitions.push(target);
+  return existing || target;
 }
 
 function applyAction(model, action) {
   if (!isPlainObject(action)) throw new Error("Each action must be an object.");
-  const type = String(action.type || action.action || "");
+  const type = String(action.type || "");
   switch (type) {
     case "create_flow":
       return { type, model: Object.assign(model, blankModel(action.name || "State App")) };
@@ -1118,31 +1855,36 @@ function applyAction(model, action) {
       return { type, name: model.name };
     case "replace_model": {
       assertNoHiddenComponentStateInModel(action.model);
+      const validation = validateModel(action.model);
+      if (!validation.ok) {
+        const error = new Error(validation.issues.map(issue => issue.message).join("; ") || "Model contract validation failed.");
+        error.validation = validation;
+        throw error;
+      }
       const next = normalizeModel(action.model);
       Object.keys(model).forEach(key => delete model[key]);
       Object.assign(model, next);
       return { type, summary: modelSummary(model) };
     }
     case "upsert_state":
-    case "add_state":
       return { type, state: upsertState(model, action) };
     case "delete_state":
       return { type, ...deleteState(model, action) };
     case "move_state": {
-      const state = findStateOrThrow(model, action.id || action.stateId);
-      state.x = snapClampToGrid(Number(action.x), WORLD_MIN_X, WORLD_MAX_X - 168);
+      const state = findStateOrThrow(model, action.stateId);
+      state.x = snapClampToGrid(Number(action.x), WORLD_MIN_X, WORLD_MAX_X - NODE_W);
       state.y = snapClampToGrid(Number(action.y), WORLD_MIN_Y, WORLD_MAX_Y - NODE_H);
       return { type, state };
     }
     case "set_initial":
-      findStateOrThrow(model, action.stateId || action.id);
-      model.initial = String(action.stateId || action.id);
+      findStateOrThrow(model, action.stateId);
+      model.initial = String(action.stateId);
       return { type, initial: model.initial };
     case "upsert_transition":
-    case "add_transition":
       return { type, transition: upsertTransition(model, action) };
     case "delete_transition": {
-      const id = String(action.id || action.transitionId || "");
+      const id = String(action.transitionId || "");
+      if (!id) throw new Error("delete_transition requires transitionId.");
       model.transitions = model.transitions.filter(transition => transition.id !== id);
       for (const state of model.states) {
         state.components = normalizeComponents(state.components).filter(component => component.type !== "transitionButton" || component.transitionId !== id);
@@ -1151,19 +1893,22 @@ function applyAction(model, action) {
     }
     case "upsert_state_variable": {
       const state = findStateOrThrow(model, action.stateId);
-      const path = stateVariableActualPath(state, action.path);
-      if (!path) throw new Error("upsert_state_variable requires a valid path.");
-      const typeName = normalizeStateVariableType(action.valueType || action.type || inferStateVariableType(path, action.value));
+      const localPath = stateVariableLocalPath(action.path);
+      const path = stateVariableActualPath(state, localPath);
+      if (!localPath || !path) throw new Error("upsert_state_variable requires a local path.");
+      const typeName = normalizeStateVariableType(action.valueType || inferStateVariableType(localPath, action.value));
       const value = Object.prototype.hasOwnProperty.call(action, "value") ? action.value : defaultStateVariableValue(typeName);
-      state.data = setDataObjectPath(ensureStateVariableScopeRoot(state, state.data), path, value);
-      state.dataTypes = { ...normalizeDataTypes(state.dataTypes, state.data), [path]: typeName };
+      state.data = setDataObjectPath(normalizeStateDataObject(state.data), localPath, value);
+      state.dataTypes = { ...normalizeDataTypes(state.dataTypes, state.data), [localPath]: typeName };
       return { type, stateId: state.id, path, valueType: typeName };
     }
     case "delete_state_variable": {
       const state = findStateOrThrow(model, action.stateId);
-      const path = stateVariableActualPath(state, action.path);
-      state.data = deleteDataObjectPath(state.data, path);
-      state.dataTypes = Object.fromEntries(Object.entries(normalizeDataTypes(state.dataTypes, state.data)).filter(([key]) => key !== path && !key.startsWith(path + ".")));
+      const localPath = stateVariableLocalPath(action.path);
+      const path = stateVariableActualPath(state, localPath);
+      if (!localPath || !path) throw new Error("delete_state_variable requires a local path.");
+      state.data = deleteDataObjectPath(state.data, localPath);
+      state.dataTypes = Object.fromEntries(Object.entries(normalizeDataTypes(state.dataTypes, state.data)).filter(([key]) => key !== localPath && !key.startsWith(localPath + ".")));
       state.dataWires = normalizeDataWires(state.dataWires).filter(wire => wire.sourcePath !== path && !wire.sourcePath.startsWith(path + "."));
       return { type, stateId: state.id, path };
     }
@@ -1172,14 +1917,20 @@ function applyAction(model, action) {
       const requestedTarget = Object.prototype.hasOwnProperty.call(action, "target")
         ? normalizeContextPath(action.target, "")
         : "";
+      if (requestedTarget && !runtimeBusPathIsWritable(requestedTarget)) {
+        throw new Error("Fetch target must use states.<id>.<field>.");
+      }
       state.dataSource = normalizeDataSource({
         ...action,
         target: requestedTarget || `${stateDataScopeForId(state.id)}.fetch`
-      });
+      }, `${stateDataScopeForId(state.id)}.fetch`);
       return { type, stateId: state.id, dataSource: state.dataSource };
     }
     case "configure_repeat": {
       const state = findStateOrThrow(model, action.stateId);
+      if (action.path && !runtimeBusPathIsReadable(action.path)) {
+        throw new Error("Repeat path must use a fully qualified runtime bus path.");
+      }
       state.repeat = normalizeRepeatConfig(action);
       return { type, stateId: state.id, repeat: state.repeat };
     }
@@ -1187,8 +1938,8 @@ function applyAction(model, action) {
       const state = findStateOrThrow(model, action.stateId);
       const scopedAction = {
         ...action,
-        sourcePath: stateScopedActionPath(state, action.sourcePath || action.path),
-        scopePath: action.scopePath ? stateScopedActionPath(state, action.scopePath) : ""
+        sourcePath: runtimeActionPath(action.sourcePath),
+        scopePath: action.scopePath ? runtimeActionPath(action.scopePath) : ""
       };
       const wire = normalizeDataWire(scopedAction);
       if (!wire) throw new Error("upsert_data_wire requires sourcePath.");
@@ -1202,16 +1953,22 @@ function applyAction(model, action) {
     }
     case "remove_data_wire": {
       const state = findStateOrThrow(model, action.stateId);
-      const id = String(action.id || action.wireId || "");
+      const id = String(action.wireId || "");
       const sourcePath = normalizeBindingPath(action.sourcePath || "", "");
+      if (!id && !sourcePath) throw new Error("remove_data_wire requires wireId or sourcePath.");
+      if (sourcePath && !runtimeBusPathIsReadable(sourcePath)) {
+        throw new Error("Data-wire sourcePath must use a fully qualified runtime bus path.");
+      }
       state.dataWires = normalizeDataWires(state.dataWires).filter(wire => wire.id !== id && (!sourcePath || wire.sourcePath !== sourcePath));
       state.components = normalizeComponents(state.components).filter(component => component.type !== "dataWire" || component.wireId !== id);
       return { type, stateId: state.id, id, sourcePath };
     }
     case "add_component": {
       const state = findStateOrThrow(model, action.stateId);
-      const rawComponent = action.component || action;
+      const rawComponent = action.component;
+      if (!isPlainObject(rawComponent)) throw new Error("add_component requires component.");
       assertNoHiddenComponentState(rawComponent);
+      assertRuntimeReferenceContract({ id: state.id, components: [rawComponent] }, "state");
       const [component] = normalizeComponents([rawComponent]);
       if (!component) throw new Error("add_component requires a valid component.");
       const components = normalizeComponents(state.components);
@@ -1222,20 +1979,26 @@ function applyAction(model, action) {
     }
     case "update_component": {
       const state = findStateOrThrow(model, action.stateId);
-      const componentId = String(action.componentId || action.id || "");
-      assertNoHiddenComponentState(action.patch || action.component || {});
+      const componentId = String(action.componentId || "");
+      if (!componentId) throw new Error("update_component requires componentId.");
+      if (!isPlainObject(action.patch)) throw new Error("update_component requires patch.");
+      const patch = action.patch;
+      assertNoHiddenComponentState(patch);
+      const currentComponent = normalizeComponents(state.components).find(component => component.id === componentId);
+      if (!currentComponent) throw new Error(`Component not found: ${componentId}`);
+      assertRuntimeReferenceContract({ id: state.id, components: [{ ...currentComponent, ...patch }] }, "state");
       let updated = null;
       state.components = normalizeComponents(state.components).map(component => {
         if (component.id !== componentId) return component;
-        [updated] = normalizeComponents([{ ...component, ...(action.patch || action.component || {}) }]);
+        [updated] = normalizeComponents([{ ...component, ...patch }]);
         return updated || component;
       });
-      if (!updated) throw new Error(`Component not found: ${componentId}`);
       return { type, stateId: state.id, component: updated };
     }
     case "remove_component": {
       const state = findStateOrThrow(model, action.stateId);
-      const componentId = String(action.componentId || action.id || "");
+      const componentId = String(action.componentId || "");
+      if (!componentId) throw new Error("remove_component requires componentId.");
       state.components = normalizeComponents(state.components).filter(component => component.id !== componentId);
       return { type, stateId: state.id, componentId };
     }
@@ -1262,13 +2025,13 @@ function applyAction(model, action) {
 }
 
 function actionApplyPriority(action) {
-  const type = String(action?.type || action?.action || "");
+  const type = String(action?.type || "");
   if (type === "create_flow" || type === "replace_model" || type === "set_model_name") return 0;
-  if (type === "add_state" || type === "upsert_state") return 10;
+  if (type === "upsert_state") return 10;
   if (type === "set_initial") return 20;
   if (type === "upsert_state_variable" || type === "configure_fetch" || type === "configure_repeat" || type === "upsert_data_wire" || type === "add_component") return 30;
   if (type === "set_boundary") return 40;
-  if (type === "add_transition" || type === "upsert_transition") return 50;
+  if (type === "upsert_transition") return 50;
   return 60;
 }
 
@@ -1281,7 +2044,14 @@ function orderedActions(actions) {
 
 function applyActions(inputModel, actions, options = {}) {
   if (!Array.isArray(actions)) throw new Error("actions must be an array.");
-  const model = normalizeModel(inputModel || blankModel());
+  const input = isPlainObject(inputModel) && !Object.keys(inputModel).length ? blankModel() : inputModel || blankModel();
+  const inputValidation = validateModel(input);
+  if (!inputValidation.ok) {
+    const error = new Error(inputValidation.issues.map(issue => issue.message).join("; ") || "Model contract validation failed.");
+    error.validation = inputValidation;
+    throw error;
+  }
+  const model = inputValidation.model;
   const results = [];
   for (const action of orderedActions(actions)) {
     results.push(applyAction(model, action));
@@ -1328,7 +2098,6 @@ function normalizeEditorSession(value, model) {
     currentLayerId,
     camera: normalizeCamera(source.camera),
     previewCollapsed: Boolean(source.previewCollapsed),
-    runtimePaused: Boolean(source.runtimePaused),
     panels
   };
 }
@@ -1344,10 +2113,19 @@ function normalizeCommandHistory(value) {
 
 function normalizeWorkspace(value = {}) {
   const source = isPlainObject(value) ? value : {};
-  const model = normalizeModel(source.model || source);
+  if (Array.isArray(source.stateTemplates) && source.stateTemplates.length) {
+    throw new Error("stateTemplates are contract-managed and must not be stored in a workspace.");
+  }
+  const candidate = source.model || (source.version === 2 ? source : blankModel());
+  const validation = validateModel(candidate);
+  if (!validation.ok) {
+    const error = new Error(validation.issues.map(issue => issue.message).join("; ") || "Model contract validation failed.");
+    error.validation = validation;
+    throw error;
+  }
+  const model = validation.model;
   const workspace = {
     model,
-    stateTemplates: Array.isArray(source.stateTemplates) ? clone(source.stateTemplates) : [],
     editor: normalizeEditorSession(source.editor, model),
     clipboard: isPlainObject(source.clipboard) ? clone(source.clipboard) : null,
     history: normalizeCommandHistory(source.history)
@@ -1359,7 +2137,6 @@ function normalizeWorkspace(value = {}) {
 function commandSnapshot(workspace) {
   return {
     model: normalizeModel(workspace.model),
-    stateTemplates: Array.isArray(workspace.stateTemplates) ? clone(workspace.stateTemplates) : [],
     editor: normalizeEditorSession(workspace.editor, workspace.model),
     clipboard: isPlainObject(workspace.clipboard) ? clone(workspace.clipboard) : null
   };
@@ -1368,7 +2145,6 @@ function commandSnapshot(workspace) {
 function restoreCommandSnapshot(workspace, snapshot) {
   const restored = normalizeWorkspace(snapshot);
   workspace.model = restored.model;
-  workspace.stateTemplates = restored.stateTemplates;
   workspace.editor = restored.editor;
   workspace.clipboard = restored.clipboard;
   workspace.history.current = commandSnapshot(workspace);
@@ -1403,7 +2179,6 @@ function commandIsHistoryNeutral(commandName) {
     "viewport.reset",
     "viewport.fit",
     "preview.set_collapsed",
-    "preview.pause",
     "ui.set_panel",
     "graph.copy_selection"
   ].includes(commandName);
@@ -1494,14 +2269,14 @@ function duplicateSelectionPayload(model, payload, args = {}) {
 }
 
 function insertStateOnTransition(model, command) {
-  const transition = transitionById(model, command.transitionId || command.edgeId || command.id);
+  const transition = transitionById(model, command.transitionId);
   if (!transition || transition.boundaryFlow || isBoundaryProxyId(transition.from) || isBoundaryProxyId(transition.to)) {
     throw new Error("graph.insert_state_on_transition requires a normal transition.");
   }
   const from = findStateOrThrow(model, transition.from);
   const to = findStateOrThrow(model, transition.to);
   const state = createState(model, {
-    id: command.stateId || command.newStateId || command.title,
+    id: command.stateId || command.title,
     title: command.title || "State",
     parentId: stateParentId(from),
     x: Number.isFinite(Number(command.x)) ? Number(command.x) : snapToGrid((from.x + to.x) / 2),
@@ -1516,7 +2291,7 @@ function insertStateOnTransition(model, command) {
   transition.to = state.id;
   transition.groupEntryId = "";
   const next = upsertTransition(model, {
-    id: command.nextTransitionId || command.transitionIdAfter,
+    id: command.nextTransitionId,
     from: state.id,
     to: oldTo,
     label: command.nextLabel || defaultTransitionLabel(),
@@ -1530,8 +2305,8 @@ function insertStateOnTransition(model, command) {
 
 function applyCommand(workspace, command = {}) {
   if (!isPlainObject(command)) throw new Error("Each command must be an object.");
-  const name = String(command.command || command.type || command.name || "");
-  if (!name) throw new Error("Command requires command/type/name.");
+  const name = String(command.command || "");
+  if (!name) throw new Error("Command requires command.");
   switch (name) {
     case "actions.apply": {
       const result = applyActions(workspace.model, command.actions || [], { allowInvalid: Boolean(command.allowInvalid) });
@@ -1539,9 +2314,9 @@ function applyCommand(workspace, command = {}) {
       return { command: name, ...result };
     }
     case "scene.new":
-      return { command: name, ...applyAction(workspace.model, { type: "create_flow", name: command.title || command.name || "State App" }) };
+      return { command: name, ...applyAction(workspace.model, { type: "create_flow", name: command.title || "State App" }) };
     case "scene.rename":
-      return { command: name, ...applyAction(workspace.model, { type: "set_model_name", name: command.title || command.name || "State App" }) };
+      return { command: name, ...applyAction(workspace.model, { type: "set_model_name", name: command.title || "State App" }) };
     case "model.replace":
       return { command: name, ...applyAction(workspace.model, { type: "replace_model", model: command.model }) };
     case "state.upsert":
@@ -1553,7 +2328,6 @@ function applyCommand(workspace, command = {}) {
       return { command: name, ...applyAction(workspace.model, { ...command, type: "delete_state" }) };
     case "state.set_initial":
       return { command: name, ...applyAction(workspace.model, { ...command, type: "set_initial" }) };
-    case "transition.upsert":
     case "transition.create":
     case "transition.update":
     case "transition.rewire":
@@ -1573,21 +2347,20 @@ function applyCommand(workspace, command = {}) {
     case "wire.remove":
       return { command: name, ...applyAction(workspace.model, { ...command, type: "remove_data_wire" }) };
     case "component.add":
-    case "widget.add":
       return { command: name, ...applyAction(workspace.model, { ...command, type: "add_component" }) };
     case "component.update":
-    case "widget.update":
       return { command: name, ...applyAction(workspace.model, { ...command, type: "update_component" }) };
     case "component.remove":
-    case "widget.remove":
       return { command: name, ...applyAction(workspace.model, { ...command, type: "remove_component" }) };
     case "component.reorder":
-    case "widget.reorder":
       return { command: name, ...applyAction(workspace.model, { ...command, type: "reorder_components" }) };
     case "boundary.set":
       return { command: name, ...applyAction(workspace.model, { ...command, type: "set_boundary" }) };
     case "selection.set":
-      workspace.editor.selected = normalizeEditorSelection({ nodes: command.nodes || command.stateIds || [], edges: command.edges || command.transitionIds || [] }, workspace.model);
+      if (!Array.isArray(command.stateIds) && !Array.isArray(command.transitionIds)) {
+        throw new Error("selection.set requires stateIds or transitionIds.");
+      }
+      workspace.editor.selected = normalizeEditorSelection({ nodes: command.stateIds || [], edges: command.transitionIds || [] }, workspace.model);
       return { command: name, selected: workspace.editor.selected };
     case "selection.clear":
       workspace.editor.selected = normalizeEditorSelection(null, workspace.model);
@@ -1596,8 +2369,9 @@ function applyCommand(workspace, command = {}) {
       workspace.editor.selected = selectionForCurrentLayer(workspace.model, workspace.editor.currentLayerId);
       return { command: name, selected: workspace.editor.selected };
     case "layer.open": {
-      const layerId = command.layerId || command.stateId || command.id || "";
-      workspace.editor.currentLayerId = layerId && byModelId(workspace.model, layerId) ? String(layerId) : null;
+      const layerId = command.stateId || "";
+      if (!layerId || !byModelId(workspace.model, layerId)) throw new Error("layer.open requires an existing stateId.");
+      workspace.editor.currentLayerId = String(layerId);
       workspace.editor.selected = normalizeEditorSelection(null, workspace.model);
       return { command: name, currentLayerId: workspace.editor.currentLayerId };
     }
@@ -1612,7 +2386,8 @@ function applyCommand(workspace, command = {}) {
       workspace.editor.selected = normalizeEditorSelection(null, workspace.model);
       return { command: name, currentLayerId: null };
     case "viewport.set_camera":
-      workspace.editor.camera = normalizeCamera(command.camera || command);
+      if (!isPlainObject(command.camera)) throw new Error("viewport.set_camera requires camera.");
+      workspace.editor.camera = normalizeCamera(command.camera);
       return { command: name, camera: workspace.editor.camera };
     case "viewport.reset":
       workspace.editor.camera = normalizeCamera({ x: 32, y: 32, scale: 1 });
@@ -1621,19 +2396,20 @@ function applyCommand(workspace, command = {}) {
       workspace.editor.camera = fitCameraForModel(workspace.model, { ...command, layerId: command.layerId ?? workspace.editor.currentLayerId });
       return { command: name, camera: workspace.editor.camera };
     case "preview.set_collapsed":
-      workspace.editor.previewCollapsed = Boolean(command.collapsed ?? command.value);
+      if (typeof command.collapsed !== "boolean") throw new Error("preview.set_collapsed requires collapsed.");
+      workspace.editor.previewCollapsed = Boolean(command.collapsed);
       return { command: name, previewCollapsed: workspace.editor.previewCollapsed };
-    case "preview.pause":
-      workspace.editor.runtimePaused = Boolean(command.paused ?? command.value);
-      return { command: name, runtimePaused: workspace.editor.runtimePaused };
-    case "ui.set_panel":
-      workspace.editor.panels[String(command.panel || command.id || "panel")] = {
+    case "ui.set_panel": {
+      const panel = String(command.panel || "");
+      if (!panel) throw new Error("ui.set_panel requires panel.");
+      workspace.editor.panels[panel] = {
         collapsed: Boolean(command.collapsed)
       };
       if (Number.isFinite(Number(command.width))) {
-        workspace.editor.panels[String(command.panel || command.id || "panel")].width = Number(command.width);
+        workspace.editor.panels[panel].width = Number(command.width);
       }
       return { command: name, panels: workspace.editor.panels };
+    }
     case "graph.copy_selection":
       workspace.clipboard = selectionPayload(workspace.model, {
         nodes: command.stateIds || selectedStateIdsFromCommand(workspace, command),
@@ -1655,7 +2431,7 @@ function applyCommand(workspace, command = {}) {
     case "graph.delete_selection": {
       const stateIds = selectedStateIdsFromCommand(workspace, command);
       const edgeIds = selectedEdgeIdsFromCommand(workspace, command);
-      edgeIds.forEach(id => applyAction(workspace.model, { type: "delete_transition", id }));
+      edgeIds.forEach(transitionId => applyAction(workspace.model, { type: "delete_transition", transitionId }));
       stateIds.forEach(id => applyAction(workspace.model, { type: "delete_state", id }));
       workspace.editor.selected = normalizeEditorSelection(null, workspace.model);
       return { command: name, deleted: { states: stateIds, transitions: edgeIds } };
@@ -1703,7 +2479,7 @@ function applyCommands(inputWorkspace, commands, options = {}) {
   const workspace = normalizeWorkspace(inputWorkspace);
   const results = [];
   for (const command of commands) {
-    const name = String(command?.command || command?.type || command?.name || "");
+    const name = String(command?.command || "");
     const historyCommand = name === "history.undo" || name === "history.redo";
     const historyNeutral = commandIsHistoryNeutral(name) || command.history === false;
     if (!historyCommand && !historyNeutral) pushCommandHistory(workspace);
@@ -1760,7 +2536,6 @@ const commandCatalog = [
   ["viewport.reset", "Reset pan/zoom camera."],
   ["viewport.fit", "Fit the current layer into a viewport."],
   ["preview.set_collapsed", "Collapse or expand preview."],
-  ["preview.pause", "Pause or resume runtime preview."],
   ["ui.set_panel", "Set editor panel UI state."],
   ["graph.copy_selection", "Copy selected states and internal transitions."],
   ["graph.paste", "Paste copied graph selection with new ids."],
@@ -1773,16 +2548,35 @@ const commandCatalog = [
   ["history.redo", "Redo the last undone command-level mutation."]
 ].map(([name, description]) => ({ name, description }));
 
+function formalModelDefinition(model) {
+  const validation = validateModel(model);
+  if (!validation.ok) {
+    const error = new Error(validation.issues.map(issue => issue.message).join("; ") || "Model contract validation failed.");
+    error.validation = validation;
+    throw error;
+  }
+  const normalizedModel = validation.model;
+  normalizedModel.transitions = normalizedModel.transitions.filter(transition =>
+    !transition.boundaryFlow &&
+    !isBoundaryProxyId(transition.from) &&
+    !isBoundaryProxyId(transition.to)
+  );
+  return normalizedModel;
+}
+
 function definitionPayload(model, stateTemplates = [], editor = {}) {
-  const normalizedModel = normalizeModel(model);
+  if (Array.isArray(stateTemplates) && stateTemplates.length) {
+    throw new Error("stateTemplates are contract-managed and must not be exported in a definition.");
+  }
+  const normalizedModel = formalModelDefinition(model);
   const session = normalizeEditorSession(editor, normalizedModel);
   return {
     kind: "state-blueprint-definition",
     schemaVersion: 2,
-    app: "State Blueprint",
+    app: "Zustand",
     savedAt: new Date().toISOString(),
     model: normalizedModel,
-    stateTemplates: Array.isArray(stateTemplates) ? clone(stateTemplates) : [],
+    stateTemplates: [],
     camera: session.camera,
     previewCollapsed: session.previewCollapsed
   };

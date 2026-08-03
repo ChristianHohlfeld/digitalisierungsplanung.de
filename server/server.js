@@ -1,82 +1,66 @@
 "use strict";
 
 const crypto = require("node:crypto");
+const { spawnSync } = require("node:child_process");
+const dns = require("node:dns");
 const fs = require("node:fs");
 const http = require("node:http");
+const https = require("node:https");
+const net = require("node:net");
+const path = require("node:path");
 const { URL } = require("node:url");
 const { WebSocketServer, WebSocket } = require("ws");
+const eventCatalog = require("./event-catalog");
+const presetLibrary = require("./preset-library");
+const adminTools = require("./admin-tools");
+const presetCatalog = require("./preset-catalog");
+const productContract = require("./product-contract");
+const agentWidget = require("./agent-widget");
+const { loadReleaseInfo, parseReleaseSource } = require("./release");
+const stateBlueprintMcp = require("../mcp/state-blueprint-server");
 
-const DEFAULT_ALLOWED_ORIGINS = ["https://digitalisierungsplanung.de"];
+const DEFAULT_ALLOWED_ORIGINS = ["https://digitalisierungsplanung.de", "https://www.digitalisierungsplanung.de"];
 const DEFAULT_PATH = "/ws";
 const DEFAULT_TOKEN_PATH = "/token";
 const DEFAULT_EVENTS_PATH = "/events";
+const DEFAULT_PRODUCT_CONTRACT_PATH = "/contract";
 const DEFAULT_EMIT_PATH = "/emit";
+const DEFAULT_ADMIN_PATH = "/admin.html";
+const DEFAULT_ADMIN_ROUTES_PATH = "/admin/routes";
 const DEFAULT_CONSOLE_PATH = "/console.html";
+const DEFAULT_EVENTS_ADMIN_PATH = "/events-admin.html";
+const DEFAULT_EVENTS_ADMIN_CATALOG_PATH = "/events-admin/catalog";
+const DEFAULT_PRESETS_ADMIN_PATH = "/presets-admin.html";
+const DEFAULT_PRESETS_ADMIN_CATALOG_PATH = "/presets-admin/catalog";
+const DEFAULT_PRESETS_ADMIN_PARSE_PATH = "/presets-admin/parse";
+const DEFAULT_PRESETS_ADMIN_IMPORT_PATH = "/presets-admin/import";
+const DEFAULT_IMAGE_INLINE_PATH = "/assets/inline-image";
+const DEFAULT_MCP_PATH = "/mcp";
+const DEFAULT_AGENT_PATH = agentWidget.DEFAULT_AGENT_PATH;
+const DEFAULT_AGENT_CONFIG_PATH = agentWidget.DEFAULT_AGENT_CONFIG_PATH;
+const DEFAULT_AGENT_CHAT_PATH = agentWidget.DEFAULT_AGENT_CHAT_PATH;
+const DEFAULT_AGENT_MCP_TOOL_PATH = agentWidget.DEFAULT_AGENT_MCP_TOOL_PATH;
+const DEFAULT_AGENT_EDITOR_PROMPT_PATH = agentWidget.DEFAULT_AGENT_EDITOR_PROMPT_PATH;
+const DEFAULT_AGENT_WIDGET_SCRIPT_PATH = agentWidget.DEFAULT_AGENT_WIDGET_SCRIPT_PATH;
+const DEFAULT_VERSION_PATH = "/version";
+const DEFAULT_STRIPE_API_BASE_URL = "https://api.stripe.com";
+const DEFAULT_STRIPE_CHECKOUT_PATH = presetCatalog.STRIPE_CHECKOUT_DEFAULTS.path;
+const DEFAULT_STRIPE_SUCCESS_URL = presetCatalog.STRIPE_CHECKOUT_DEFAULTS.successUrl;
+const DEFAULT_STRIPE_CANCEL_URL = presetCatalog.STRIPE_CHECKOUT_DEFAULTS.cancelUrl;
+const DEFAULT_ADMIN_COMMIT_MESSAGE = "Update realtime event catalog";
+const DEFAULT_PRESET_ADMIN_COMMIT_MESSAGE = "Update preset library";
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 8788;
 const MAX_ID_LENGTH = 128;
 const MAX_EVENT_NAME_LENGTH = 160;
-const MAX_STATE_PATH_LENGTH = 240;
 const MAX_EMIT_BODY_BYTES = 64 * 1024;
-const VALID_VALUE_TYPES = new Set(["text", "email", "password", "number", "boolean", "url", "image", "object", "list"]);
-const DEFAULT_EVENT_CATALOG = {
-  provider: {
-    id: "digitalisierungsplanung.realtime",
-    label: "Digitalisierungsplanung Realtime",
-    version: 1
-  },
-  state: {
-    path: "realtime",
-    schema: {
-      roomId: "text",
-      clientId: "text",
-      status: "text",
-      connected: "boolean",
-      joined: "boolean",
-      connecting: "boolean",
-      reconnectAttempt: "number",
-      error: "text"
-    }
-  },
-  events: [
-    {
-      name: "realtime.sip.call.incoming",
-      label: "Incoming call",
-      description: "SIP phone call started",
-      detail: { caller: "text", callee: "text", callId: "text" },
-      bindings: [
-        { from: "detail.caller", to: "realtime.sip.call.incoming.caller", type: "text" },
-        { from: "detail.callee", to: "realtime.sip.call.incoming.callee", type: "text" },
-        { from: "detail.callId", to: "realtime.sip.call.incoming.callId", type: "text" }
-      ]
-    },
-    {
-      name: "realtime.sip.call.answered",
-      label: "Call answered",
-      description: "SIP phone call was answered",
-      detail: { callId: "text", agent: "text" },
-      bindings: [
-        { from: "detail.callId", to: "realtime.sip.call.answered.callId", type: "text" },
-        { from: "detail.agent", to: "realtime.sip.call.answered.agent", type: "text" }
-      ]
-    },
-    {
-      name: "realtime.sip.call.ended",
-      label: "Call ended",
-      description: "SIP phone call ended",
-      detail: { callId: "text", duration: "number" },
-      bindings: [
-        { from: "detail.callId", to: "realtime.sip.call.ended.callId", type: "text" },
-        { from: "detail.duration", to: "realtime.sip.call.ended.duration", type: "number" }
-      ]
-    }
-  ]
-};
-const MESSAGE_TYPES = new Set([
-  "presence.cursor",
-  "runtime.event"
-]);
-const TRANSIENT_TYPES = new Set(["presence.cursor"]);
+const MAX_PRESET_API_RESPONSE_BYTES = 64 * 1024;
+const MAX_IMAGE_INLINE_BODY_BYTES = 4 * 1024;
+const MAX_MCP_BODY_BYTES = 1024 * 1024;
+const MAX_IMAGE_INLINE_BYTES = 12 * 1024 * 1024;
+const PRESET_API_TIMEOUT_MS = 8000;
+const IMAGE_INLINE_TIMEOUT_MS = 12000;
+const MESSAGE_TYPES = new Set(["runtime.event"]);
 const CONSOLE_HTML = `<!doctype html>
 <html lang="en">
 <head>
@@ -124,6 +108,7 @@ const CONSOLE_HTML = `<!doctype html>
         <label>Room ID<input id="roomId" name="roomId" autocomplete="off" value="smoke"></label>
         <label>Client ID<input id="clientId" name="clientId" autocomplete="off" value="console"></label>
       </div>
+      <label>Connector<select id="emitterId" name="emitterId"></select></label>
       <label>Event<select id="eventName" name="eventName"></select></label>
       <label>Detail JSON<textarea id="detail" name="detail" spellcheck="false">{}</textarea></label>
       <label>Emit Secret<input id="secret" name="secret" type="password" autocomplete="off" placeholder="REALTIME_EMIT_SECRET"></label>
@@ -131,7 +116,7 @@ const CONSOLE_HTML = `<!doctype html>
         <button id="send" type="submit">Emit event</button>
         <button id="reload" type="button">Reload events</button>
       </div>
-      <div class="hint">Events come from <code>/events</code>. The secret stays in this browser field and is sent only as the Bearer token for <code>/emit</code>.</div>
+      <div class="hint">Events come from <code>/events</code>. The secret is stored locally in this browser and is sent only as the Bearer token for <code>/emit</code>.</div>
     </form>
     <div id="result" class="result">No event emitted yet.</div>
   </main>
@@ -139,13 +124,26 @@ const CONSOLE_HTML = `<!doctype html>
     const statusEl = document.getElementById("status");
     const resultEl = document.getElementById("result");
     const eventSelect = document.getElementById("eventName");
+    const emitterSelect = document.getElementById("emitterId");
     const detailEl = document.getElementById("detail");
     const roomEl = document.getElementById("roomId");
     const clientEl = document.getElementById("clientId");
     const secretEl = document.getElementById("secret");
     const sendEl = document.getElementById("send");
     const stateLinkEl = document.getElementById("stateLink");
+    const EMIT_SECRET_STORAGE_KEY = "digitalisierungsplanung.realtime.emitSecret";
     let catalog = null;
+
+    try {
+      secretEl.value = localStorage.getItem(EMIT_SECRET_STORAGE_KEY) || "";
+    } catch (_) {}
+    secretEl.addEventListener("input", () => {
+      try {
+        const value = secretEl.value.trim();
+        if (value) localStorage.setItem(EMIT_SECRET_STORAGE_KEY, value);
+        else localStorage.removeItem(EMIT_SECRET_STORAGE_KEY);
+      } catch (_) {}
+    });
 
     function setResult(message, ok = true) {
       resultEl.classList.toggle("ok", ok);
@@ -177,6 +175,10 @@ const CONSOLE_HTML = `<!doctype html>
       return (catalog?.events || []).find(event => event.name === eventSelect.value) || null;
     }
 
+    function selectedEmitter() {
+      return (catalog?.emitters || []).find(emitter => emitter.id === emitterSelect.value) || null;
+    }
+
     function syncDetail() {
       detailEl.value = JSON.stringify(detailForEvent(selectedEvent()), null, 2);
     }
@@ -189,9 +191,16 @@ const CONSOLE_HTML = `<!doctype html>
     async function loadCatalog() {
       statusEl.textContent = "Loading event catalog...";
       eventSelect.innerHTML = "";
+      emitterSelect.innerHTML = "";
       const response = await fetch("/events", { cache: "no-store" });
       if (!response.ok) throw new Error("events failed with status " + response.status);
       catalog = await response.json();
+      for (const emitter of catalog.emitters || []) {
+        const option = document.createElement("option");
+        option.value = emitter.id;
+        option.textContent = (emitter.label || emitter.id) + " - " + emitter.id;
+        emitterSelect.appendChild(option);
+      }
       for (const event of catalog.events || []) {
         const option = document.createElement("option");
         option.value = event.name;
@@ -199,19 +208,36 @@ const CONSOLE_HTML = `<!doctype html>
         eventSelect.appendChild(option);
       }
       if (!eventSelect.options.length) throw new Error("event catalog has no events");
+      if (!emitterSelect.options.length) throw new Error("event catalog has no connectors");
+      syncEventsForEmitter();
       statusEl.textContent = "Loaded " + eventSelect.options.length + " event(s).";
       syncDetail();
       syncStateLink();
+    }
+
+    function syncEventsForEmitter() {
+      const emitter = selectedEmitter();
+      const allowed = new Set(emitter?.events || []);
+      for (const option of eventSelect.options) {
+        option.hidden = allowed.size > 0 && !allowed.has(option.value);
+        option.disabled = option.hidden;
+      }
+      const selected = eventSelect.selectedOptions[0];
+      if (!selected || selected.disabled) {
+        const first = [...eventSelect.options].find(option => !option.disabled);
+        if (first) eventSelect.value = first.value;
+      }
     }
 
     async function emitEvent(event) {
       event.preventDefault();
       const roomId = roomEl.value.trim();
       const clientId = clientEl.value.trim() || "console";
+      const emitterId = emitterSelect.value;
       const name = eventSelect.value;
       const secret = secretEl.value.trim();
-      if (!roomId || !name || !secret) {
-        setResult("roomId, event and secret are required.", false);
+      if (!roomId || !emitterId || !name || !secret) {
+        setResult("roomId, connector, event and secret are required.", false);
         return;
       }
       let detail;
@@ -230,7 +256,7 @@ const CONSOLE_HTML = `<!doctype html>
             "authorization": "Bearer " + secret,
             "content-type": "application/json"
           },
-          body: JSON.stringify({ roomId, clientId, name, detail })
+          body: JSON.stringify({ roomId, clientId, emitterId, name, detail })
         });
         const payload = await response.json().catch(() => ({}));
         setResult(JSON.stringify({ status: response.status, ...payload }, null, 2), response.ok);
@@ -246,6 +272,10 @@ const CONSOLE_HTML = `<!doctype html>
       if (key === "client") clientEl.value = value;
     });
     roomEl.addEventListener("input", syncStateLink);
+    emitterSelect.addEventListener("change", () => {
+      syncEventsForEmitter();
+      syncDetail();
+    });
     eventSelect.addEventListener("change", syncDetail);
     document.getElementById("reload").addEventListener("click", () => loadCatalog().catch(error => {
       statusEl.textContent = "Event load failed.";
@@ -276,11 +306,232 @@ function parseInteger(value, fallback, min = 0, max = Number.MAX_SAFE_INTEGER) {
   return Math.min(max, Math.max(min, parsed));
 }
 
+function presetApiError(code, status) {
+  const error = new Error(code);
+  error.code = code;
+  error.status = status;
+  return error;
+}
+
+function normalizedPresetApiUrl(value) {
+  let target;
+  try {
+    target = new URL(String(value || "").trim());
+  } catch (_) {
+    throw presetApiError("invalid_preset_api_url", 400);
+  }
+  if (target.protocol !== "https:" || !target.hostname || target.username || target.password || target.hash || target.href.length > 2048) {
+    throw presetApiError("invalid_preset_api_url", 400);
+  }
+  const literalHost = target.hostname.replace(/^\[|\]$/g, "");
+  if (net.isIP(literalHost) && !isPublicNetworkAddress(literalHost)) {
+    throw presetApiError("preset_api_target_not_public", 400);
+  }
+  return target;
+}
+
+function isPublicNetworkAddress(address) {
+  const value = String(address || "").toLowerCase().split("%")[0];
+  const family = net.isIP(value);
+  if (family === 4) {
+    const [a, b] = value.split(".").map(Number);
+    return !(a === 0 || a === 10 || a === 127 || a >= 224 ||
+      a === 100 && b >= 64 && b <= 127 ||
+      a === 169 && b === 254 ||
+      a === 172 && b >= 16 && b <= 31 ||
+      a === 192 && [0, 168].includes(b) ||
+      a === 198 && [18, 19].includes(b) ||
+      a === 198 && b === 51 ||
+      a === 203 && b === 0);
+  }
+  if (family === 6) {
+    return !(value === "::" || value === "::1" || value.startsWith("::ffff:") ||
+      value.startsWith("fc") || value.startsWith("fd") || /^fe[89ab]/.test(value) ||
+      value.startsWith("ff") || value.startsWith("2001:db8:"));
+  }
+  return false;
+}
+
+function publicPresetApiLookup(hostname, options, callback) {
+  const lookupOptions = typeof options === "number" ? { family: options } : { ...(options || {}) };
+  dns.lookup(hostname, { ...lookupOptions, all: true, verbatim: true }, (error, addresses) => {
+    if (error) {
+      callback(presetApiError("preset_api_host_unavailable", 502));
+      return;
+    }
+    const requestedFamily = Number(lookupOptions.family) || 0;
+    const candidates = addresses.filter(item => !requestedFamily || item.family === requestedFamily);
+    if (!candidates.length || candidates.some(item => !isPublicNetworkAddress(item.address))) {
+      callback(presetApiError("preset_api_target_not_public", 400));
+      return;
+    }
+    if (lookupOptions.all) callback(null, candidates);
+    else callback(null, candidates[0].address, candidates[0].family);
+  });
+}
+
+function fetchPresetApiDefinition(value) {
+  const target = normalizedPresetApiUrl(value);
+  return new Promise((resolve, reject) => {
+    const request = https.request(target, {
+      method: "GET",
+      headers: { accept: "application/json" },
+      lookup: publicPresetApiLookup
+    }, response => {
+      const status = Number(response.statusCode) || 0;
+      if (status >= 300 && status < 400) {
+        response.resume();
+        reject(presetApiError("preset_api_redirect_not_allowed", 502));
+        return;
+      }
+      if (status < 200 || status >= 300) {
+        response.resume();
+        reject(presetApiError("preset_api_upstream_failed", 502));
+        return;
+      }
+      if (!/^application\/(?:[a-z0-9.+-]+\+)?json(?:\s*;|$)/i.test(String(response.headers["content-type"] || ""))) {
+        response.resume();
+        reject(presetApiError("preset_api_json_required", 415));
+        return;
+      }
+      const declaredLength = Number(response.headers["content-length"] || 0);
+      if (declaredLength > MAX_PRESET_API_RESPONSE_BYTES) {
+        response.resume();
+        reject(presetApiError("preset_api_response_too_large", 413));
+        return;
+      }
+      const chunks = [];
+      let bytes = 0;
+      response.on("data", chunk => {
+        bytes += chunk.length;
+        if (bytes > MAX_PRESET_API_RESPONSE_BYTES) {
+          response.destroy(presetApiError("preset_api_response_too_large", 413));
+          return;
+        }
+        chunks.push(chunk);
+      });
+      response.on("end", () => {
+        try {
+          resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+        } catch (_) {
+          reject(presetApiError("invalid_preset_api_response", 422));
+        }
+      });
+      response.on("error", error => reject(error?.code ? error : presetApiError("preset_api_fetch_failed", 502)));
+    });
+    request.setTimeout(PRESET_API_TIMEOUT_MS, () => request.destroy(presetApiError("preset_api_timeout", 504)));
+    request.on("error", error => reject(error?.status ? error : presetApiError("preset_api_fetch_failed", 502)));
+    request.end();
+  });
+}
+
+function imageInlineError(code, status) {
+  const error = new Error(code);
+  error.code = code;
+  error.status = status;
+  return error;
+}
+
+function normalizedPublicImageUrl(value) {
+  let target;
+  try {
+    target = new URL(String(value || "").trim());
+  } catch (_) {
+    throw imageInlineError("invalid_image_url", 400);
+  }
+  if (!["http:", "https:"].includes(target.protocol) || !target.hostname || target.username || target.password || target.hash || target.href.length > 4096) {
+    throw imageInlineError("invalid_image_url", 400);
+  }
+  const literalHost = target.hostname.replace(/^\[|\]$/g, "");
+  if (net.isIP(literalHost) && !isPublicNetworkAddress(literalHost)) {
+    throw imageInlineError("image_target_not_public", 400);
+  }
+  return target;
+}
+
+function publicImageLookup(hostname, options, callback) {
+  const lookupOptions = typeof options === "number" ? { family: options } : { ...(options || {}) };
+  dns.lookup(hostname, { ...lookupOptions, all: true, verbatim: true }, (error, addresses) => {
+    if (error) {
+      callback(imageInlineError("image_host_unavailable", 502));
+      return;
+    }
+    const requestedFamily = Number(lookupOptions.family) || 0;
+    const candidates = addresses.filter(item => !requestedFamily || item.family === requestedFamily);
+    if (!candidates.length || candidates.some(item => !isPublicNetworkAddress(item.address))) {
+      callback(imageInlineError("image_target_not_public", 400));
+      return;
+    }
+    if (lookupOptions.all) callback(null, candidates);
+    else callback(null, candidates[0].address, candidates[0].family);
+  });
+}
+
+function fetchPublicImageAsset(value, options = {}) {
+  const target = normalizedPublicImageUrl(value);
+  const maxBytes = parseInteger(options.maxBytes, MAX_IMAGE_INLINE_BYTES, 1024, MAX_IMAGE_INLINE_BYTES);
+  const transport = target.protocol === "https:" ? https : http;
+  return new Promise((resolve, reject) => {
+    const request = transport.request(target, {
+      method: "GET",
+      headers: { accept: "image/avif,image/webp,image/png,image/jpeg,image/gif,image/svg+xml,image/*;q=0.8" },
+      lookup: publicImageLookup
+    }, response => {
+      const status = Number(response.statusCode) || 0;
+      if (status >= 300 && status < 400) {
+        response.resume();
+        reject(imageInlineError("image_redirect_not_allowed", 502));
+        return;
+      }
+      if (status < 200 || status >= 300) {
+        response.resume();
+        reject(imageInlineError("image_upstream_failed", 502));
+        return;
+      }
+      const mimeType = String(response.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
+      if (!/^image\/[a-z0-9.+-]+$/i.test(mimeType)) {
+        response.resume();
+        reject(imageInlineError("image_response_not_image", 415));
+        return;
+      }
+      const declaredLength = Number(response.headers["content-length"] || 0);
+      if (declaredLength > maxBytes) {
+        response.resume();
+        reject(imageInlineError("image_response_too_large", 413));
+        return;
+      }
+      const chunks = [];
+      let bytes = 0;
+      response.on("data", chunk => {
+        bytes += chunk.length;
+        if (bytes > maxBytes) {
+          response.destroy(imageInlineError("image_response_too_large", 413));
+          return;
+        }
+        chunks.push(chunk);
+      });
+      response.on("end", () => resolve({
+        mimeType,
+        buffer: Buffer.concat(chunks)
+      }));
+      response.on("error", error => reject(error?.status ? error : imageInlineError("image_fetch_failed", 502)));
+    });
+    request.setTimeout(IMAGE_INLINE_TIMEOUT_MS, () => request.destroy(imageInlineError("image_fetch_timeout", 504)));
+    request.on("error", error => reject(error?.status ? error : imageInlineError("image_fetch_failed", 502)));
+    request.end();
+  });
+}
+
+function defaultGitRunner(args, options = {}) {
+  return spawnSync("git", args, {
+    cwd: options.cwd,
+    env: options.env || process.env,
+    encoding: "utf8"
+  });
+}
+
 function loadEventCatalog(options = {}, env = process.env) {
-  if (options.eventCatalog) return normalizeEventCatalog(options.eventCatalog);
-  const catalogPath = options.eventCatalogPath || env.REALTIME_EVENT_CATALOG_PATH || "";
-  if (!catalogPath) return normalizeEventCatalog(DEFAULT_EVENT_CATALOG);
-  return normalizeEventCatalog(JSON.parse(fs.readFileSync(catalogPath, "utf8")));
+  return eventCatalog.loadEventCatalog(options, env);
 }
 
 function loadConfig(options = {}) {
@@ -288,6 +539,9 @@ function loadConfig(options = {}) {
   const roomSecret = options.roomSecret ?? env.REALTIME_ROOM_SECRET ?? "";
   const emitSecret = options.emitSecret ?? env.REALTIME_EMIT_SECRET ?? "";
   const nodeEnv = options.nodeEnv || env.NODE_ENV || "development";
+  const repoDir = path.resolve(options.repoDir || env.REALTIME_REPO_DIR || process.cwd());
+  const releaseFile = path.resolve(options.releaseFile || env.ZUSTAND_RELEASE_FILE || path.join(repoDir, "release-version.js"));
+  const presetLibraryPath = path.resolve(options.presetLibraryPath || env.REALTIME_PRESET_LIBRARY_PATH || presetLibrary.DEFAULT_PRESET_LIBRARY_PATH);
   const allowUnsignedRooms = options.allowUnsignedRooms ?? (
     String(env.REALTIME_ALLOW_UNSIGNED_ROOMS || "").toLowerCase() === "true"
   );
@@ -298,25 +552,70 @@ function loadConfig(options = {}) {
     path: options.path || env.REALTIME_PATH || DEFAULT_PATH,
     tokenPath: options.tokenPath || env.REALTIME_TOKEN_PATH || DEFAULT_TOKEN_PATH,
     eventsPath: options.eventsPath || env.REALTIME_EVENTS_PATH || DEFAULT_EVENTS_PATH,
+    productContractPath: options.productContractPath || env.REALTIME_PRODUCT_CONTRACT_PATH || DEFAULT_PRODUCT_CONTRACT_PATH,
     emitPath: options.emitPath || env.REALTIME_EMIT_PATH || DEFAULT_EMIT_PATH,
+    adminPath: options.adminPath || env.REALTIME_ADMIN_PATH || DEFAULT_ADMIN_PATH,
+    adminRoutesPath: options.adminRoutesPath || env.REALTIME_ADMIN_ROUTES_PATH || DEFAULT_ADMIN_ROUTES_PATH,
     consolePath: options.consolePath || env.REALTIME_CONSOLE_PATH || DEFAULT_CONSOLE_PATH,
+    eventsAdminPath: options.eventsAdminPath || env.REALTIME_EVENTS_ADMIN_PATH || DEFAULT_EVENTS_ADMIN_PATH,
+    eventsAdminCatalogPath: options.eventsAdminCatalogPath || env.REALTIME_EVENTS_ADMIN_CATALOG_PATH || DEFAULT_EVENTS_ADMIN_CATALOG_PATH,
+    presetsAdminPath: options.presetsAdminPath || env.REALTIME_PRESETS_ADMIN_PATH || DEFAULT_PRESETS_ADMIN_PATH,
+    presetsAdminCatalogPath: options.presetsAdminCatalogPath || env.REALTIME_PRESETS_ADMIN_CATALOG_PATH || DEFAULT_PRESETS_ADMIN_CATALOG_PATH,
+    presetsAdminParsePath: options.presetsAdminParsePath || env.REALTIME_PRESETS_ADMIN_PARSE_PATH || DEFAULT_PRESETS_ADMIN_PARSE_PATH,
+    presetsAdminImportPath: options.presetsAdminImportPath || env.REALTIME_PRESETS_ADMIN_IMPORT_PATH || DEFAULT_PRESETS_ADMIN_IMPORT_PATH,
+    imageInlinePath: options.imageInlinePath || env.REALTIME_IMAGE_INLINE_PATH || DEFAULT_IMAGE_INLINE_PATH,
+    mcpPath: options.mcpPath || env.REALTIME_MCP_PATH || DEFAULT_MCP_PATH,
+    agentPath: options.agentPath || env.REALTIME_AGENT_PATH || DEFAULT_AGENT_PATH,
+    agentConfigPath: options.agentConfigPath || env.REALTIME_AGENT_CONFIG_PATH || DEFAULT_AGENT_CONFIG_PATH,
+    agentChatPath: options.agentChatPath || env.REALTIME_AGENT_CHAT_PATH || DEFAULT_AGENT_CHAT_PATH,
+    agentMcpToolPath: options.agentMcpToolPath || env.REALTIME_AGENT_MCP_TOOL_PATH || DEFAULT_AGENT_MCP_TOOL_PATH,
+    agentEditorPromptPath: options.agentEditorPromptPath || env.REALTIME_AGENT_EDITOR_PROMPT_PATH || DEFAULT_AGENT_EDITOR_PROMPT_PATH,
+    agentWidgetScriptPath: options.agentWidgetScriptPath || env.REALTIME_AGENT_WIDGET_SCRIPT_PATH || DEFAULT_AGENT_WIDGET_SCRIPT_PATH,
+    agentHtmlPath: path.resolve(options.agentHtmlPath || env.REALTIME_AGENT_HTML_PATH || path.join(__dirname, "agent.html")),
+    agentWidgetAssetPath: path.resolve(options.agentWidgetAssetPath || env.REALTIME_AGENT_WIDGET_ASSET_PATH || path.join(repoDir, "assets", "agent-widget.js")),
+    versionPath: options.versionPath || env.REALTIME_VERSION_PATH || DEFAULT_VERSION_PATH,
+    stripeCheckoutPath: options.stripeCheckoutPath || env.REALTIME_STRIPE_CHECKOUT_PATH || DEFAULT_STRIPE_CHECKOUT_PATH,
+    stripeApiBaseUrl: options.stripeApiBaseUrl || env.REALTIME_STRIPE_API_BASE_URL || DEFAULT_STRIPE_API_BASE_URL,
+    stripeSecretKey: options.stripeSecretKey ?? env.REALTIME_STRIPE_SECRET_KEY ?? env.STRIPE_SECRET_KEY ?? "",
+    stripeSuccessUrl: options.stripeSuccessUrl || env.REALTIME_STRIPE_SUCCESS_URL || DEFAULT_STRIPE_SUCCESS_URL,
+    stripeCancelUrl: options.stripeCancelUrl || env.REALTIME_STRIPE_CANCEL_URL || DEFAULT_STRIPE_CANCEL_URL,
+    eventCatalogPath: path.resolve(options.eventCatalogPath || env.REALTIME_EVENT_CATALOG_PATH || eventCatalog.DEFAULT_EVENT_CATALOG_PATH),
+    adminHtmlPath: path.resolve(options.adminHtmlPath || env.REALTIME_ADMIN_HTML_PATH || path.join(__dirname, "admin.html")),
+    eventAdminHtmlPath: path.resolve(options.eventAdminHtmlPath || env.REALTIME_EVENT_ADMIN_HTML_PATH || path.join(__dirname, "events-admin.html")),
+    presetLibraryPath,
+    presetAdminHtmlPath: path.resolve(options.presetAdminHtmlPath || env.REALTIME_PRESET_ADMIN_HTML_PATH || path.join(__dirname, "presets-admin.html")),
+    repoDir,
+    releaseFile,
+    adminSecret: options.adminSecret ?? env.REALTIME_ADMIN_SECRET ?? "",
+    mcpSecret: options.mcpSecret ?? env.REALTIME_MCP_SECRET ?? env.MCP_SECRET ?? "",
+    agentSecret: options.agentSecret ?? env.REALTIME_AGENT_SECRET ?? "",
+    agentModel: options.agentModel || env.REALTIME_AGENT_MODEL || agentWidget.DEFAULT_AGENT_MODEL,
+    agentModelBaseUrl: options.agentModelBaseUrl || env.REALTIME_AGENT_MODEL_BASE_URL || "",
+    agentChatCompletionsUrl: options.agentChatCompletionsUrl || env.REALTIME_AGENT_CHAT_COMPLETIONS_URL || "",
+    agentModelApiKey: options.agentModelApiKey ?? env.REALTIME_AGENT_MODEL_API_KEY ?? "",
+    agentWebLlmPackageUrl: options.agentWebLlmPackageUrl || env.REALTIME_AGENT_WEBLLM_PACKAGE_URL || agentWidget.DEFAULT_AGENT_WEBLLM_PACKAGE_URL,
+    agentModelFetcher: options.agentModelFetcher || globalThis.fetch,
+    gitPushToken: options.gitPushToken ?? env.REALTIME_GIT_PUSH_TOKEN ?? "",
+    gitRunner: options.gitRunner || defaultGitRunner,
+    presetApiFetcher: options.presetApiFetcher || fetchPresetApiDefinition,
+    stripeCheckoutFetcher: options.stripeCheckoutFetcher || globalThis.fetch,
+    imageInlineFetcher: options.imageInlineFetcher || fetchPublicImageAsset,
     allowedOrigins: parseList(
       options.allowedOrigins ?? env.REALTIME_ALLOWED_ORIGINS,
       DEFAULT_ALLOWED_ORIGINS
     ),
     maxPayload: parseInteger(options.maxPayload ?? env.REALTIME_MAX_PAYLOAD_BYTES, 64 * 1024, 1024),
+    maxImageInlineBytes: parseInteger(options.maxImageInlineBytes ?? env.REALTIME_MAX_IMAGE_INLINE_BYTES, MAX_IMAGE_INLINE_BYTES, 1024, MAX_IMAGE_INLINE_BYTES),
     heartbeatMs: parseInteger(options.heartbeatMs ?? env.REALTIME_HEARTBEAT_MS, 30000, 1000),
     rateLimitWindowMs: parseInteger(options.rateLimitWindowMs ?? env.REALTIME_RATE_WINDOW_MS, 10000, 1000),
     rateLimitMax: parseInteger(options.rateLimitMax ?? env.REALTIME_RATE_LIMIT, 360, 1),
     tokenTtlMs: parseInteger(options.tokenTtlMs ?? env.REALTIME_ROOM_TOKEN_TTL_MS, 60 * 60 * 1000, 1000),
-    transientHighWaterMark: parseInteger(
-      options.transientHighWaterMark ?? env.REALTIME_TRANSIENT_HIGH_WATER_BYTES,
-      512 * 1024,
-      1024
-    ),
     roomSecret,
     emitSecret,
+    release: options.release || loadReleaseInfo({ env, path: releaseFile }),
     eventCatalog: loadEventCatalog(options, env),
+    presetLibrary: options.presetLibrary || presetLibrary.loadPresetLibraryFile(presetLibraryPath),
+    mcpModelPath: path.resolve(options.mcpModelPath || env.STATE_BLUEPRINT_MODEL_PATH || path.join(repoDir, "state-blueprint.workspace.json")),
     allowUnsignedRooms: Boolean(allowUnsignedRooms),
     requireRoomSecret: options.requireRoomSecret ?? (nodeEnv === "production" && !allowUnsignedRooms)
   };
@@ -336,76 +635,6 @@ function sanitizeEventName(value) {
   const text = String(value || "").trim();
   if (!text || text.length > MAX_EVENT_NAME_LENGTH) return "";
   return /^[a-zA-Z0-9_.:-]+$/.test(text) ? text : "";
-}
-
-function sanitizeStatePath(value) {
-  const text = String(value || "").trim();
-  if (!text || text.length > MAX_STATE_PATH_LENGTH) return "";
-  return /^[a-zA-Z_][a-zA-Z0-9_:-]*(?:\.[a-zA-Z_][a-zA-Z0-9_:-]*)*$/.test(text) ? text : "";
-}
-
-function normalizeValueType(value) {
-  const type = String(value || "").trim().toLowerCase();
-  return VALID_VALUE_TYPES.has(type) ? type : "text";
-}
-
-function normalizeDetailSchema(value) {
-  if (!isPlainObject(value)) return {};
-  const out = {};
-  for (const [path, type] of Object.entries(value).slice(0, 64)) {
-    const cleanPath = sanitizeStatePath(path);
-    if (cleanPath) out[cleanPath] = normalizeValueType(type);
-  }
-  return out;
-}
-
-function normalizeEventBindings(value) {
-  if (!Array.isArray(value)) return [];
-  return value.slice(0, 64).map(binding => {
-    if (!isPlainObject(binding)) return null;
-    const from = sanitizeStatePath(binding.from || "");
-    const to = sanitizeStatePath(binding.to || "");
-    if (!from || !to) return null;
-    return { from, to, type: normalizeValueType(binding.type) };
-  }).filter(Boolean);
-}
-
-function normalizeEventCatalog(value) {
-  const source = isPlainObject(value) ? value : {};
-  const providerSource = isPlainObject(source.provider) ? source.provider : {};
-  const stateSource = isPlainObject(source.state) ? source.state : {};
-  const provider = {
-    id: sanitizeId(providerSource.id || source.providerId || DEFAULT_EVENT_CATALOG.provider.id) || DEFAULT_EVENT_CATALOG.provider.id,
-    label: String(providerSource.label || source.label || DEFAULT_EVENT_CATALOG.provider.label).trim(),
-    version: parseInteger(providerSource.version ?? source.version, DEFAULT_EVENT_CATALOG.provider.version, 1)
-  };
-  const events = [];
-  const seen = new Set();
-  for (const item of Array.isArray(source.events) ? source.events : []) {
-    if (!isPlainObject(item)) continue;
-    const name = sanitizeEventName(item.name || "");
-    if (!name || !name.startsWith("realtime.") || seen.has(name)) continue;
-    seen.add(name);
-    events.push({
-      name,
-      label: String(item.label || name).trim(),
-      description: String(item.description || "").trim(),
-      detail: normalizeDetailSchema(item.detail),
-      bindings: normalizeEventBindings(item.bindings)
-    });
-  }
-  return {
-    provider,
-    state: {
-      path: sanitizeStatePath(stateSource.path || DEFAULT_EVENT_CATALOG.state.path) || DEFAULT_EVENT_CATALOG.state.path,
-      schema: normalizeDetailSchema(stateSource.schema || DEFAULT_EVENT_CATALOG.state.schema)
-    },
-    events
-  };
-}
-
-function isFiniteNumber(value) {
-  return typeof value === "number" && Number.isFinite(value);
 }
 
 function toBase64UrlJson(value) {
@@ -484,7 +713,19 @@ function writeHtml(response, statusCode, body, headers = {}) {
   response.writeHead(statusCode, {
     "content-type": "text/html; charset=utf-8",
     "cache-control": "no-store",
-    "content-security-policy": "default-src 'none'; connect-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    "content-security-policy": "default-src 'none'; connect-src 'self' https://cdn.jsdelivr.net; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://cdn.jsdelivr.net; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    "x-content-type-options": "nosniff",
+    "referrer-policy": "no-referrer",
+    "content-length": Buffer.byteLength(body),
+    ...headers
+  });
+  response.end(body);
+}
+
+function writeScript(response, statusCode, body, headers = {}) {
+  response.writeHead(statusCode, {
+    "content-type": "application/javascript; charset=utf-8",
+    "cache-control": "no-store",
     "x-content-type-options": "nosniff",
     "referrer-policy": "no-referrer",
     "content-length": Buffer.byteLength(body),
@@ -497,6 +738,14 @@ function bearerToken(request) {
   const header = String(request.headers.authorization || "");
   const match = header.match(/^Bearer\s+(.+)$/i);
   return match ? match[1].trim() : "";
+}
+
+function mcpAuthSecrets(config) {
+  return [...new Set([
+    config.mcpSecret,
+    config.adminSecret,
+    config.emitSecret
+  ].map(secret => String(secret || "")).filter(Boolean))];
 }
 
 function readJsonBody(request, maxBytes = MAX_EMIT_BODY_BYTES) {
@@ -535,15 +784,360 @@ function publicBaseUrl(request) {
 
 function eventCatalogResponse(config) {
   return {
-    events: config.eventCatalog.events
+    ...eventCatalog.eventCatalogResponse(config.eventCatalog),
+    release: releaseResponse(config)
   };
+}
+
+function releaseResponse(config) {
+  return {
+    ok: true,
+    releaseId: config.release.id,
+    releaseSequence: config.release.sequence,
+    builtAt: config.release.builtAt,
+    sourceCommit: config.release.sourceCommit,
+    deployedCommit: config.release.deployedCommit
+  };
+}
+
+function stripeCheckoutQuantity(plan, value) {
+  const stripe = plan?.stripe || {};
+  if (stripe.quantityMode !== "per_user") return 1;
+  const min = parseInteger(stripe.minQuantity, 1, 1, 10000);
+  const max = parseInteger(stripe.maxQuantity, min, min, 10000);
+  return parseInteger(value, min, min, max);
+}
+
+function stripeCheckoutSessionParams(config, plan, quantity) {
+  const stripe = plan?.stripe || {};
+  const amount = Number(stripe.unitAmountCents);
+  if (!Number.isSafeInteger(amount) || amount <= 0) {
+    const error = new Error("invalid_stripe_amount");
+    error.code = "invalid_stripe_amount";
+    error.status = 500;
+    throw error;
+  }
+  const params = new URLSearchParams();
+  params.set("mode", "subscription");
+  params.set("success_url", config.stripeSuccessUrl);
+  params.set("cancel_url", config.stripeCancelUrl);
+  params.set("client_reference_id", plan.id);
+  params.set("locale", "auto");
+  params.set("billing_address_collection", stripe.billingAddressCollection === "auto" ? "auto" : "required");
+  if (stripe.automaticTax === true) params.set("automatic_tax[enabled]", "true");
+  params.set("allow_promotion_codes", "true");
+  params.set("metadata[contract_plan_id]", plan.id);
+  params.set("metadata[contract_lookup_key]", stripe.lookupKey || plan.id);
+  params.set("metadata[contract_source]", "digitalisierungsplanung.product_contract");
+  params.set("subscription_data[metadata][contract_plan_id]", plan.id);
+  params.set("subscription_data[metadata][contract_lookup_key]", stripe.lookupKey || plan.id);
+  params.set("line_items[0][quantity]", String(quantity));
+  params.set("line_items[0][price_data][currency]", stripe.currency || "eur");
+  params.set("line_items[0][price_data][unit_amount]", String(amount));
+  params.set("line_items[0][price_data][recurring][interval]", stripe.recurringInterval || "month");
+  if (["inclusive", "exclusive"].includes(stripe.taxBehavior)) {
+    params.set("line_items[0][price_data][tax_behavior]", stripe.taxBehavior);
+  }
+  params.set("line_items[0][price_data][product_data][name]", stripe.productName || plan.label || plan.id);
+  params.set("line_items[0][price_data][product_data][metadata][contract_plan_id]", plan.id);
+  if (/^txcd_\d+$/.test(String(stripe.taxCode || ""))) {
+    params.set("line_items[0][price_data][product_data][tax_code]", stripe.taxCode);
+  }
+  if (stripe.adjustableQuantity === true) {
+    params.set("line_items[0][adjustable_quantity][enabled]", "true");
+    params.set("line_items[0][adjustable_quantity][minimum]", String(parseInteger(stripe.minQuantity, 1, 1, 10000)));
+    params.set("line_items[0][adjustable_quantity][maximum]", String(parseInteger(stripe.maxQuantity, 250, 1, 10000)));
+  }
+  return params;
+}
+
+async function createStripeCheckoutSession(config, plan, quantity) {
+  const fetcher = config.stripeCheckoutFetcher;
+  if (typeof fetcher !== "function") {
+    const error = new Error("stripe_fetch_unavailable");
+    error.code = "stripe_fetch_unavailable";
+    error.status = 500;
+    throw error;
+  }
+  const endpoint = new URL("/v1/checkout/sessions", config.stripeApiBaseUrl).href;
+  const response = await fetcher(endpoint, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${config.stripeSecretKey}`,
+      "content-type": "application/x-www-form-urlencoded"
+    },
+    body: stripeCheckoutSessionParams(config, plan, quantity).toString()
+  });
+  let payload = {};
+  try {
+    payload = await response.json();
+  } catch (_) {
+    payload = { error: { message: await response.text?.().catch(() => "") || "" } };
+  }
+  if (!response.ok) {
+    const error = new Error("stripe_checkout_failed");
+    error.code = "stripe_checkout_failed";
+    error.status = 502;
+    error.detail = String(payload?.error?.message || payload?.error || response.status || "").slice(0, 300);
+    throw error;
+  }
+  const redirectUrl = String(payload?.url || "").trim();
+  if (!/^https:\/\/checkout\.stripe\.com\//i.test(redirectUrl)) {
+    const error = new Error("stripe_checkout_url_invalid");
+    error.code = "stripe_checkout_url_invalid";
+    error.status = 502;
+    throw error;
+  }
+  return { id: String(payload.id || ""), url: redirectUrl };
+}
+
+async function handleStripeCheckoutRequest(config, request, response) {
+  if (request.method === "OPTIONS") {
+    response.writeHead(204, {
+      "access-control-allow-methods": "GET, OPTIONS",
+      "access-control-allow-headers": "content-type",
+      "cache-control": "no-store"
+    });
+    response.end();
+    return;
+  }
+  const url = new URL(request.url || "/", "http://localhost");
+  const planId = String(url.searchParams.get("plan") || "").trim();
+  if (!planId) {
+    writeJson(response, 400, { error: "stripe_plan_required" });
+    return;
+  }
+  const plan = presetCatalog.stripeCheckoutPlanById(planId);
+  if (!plan) {
+    writeJson(response, 404, { error: "unknown_stripe_plan" });
+    return;
+  }
+  if (!config.stripeSecretKey) {
+    writeJson(response, 503, { error: "stripe_secret_required" });
+    return;
+  }
+  try {
+    const quantity = stripeCheckoutQuantity(plan, url.searchParams.get("quantity"));
+    const session = await createStripeCheckoutSession(config, plan, quantity);
+    response.writeHead(303, {
+      location: session.url,
+      "cache-control": "no-store",
+      "referrer-policy": "no-referrer",
+      "x-content-type-options": "nosniff"
+    });
+    response.end();
+  } catch (error) {
+    writeJson(response, error.status || 502, {
+      error: error.code || "stripe_checkout_failed",
+      ...(error.detail ? { detail: error.detail } : {})
+    });
+  }
+}
+
+function cleanCommitMessage(value, fallback = DEFAULT_ADMIN_COMMIT_MESSAGE) {
+  const text = String(value || "").replace(/[\r\n]+/g, " ").trim();
+  return (text || fallback).slice(0, 120);
+}
+
+function serializeReleaseInfo(release) {
+  return `globalThis.ZUSTAND_RELEASE_SEQUENCE = ${Math.max(0, release.sequence || 0)};\n` +
+    `globalThis.ZUSTAND_RELEASE_ID = ${JSON.stringify(release.id || "dev-local")};\n` +
+    `globalThis.ZUSTAND_RELEASE_BUILT_AT = ${JSON.stringify(release.builtAt || "")};\n` +
+    `globalThis.ZUSTAND_RELEASE_SOURCE = ${JSON.stringify(release.sourceCommit || "")};\n`;
+}
+
+function readFileRelease(config) {
+  try {
+    return parseReleaseSource(fs.readFileSync(config.releaseFile, "utf8"));
+  } catch (_) {
+    return config.release;
+  }
+}
+
+function nextReleaseInfo(config) {
+  const current = readFileRelease(config);
+  const currentSequence = Number.isSafeInteger(current.sequence) && current.sequence > 0
+    ? current.sequence
+    : Number.isSafeInteger(config.release.sequence) ? config.release.sequence : 0;
+  return {
+    id: `release-${currentSequence + 1}`,
+    sequence: currentSequence + 1,
+    builtAt: new Date().toISOString(),
+    sourceCommit: currentShortCommit(config),
+    deployedCommit: ""
+  };
+}
+
+function gitFailure(code, result, status = 500) {
+  const error = new Error(code);
+  error.code = code;
+  error.status = status;
+  error.gitStatus = result?.status;
+  error.gitStdout = String(result?.stdout || "");
+  error.gitStderr = String(result?.stderr || "");
+  return error;
+}
+
+function errorJson(error, fallback) {
+  const payload = { error: error.code || fallback };
+  const detail = String(error.gitStderr || error.gitStdout || "").trim();
+  if (detail && detail !== payload.error) payload.detail = detail.slice(0, 1200);
+  return payload;
+}
+
+function runGit(config, args, code) {
+  const result = config.gitRunner(args, {
+    cwd: config.repoDir,
+    env: process.env
+  });
+  if (!result || result.status !== 0) throw gitFailure(code, result);
+  return result;
+}
+
+function repoRelativePath(repoDir, absolutePath) {
+  const relative = path.relative(repoDir, absolutePath).replaceAll("\\", "/");
+  if (!relative || relative.startsWith("../") || path.isAbsolute(relative)) {
+    const error = new Error("catalog_path_outside_repo");
+    error.code = "catalog_path_outside_repo";
+    error.status = 500;
+    throw error;
+  }
+  return relative;
+}
+
+function pushCurrentHead(config) {
+  const pushArgs = config.gitPushToken
+    ? [
+        "-c",
+        `http.https://github.com/.extraheader=AUTHORIZATION: basic ${Buffer.from(`x-access-token:${config.gitPushToken}`).toString("base64")}`,
+        "push",
+        "origin",
+        "HEAD:main"
+      ]
+    : ["push", "origin", "HEAD:main"];
+  runGit(config, pushArgs, "git_push_failed");
+}
+
+function currentShortCommit(config) {
+  const rev = runGit(config, ["rev-parse", "--short", "HEAD"], "git_rev_parse_failed");
+  return String(rev.stdout || "").trim();
+}
+
+function localAheadCount(config) {
+  const result = config.gitRunner(["rev-list", "--count", "@{u}..HEAD"], {
+    cwd: config.repoDir,
+    env: process.env
+  });
+  if (!result || result.status !== 0) return 0;
+  const count = Number.parseInt(String(result.stdout || "").trim(), 10);
+  return Number.isFinite(count) && count > 0 ? count : 0;
+}
+
+function gitRevListCount(config, range) {
+  const result = config.gitRunner(["rev-list", "--count", range], {
+    cwd: config.repoDir,
+    env: process.env
+  });
+  if (!result || result.status !== 0) return 0;
+  const count = Number.parseInt(String(result.stdout || "").trim(), 10);
+  return Number.isFinite(count) && count > 0 ? count : 0;
+}
+
+function syncManagedCatalogBase(config) {
+  runGit(config, ["fetch", "origin", "main"], "git_fetch_failed");
+  const status = runGit(config, ["status", "--porcelain"], "git_status_failed");
+  const dirty = String(status.stdout || "").trim();
+  if (dirty) throw gitFailure("git_worktree_dirty", { status: 1, stdout: dirty, stderr: "repository has uncommitted changes" }, 409);
+  const ahead = gitRevListCount(config, "origin/main..HEAD");
+  const behind = gitRevListCount(config, "HEAD..origin/main");
+  if (ahead > 0 && behind > 0) {
+    throw gitFailure("git_branch_diverged", { status: 1, stdout: "", stderr: "local main diverged from origin/main" }, 409);
+  }
+  if (behind > 0) runGit(config, ["reset", "--hard", "origin/main"], "git_sync_failed");
+}
+
+function writeManagedCatalogCommitAndPush(config, options) {
+  syncManagedCatalogBase(config);
+  const relativeCatalogPath = repoRelativePath(config.repoDir, options.catalogPath);
+  const relativeReleasePath = repoRelativePath(config.repoDir, config.releaseFile);
+  fs.writeFileSync(options.catalogPath, options.serialized, { encoding: "utf8", mode: 0o644 });
+
+  const unstaged = config.gitRunner(["diff", "--quiet", "--", relativeCatalogPath], {
+    cwd: config.repoDir,
+    env: process.env
+  });
+  if (!unstaged) throw gitFailure("git_diff_failed", unstaged);
+  const staged = config.gitRunner(["diff", "--cached", "--quiet", "--", relativeCatalogPath], {
+    cwd: config.repoDir,
+    env: process.env
+  });
+  if (!staged) throw gitFailure("git_diff_failed", staged);
+  if (![0, 1].includes(unstaged.status) || ![0, 1].includes(staged.status)) throw gitFailure("git_diff_failed", unstaged.status !== 0 ? unstaged : staged);
+  if (unstaged.status === 0 && staged.status === 0) {
+    if (localAheadCount(config) > 0) {
+      pushCurrentHead(config);
+      return { ok: true, changed: true, commit: currentShortCommit(config) };
+    }
+    return { ok: true, changed: false };
+  }
+
+  const release = nextReleaseInfo(config);
+  fs.writeFileSync(config.releaseFile, serializeReleaseInfo(release), { encoding: "utf8", mode: 0o644 });
+
+  runGit(config, ["add", "--", relativeCatalogPath, relativeReleasePath], "git_add_failed");
+  const baseMessage = cleanCommitMessage(options.message, options.defaultMessage);
+  const commitMessage = baseMessage.includes(release.id) ? baseMessage : `${baseMessage} (${release.id})`;
+  runGit(config, [
+    "-c",
+    `user.name=${options.authorName}`,
+    "-c",
+    `user.email=${options.authorEmail}`,
+    "commit",
+    "-m",
+    commitMessage,
+    "--",
+    relativeCatalogPath,
+    relativeReleasePath
+  ], "git_commit_failed");
+
+  pushCurrentHead(config);
+  const commit = currentShortCommit(config);
+  return {
+    ok: true,
+    changed: true,
+    commit,
+    releaseId: release.id,
+    releaseSequence: release.sequence,
+    release: { ...release, deployedCommit: commit }
+  };
+}
+
+function writeCatalogCommitAndPush(config, catalog, message) {
+  return writeManagedCatalogCommitAndPush(config, {
+    catalogPath: config.eventCatalogPath,
+    serialized: eventCatalog.serializeEventCatalog(catalog),
+    message,
+    defaultMessage: DEFAULT_ADMIN_COMMIT_MESSAGE,
+    authorName: "Realtime Event Designer",
+    authorEmail: "realtime-events@digitalisierungsplanung.de"
+  });
+}
+
+function writePresetLibraryCommitAndPush(config, library, message) {
+  return writeManagedCatalogCommitAndPush(config, {
+    catalogPath: config.presetLibraryPath,
+    serialized: presetLibrary.serializePresetLibrary(library),
+    message,
+    defaultMessage: DEFAULT_PRESET_ADMIN_COMMIT_MESSAGE,
+    authorName: "Preset Designer",
+    authorEmail: "presets@digitalisierungsplanung.de"
+  });
 }
 
 function createRoom(roomId) {
   return {
     id: roomId,
     clients: new Set(),
-    rev: 0,
     seenSeq: new Map()
   };
 }
@@ -557,24 +1151,12 @@ function serializeForBroadcast(message, state, room) {
   };
   if (Number.isSafeInteger(message.seq)) base.seq = message.seq;
 
-  if (message.type === "presence.cursor") {
-    return {
-      ...base,
-      cursor: {
-        x: message.cursor.x,
-        y: message.cursor.y,
-        worldX: isFiniteNumber(message.cursor.worldX) ? message.cursor.worldX : undefined,
-        worldY: isFiniteNumber(message.cursor.worldY) ? message.cursor.worldY : undefined,
-        stateId: sanitizeId(message.cursor.stateId) || undefined
-      }
-    };
-  }
-
   if (message.type === "runtime.event") {
     return {
       ...base,
       name: message.name,
-      detail: message.detail || {}
+      detail: message.detail || {},
+      emitterId: message.emitterId || ""
     };
   }
 
@@ -600,24 +1182,28 @@ function validateJoinMessage(message) {
   return { ok: true, roomId, clientId, token: message.token || "" };
 }
 
-function validateRealtimeMessage(message, offeredEventNames = new Set()) {
+function validateRealtimeMessage(message, offeredEventsByName = new Map(), offeredEmittersById = new Map()) {
   if (!message || !MESSAGE_TYPES.has(message.type)) return { ok: false, code: "invalid_type" };
   if (message.seq !== undefined && !Number.isSafeInteger(message.seq)) return { ok: false, code: "invalid_seq" };
-
-  if (message.type === "presence.cursor") {
-    if (!isPlainObject(message.cursor)) return { ok: false, code: "invalid_cursor" };
-    if (!isFiniteNumber(message.cursor.x) || !isFiniteNumber(message.cursor.y)) {
-      return { ok: false, code: "invalid_cursor" };
-    }
-  }
 
   if (message.type === "runtime.event") {
     const name = sanitizeEventName(message.name);
     if (!name || !name.startsWith("realtime.")) return { ok: false, code: "invalid_event_name" };
-    if (!offeredEventNames.has(name)) return { ok: false, code: "event_not_offered" };
-    if (message.detail !== undefined && !isPlainObject(message.detail)) return { ok: false, code: "invalid_detail" };
+    const offered = offeredEventsByName.get(name);
+    if (!offered) return { ok: false, code: "event_not_offered" };
+    const detail = message.detail === undefined ? {} : message.detail;
+    const detailValidation = eventCatalog.validateEventDetail(detail, offered.detail);
+    if (!detailValidation.ok) return detailValidation;
+    const emitterId = message.emitterId ? sanitizeId(message.emitterId) : "";
+    if (message.emitterId && !emitterId) return { ok: false, code: "invalid_emitter" };
+    if (emitterId) {
+      const emitter = offeredEmittersById.get(emitterId);
+      if (!emitter) return { ok: false, code: "emitter_not_offered" };
+      if (!emitter.events.includes(name)) return { ok: false, code: "emitter_event_not_allowed" };
+    }
     message.name = name;
-    message.detail = message.detail || {};
+    message.detail = detail;
+    message.emitterId = emitterId;
   }
 
   return { ok: true, message };
@@ -637,9 +1223,19 @@ function sendError(socket, code, close = false) {
 function createRealtimeServer(options = {}) {
   const config = loadConfig(options);
   const allowedOrigins = new Set(config.allowedOrigins);
-  const offeredEventNames = new Set(config.eventCatalog.events.map(event => event.name));
-  const offeredEventsByName = new Map(config.eventCatalog.events.map(event => [event.name, event]));
+  let offeredEventsByName = new Map();
+  let offeredEmittersById = new Map();
   const rooms = new Map();
+  const setEventCatalog = catalog => {
+    config.eventCatalog = eventCatalog.validateEventCatalog(catalog);
+    offeredEventsByName = new Map(config.eventCatalog.events.map(event => [event.name, event]));
+    offeredEmittersById = new Map(config.eventCatalog.emitters.map(emitter => [emitter.id, emitter]));
+  };
+  setEventCatalog(config.eventCatalog);
+  const setPresetLibrary = library => {
+    config.presetLibrary = presetLibrary.validatePresetLibrary(library);
+  };
+  setPresetLibrary(config.presetLibrary);
   const isOriginAllowed = origin => allowedOrigins.has("*") || allowedOrigins.has(origin);
   const isSamePublicOrigin = (origin, request) => Boolean(origin) && origin === publicBaseUrl(request);
   const corsHeadersForOrigin = (origin, request) => {
@@ -650,6 +1246,38 @@ function createRealtimeServer(options = {}) {
       "access-control-allow-headers": "authorization, content-type",
       "vary": "Origin"
     };
+  };
+  const adminHeadersForRequest = (request) => {
+    const origin = request.headers.origin || "";
+    if (!origin) return {};
+    if (!isSamePublicOrigin(origin, request)) return null;
+    return {
+      "access-control-allow-origin": origin,
+      "access-control-allow-methods": "GET, POST, OPTIONS",
+      "access-control-allow-headers": "authorization, content-type",
+      "vary": "Origin"
+    };
+  };
+  const prepareAdminResponse = (request, response) => {
+    const headers = adminHeadersForRequest(request);
+    if (!headers) {
+      writeJson(response, 403, { error: "origin_not_allowed" });
+      return { done: true };
+    }
+    if (request.method === "OPTIONS") {
+      response.writeHead(204, headers);
+      response.end();
+      return { done: true };
+    }
+    if (!config.adminSecret) {
+      writeJson(response, 503, { error: "admin_secret_required" }, headers);
+      return { done: true };
+    }
+    if (!timingSafeEqualString(bearerToken(request), config.adminSecret)) {
+      writeJson(response, 401, { error: "unauthorized" }, headers);
+      return { done: true };
+    }
+    return { done: false, headers };
   };
   const prepareCatalogResponse = (request, response) => {
     const origin = request.headers.origin || "";
@@ -665,22 +1293,194 @@ function createRealtimeServer(options = {}) {
     }
     return { done: false, headers };
   };
+  const prepareMcpResponse = (request, response) => {
+    const origin = request.headers.origin || "";
+    const headers = origin ? adminHeadersForRequest(request) : {};
+    if (!headers) {
+      writeJson(response, 403, { error: "origin_not_allowed" });
+      return { done: true };
+    }
+    const mcpHeaders = {
+      ...headers,
+      "access-control-allow-methods": "POST, OPTIONS",
+      "access-control-allow-headers": "authorization, content-type, mcp-protocol-version, mcp-session-id"
+    };
+    if (request.method === "OPTIONS") {
+      response.writeHead(204, mcpHeaders);
+      response.end();
+      return { done: true };
+    }
+    const secrets = mcpAuthSecrets(config);
+    if (!secrets.length) {
+      writeJson(response, 503, { error: "mcp_secret_required" }, mcpHeaders);
+      return { done: true };
+    }
+    const token = bearerToken(request);
+    if (!secrets.some(secret => timingSafeEqualString(token, secret))) {
+      writeJson(response, 401, { error: "unauthorized" }, mcpHeaders);
+      return { done: true };
+    }
+    return { done: false, headers: mcpHeaders };
+  };
+  const prepareAgentEditorResponse = (request, response) => {
+    const origin = request.headers.origin || "";
+    const headers = origin ? corsHeadersForOrigin(origin, request) : {};
+    if (!headers) {
+      writeJson(response, 403, { error: "origin_not_allowed" });
+      return { done: true };
+    }
+    const editorHeaders = {
+      ...headers,
+      "access-control-allow-methods": "POST, OPTIONS",
+      "access-control-allow-headers": "content-type"
+    };
+    if (request.method === "OPTIONS") {
+      response.writeHead(204, editorHeaders);
+      response.end();
+      return { done: true };
+    }
+    return { done: false, headers: editorHeaders };
+  };
+  const prepareAgentToolResponse = (request, response) => {
+    const origin = request.headers.origin || "";
+    const headers = origin ? corsHeadersForOrigin(origin, request) : {};
+    if (!headers) {
+      writeJson(response, 403, { error: "origin_not_allowed" });
+      return { done: true };
+    }
+    const agentHeaders = {
+      ...headers,
+      "access-control-allow-methods": "POST, OPTIONS",
+      "access-control-allow-headers": "authorization, content-type"
+    };
+    if (request.method === "OPTIONS") {
+      response.writeHead(204, agentHeaders);
+      response.end();
+      return { done: true };
+    }
+    const secrets = agentWidget.agentAuthSecrets(config);
+    if (!secrets.length) {
+      writeJson(response, 503, { error: "agent_secret_required" }, agentHeaders);
+      return { done: true };
+    }
+    const token = bearerToken(request);
+    if (!secrets.some(secret => timingSafeEqualString(token, secret))) {
+      writeJson(response, 401, { error: "unauthorized" }, agentHeaders);
+      return { done: true };
+    }
+    return { done: false, headers: agentHeaders };
+  };
 
   const server = options.server || http.createServer((request, response) => {
     const url = new URL(request.url || "/", "http://localhost");
     if (request.method === "GET" && url.pathname === "/healthz") {
       const clients = [...rooms.values()].reduce((sum, room) => sum + room.clients.size, 0);
-      writeJson(response, 200, { ok: true, rooms: rooms.size, clients });
+      writeJson(response, 200, { ...releaseResponse(config), rooms: rooms.size, clients });
+      return;
+    }
+    if (request.method === "GET" && (url.pathname === "/" || url.pathname === config.adminPath)) {
+      writeHtml(response, 200, fs.readFileSync(config.adminHtmlPath, "utf8"));
+      return;
+    }
+    if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.adminRoutesPath) {
+      const prepared = prepareCatalogResponse(request, response);
+      if (prepared.done) return;
+      writeJson(response, 200, {
+        ...adminTools.adminRouteIndex(config),
+        release: releaseResponse(config)
+      }, prepared.headers);
+      return;
+    }
+    if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.versionPath) {
+      const prepared = prepareCatalogResponse(request, response);
+      if (prepared.done) return;
+      writeJson(response, 200, releaseResponse(config), prepared.headers);
       return;
     }
     if (request.method === "GET" && url.pathname === config.consolePath) {
       writeHtml(response, 200, CONSOLE_HTML);
       return;
     }
+    if (request.method === "GET" && url.pathname === config.eventsAdminPath) {
+      writeHtml(response, 200, fs.readFileSync(config.eventAdminHtmlPath, "utf8"));
+      return;
+    }
+    if ((request.method === "GET" || request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.eventsAdminCatalogPath) {
+      void handleAdminCatalogRequest(request, response);
+      return;
+    }
+    if (request.method === "GET" && url.pathname === config.presetsAdminPath) {
+      writeHtml(response, 200, fs.readFileSync(config.presetAdminHtmlPath, "utf8"));
+      return;
+    }
+    if ((request.method === "GET" || request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.presetsAdminCatalogPath) {
+      void handlePresetCatalogRequest(request, response);
+      return;
+    }
+    if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.presetsAdminParsePath) {
+      void handlePresetParseRequest(request, response);
+      return;
+    }
+    if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.presetsAdminImportPath) {
+      void handlePresetImportRequest(request, response);
+      return;
+    }
+    if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.imageInlinePath) {
+      void handleImageInlineRequest(request, response);
+      return;
+    }
+    if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.mcpPath) {
+      void handleMcpRequest(request, response);
+      return;
+    }
+    if (request.method === "GET" && url.pathname === config.agentPath) {
+      writeHtml(response, 200, fs.readFileSync(config.agentHtmlPath, "utf8"));
+      return;
+    }
+    if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.agentWidgetScriptPath) {
+      const prepared = prepareCatalogResponse(request, response);
+      if (prepared.done) return;
+      writeScript(response, 200, fs.readFileSync(config.agentWidgetAssetPath, "utf8"), prepared.headers);
+      return;
+    }
+    if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.agentConfigPath) {
+      const prepared = prepareCatalogResponse(request, response);
+      if (prepared.done) return;
+      writeJson(response, 200, {
+        ...agentWidget.publicAgentConfig(config),
+        release: releaseResponse(config)
+      }, prepared.headers);
+      return;
+    }
+    if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.agentEditorPromptPath) {
+      void handleAgentEditorPromptRequest(request, response);
+      return;
+    }
+    if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.agentMcpToolPath) {
+      void handleAgentMcpToolRequest(request, response);
+      return;
+    }
+    if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.agentChatPath) {
+      void handleAgentChatRequest(request, response);
+      return;
+    }
     if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.eventsPath) {
       const prepared = prepareCatalogResponse(request, response);
       if (prepared.done) return;
       writeJson(response, 200, eventCatalogResponse(config), prepared.headers);
+      return;
+    }
+    if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.productContractPath) {
+      const prepared = prepareCatalogResponse(request, response);
+      if (prepared.done) return;
+      writeJson(response, 200, {
+        ...productContract.productContractResponse(config),
+        release: releaseResponse(config)
+      }, prepared.headers);
+      return;
+    }
+    if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.stripeCheckoutPath) {
+      void handleStripeCheckoutRequest(config, request, response);
       return;
     }
     if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.emitPath) {
@@ -737,12 +1537,11 @@ function createRealtimeServer(options = {}) {
     return room;
   }
 
-  function broadcast(room, sourceSocket, payload, transient = false) {
+  function broadcast(room, sourceSocket, payload) {
     const body = JSON.stringify(payload);
     let delivered = 0;
     for (const peer of room.clients) {
       if (peer === sourceSocket || peer.readyState !== WebSocket.OPEN) continue;
-      if (transient && peer.bufferedAmount > config.transientHighWaterMark) continue;
       peer.send(body);
       delivered += 1;
     }
@@ -754,18 +1553,300 @@ function createRealtimeServer(options = {}) {
     const roomId = sanitizeId(payload.roomId);
     const clientId = sanitizeId(payload.clientId || "server");
     const name = sanitizeEventName(payload.name || "");
+    const emitterId = sanitizeId(payload.emitterId || "");
     if (!roomId) return { ok: false, code: "invalid_room" };
     if (!clientId) return { ok: false, code: "invalid_client" };
     if (!name || !name.startsWith("realtime.")) return { ok: false, code: "invalid_event_name" };
-    if (!offeredEventNames.has(name)) return { ok: false, code: "event_not_offered" };
-    if (payload.detail !== undefined && !isPlainObject(payload.detail)) return { ok: false, code: "invalid_detail" };
+    const offered = offeredEventsByName.get(name);
+    if (!offered) return { ok: false, code: "event_not_offered" };
+    if (!emitterId) return { ok: false, code: "invalid_emitter" };
+    const emitter = offeredEmittersById.get(emitterId);
+    if (!emitter) return { ok: false, code: "emitter_not_offered" };
+    if (!emitter.events.includes(name)) return { ok: false, code: "emitter_event_not_allowed" };
+    const detail = payload.detail === undefined ? {} : payload.detail;
+    const detailValidation = eventCatalog.validateEventDetail(detail, offered.detail);
+    if (!detailValidation.ok) return detailValidation;
     return {
       ok: true,
       roomId,
       clientId,
+      emitterId,
       name,
-      detail: isPlainObject(payload.detail) ? payload.detail : {}
+      detail
     };
+  }
+
+  async function handleAdminCatalogRequest(request, response) {
+    const requestUrl = new URL(request.url || "/", "http://localhost");
+    const prepared = prepareAdminResponse(request, response);
+    if (prepared.done) return;
+    const headers = prepared.headers;
+
+    if (request.method === "GET") {
+      try {
+        const catalog = eventCatalog.loadEventCatalogFile(config.eventCatalogPath);
+        setEventCatalog(catalog);
+        writeJson(response, 200, {
+          catalog,
+          release: releaseResponse(config)
+        }, headers);
+      } catch (error) {
+        writeJson(response, error.status || 500, { error: error.code || "catalog_load_failed" }, headers);
+      }
+      return;
+    }
+
+    let payload;
+    try {
+      payload = await readJsonBody(request, config.maxPayload);
+    } catch (error) {
+      const status = error.code === "payload_too_large" ? 413 : 400;
+      writeJson(response, status, { error: error.code || "invalid_json" }, headers);
+      return;
+    }
+
+    try {
+      const catalog = eventCatalog.validateEventCatalog(payload.catalog);
+      if (payload.validateOnly === true || requestUrl.searchParams.get("validate") === "1") {
+        writeJson(response, 200, { ok: true, catalog }, headers);
+        return;
+      }
+      const result = writeCatalogCommitAndPush(config, catalog, payload.message);
+      setEventCatalog(catalog);
+      if (result.release) config.release = result.release;
+      writeJson(response, 200, result, headers);
+    } catch (error) {
+      writeJson(response, error.status || 500, errorJson(error, "event_catalog_save_failed"), headers);
+    }
+  }
+
+  async function handlePresetCatalogRequest(request, response) {
+    const requestUrl = new URL(request.url || "/", "http://localhost");
+    const prepared = prepareAdminResponse(request, response);
+    if (prepared.done) return;
+    const headers = prepared.headers;
+
+    if (request.method === "GET") {
+      try {
+        const library = presetLibrary.loadPresetLibraryFile(config.presetLibraryPath);
+        setPresetLibrary(library);
+        writeJson(response, 200, {
+          library,
+          supportedVariants: [...presetLibrary.SUPPORTED_VARIANTS].sort(),
+          release: releaseResponse(config)
+        }, headers);
+      } catch (error) {
+        writeJson(response, error.status || 500, { error: error.code || "preset_library_load_failed" }, headers);
+      }
+      return;
+    }
+
+    let payload;
+    try {
+      payload = await readJsonBody(request, config.maxPayload);
+    } catch (error) {
+      const status = error.code === "payload_too_large" ? 413 : 400;
+      writeJson(response, status, { error: error.code || "invalid_json" }, headers);
+      return;
+    }
+
+    try {
+      const library = presetLibrary.validatePresetLibrary(payload.library);
+      if (payload.validateOnly === true || requestUrl.searchParams.get("validate") === "1") {
+        writeJson(response, 200, { ok: true, library }, headers);
+        return;
+      }
+      const result = writePresetLibraryCommitAndPush(config, library, payload.message);
+      setPresetLibrary(library);
+      if (result.release) config.release = result.release;
+      writeJson(response, 200, result, headers);
+    } catch (error) {
+      writeJson(response, error.status || 500, errorJson(error, "preset_library_save_failed"), headers);
+    }
+  }
+
+  async function handlePresetParseRequest(request, response) {
+    const prepared = prepareAdminResponse(request, response);
+    if (prepared.done) return;
+    const headers = prepared.headers;
+    let payload;
+    try {
+      payload = await readJsonBody(request, config.maxPayload);
+    } catch (error) {
+      const status = error.code === "payload_too_large" ? 413 : 400;
+      writeJson(response, status, { error: error.code || "invalid_json" }, headers);
+      return;
+    }
+    try {
+      writeJson(response, 200, {
+        ok: true,
+        preset: presetLibrary.parseDaisySnippet(payload),
+        daisyVersion: presetLibrary.DAISY_VERSION
+      }, headers);
+    } catch (error) {
+      writeJson(response, error.status || 400, { error: error.code || "snippet_parse_failed" }, headers);
+    }
+  }
+
+  async function handlePresetImportRequest(request, response) {
+    const prepared = prepareAdminResponse(request, response);
+    if (prepared.done) return;
+    const headers = prepared.headers;
+    let payload;
+    try {
+      payload = await readJsonBody(request, config.maxPayload);
+      if (!isPlainObject(payload) || !isPlainObject(payload.library) || Object.keys(payload).some(key => !["url", "library"].includes(key))) {
+        throw presetApiError("invalid_preset_api_request", 400);
+      }
+      const target = normalizedPresetApiUrl(payload.url);
+      const library = presetLibrary.validatePresetLibrary(payload.library);
+      const imported = await config.presetApiFetcher(target.href);
+      const preset = presetLibrary.validatePresetDefinition(imported, library);
+      writeJson(response, 200, { ok: true, preset }, headers);
+    } catch (error) {
+      writeJson(response, error.status || 400, { error: error.code || "preset_api_import_failed" }, headers);
+    }
+  }
+
+  async function handleImageInlineRequest(request, response) {
+    const prepared = prepareCatalogResponse(request, response);
+    if (prepared.done) return;
+    const headers = prepared.headers;
+    let payload;
+    try {
+      payload = await readJsonBody(request, MAX_IMAGE_INLINE_BODY_BYTES);
+      if (!isPlainObject(payload) || Object.keys(payload).some(key => key !== "url")) {
+        throw imageInlineError("invalid_image_inline_request", 400);
+      }
+      const target = normalizedPublicImageUrl(payload.url);
+      const asset = await config.imageInlineFetcher(target.href, { maxBytes: config.maxImageInlineBytes });
+      const buffer = Buffer.isBuffer(asset?.buffer) ? asset.buffer : Buffer.from(asset?.buffer || "");
+      const mimeType = String(asset?.mimeType || "").split(";")[0].trim().toLowerCase();
+      if (!/^image\/[a-z0-9.+-]+$/i.test(mimeType) || !buffer.length) {
+        throw imageInlineError("invalid_image_inline_response", 502);
+      }
+      if (buffer.length > config.maxImageInlineBytes) {
+        throw imageInlineError("image_response_too_large", 413);
+      }
+      writeJson(response, 200, {
+        ok: true,
+        url: target.href,
+        mimeType,
+        bytes: buffer.length,
+        dataUri: `data:${mimeType};base64,${buffer.toString("base64")}`
+      }, headers);
+    } catch (error) {
+      writeJson(response, error.status || 400, { error: error.code || "image_inline_failed" }, headers);
+    }
+  }
+
+  async function handleMcpRequest(request, response) {
+    const prepared = prepareMcpResponse(request, response);
+    if (prepared.done) return;
+
+    let payload;
+    try {
+      payload = await readJsonBody(request, MAX_MCP_BODY_BYTES);
+    } catch (error) {
+      const status = error.code === "payload_too_large" ? 413 : 400;
+      writeJson(response, status, { error: error.code || "invalid_json" }, prepared.headers);
+      return;
+    }
+
+    try {
+      const options = { modelPath: config.mcpModelPath };
+      if (Array.isArray(payload)) {
+        const batch = payload
+          .map(message => stateBlueprintMcp.handleMessage(message, options))
+          .filter(Boolean);
+        if (!batch.length) {
+          response.writeHead(202, { "cache-control": "no-store", ...prepared.headers });
+          response.end();
+          return;
+        }
+        writeJson(response, 200, batch, prepared.headers);
+        return;
+      }
+      const result = stateBlueprintMcp.handleMessage(payload, options);
+      if (!result) {
+        response.writeHead(202, { "cache-control": "no-store", ...prepared.headers });
+        response.end();
+        return;
+      }
+      writeJson(response, 200, result, prepared.headers);
+    } catch (error) {
+      writeJson(response, 500, { error: error.code || "mcp_request_failed", message: error.message }, prepared.headers);
+    }
+  }
+
+  async function handleAgentEditorPromptRequest(request, response) {
+    const prepared = prepareAgentEditorResponse(request, response);
+    if (prepared.done) return;
+
+    let payload;
+    try {
+      payload = await readJsonBody(request, MAX_MCP_BODY_BYTES);
+    } catch (error) {
+      const status = error.code === "payload_too_large" ? 413 : 400;
+      writeJson(response, status, { error: error.code || "invalid_json" }, prepared.headers);
+      return;
+    }
+
+    try {
+      writeJson(response, 200, agentWidget.planEditorPrompt(config, payload), prepared.headers);
+    } catch (error) {
+      writeJson(response, error.status || 500, {
+        error: error.code || "agent_editor_prompt_failed",
+        ...(error.detail ? { detail: error.detail } : {}),
+        ...(error.validation ? { validation: error.validation } : {})
+      }, prepared.headers);
+    }
+  }
+
+  async function handleAgentMcpToolRequest(request, response) {
+    const prepared = prepareAgentToolResponse(request, response);
+    if (prepared.done) return;
+
+    let payload;
+    try {
+      payload = await readJsonBody(request, MAX_MCP_BODY_BYTES);
+    } catch (error) {
+      const status = error.code === "payload_too_large" ? 413 : 400;
+      writeJson(response, status, { error: error.code || "invalid_json" }, prepared.headers);
+      return;
+    }
+
+    try {
+      writeJson(response, 200, agentWidget.executeMcpTool(config, payload), prepared.headers);
+    } catch (error) {
+      writeJson(response, error.status || 500, {
+        error: error.code || "agent_mcp_tool_failed",
+        ...(error.detail ? { detail: error.detail } : {})
+      }, prepared.headers);
+    }
+  }
+
+  async function handleAgentChatRequest(request, response) {
+    const prepared = prepareAgentToolResponse(request, response);
+    if (prepared.done) return;
+
+    let payload;
+    try {
+      payload = await readJsonBody(request, MAX_MCP_BODY_BYTES);
+    } catch (error) {
+      const status = error.code === "payload_too_large" ? 413 : 400;
+      writeJson(response, status, { error: error.code || "invalid_json" }, prepared.headers);
+      return;
+    }
+
+    try {
+      writeJson(response, 200, await agentWidget.runAgentChat(config, payload), prepared.headers);
+    } catch (error) {
+      writeJson(response, error.status || 500, {
+        error: error.code || "agent_chat_failed",
+        ...(error.detail ? { detail: error.detail } : {})
+      }, prepared.headers);
+    }
   }
 
   async function handleEmitRequest(request, response) {
@@ -812,7 +1893,9 @@ function createRealtimeServer(options = {}) {
       serverTime: Date.now(),
       name: emit.name,
       detail: emit.detail,
-      event: offeredEventsByName.get(emit.name)
+      emitterId: emit.emitterId,
+      event: offeredEventsByName.get(emit.name),
+      emitter: offeredEmittersById.get(emit.emitterId)
     }) : 0;
     writeJson(response, 202, {
       ok: true,
@@ -822,21 +1905,13 @@ function createRealtimeServer(options = {}) {
     }, headers);
   }
 
-  function removeFromRoom(socket, notify = true) {
+  function removeFromRoom(socket) {
     const state = socket.realtimeState;
     if (!state?.joined) return;
     const room = rooms.get(state.roomId);
     state.joined = false;
     if (!room) return;
     room.clients.delete(socket);
-    if (notify) {
-      broadcast(room, socket, {
-        type: "peer.leave",
-        roomId: state.roomId,
-        clientId: state.clientId,
-        serverTime: Date.now()
-      });
-    }
     if (!room.clients.size) rooms.delete(state.roomId);
   }
 
@@ -844,7 +1919,7 @@ function createRealtimeServer(options = {}) {
     for (const peer of room.clients) {
       if (peer.realtimeState?.clientId !== clientId) continue;
       sendError(peer, "client_replaced", true);
-      removeFromRoom(peer, false);
+      removeFromRoom(peer);
       peer.close(4008, "client_replaced");
     }
   }
@@ -894,13 +1969,6 @@ function createRealtimeServer(options = {}) {
       type: "joined",
       roomId: join.roomId,
       clientId: join.clientId,
-      rev: room.rev,
-      serverTime: Date.now()
-    });
-    broadcast(room, socket, {
-      type: "peer.join",
-      roomId: join.roomId,
-      clientId: join.clientId,
       serverTime: Date.now()
     });
   }
@@ -923,7 +1991,7 @@ function createRealtimeServer(options = {}) {
       return;
     }
 
-    const validated = validateRealtimeMessage(message, offeredEventNames);
+    const validated = validateRealtimeMessage(message, offeredEventsByName, offeredEmittersById);
     if (!validated.ok) {
       sendError(socket, validated.code);
       return;
@@ -946,8 +2014,11 @@ function createRealtimeServer(options = {}) {
       sendError(socket, "invalid_message");
       return;
     }
-    if (payload.type === "runtime.event") payload.event = offeredEventsByName.get(payload.name);
-    broadcast(room, socket, payload, TRANSIENT_TYPES.has(message.type));
+    if (payload.type === "runtime.event") {
+      payload.event = offeredEventsByName.get(payload.name);
+      payload.emitter = payload.emitterId ? offeredEmittersById.get(payload.emitterId) || null : null;
+    }
+    broadcast(room, socket, payload);
   }
 
   server.on("upgrade", (request, socket, head) => {

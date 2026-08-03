@@ -73,16 +73,16 @@ const shareHtml = `<!doctype html>
         linear-gradient(135deg, #07111f 0%, #020617 78%);
       color: #e5f0ff;
     }
-    .wrap { position: relative; width: 100%; height: 100%; padding: 74px 86px; }
-    .brand { color: #7dd3fc; font-size: 34px; font-weight: 900; letter-spacing: .04em; text-transform: uppercase; }
-    h1 { margin: 42px 0 0; width: 690px; font-size: 82px; line-height: .96; letter-spacing: -3px; color: #f8fbff; }
-    p { margin: 26px 0 0; width: 620px; color: #b7c9dd; font-size: 31px; line-height: 1.24; font-weight: 700; }
+    .wrap { position: relative; width: 100%; height: 100%; padding: 64px 72px; }
+    .brand { color: #7dd3fc; font-size: 32px; font-weight: 900; letter-spacing: .04em; text-transform: uppercase; }
+    h1 { margin: 30px 0 0; width: 620px; font-size: 68px; line-height: 1.02; letter-spacing: 0; color: #f8fbff; }
+    p { margin: 20px 0 0; width: 600px; color: #b7c9dd; font-size: 27px; line-height: 1.3; font-weight: 700; }
     .board {
       position: absolute;
-      right: 76px;
-      bottom: 80px;
-      width: 400px;
-      height: 288px;
+      right: 68px;
+      bottom: 104px;
+      width: 380px;
+      height: 270px;
       border: 2px solid rgba(56,189,248,.32);
       border-radius: 30px;
       background: rgba(8,24,39,.78);
@@ -103,8 +103,8 @@ const shareHtml = `<!doctype html>
     .wire { position: absolute; inset: 0; }
     .chip {
       position: absolute;
-      left: 84px;
-      bottom: 58px;
+      left: 72px;
+      bottom: 52px;
       display: inline-flex;
       align-items: center;
       height: 48px;

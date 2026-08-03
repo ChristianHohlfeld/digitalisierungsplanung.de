@@ -1,0 +1,138 @@
+{
+  "provider": {
+    "id": "digitalisierungsplanung.realtime",
+    "label": "Digitalisierungsplanung Realtime"
+  },
+  "state": {
+    "path": "realtime",
+    "schema": {
+      "roomId": "text",
+      "clientId": "text",
+      "status": "text",
+      "connected": "boolean",
+      "joined": "boolean",
+      "connecting": "boolean",
+      "reconnectAttempt": "number",
+      "error": "text"
+    }
+  },
+  "events": [
+    {
+      "name": "realtime.sip.call.incoming",
+      "label": "Incoming call",
+      "description": "SIP phone call started",
+      "detail": {
+        "caller": "text",
+        "callee": "text",
+        "callId": "text"
+      },
+      "bindings": []
+    },
+    {
+      "name": "realtime.sip.call.answered",
+      "label": "Call answered",
+      "description": "SIP phone call was answered",
+      "detail": {
+        "callId": "text",
+        "agent": "text"
+      },
+      "bindings": []
+    },
+    {
+      "name": "realtime.sip.call.ended",
+      "label": "Call ended",
+      "description": "SIP phone call ended",
+      "detail": {
+        "callId": "text",
+        "duration": "number"
+      },
+      "bindings": []
+    },
+    {
+      "name": "realtime.mail.received",
+      "label": "Mail received",
+      "description": "Inbound email arrived",
+      "detail": {
+        "from": "email",
+        "subject": "text",
+        "messageId": "text"
+      },
+      "bindings": []
+    },
+    {
+      "name": "realtime.endpoint.updated",
+      "label": "Endpoint updated",
+      "description": "External endpoint reported a new status",
+      "detail": {
+        "endpoint": "url",
+        "status": "number",
+        "changedAt": "text"
+      },
+      "bindings": []
+    },
+    {
+      "name": "realtime.data.updated",
+      "label": "Data updated",
+      "description": "External data source reported an update",
+      "detail": {
+        "key": "text",
+        "value": "object"
+      },
+      "bindings": []
+    }
+  ],
+  "emitters": [
+    {
+      "id": "sip.threecx",
+      "type": "sip",
+      "label": "3CX / SIP phone system",
+      "description": "Business phone bridge for real call events",
+      "endpoint": "POST /emit",
+      "events": [
+        "realtime.sip.call.incoming",
+        "realtime.sip.call.answered",
+        "realtime.sip.call.ended"
+      ]
+    },
+    {
+      "id": "mail.gmail",
+      "type": "email",
+      "label": "Gmail inbox",
+      "description": "Gmail bridge for new email events",
+      "endpoint": "POST /emit",
+      "events": [
+        "realtime.mail.received"
+      ]
+    },
+    {
+      "id": "mail.outlook",
+      "type": "email",
+      "label": "Outlook inbox",
+      "description": "Microsoft Outlook bridge for new email events",
+      "endpoint": "POST /emit",
+      "events": [
+        "realtime.mail.received"
+      ]
+    },
+    {
+      "id": "webhook.endpoint",
+      "type": "webhook",
+      "label": "Webhook endpoint",
+      "description": "External systems calling a webhook bridge",
+      "endpoint": "POST /emit",
+      "events": [
+        "realtime.endpoint.updated"
+      ]
+    },
+    {
+      "id": "data.source",
+      "type": "data",
+      "label": "Data source",
+      "description": "Data connector bridge for changed business data",
+      "endpoint": "POST /emit",
+      "events": [
+        "realtime.data.updated"
+      ]
+    }
+  ]
+}

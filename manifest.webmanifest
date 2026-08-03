@@ -1,7 +1,7 @@
 {
-  "name": "Zustand Digitalisierungsplanung",
-  "short_name": "Zustand",
-  "description": "Business-Prozesse als globale JSON-State-Machine planen, visualisieren, testen und als Website exportieren.",
+  "name": "Digitalisierungsplanung.de",
+  "short_name": "Digitalisierung",
+  "description": "Prozesswissen aus Köpfen, E-Mails und Excel sichtbar machen und als klickbare Web-Anwendung nutzbar machen.",
   "id": "/",
   "start_url": "/",
   "scope": "/",
@@ -10,7 +10,7 @@
   "orientation": "any",
   "background_color": "#07111f",
   "theme_color": "#07111f",
-  "categories": ["business", "productivity", "developer"],
+  "categories": ["business", "productivity"],
   "lang": "de",
   "icons": [
     {
@@ -44,7 +44,7 @@
       "sizes": "1200x630",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "Zustand Digitalisierungsplanung"
+      "label": "Digitalisierungsplanung.de"
     }
   ],
   "shortcuts": [
