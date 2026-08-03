@@ -2,7 +2,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { test, expect } = require("@playwright/test");
-const { normalizeModel, validateModel, applyActions, applyCommands, commandCatalog } = require("../mcp/state-blueprint-core");
+const { normalizeModel, validateModel, applyActions, applyCommands, commandCatalog, definitionPayload } = require("../mcp/state-blueprint-core");
 
 function createMcpClient(modelPath) {
   const child = spawn(process.execPath, ["mcp/state-blueprint-server.js"], {
@@ -96,6 +96,42 @@ test.describe("State Blueprint MCP", () => {
     expect(applied.model.transitions[0].id).not.toBe("start");
   });
 
+  test("uses Weiter as the shared transition default without rewriting custom names @smoke", () => {
+    const normalized = normalizeModel({
+      version: 2,
+      name: "Transition names",
+      initial: "start",
+      states: [
+        { id: "start", title: "Start" },
+        { id: "target", title: "Zustand 2" },
+        { id: "custom_source", title: "Formular" },
+        { id: "custom_target", title: "Konto" },
+        { id: "stale_source", title: "Früher" },
+        { id: "stale_target", title: "Aktuelles Ziel" }
+      ],
+      transitions: [
+        { id: "legacy_exact", from: "start", to: "target", label: "Zu Zustand 2" },
+        { id: "custom", from: "custom_source", to: "custom_target", label: "Anmelden" },
+        { id: "legacy_stale", from: "stale_source", to: "stale_target", label: "Zu Früheres Ziel" }
+      ]
+    });
+
+    expect(normalized.transitions.map(transition => transition.label)).toEqual([
+      "Weiter",
+      "Anmelden",
+      "Zu Früheres Ziel"
+    ]);
+
+    const created = applyCommands({}, [
+      { command: "scene.new", title: "Defaults" },
+      { command: "state.create", id: "one", title: "Eins" },
+      { command: "state.create", id: "two", title: "Zwei" },
+      { command: "transition.create", id: "one_two", from: "one", to: "two" },
+      { command: "state.upsert", id: "two", title: "Umbenannt" }
+    ]);
+    expect(created.workspace.model.transitions[0].label).toBe("Weiter");
+  });
+
   test("documents the public MCP tools and model actions @smoke", () => {
     const apiDoc = fs.readFileSync(path.join(process.cwd(), "docs", "state-blueprint-api.md"), "utf8");
     const mcpDoc = fs.readFileSync(path.join(process.cwd(), "docs", "state-blueprint-mcp.md"), "utf8");
@@ -152,6 +188,16 @@ test.describe("State Blueprint MCP", () => {
     expect(mcpDoc).toContain("state-blueprint-api.md");
     expect(mcpDoc).toContain('triggerType: "realtime"');
     expect(readme).toContain("docs/state-blueprint-api.md");
+  });
+
+  test("uses the editor definition discriminator for MCP roundtrips @smoke", () => {
+    const editorSource = fs.readFileSync(path.join(process.cwd(), "state.html"), "utf8");
+    const editorKind = editorSource.match(/const DEFINITION_KIND = "([^"]+)";/)?.[1];
+    const definition = definitionPayload({ version: 2, name: "Roundtrip", states: [], transitions: [] });
+
+    expect(editorKind).toBe("state-blueprint-definition");
+    expect(definition.kind).toBe(editorKind);
+    expect(definition.schemaVersion).toBe(2);
   });
 
   test("drives editor commands through the canonical model without DOM automation @smoke", () => {
@@ -445,6 +491,7 @@ test.describe("State Blueprint MCP", () => {
         name: "state_blueprint_export_definition",
         arguments: {}
       });
+      expect(exported.structuredContent.kind).toBe("state-blueprint-definition");
       expect(exported.structuredContent.model.states.map(state => state.id)).toEqual(["start", "done"]);
       expect(exported.structuredContent.camera).toEqual(expect.objectContaining({
         x: expect.any(Number),
@@ -452,6 +499,15 @@ test.describe("State Blueprint MCP", () => {
         scale: expect.any(Number)
       }));
       expect(exported.structuredContent.history).toBeUndefined();
+
+      const imported = await client.request("tools/call", {
+        name: "state_blueprint_import_definition",
+        arguments: { definition: exported.structuredContent }
+      });
+      expect(imported.structuredContent.validation.ok).toBe(true);
+      expect(imported.structuredContent.validation.model.states.map(state => state.id)).toEqual(["start", "done"]);
+      const importedStored = JSON.parse(fs.readFileSync(modelPath, "utf8"));
+      expect(importedStored.model.states.map(state => state.id)).toEqual(["start", "done"]);
     } finally {
       await client.close();
       try { fs.unlinkSync(modelPath); } catch (_) {}

@@ -6,7 +6,7 @@ function configuredWorkers() {
   const requested = Number(raw);
   if (Number.isFinite(requested) && requested > 0) return Math.floor(requested);
   const cores = typeof os.availableParallelism === "function" ? os.availableParallelism() : os.cpus().length;
-  return process.env.CI ? Math.min(2, Math.max(1, cores)) : Math.min(6, Math.max(2, cores));
+  return process.env.CI ? Math.min(2, Math.max(1, cores)) : Math.min(4, Math.max(2, cores));
 }
 
 module.exports = defineConfig({

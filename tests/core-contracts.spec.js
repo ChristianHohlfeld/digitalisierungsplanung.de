@@ -26,7 +26,7 @@ function defaultTestModel() {
       { id: "t_register_error", from: "register", to: "error", label: "Fehler", condition: "", set: {} },
       { id: "t_logout", from: "logged_in", to: "logged_out", label: "Logout", condition: "", set: {} },
       { id: "t_relogin", from: "logged_out", to: "login", label: "Wieder einloggen", condition: "", set: {} },
-      { id: "t_error_back", from: "error", to: "auth_start", label: "Zurueck", condition: "", set: {} }
+      { id: "t_error_back", from: "error", to: "auth_start", label: "Zurück", condition: "", set: {} }
     ]
   };
 }
@@ -118,15 +118,79 @@ async function openTool(page) {
   await expect(page.locator('[data-id="auth_start"]')).toBeVisible();
 }
 
-async function openWithModel(page, model) {
+async function openWithModel(page, model, url = "/state.html") {
   await page.addInitScript(({ key, model }) => {
     for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
       localStorage.removeItem(name);
     }
     localStorage.setItem(key, JSON.stringify(model));
   }, { key: STORAGE_KEY, model });
-  await page.goto("/state.html");
+  await page.goto(url);
   await expect(appFrame(page).locator("#statePill")).toHaveText(model.initial);
+}
+
+async function installFakeRealtimeTransport(page, options = {}) {
+  const event = {
+    name: "realtime.sip.call.incoming",
+    label: "Incoming call",
+    detail: { caller: "text", callee: "text", callId: "text" },
+    bindings: []
+  };
+  await page.route("https://realtime.digitalisierungsplanung.de/token**", route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ token: "test-token" })
+  }));
+  await page.route("https://realtime.digitalisierungsplanung.de/events", route => route.fulfill({
+    status: options.catalogFailure ? 503 : 200,
+    contentType: "application/json",
+    body: JSON.stringify(options.catalogFailure ? { error: "unavailable" } : { events: [event] })
+  }));
+  await page.addInitScript(() => {
+    window.__fakeRealtimeSent = [];
+    window.__fakeRealtimeSockets = [];
+    class FakeRealtimeSocket extends EventTarget {
+      static CONNECTING = 0;
+      static OPEN = 1;
+      static CLOSING = 2;
+      static CLOSED = 3;
+
+      constructor(url) {
+        super();
+        this.url = String(url || "");
+        this.readyState = FakeRealtimeSocket.CONNECTING;
+        window.__fakeRealtimeSockets.push(this);
+        queueMicrotask(() => {
+          this.readyState = FakeRealtimeSocket.OPEN;
+          this.dispatchEvent(new Event("open"));
+        });
+      }
+
+      send(raw) {
+        const message = JSON.parse(String(raw || "{}"));
+        window.__fakeRealtimeSent.push(message);
+        if (message.type === "join") {
+          queueMicrotask(() => this.receive({
+            type: "joined",
+            roomId: message.roomId,
+            clientId: message.clientId,
+            serverTime: Date.now()
+          }));
+        }
+      }
+
+      receive(message) {
+        this.dispatchEvent(new MessageEvent("message", { data: JSON.stringify(message) }));
+      }
+
+      close() {
+        this.readyState = FakeRealtimeSocket.CLOSED;
+        this.dispatchEvent(new CloseEvent("close"));
+      }
+    }
+    window.WebSocket = FakeRealtimeSocket;
+  });
+  return event;
 }
 
 async function savedModel(page) {
@@ -182,11 +246,30 @@ test.describe("Core source contracts", () => {
     }
   });
 
-  test("state tool text stays UTF-8 clean @smoke", () => {
+  test("state tool text uses clean UTF-8 and native German spelling @smoke", () => {
     const html = stateHtml();
     const mojibakePattern = new RegExp("[\\u00c2\\u00c3\\ufffd]|\\u00e2(?:[\\u0080-\\u00bf]|[^\\x00-\\x7f])");
+    const legacyGermanSpellings = [
+      ["Arbeitsfl", "aeche"].join(""),
+      ["Schaltfl", "aeche"].join(""),
+      ["Ueber", "gang"].join(""),
+      ["Zust", "aende"].join(""),
+      ["Rueck", "gaengig"].join(""),
+      ["Fuss", "zeile"].join(""),
+      ["Schlies", "sen"].join("")
+    ];
 
     expect(html).not.toMatch(mojibakePattern);
+    for (const spelling of legacyGermanSpellings) expect(html).not.toContain(spelling);
+    expect(html).toContain("Arbeitsfläche");
+    expect(html).toContain("Schaltfläche");
+    expect(html).toContain("Übergang");
+    expect(html).toContain("Zustände");
+    expect(html).toContain("Rückgängig");
+    expect(html).toContain("Fußzeile");
+    expect(html).toContain("Schließen");
+    expect(html).toContain("flushRuntimeEvents");
+    expect(html).not.toContain("flushRuntimeEreignisse");
   });
 
   test("grouping is represented by real parent states, not editorGroups metadata @smoke", () => {
@@ -296,14 +379,12 @@ test.describe("Core source contracts", () => {
       'source: "breadcrumbs"',
       ".daisy-loading-state { display: grid; place-items: center;",
       'spinner.className = "loading loading-spinner loading-lg";',
-      "body { min-height: 100vh; }",
-      ".flow-debug-panel",
-      "function runtimeFlowDebugEnabled()",
-      "function updateRuntimeFlowDebug(payload = {})",
-      "updateRuntimeFlowDebug(payload);",
-      'typeof IS_STANDALONE_EXPORT !== "undefined" && IS_STANDALONE_EXPORT'
+      "body { min-height: 100vh; }"
     ]) {
       expect(appHtml, `missing enhanced preview marker: ${marker}`).toContain(marker);
+    }
+    for (const debugMarker of ["flow-debug", "flowDebug", "runtimeFlowDebug"]) {
+      expect(appHtml, `production runtime should not contain ${debugMarker}`).not.toContain(debugMarker);
     }
     await expect(appFrame(page).locator("#flowDebug")).toHaveCount(0);
 
@@ -498,7 +579,7 @@ test.describe("Core source contracts", () => {
     {
       name: "footer",
       variant: "footer",
-      data: { brand: "Brand", note: "Footer note", columns: [{ title: "Links", items: [{ label: daisyBindingVisibleText }] }] },
+      data: { brand: "Brand", note: "Fußleistennotiz", columns: [{ title: "Links", items: [{ label: daisyBindingVisibleText }] }] },
       bind: data => ({ ...data, columns: data.columns.map(column => ({ ...column, items: column.items.map(item => ({ ...item, transitionId: daisyBindingTransitionId })) })) })
     },
     {
@@ -636,6 +717,7 @@ test.describe("Core source contracts", () => {
     await page.goto("/state.html");
     await expect(appFrame(page).locator("#statePill")).toHaveText(model.initial);
     await expect(appFrame(page).locator("#screen .daisy-widget").first()).toBeAttached();
+    await expect(page.locator("#syncState")).toHaveText("aktiv");
   };
 
   for (const spec of daisyBindingCases) {
@@ -950,7 +1032,7 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("toggleSubscriptionPath");
     expect(html).toContain("toggleRenderPath");
     expect(html).toContain("pTransitionKeyGrid");
-    expect(html).toContain("Daten aendern sich");
+    expect(html).toContain("Daten ändern sich");
     expect(html).toContain(".data-wire-row");
     expect(html).toContain("Sichtbare Felder");
     expect(html).toContain("Alle Pfade");
@@ -998,7 +1080,7 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("applyDerivedDataWires");
     expect(html).toContain("upsertDataWire");
     expect(html).toContain("runtimeDataWireComponentsForState");
-    expect(html).toContain("Liste nur waehlen, wenn dieser Zustand wiederholte Eintraege anzeigen soll.");
+    expect(html).toContain("Liste nur wählen, wenn dieser Zustand wiederholte Einträge anzeigen soll.");
     expect(html).not.toContain("autoCreateRepeatComponents");
     expect(html).not.toContain("autoDeriveRepeatForOwner(s, null, false)");
     expect(html).not.toContain("autoDeriveRepeatForOwner");
@@ -1010,8 +1092,8 @@ test.describe("Core source contracts", () => {
     expect(html).not.toContain('title: "API list"');
     expect(html).not.toContain("builtin_api_list");
     expect(html).not.toContain('title: "Theme Controller"');
-    expect(html).not.toContain('title: "Navbar - colors"');
-    expect(html).toContain('title: "Hero mit Bild rechts"');
+    expect(html).not.toContain('title: "Kopfleiste - Farben"');
+    expect(html).toContain('title: "Titelbereich mit Bild rechts"');
     expect(html).toContain('title: "Aktionsbutton"');
     expect(html).toContain("const SUPPORTED_DAISY_VARIANTS = new Set");
     expect(html).toContain("function runtimeSupportedDaisyComponent");
@@ -1329,6 +1411,150 @@ test.describe("Core source contracts", () => {
       .toBe("change.states.start.remote.caller");
   });
 
+  test("realtime events can leave an active parent before its manual boundary entry @smoke", async ({ page }) => {
+    await openWithModel(page, {
+      version: 2,
+      name: "Parent realtime transition",
+      initial: "start",
+      boundary: { entryId: "start", exitId: "done", entryDisabled: false, exitDisabled: false },
+      states: [
+        {
+          id: "start",
+          title: "Start",
+          parentId: null,
+          components: [],
+          data: {},
+          dataTypes: {},
+          boundary: { entryId: "child", exitId: "child", entryDisabled: false, exitDisabled: false },
+          x: 120,
+          y: 140
+        },
+        { id: "child", title: "Child", parentId: "start", components: [], data: {}, dataTypes: {}, x: 120, y: 140 },
+        { id: "done", title: "Done", parentId: null, components: [], data: {}, dataTypes: {}, x: 420, y: 140 }
+      ],
+      transitions: [{
+        id: "incoming_call",
+        from: "start",
+        to: "done",
+        label: "Incoming call",
+        condition: "",
+        triggerType: "realtime",
+        triggerEvent: "realtime.sip.call.incoming",
+        set: {}
+      }]
+    });
+
+    const app = appFrame(page);
+    await expect(app.getByRole("button", { name: "Child", exact: true })).toBeVisible();
+    await page.locator("#appFrame").evaluate((iframe, payload) => {
+      iframe.contentWindow.postMessage(payload, "*");
+    }, {
+      type: "STATE_BLUEPRINT_REALTIME_EVENT",
+      name: "realtime.sip.call.incoming",
+      detail: { caller: "+491234", source: "realtime", __realtimeRemote: true },
+      event: { name: "realtime.sip.call.incoming", bindings: [] }
+    });
+
+    await expect(app.locator("#statePill")).toHaveText("done");
+    await expect.poll(async () => (await runtimeContext(page)).state?.lastTransition).toBe("incoming_call");
+  });
+
+  test("local realtime events are relayed once even when they transition immediately @smoke", async ({ page }) => {
+    await installFakeRealtimeTransport(page);
+    await openWithModel(page, {
+      version: 2,
+      name: "Realtime outbound relay",
+      initial: "start",
+      states: [
+        { id: "start", title: "Start", components: [], data: {}, dataTypes: {}, x: 120, y: 140 },
+        { id: "done", title: "Done", components: [], data: {}, dataTypes: {}, x: 420, y: 140 }
+      ],
+      transitions: [{
+        id: "incoming_call",
+        from: "start",
+        to: "done",
+        label: "Incoming call",
+        condition: "",
+        triggerType: "realtime",
+        triggerEvent: "realtime.sip.call.incoming",
+        set: {}
+      }]
+    }, "/state.html?room=outbound-contract");
+
+    await expect.poll(() => page.evaluate(() => window.__stateBlueprintRealtime.status().joined)).toBe(true);
+    await expect(page.evaluate(() => window.__stateBlueprintRealtime.emit("realtime.sip.call.incoming", {
+      caller: "+491234",
+      callee: "100",
+      callId: "local-123"
+    }))).resolves.toBe(true);
+    await expect(appFrame(page).locator("#statePill")).toHaveText("done");
+    await expect.poll(() => page.evaluate(() => window.__fakeRealtimeSent.filter(message => message.type === "runtime.event")))
+      .toEqual([expect.objectContaining({
+        name: "realtime.sip.call.incoming",
+        detail: expect.objectContaining({ callId: "local-123" })
+      })]);
+    await page.waitForTimeout(100);
+    expect(await page.evaluate(() => window.__fakeRealtimeSent.filter(message => message.type === "runtime.event").length)).toBe(1);
+  });
+
+  test("incoming realtime events survive frame unavailability without a catalog refetch @smoke", async ({ page }) => {
+    const event = await installFakeRealtimeTransport(page, { catalogFailure: true });
+    await openWithModel(page, {
+      version: 2,
+      name: "Queued parent realtime",
+      initial: "start",
+      states: [
+        {
+          id: "start",
+          title: "Start",
+          components: [],
+          data: {},
+          dataTypes: {},
+          boundary: { entryId: "child", exitId: "child", entryDisabled: false, exitDisabled: false },
+          x: 120,
+          y: 140
+        },
+        { id: "child", title: "Child", parentId: "start", components: [], data: {}, dataTypes: {}, x: 120, y: 140 },
+        { id: "done", title: "Done", components: [], data: {}, dataTypes: {}, x: 420, y: 140 }
+      ],
+      transitions: [{
+        id: "incoming_call",
+        from: "start",
+        to: "done",
+        label: "Incoming call",
+        condition: "",
+        triggerType: "realtime",
+        triggerEvent: "realtime.sip.call.incoming",
+        set: {}
+      }]
+    }, "/state.html?room=inbound-contract");
+
+    await expect.poll(() => page.evaluate(() => window.__stateBlueprintRealtime.status().joined)).toBe(true);
+    await page.evaluate(eventConfig => {
+      appFrameReady = false;
+      window.__fakeRealtimeSockets[0].receive({
+        type: "runtime.event",
+        roomId: "inbound-contract",
+        clientId: "console",
+        serverTime: Date.now(),
+        name: "realtime.sip.call.incoming",
+        detail: { caller: "+491234", callee: "100", callId: "remote-123" },
+        event: eventConfig
+      });
+      postRealtimeStatus("joined");
+    }, event);
+
+    await expect.poll(() => page.evaluate(() => pendingFramePayloads.map(payload => payload.type)))
+      .toContain("STATE_BLUEPRINT_REALTIME_EVENT");
+    await expect(appFrame(page).locator("#statePill")).toHaveText("start");
+    await page.evaluate(() => {
+      appFrameReady = true;
+      flushPendingRuntimePayloads();
+    });
+    await expect(appFrame(page).locator("#statePill")).toHaveText("done");
+    await expect.poll(() => page.evaluate(() => pendingFramePayloads.length)).toBe(0);
+  });
+
   test("daisy widgets cannot create undeclared bus data @smoke", async ({ page }) => {
     await openWithModel(page, {
       version: 2,
@@ -1476,6 +1702,8 @@ test.describe("Core source contracts", () => {
 
     expect(appHtml).toContain('data.type === "STATE_BLUEPRINT_REALTIME_EVENT"');
     expect(appHtml).toContain('data.type === "STATE_BLUEPRINT_REALTIME_STATUS"');
+    expect(appHtml).toContain('type: "STATE_BLUEPRINT_RUNTIME_EVENT"');
+    expect(appHtml).toContain('count: Number(readValueAtPath(context, "events." + name + ".count") || 0)');
     expect(appHtml).toContain("if (name) emitRuntimeEvent(name, detail, eventConfig);");
     expect(appHtml).toContain('writeRuntimeState("events." + name + ".detail", detail');
     expect(appHtml).toContain("function applyRealtimeEventBindings");
@@ -1495,6 +1723,10 @@ test.describe("Core source contracts", () => {
     expect(hostHtml).toContain('const REALTIME_EVENTS_URL = "https://realtime.digitalisierungsplanung.de/events";');
     expect(hostHtml).toContain("async function fetchRealtimeEventConfig(name)");
     expect(hostHtml).toContain("function relayRuntimeBusEventToRealtime()");
+    expect(hostHtml).toContain("function relayRuntimeEventMessageToRealtime(message)");
+    expect(hostHtml).toContain("function flushPendingRuntimePayloads()");
+    expect(hostHtml).toContain("let pendingFramePayloads = [];");
+    expect(hostHtml).not.toContain("let pendingFramePayload = null;");
     expect(hostHtml).toContain("function postRealtimeStatus");
     expect(hostHtml).toContain('const name = normalizeTransitionEvent(latestRuntimeContext?.lastEvent || "");');
     expect(hostHtml).toContain('if (!name || !name.startsWith("realtime.")) return;');
@@ -1954,7 +2186,7 @@ test.describe("Core browser contracts", () => {
         { id: "start", title: "Start", body: "", components: [], data: {}, x: 120, y: 180 },
         {
           id: "navbar_shop_cart",
-          title: "Navbar shop/cart",
+          title: "Kopfleiste Shop/Warenkorb",
           body: "",
           components: [],
           data: {},
@@ -1983,7 +2215,7 @@ test.describe("Core browser contracts", () => {
     await expect(app.locator("button[data-transition-id]")).toHaveCount(0);
 
     await openStateInspector(page, "settings");
-    await expect(page.locator("#pComponents .component-editor").filter({ hasText: "Button: Logout" })).toHaveCount(0);
+    await expect(page.locator("#pComponents .component-editor").filter({ hasText: "Schaltfläche: Logout" })).toHaveCount(0);
   });
 
   test("nested navbar child actions stop on an unconnected child state @smoke", async ({ page }) => {
@@ -2004,12 +2236,12 @@ test.describe("Core browser contracts", () => {
         },
         {
           id: "navbar_shop_cart",
-          title: "Navbar shop/cart",
+          title: "Kopfleiste Shop/Warenkorb",
           body: "",
           parentId: "start",
           x: 120,
           y: 120,
-          components: [{ id: "navbar", type: "daisy", variant: "navbar", dataPath: "states.navbar_shop_cart", dataRole: "widget", dataLabel: "Navbar shop/cart" }],
+          components: [{ id: "navbar", type: "daisy", variant: "navbar", dataPath: "states.navbar_shop_cart", dataRole: "widget", dataLabel: "Kopfleiste Shop/Warenkorb" }],
           data: {
             "states.navbar_shop_cart": {
               layout: "cart-profile",
@@ -2046,7 +2278,7 @@ test.describe("Core browser contracts", () => {
 
     const app = appFrame(page);
     await expect(app.locator("#statePill")).toHaveText("start");
-    await app.getByRole("button", { name: "Navbar shop/cart" }).click();
+    await app.getByRole("button", { name: "Kopfleiste Shop/Warenkorb" }).click();
     await expect(app.locator("#statePill")).toHaveText("navbar_shop_cart");
 
     const navbar = app.locator(".navbar").first();
@@ -2077,7 +2309,7 @@ test.describe("Core browser contracts", () => {
           x: 120,
           y: 180
         },
-        { id: "navbar_shop_cart", title: "Navbar shop/cart", body: "", components: [], data: {}, parentId: "start", x: 120, y: 120 },
+        { id: "navbar_shop_cart", title: "Kopfleiste Shop/Warenkorb", body: "", components: [], data: {}, parentId: "start", x: 120, y: 120 },
         { id: "settings", title: "Settings", body: "", components: [], data: {}, parentId: "start", x: 360, y: 120 },
         { id: "state_7", title: "State 7", body: "", components: [], data: {}, x: 520, y: 180 }
       ],
@@ -2089,19 +2321,25 @@ test.describe("Core browser contracts", () => {
 
     const app = appFrame(page);
     await expect(app.locator("#statePill")).toHaveText("start");
-    await app.getByRole("button", { name: "Navbar shop/cart" }).click();
+    await app.getByRole("button", { name: "Kopfleiste Shop/Warenkorb" }).click();
     await expect(app.locator("#statePill")).toHaveText("navbar_shop_cart");
 
-    await openStateInspector(page, "navbar_shop_cart");
-    await expect(page.locator("#pComponents .component-editor").filter({ hasText: "Button: To State 7" })).toHaveCount(0);
+    await page.evaluate(() => {
+      selected = selectionFromParts(["navbar_shop_cart"], []);
+      showNodeInspector(byId("navbar_shop_cart"), { forceOpen: true, manualOpen: true });
+    });
+    await expect(page.locator("#pTitle")).toHaveValue("Kopfleiste Shop/Warenkorb");
+    await expect(page.locator("#pComponents .component-editor").filter({ hasText: "Schaltfläche: Weiter" })).toHaveCount(0);
 
+    await page.evaluate(() => startAppAtState("navbar_shop_cart", { preserveFocus: true }));
+    await expect(app.locator("#statePill")).toHaveText("navbar_shop_cart");
     await app.getByRole("button", { name: "Settings" }).click();
     await expect(app.locator("#statePill")).toHaveText("settings");
-    await expect(app.getByRole("button", { name: "To State 7" })).toHaveCount(0);
+    await expect(app.getByRole("button", { name: "Weiter" })).toHaveCount(0);
 
     await app.getByRole("button", { name: "Back to navbar" }).click();
     await expect(app.locator("#statePill")).toHaveText("navbar_shop_cart");
-    await expect(app.getByRole("button", { name: "To State 7" })).toHaveCount(0);
+    await expect(app.getByRole("button", { name: "Weiter" })).toHaveCount(0);
   });
 
   test("child output proxy follows the real parent out transition after reroutes @smoke", async ({ page }) => {
@@ -2120,7 +2358,7 @@ test.describe("Core browser contracts", () => {
           x: 120,
           y: 180
         },
-        { id: "navbar_shop_cart", title: "Navbar shop/cart", body: "", components: [], data: {}, parentId: "start", x: 120, y: 120 },
+        { id: "navbar_shop_cart", title: "Kopfleiste Shop/Warenkorb", body: "", components: [], data: {}, parentId: "start", x: 120, y: 120 },
         { id: "settings", title: "Settings", body: "", components: [], data: {}, parentId: "start", x: 360, y: 120 },
         { id: "state_7", title: "State 7", body: "", components: [], data: {}, x: 520, y: 180 }
       ],
@@ -2133,19 +2371,19 @@ test.describe("Core browser contracts", () => {
 
     const app = appFrame(page);
     await expect(app.locator("#statePill")).toHaveText("start");
-    await app.getByRole("button", { name: "Navbar shop/cart" }).click();
+    await app.getByRole("button", { name: "Kopfleiste Shop/Warenkorb" }).click();
     await expect(app.locator("#statePill")).toHaveText("navbar_shop_cart");
-    await expect(app.getByRole("button", { name: "To State 7" })).toBeVisible();
+    await expect(app.getByRole("button", { name: "Weiter" })).toBeVisible();
 
     await app.getByRole("button", { name: "Settings" }).click();
     await expect(app.locator("#statePill")).toHaveText("settings");
-    await expect(app.getByRole("button", { name: "To State 7" })).toHaveCount(0);
+    await expect(app.getByRole("button", { name: "Weiter" })).toHaveCount(0);
 
     await app.getByRole("button", { name: "Back to navbar" }).click();
     await expect(app.locator("#statePill")).toHaveText("navbar_shop_cart");
-    await expect(app.getByRole("button", { name: "To State 7" })).toBeVisible();
+    await expect(app.getByRole("button", { name: "Weiter" })).toBeVisible();
 
-    await app.getByRole("button", { name: "To State 7" }).click();
+    await app.getByRole("button", { name: "Weiter" }).click();
     await expect(app.locator("#statePill")).toHaveText("state_7");
   });
 

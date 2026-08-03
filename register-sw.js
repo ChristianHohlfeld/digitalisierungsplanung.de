@@ -9,7 +9,8 @@
 
   let version = "dev-local";
   try {
-    const response = await fetch("/sw-version.js", { cache: "no-store" });
+    const versionUrl = "/sw-version.js?__zustand_nocache=" + Date.now();
+    const response = await fetch(versionUrl, { cache: "no-store" });
     version = versionFromScript(await response.text());
   } catch (_) {}
 
@@ -26,13 +27,18 @@
   });
 
   try {
-    const registration = await navigator.serviceWorker.register(`/sw.js?v=${encodeURIComponent(version)}`, { scope: "/" });
+    const registration = await navigator.serviceWorker.register(`/sw.js?v=${encodeURIComponent(version)}`, {
+      scope: "/",
+      updateViaCache: "none"
+    });
+    const worker = registration.installing || registration.waiting || registration.active;
+    worker?.postMessage({ type: "CLEAR_CACHES" });
     registration.addEventListener("updatefound", () => {
-      const worker = registration.installing;
-      if (!worker) return;
-      worker.addEventListener("statechange", () => {
-        if (worker.state === "installed" && navigator.serviceWorker.controller) {
-          worker.postMessage({ type: "SKIP_WAITING" });
+      const installing = registration.installing;
+      if (!installing) return;
+      installing.addEventListener("statechange", () => {
+        if (installing.state === "installed" && navigator.serviceWorker.controller) {
+          installing.postMessage({ type: "SKIP_WAITING" });
         }
       });
     });
