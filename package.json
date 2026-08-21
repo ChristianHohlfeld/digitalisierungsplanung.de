@@ -7,6 +7,7 @@
     "build:pwa-assets": "node scripts/build-pwa-assets.mjs",
     "build:release-version": "node scripts/write-release-version.mjs --increment",
     "server:start": "node server/server.js",
+    "recorder:local": "node server/local-recorder-agent.js",
     "server:smoke:wss": "node server/wss-smoke.js",
     "server:smoke:wss:prod": "node server/wss-smoke.js --force-ip=198.199.83.43",
     "server:smoke:emit": "node server/emit-smoke.js",
