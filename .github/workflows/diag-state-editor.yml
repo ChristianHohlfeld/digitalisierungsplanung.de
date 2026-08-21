@@ -1,0 +1,97 @@
+name: Diagnose state editor bootstrap
+
+on:
+  push:
+    branches:
+      - diag/state-editor-bootstrap
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.60.0-noble
+      options: --ipc=host
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Run focused browser bootstrap diagnostic
+        shell: bash
+        run: |
+          node tests/serve-state.mjs > /tmp/state-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:8124/state.html >/dev/null; then break; fi
+            sleep 0.2
+          done
+          node <<'NODE'
+          const { chromium } = require('playwright');
+          const STORAGE_KEY = 'stateBlueprintHotLinked.model.v2';
+          const model = {
+            version: 2,
+            name: 'Standard Auth Flow',
+            initial: 'auth_start',
+            states: [
+              { id: 'auth_start', title: 'Auth start', body: '', components: [{ id: 'c_auth_start', type: 'text', text: 'User chooses login or registration.', url: '' }], x: 90, y: 210 },
+              { id: 'login', title: 'Login', body: '', components: [{ id: 'c_login', type: 'text', text: 'Email and password are entered.', url: '' }], x: 360, y: 100 }
+            ],
+            transitions: [
+              { id: 't_auth_login', from: 'auth_start', to: 'login', label: 'Login', condition: '', set: {} }
+            ]
+          };
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            const page = await browser.newPage();
+            const errors = [];
+            page.on('console', msg => console.log('BROWSER_CONSOLE', msg.type(), msg.text()));
+            page.on('pageerror', err => {
+              errors.push(err.stack || err.message);
+              console.log('PAGE_ERROR', err.stack || err.message);
+            });
+            page.on('requestfailed', req => console.log('REQUEST_FAILED', req.url(), req.failure()?.errorText || ''));
+            await page.addInitScript(({ key, model }) => {
+              for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) localStorage.removeItem(name);
+              localStorage.setItem(key, JSON.stringify(model));
+            }, { key: STORAGE_KEY, model });
+            const response = await page.goto('http://127.0.0.1:8124/state.html', { waitUntil: 'domcontentloaded' });
+            console.log('HTTP_STATUS', response?.status());
+            await page.waitForTimeout(1000);
+            async function snapshot(label) {
+              const data = await page.evaluate(key => ({
+                readyState: document.readyState,
+                title: document.title,
+                nodes: document.querySelectorAll('.node:not(.boundary-proxy)').length,
+                allNodes: document.querySelectorAll('.node').length,
+                boundary: document.querySelectorAll('.boundary-proxy').length,
+                appFrame: Boolean(document.querySelector('#appFrame')),
+                h1: Array.from(document.querySelectorAll('h1,h2')).map(x => x.textContent?.trim()).filter(Boolean).slice(0,10),
+                buttons: Array.from(document.querySelectorAll('button')).filter(x => x.offsetParent !== null).map(x => (x.textContent || x.getAttribute('aria-label') || '').trim()).filter(Boolean).slice(0,40),
+                stored: localStorage.getItem(key),
+                bodyStart: document.body.innerText.slice(0,1800),
+                scripts: Array.from(document.scripts).map(s => ({src:s.src, type:s.type, len:(s.textContent||'').length})).slice(-12)
+              }), STORAGE_KEY);
+              console.log(label, JSON.stringify(data));
+            }
+            await snapshot('SNAPSHOT_BEFORE');
+            const resume = page.getByRole('button', { name: 'Fortsetzen' });
+            if (await resume.count()) {
+              console.log('CLICK_RESUME');
+              await resume.click().catch(error => console.log('RESUME_CLICK_ERROR', error.message));
+              await page.waitForTimeout(500);
+            }
+            await snapshot('SNAPSHOT_AFTER');
+            console.log('PAGE_ERROR_COUNT', errors.length);
+            await browser.close();
+            if (errors.length) process.exitCode = 2;
+          })().catch(error => { console.error('DIAG_FATAL', error.stack || error); process.exit(3); });
+          NODE
+          echo '--- static server log ---'
+          cat /tmp/state-server.log || true
