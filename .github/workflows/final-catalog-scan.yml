@@ -1,31 +1,280 @@
-name: Final catalog scan
+name: Apply final recorder and focused inspector patch
 on:
   push:
     branches:
       - fix/final-recorder-focused-catalog
-  pull_request:
-    branches:
-      - main
 permissions:
-  contents: read
+  contents: write
 jobs:
-  scan:
+  patch:
+    if: github.event.head_commit.message != 'fix: finalize recorder and focused inspector'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Extract exact inspector catalog sources
+        with:
+          ref: fix/final-recorder-focused-catalog
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply contract-aligned patch
         shell: bash
         run: |
           set -euo pipefail
-          echo '=== componentPresetTypes ==='
-          sed -n '16088,16125p' state.html
-          echo '=== component editor type select ==='
-          sed -n '17460,17520p' state.html
-          echo '=== builtinStateTemplates definition refs ==='
-          grep -n 'function builtinStateTemplates\|const builtinStateTemplates\|builtinStateTemplates =' state.html || true
-          LINE=$(grep -n 'function builtinStateTemplates' state.html | head -n1 | cut -d: -f1 || true)
-          if [[ -n "$LINE" ]]; then START=$((LINE-5)); END=$((LINE+90)); sed -n "${START},${END}p" state.html; fi
-          echo '=== widgetPresetInfo and hidden ==='
-          grep -nE 'function widgetPresetInfo|hidden|legacy' state.html | head -n 180 || true
-          echo '=== stale storage seeds ==='
-          grep -nF 'localStorage.setItem(key, JSON.stringify(model));' tests/state-tool.spec.js | head -n 80 || true
+          python3 - <<'PY'
+          from pathlib import Path
+
+          # 1) State Inspector: only focused built-ins plus managed/custom presets are authorable.
+          p = Path('state.html')
+          s = p.read_text()
+          old = '''function builtinStateTemplates() {
+            return Array.isArray(productContract?.presets) ? productContract.presets : [];
+          }'''
+          new = '''const FOCUSED_INSPECTOR_PRESET_IDS = new Set([
+            "builtin_daisy_dropdown",
+            "builtin_daisy_button",
+            "builtin_daisy_toast",
+            "builtin_daisy_checkbox",
+            "builtin_daisy_input",
+            "builtin_daisy_input_number",
+            "builtin_daisy_search",
+            "builtin_daisy_input_email",
+            "builtin_daisy_input_password",
+            "builtin_page_heading",
+            "builtin_media_image",
+            "builtin_daisy_date",
+            "builtin_daisy_radio"
+          ]);
+
+          function builtinStateTemplates() {
+            const templates = Array.isArray(productContract?.presets) ? productContract.presets : [];
+            return templates.filter(template => {
+              const id = String(template?.id || "");
+              if (!id) return false;
+              if (template?.builtIn === false || !id.startsWith("builtin_")) return true;
+              return FOCUSED_INSPECTOR_PRESET_IDS.has(id);
+            });
+          }'''
+          assert s.count(old) == 1, f'expected one builtinStateTemplates source, got {s.count(old)}'
+          s = s.replace(old, new)
+          p.write_text(s)
+
+          # 2) Browser fixtures: seed the canonical editor snapshot, not the removed root storage shape.
+          p = Path('tests/state-tool.spec.js')
+          s = p.read_text()
+          old_seed = 'localStorage.setItem(key, JSON.stringify(model));'
+          count = s.count(old_seed)
+          assert count == 55, f'expected 55 stale storage seeds, got {count}'
+          s = s.replace(old_seed, 'localStorage.setItem(`${key}.editor`, JSON.stringify({ model }));')
+          assert old_seed not in s
+          p.write_text(s)
+
+          # 3) Authoritative Nginx config owns recorder routing directly.
+          p = Path('server/nginx/realtime.digitalisierungsplanung.de.conf')
+          s = p.read_text()
+          marker = '''    location = / {
+              proxy_pass         http://127.0.0.1:8788;'''
+          assert s.count(marker) == 1, 'authoritative TLS root location not found exactly once'
+          recorder_location = '''    location ^~ /recorder/ {
+              proxy_pass         http://127.0.0.1:8789;
+              proxy_http_version 1.1;
+              proxy_set_header   Host              $host;
+              proxy_set_header   X-Real-IP         $remote_addr;
+              proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+              proxy_set_header   X-Forwarded-Proto $scheme;
+              proxy_read_timeout 45s;
+              proxy_send_timeout 45s;
+              proxy_buffering    off;
+              client_max_body_size 256k;
+          }
+
+          '''
+          s = s.replace(marker, recorder_location + marker)
+          p.write_text(s)
+
+          # 4) Deploy installs only the authoritative config and gates release on real HTTPS CORS preflight.
+          p = Path('server/deploy.sh')
+          s = p.read_text()
+          s = s.replace('RECORDER_NGINX_SNIPPET="/etc/nginx/snippets/digitalisierungsplanung-recorder.conf"\n', '')
+          old_install = '''mkdir -p /var/www/certbot /etc/nginx/snippets
+          install -m 644 server/nginx/recorder.locations.conf "$RECORDER_NGINX_SNIPPET"
+          '''
+          assert s.count(old_install) == 1, 'dynamic recorder snippet install block missing'
+          s = s.replace(old_install, 'mkdir -p /var/www/certbot\n')
+          old_awk = '''  install -m 644 server/nginx/realtime.digitalisierungsplanung.de.conf "$NGINX_AVAILABLE"
+            awk -v include_line='    include /etc/nginx/snippets/digitalisierungsplanung-recorder.conf;' '
+              { print }
+              !done && /server_tokens off;/ { print ""; print include_line; done=1 }
+            ' "$NGINX_AVAILABLE" > "${NGINX_AVAILABLE}.tmp"
+            mv "${NGINX_AVAILABLE}.tmp" "$NGINX_AVAILABLE"
+          '''
+          assert s.count(old_awk) == 1, 'dynamic recorder snippet injection block missing'
+          s = s.replace(old_awk, '  install -m 644 server/nginx/realtime.digitalisierungsplanung.de.conf "$NGINX_AVAILABLE"\n')
+          anchor = '''if [[ "$recorder_health_ok" != "1" ]]; then
+            printf 'External recorder health check failed.\\n' >&2
+            exit 1
+          fi
+
+          '''
+          assert s.count(anchor) == 1, 'recorder local health block missing'
+          cors_gate = r'''if [[ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]]; then
+            recorder_cors_ok=0
+            for _ in $(seq 1 "$HEALTH_ATTEMPTS"); do
+              response="$(curl -sS -i --max-time 10 -X OPTIONS \
+                -H 'Origin: https://digitalisierungsplanung.de' \
+                -H 'Access-Control-Request-Method: POST' \
+                -H 'Access-Control-Request-Headers: content-type' \
+                "https://${DOMAIN}/recorder/sessions" 2>/dev/null || true)"
+              clean_response="$(printf '%s' "$response" | tr -d '\r')"
+              status="$(printf '%s\n' "$clean_response" | head -n 1 | awk '{print $2}')"
+              if [[ "$status" == "204" ]] && \
+                grep -qi '^Access-Control-Allow-Origin: https://digitalisierungsplanung.de$' <<<"$clean_response" && \
+                grep -qi '^Access-Control-Allow-Methods:.*POST' <<<"$clean_response"; then
+                recorder_cors_ok=1
+                break
+              fi
+              sleep "$HEALTH_RETRY_DELAY"
+            done
+            if [[ "$recorder_cors_ok" != "1" ]]; then
+              printf 'External recorder HTTPS CORS preflight failed.\n' >&2
+              exit 1
+            fi
+          fi
+
+          '''
+          s = s.replace(anchor, anchor + cors_gate)
+          assert 'digitalisierungsplanung-recorder.conf' not in s
+          p.write_text(s)
+
+          # 5) Focused catalog tests distinguish focused built-ins, managed presets and hidden legacy.
+          Path('server/focused-preset-catalog.test.js').write_text(r'''"use strict";
+
+          const test = require("node:test");
+          const assert = require("node:assert/strict");
+          const fs = require("node:fs");
+          const path = require("node:path");
+          const presets = require("./preset-catalog");
+
+          const EXPECTED_IDS = [
+            "builtin_daisy_dropdown",
+            "builtin_daisy_button",
+            "builtin_daisy_toast",
+            "builtin_daisy_checkbox",
+            "builtin_daisy_input",
+            "builtin_daisy_input_number",
+            "builtin_daisy_search",
+            "builtin_daisy_input_email",
+            "builtin_daisy_input_password",
+            "builtin_page_heading",
+            "builtin_media_image",
+            "builtin_daisy_date",
+            "builtin_daisy_radio"
+          ];
+
+          test("focused built-in preset surface contains exactly the 13 supported built-ins", () => {
+            assert.deepEqual(presets.FOCUSED_PRESET_IDS, EXPECTED_IDS);
+            const visibleBuiltIns = presets.visiblePresetCatalogResponse()
+              .filter(preset => preset.builtIn !== false && preset.id.startsWith("builtin_"))
+              .map(preset => preset.id);
+            assert.deepEqual(visibleBuiltIns, EXPECTED_IDS);
+            assert.deepEqual(presets.builtinStateTemplates().map(preset => preset.id), EXPECTED_IDS);
+          });
+
+          test("managed presets remain visible with their category and package metadata", () => {
+            const catalog = presets.presetCatalogResponse();
+            const managed = catalog.filter(preset => preset.builtIn === false);
+            assert.ok(managed.length > 0);
+            for (const preset of managed) {
+              const visible = presets.visiblePresetCatalogResponse().find(candidate => candidate.id === preset.id);
+              assert.ok(visible, `${preset.id} should remain visible`);
+              assert.notEqual(visible.categoryId, presets.LEGACY_CATEGORY_ID);
+              assert.deepEqual(visible.packages || [], preset.packages || []);
+            }
+          });
+
+          test("legacy built-ins stay available only as hidden compatibility entries", () => {
+            const catalog = presets.presetCatalogResponse();
+            const legacy = catalog.filter(preset => preset.hidden === true);
+            assert.ok(legacy.length > 0);
+            assert.ok(legacy.every(preset => preset.builtIn !== false));
+            assert.ok(legacy.every(preset => preset.categoryId === presets.LEGACY_CATEGORY_ID));
+            assert.equal(catalog.find(preset => preset.id === "builtin_daisy_accordion")?.hidden, true);
+            assert.equal(presets.visiblePresetCatalogResponse().some(preset => preset.id === "builtin_daisy_accordion"), false);
+            assert.equal(catalog.some(preset => preset.id === "builtin_daisy_calendar"), false);
+          });
+
+          test("state inspector mirrors the focused built-in authoring surface and excludes accordion", () => {
+            const host = fs.readFileSync(path.resolve(__dirname, "..", "state.html"), "utf8");
+            const match = host.match(/const FOCUSED_INSPECTOR_PRESET_IDS = new Set\(\[([\s\S]*?)\]\);/);
+            assert.ok(match, "focused inspector preset set missing");
+            const ids = [...match[1].matchAll(/"([^"]+)"/g)].map(entry => entry[1]);
+            assert.deepEqual(ids, EXPECTED_IDS);
+            assert.doesNotMatch(match[1], /accordion|faq/i);
+            assert.match(host, /template\?\.builtIn === false \|\| !id\.startsWith\("builtin_"\)/);
+            assert.match(host, /FOCUSED_INSPECTOR_PRESET_IDS\.has\(id\)/);
+          });
+
+          test("typed input presets keep distinct state contracts", () => {
+            const byId = new Map(presets.visiblePresetCatalogResponse().map(preset => [preset.id, preset]));
+            const cases = [
+              ["builtin_daisy_input", "input", "text", "text"],
+              ["builtin_daisy_input_number", "input_number", "number", "number"],
+              ["builtin_daisy_search", "search", "search", "text"],
+              ["builtin_daisy_input_email", "input_email", "email", "email"],
+              ["builtin_daisy_input_password", "input_password", "password", "text"]
+            ];
+            for (const [id, rootStateId, inputType, valueType] of cases) {
+              const preset = byId.get(id);
+              assert.ok(preset, id + " missing");
+              assert.equal(preset.rootStateId, rootStateId);
+              assert.equal(preset.components[0].inputType, inputType);
+              assert.equal(preset.stateContribution.fieldTypes[`states.${rootStateId}.value`], valueType);
+            }
+          });
+
+          test("date, header and image use the existing renderer primitives", () => {
+            const byId = new Map(presets.visiblePresetCatalogResponse().map(preset => [preset.id, preset]));
+            assert.equal(byId.get("builtin_daisy_date")?.components[0]?.variant, "calendar");
+            assert.equal(byId.get("builtin_page_heading")?.components[0]?.type, "heading");
+            assert.equal(byId.get("builtin_page_heading")?.components[0]?.text, "Header");
+            assert.equal(byId.get("builtin_media_image")?.components[0]?.type, "image");
+          });
+          '''.replace(/^          /gm, ''))
+
+          # 6) Integration tests assert the authoritative route and live CORS release gate.
+          p = Path('server/external-recorder-integration.test.js')
+          s = p.read_text()
+          old = '''  const nginx = read("server/nginx/recorder.locations.conf");
+            const deploy = read("server/deploy.sh");'''
+          assert s.count(old) == 1, 'old recorder nginx integration setup missing'
+          s = s.replace(old, '''  const nginx = read("server/nginx/realtime.digitalisierungsplanung.de.conf");
+            const deploy = read("server/deploy.sh");''')
+          old_asserts = '''  assert.match(nginx, /location \\^~ \\/recorder\\//);
+            assert.match(nginx, /127\\.0\\.0\\.1:8789/);'''
+          assert s.count(old_asserts) == 1, 'old recorder nginx assertions missing'
+          s = s.replace(old_asserts, '''  assert.match(nginx, /location \\^~ \\/recorder\\//);
+            assert.match(nginx, /proxy_pass\\s+http:\\/\\/127\\.0\\.0\\.1:8789/);
+            assert.doesNotMatch(deploy, /digitalisierungsplanung-recorder\\.conf/);''')
+          needle = '  assert.match(deploy, /8789\\/healthz/);\n'
+          assert s.count(needle) == 1, 'recorder health assertion missing'
+          s = s.replace(needle, needle + '''  assert.match(deploy, /https:\\/\\/\\$\\{DOMAIN\\}\\/recorder\\/sessions/);
+            assert.match(deploy, /Access-Control-Request-Method: POST/);
+            assert.match(deploy, /Access-Control-Allow-Origin: https:\\/\\/digitalisierungsplanung\\.de/);
+          ''')
+          p.write_text(s)
+
+          # Obsolete dynamic nginx snippet removed entirely.
+          Path('server/nginx/recorder.locations.conf').unlink()
+
+          # Temporary patch workflow removes itself; it must never land in the product diff.
+          Path('.github/workflows/final-catalog-scan.yml').unlink()
+          PY
+
+          npm ci
+          npm run test:server
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- state.html tests/state-tool.spec.js server/deploy.sh server/nginx/realtime.digitalisierungsplanung.de.conf server/focused-preset-catalog.test.js server/external-recorder-integration.test.js server/nginx/recorder.locations.conf .github/workflows/final-catalog-scan.yml
+          git diff --cached --check
+          git commit -m 'fix: finalize recorder and focused inspector'
+          git push origin HEAD:fix/final-recorder-focused-catalog
