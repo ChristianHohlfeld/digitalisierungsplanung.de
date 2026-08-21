@@ -4,6 +4,7 @@ const appDir = process.env.APP_DIR || "/var/www/digitalisierungsplanung.de";
 const envFile = process.env.ENV_FILE || "/etc/digitalisierungsplanung-realtime.env";
 const appName = process.env.PM2_APP || "digitalisierungsplanung-realtime";
 const recorderAppName = process.env.RECORDER_PM2_APP || "digitalisierungsplanung-recorder";
+const taskAppName = process.env.TASK_PM2_APP || "digitalisierungsplanung-tasks";
 const stateDir = process.env.STATE_BLUEPRINT_STATE_DIR || "/var/lib/digitalisierungsplanung";
 const playwrightBrowsersPath = process.env.PLAYWRIGHT_BROWSERS_PATH || `${stateDir}/playwright`;
 
@@ -28,8 +29,6 @@ module.exports = {
         REALTIME_ENV_FILE: envFile,
         REALTIME_ALLOWED_ORIGINS: "https://digitalisierungsplanung.de",
         REALTIME_EVENT_CATALOG_PATH: process.env.REALTIME_EVENT_CATALOG_PATH || `${appDir}/server/event-catalog.json`,
-        REALTIME_PRESET_LIBRARY_PATH: process.env.REALTIME_PRESET_LIBRARY_PATH || `${appDir}/server/preset-library.json`,
-        STATE_BLUEPRINT_MODEL_PATH: process.env.STATE_BLUEPRINT_MODEL_PATH || `${stateDir}/state-blueprint.workspace.json`,
         REALTIME_REPO_DIR: process.env.REALTIME_REPO_DIR || appDir,
         REALTIME_MAX_PAYLOAD_BYTES: "65536",
         REALTIME_RATE_LIMIT: "360",
@@ -65,6 +64,24 @@ module.exports = {
         RECORDER_MAX_SESSIONS: process.env.RECORDER_MAX_SESSIONS || "8",
         RECORDER_MAX_SESSIONS_PER_CLIENT: process.env.RECORDER_MAX_SESSIONS_PER_CLIENT || "2",
         RECORDER_REPLACE_CLIENT_SESSION_ON_START: process.env.RECORDER_REPLACE_CLIENT_SESSION_ON_START || "true",
+        PLAYWRIGHT_BROWSERS_PATH: playwrightBrowsersPath
+      }
+    },
+    {
+      name: taskAppName,
+      script: "server/task-run.js",
+      cwd: appDir,
+      instances: 1,
+      exec_mode: "fork",
+      watch: false,
+      max_memory_restart: "768M",
+      env: {
+        NODE_ENV: "production",
+        TASK_HOST: "127.0.0.1",
+        TASK_PORT: "8790",
+        TASK_ALLOWED_ORIGINS: "https://digitalisierungsplanung.de,https://www.digitalisierungsplanung.de",
+        REPLAY_TASKS_FILE: process.env.REPLAY_TASKS_FILE || `${stateDir}/replay-tasks.json`,
+        RECORDER_ALLOWED_PRIVATE_HOSTS: process.env.RECORDER_ALLOWED_PRIVATE_HOSTS || "",
         PLAYWRIGHT_BROWSERS_PATH: playwrightBrowsersPath
       }
     }
