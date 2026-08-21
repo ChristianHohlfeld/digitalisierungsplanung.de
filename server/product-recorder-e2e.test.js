@@ -101,7 +101,7 @@ test("editor records a real browser path into a visual project and replays it", 
     await editorPage.locator("#recordUrl").fill(`http://127.0.0.1:${targetPort}/target`);
     await editorPage.locator("#recordStart").click();
 
-    await waitFor(() => agent.recordings.size === 1, 10000);
+    await waitFor(() => [...agent.recordings.values()][0]?.page, 10000);
     const session = [...agent.recordings.values()][0];
     const targetPage = session.page;
     assert.ok(targetPage, "native recorder must expose the real target page");
