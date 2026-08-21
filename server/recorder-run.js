@@ -36,6 +36,7 @@ const server = http.createServer((request, response) => {
     response.setHeader("access-control-allow-origin", origin);
     response.setHeader("access-control-allow-methods", "GET, POST, DELETE, OPTIONS");
     response.setHeader("access-control-allow-headers", "content-type");
+    response.setHeader("access-control-max-age", "600");
     response.setHeader("vary", "Origin");
   }
 
@@ -46,6 +47,11 @@ const server = http.createServer((request, response) => {
   }
   if (!externalRecorder.matchesRecorderPath(url.pathname)) {
     writeJson(response, 404, { error: "not_found" });
+    return;
+  }
+  if (request.method === "OPTIONS") {
+    response.statusCode = 204;
+    response.end();
     return;
   }
   void externalRecorder.handleRecorderRequest(request, response, url, {
