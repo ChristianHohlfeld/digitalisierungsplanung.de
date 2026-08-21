@@ -20,27 +20,35 @@ const EXPECTED_IDS = [
   "builtin_daisy_radio"
 ];
 
-test("focused preset surface contains exactly the 13 supported presets", () => {
+test("focused built-in preset surface contains exactly the 13 supported built-ins", () => {
   assert.deepEqual(presets.FOCUSED_PRESET_IDS, EXPECTED_IDS);
-  assert.deepEqual(
-    presets.visiblePresetCatalogResponse().map(preset => preset.id),
-    EXPECTED_IDS
-  );
-  assert.deepEqual(
-    presets.builtinStateTemplates().map(preset => preset.id),
-    EXPECTED_IDS
-  );
+  const visibleBuiltIns = presets.visiblePresetCatalogResponse()
+    .filter(preset => preset.builtIn !== false && preset.id.startsWith("builtin_"))
+    .map(preset => preset.id);
+  assert.deepEqual(visibleBuiltIns, EXPECTED_IDS);
+  assert.deepEqual(presets.builtinStateTemplates().map(preset => preset.id), EXPECTED_IDS);
 });
 
-test("legacy presets stay available only as hidden compatibility entries", () => {
+test("managed presets remain visible with their category and package metadata", () => {
   const catalog = presets.presetCatalogResponse();
-  const visible = catalog.filter(preset => preset.hidden !== true);
-  const legacy = catalog.filter(preset => preset.hidden === true);
+  const managed = catalog.filter(preset => preset.builtIn === false);
+  assert.ok(managed.length > 0);
+  for (const preset of managed) {
+    const visible = presets.visiblePresetCatalogResponse().find(candidate => candidate.id === preset.id);
+    assert.ok(visible, `${preset.id} should remain visible`);
+    assert.notEqual(visible.categoryId, presets.LEGACY_CATEGORY_ID);
+    assert.deepEqual(visible.packages || [], preset.packages || []);
+  }
+});
 
-  assert.deepEqual(visible.map(preset => preset.id), EXPECTED_IDS);
+test("legacy built-ins stay available only as hidden compatibility entries", () => {
+  const catalog = presets.presetCatalogResponse();
+  const legacy = catalog.filter(preset => preset.hidden === true);
   assert.ok(legacy.length > 0);
+  assert.ok(legacy.every(preset => preset.builtIn !== false));
   assert.ok(legacy.every(preset => preset.categoryId === presets.LEGACY_CATEGORY_ID));
   assert.equal(catalog.find(preset => preset.id === "builtin_daisy_accordion")?.hidden, true);
+  assert.equal(presets.visiblePresetCatalogResponse().some(preset => preset.id === "builtin_daisy_accordion"), false);
   assert.equal(catalog.some(preset => preset.id === "builtin_daisy_calendar"), false);
 });
 
