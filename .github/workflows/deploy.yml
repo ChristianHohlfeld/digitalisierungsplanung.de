@@ -6,10 +6,13 @@ on:
       - main
     paths-ignore:
       - release-version.js
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 concurrency:
-  group: deploy
+  group: deploy-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -39,7 +42,10 @@ jobs:
           fi
       - name: Validate deployment scripts
         if: matrix.shard == '1/4'
-        run: bash -n server/deploy.sh server/auto-deploy.sh server/run.sh
+        run: |
+          for script in server/deploy.sh server/auto-deploy.sh server/run.sh; do
+            bash -n "$script"
+          done
       - name: Run server contract tests
         if: matrix.shard == '1/4'
         run: npm run test:server
@@ -48,6 +54,7 @@ jobs:
 
   deploy:
     needs: contract-tests
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
