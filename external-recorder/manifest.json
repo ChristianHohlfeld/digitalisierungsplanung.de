@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Zustand External Recorder",
+  "version": "1.0.0",
+  "description": "Record click and input flows on arbitrary websites, replay them with timing, and export a State Blueprint.",
+  "permissions": ["activeTab", "tabs", "scripting", "storage", "downloads"],
+  "host_permissions": ["http://*/*", "https://*/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Zustand Recorder",
+    "default_popup": "popup.html"
+  }
+}
