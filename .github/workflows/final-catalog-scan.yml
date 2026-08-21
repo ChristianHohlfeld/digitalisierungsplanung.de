@@ -13,13 +13,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Inspect editor component catalog and storage seeds
+      - name: Inspect exact editor catalog and stale tests
         shell: bash
         run: |
           set -euo pipefail
-          echo '=== COMPONENT CATALOG CANDIDATES ==='
-          grep -nEi 'Baustein|component[^[:alnum:]_]*(type|variant)|daisy[^[:alnum:]_]*variant|componentTypes|componentPalette|componentOption|addComponent' state.html | head -n 700 || true
-          echo '=== STORAGE SEEDS ==='
-          grep -nE 'localStorage\.setItem\(' tests/state-tool.spec.js || true
-          echo '=== FOCUSED/PRESET REFERENCES ==='
-          grep -nE 'builtin_daisy_|builtin_page_heading|builtin_media_image|stateTemplates|presetCatalog' tests/state-tool.spec.js | head -n 500 || true
+          echo '=== COMPONENT PRESET FUNCTIONS ==='
+          grep -nE 'function componentPresetTypes|componentPresetTypes\(|function .*Preset.*Template|pWidgetLibrary|Bausteinvorlage' state.html | head -n 120 || true
+          echo '=== BAUSTEINE UI ==='
+          sed -n '16140,16330p' state.html
+          echo '=== PRESET TEMPLATE MAPPING ==='
+          sed -n '22180,22370p' state.html
+          echo '=== OLD WIDGET TESTS ==='
+          sed -n '6100,6245p' tests/state-tool.spec.js
+          sed -n '7040,7140p' tests/state-tool.spec.js
+          echo '=== OLD BUILTIN IDS IN TESTS ==='
+          grep -oE 'builtin_daisy_[a-z0-9_]+' tests/state-tool.spec.js | sort | uniq -c | sort -k2 || true
+          echo '=== STALE STORAGE MODEL SEED COUNT ==='
+          grep -cF 'localStorage.setItem(key, JSON.stringify(model));' tests/state-tool.spec.js || true
