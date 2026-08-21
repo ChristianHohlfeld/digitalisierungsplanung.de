@@ -1,49 +1,18 @@
-# State Inspector Rules
+# Inspector-Regeln
 
-Der Inspector darf nicht zwei verschiedene Regelwelten zeigen.
+Der Inspector folgt genau zwei Regeln:
 
-## Schnitt
+**State:** definiert den Trigger-Kontext (`Interaktion`, `Timer`, `Event/Webhook`, `Auto`).
 
-- **State Inspector**: Der State bestimmt den Trigger-Kontext. Beispiel: Klick, Timer, Webhook/Event oder Auto.
-- **Transition Inspector**: Die Kante lauscht innerhalb dieses Kontexts auf ein konkretes Signal und filtert über einfache Regeln.
+**Transition:** definiert den konkreten Listener und optionale Filterregeln.
 
-## Sichtbare UI
+Eine Filterregel ist immer eine einfache Zeile:
 
-Die sichtbare Transition-Regel-UI ist nur:
+`Feld | Operator | Wert | Löschen`
 
-```text
-Feld                  Operator   Wert      Löschen
-Checkbox A.checked   ==         true      ×
-Checkbox B.checked   ==         false     ×
-E-Mail.value         !=         ""        ×
-```
+Mehrere Regeln werden mit `UND` oder `ODER` verbunden. Checkboxen und Inputs sind über State-ID + Feld-ID eindeutig, zum Beispiel:
 
-Dazu gibt es nur:
+- `states.state_003.freigabe.checked`
+- `states.state_004.email.value`
 
-- `+ Regel`
-- `Alle löschen`
-- `UND` / `ODER`
-
-Jede Regel ist eine eigene Zeile und einzeln löschbar.
-
-## Felder
-
-Felder müssen unterscheidbar bleiben. Deshalb zeigt der Builder State-ID und Feld:
-
-- `Checkbox A (checkbox_a) · checked`
-- `Checkbox B (checkbox_b) · checked`
-- `E-Mail (email) · value`
-- `Suchfeld (search) · value`
-- Event/Webhook-Felder wie `Incoming call · caller`
-
-## Was nicht sichtbar sein darf
-
-Die alte Advanced-Maske ist keine Hauptbedienung mehr:
-
-- keine sichtbare `Trigger-Regel`-Card
-- kein `Match-Feld`
-- kein `Match-Operator`
-- keine `Technische Bedingung` als Standardfläche
-- kein freies JSON als normale Bedienung
-
-Der Contract kann weiterhin eine `condition` speichern. Die UI bearbeitet diese Condition aber über einfache Zeilen.
+Die UI enthält keine alte Trigger-Match-Maske, keinen Range-Builder und kein freies technisches Condition-JSON.

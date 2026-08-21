@@ -96,7 +96,7 @@ test("recorded flow clamps only pathological replay delays and keeps normal huma
   assert.equal(definition.model.transitions[0].timerMs, 100);
 });
 
-test("recorder UI exposes external click, keyboard, scroll, finish, import and live replay controls", () => {
+test("cloud recorder implementation still exposes real browser actions for server-side fallback", () => {
   const html = recorder.recorderHtml();
   assert.match(html, /Website aufnehmen/);
   assert.match(html, /freigegebene Intranet/);
@@ -106,12 +106,8 @@ test("recorder UI exposes external click, keyboard, scroll, finish, import and l
   assert.match(html, /Passwortwerte werden nie gespeichert/);
 });
 
-test("public recorder exports real replay actions and imports them beside the state model", () => {
+test("public recorder route no longer duplicates product recorder or replay UI", () => {
   const html = fs.readFileSync("recorder.html", "utf8");
-  assert.match(html, /Play echter Replay/);
-  assert.match(html, /Pause\/Stop Replay/);
-  assert.match(html, /Export Replay/);
-  assert.match(html, /state-blueprint-recording-package/);
-  assert.match(html, /\.externalRecording/);
-  assert.match(html, /States \+ Replay in Zustand öffnen/);
+  assert.match(html, /state\.html\?tab=recorder/);
+  assert.doesNotMatch(html, /Play echter Replay|Pause\/Stop Replay|Export Replay|\.externalRecording|state-blueprint-recording-package/);
 });
