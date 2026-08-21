@@ -1,6 +1,124 @@
 
+===== server/server.js :: function createRealtimeServer @ 52026 =====
+turn { ok: false, code: "event_not_offered" };
+    const detail = message.detail === undefined ? {} : message.detail;
+    const detailValidation = eventCatalog.validateEventDetail(detail, offered.detail);
+    if (!detailValidation.ok) return detailValidation;
+    const emitterId = message.emitterId ? sanitizeId(message.emitterId) : "";
+    if (message.emitterId && !emitterId) return { ok: false, code: "invalid_emitter" };
+    if (emitterId) {
+      const emitter = offeredEmittersById.get(emitterId);
+      if (!emitter) return { ok: false, code: "emitter_not_offered" };
+      if (!emitter.events.includes(name)) return { ok: false, code: "emitter_event_not_allowed" };
+    }
+    message.name = name;
+    message.detail = detail;
+    message.emitterId = emitterId;
+  }
+
+  return { ok: true, message };
+}
+
+function sendJson(socket, payload) {
+  if (socket.readyState !== WebSocket.OPEN) return false;
+  socket.send(JSON.stringify(payload));
+  return true;
+}
+
+function sendError(socket, code, close = false) {
+  sendJson(socket, { type: "error", code });
+  if (close) socket.close(1008, code);
+}
+
+function createRealtimeServer(options = {}) {
+  const config = loadConfig(options);
+  const allowedOrigins = new Set(config.allowedOrigins);
+  let offeredEventsByName = new Map();
+  let offeredEmittersById = new Map();
+  const rooms = new Map();
+  const setEventCatalog = catalog => {
+    config.eventCatalog = eventCatalog.validateEventCatalog(catalog);
+    offeredEventsByName = new Map(config.eventCatalog.events.map(event => [event.name, event]));
+    offeredEmittersById = new Map(config.eventCatalog.emitters.map(emitter => [emitter.id, emitter]));
+  };
+  setEventCatalog(config.eventCatalog);
+  const setPresetLibrary = library => {
+    config.presetLibrary = presetLibrary.validatePresetLibrary(library);
+  };
+  setPresetLibrary(config.presetLibrary);
+  const isOriginAllowed = origin => allowedOrigins.has("*") || allowedOrigins.has(origin);
+  const isSamePublicOrigin = (origin, request) => Boolean(origin) && origin === publicBaseUrl(request);
+  const corsHeadersForOrigin = (origin, request) => {
+    if (!origin || !isOriginAllowed(origin) && !isSamePublicOrigin(origin, request)) return null;
+    return {
+      "access-control-allow-origin": allowedOrigins.has("*") ? "*" : origin,
+      "access-control-allow-methods": "GET, POST, OPTIONS",
+      "access-control-allow-headers": "authorization, content-type",
+      "vary": "Origin"
+    };
+  };
+  const adminHeadersForRequest = (request) => {
+    const origin = request.headers.origin || "";
+    if (!origin) return {};
+    if (!isSamePublicOrigin(origin, request)) return null;
+    return {
+      "access-control-allow-origin": origin,
+      "access-control-allow-methods": "GET, POST, OPTIONS",
+      "access-control-allow-headers": "authorization, content-type",
+      "vary": "Origin"
+    };
+  };
+  const prepareAdminResponse = (request, response) => {
+    const headers = adminHeadersForRequest(request);
+    if (!headers) {
+      writeJson(response, 403, { error: "origin_not_allowed" });
+      return { done: true };
+    }
+    if (request.method === "OPTIONS") {
+      response.writeHead(204, headers);
+      response.end();
+      return { done: true };
+    }
+    if (!config.adminSecret) {
+      writeJson(response, 503, { error: "admin_secret_required" }, headers);
+      return { done: true };
+    }
+    if (!timingSafeEqualString(bearerToken(request), config.adminSecret)) {
+      writeJson(response, 401, { error: "unauthorized" }, headers);
+      return { done: true };
+    }
+    return { done: false, headers };
+  };
+  const prepareCatalogResponse = (request, response) => {
+    const origin = request.headers.origin || "";
+    const headers = origin ? corsHeadersForOrigin(origin, request) : {};
+    if (!headers) {
+      writeJson(response, 403, { error: "origin_not_allowed" });
+      return { done: true };
+    }
+    if (request.method === "OPTIONS") {
+      response.writeHead(204, headers);
+      response.end();
+      return { done: true };
+    }
+    return { done: false, headers };
+  };
+  const prepareMcpResponse = (request, response) => {
+    const origin = request.headers.origin || "";
+    const headers = origin ? adminHeadersForRequest(request) : {};
+    if (!headers) {
+      writeJson(response, 403, { error: "origin_not_allowed" });
+      return { done: true };
+    }
+    const mcpHeaders = {
+      ...headers,
+      "access-control-allow-methods": "POST, OPTIONS",
+      "access-control-allow-headers"
+
 ===== server/server.js :: http\.createServer @ 57899 =====
-n ? corsHeadersForOrigin(origin, request) : {};
+ (request, response) => {
+    const origin = request.headers.origin || "";
+    const headers = origin ? corsHeadersForOrigin(origin, request) : {};
     if (!headers) {
       writeJson(response, 403, { error: "origin_not_allowed" });
       return { done: true };
@@ -90,361 +208,33 @@ n ? corsHeadersForOrigin(origin, request) : {};
       void handleMcpRequest(request, response);
       return;
     }
-    if (request.m
+    if (request.method === "GET" && url.pathname === config.agentPath) {
+      writeHtml(response, 200, fs.readFileSync(config.agentHtmlPath, "utf8"));
+      return;
+    }
+    if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.agentWidgetScriptPath) {
+      const prepared = prepareCatalogResponse(request, response);
+      if (prepared.done) return;
+      writeScript(response,
 
-===== server/server.js :: DEFAULT_MCP_PATH @ 1728 =====
-seReleaseSource } = require("./release");
-const stateBlueprintMcp = require("../mcp/state-blueprint-server");
-
-const DEFAULT_ALLOWED_ORIGINS = ["https://digitalisierungsplanung.de", "https://www.digitalisierungsplanung.de"];
-const DEFAULT_PATH = "/ws";
-const DEFAULT_TOKEN_PATH = "/token";
-const DEFAULT_EVENTS_PATH = "/events";
-const DEFAULT_PRODUCT_CONTRACT_PATH = "/contract";
-const DEFAULT_EMIT_PATH = "/emit";
-const DEFAULT_ADMIN_PATH = "/admin.html";
-const DEFAULT_ADMIN_ROUTES_PATH = "/admin/routes";
-const DEFAULT_CONSOLE_PATH = "/console.html";
-const DEFAULT_EVENTS_ADMIN_PATH = "/events-admin.html";
-const DEFAULT_EVENTS_ADMIN_CATALOG_PATH = "/events-admin/catalog";
-const DEFAULT_PRESETS_ADMIN_PATH = "/presets-admin.html";
-const DEFAULT_PRESETS_ADMIN_CATALOG_PATH = "/presets-admin/catalog";
-const DEFAULT_PRESETS_ADMIN_PARSE_PATH = "/presets-admin/parse";
-const DEFAULT_PRESETS_ADMIN_IMPORT_PATH = "/presets-admin/import";
-const DEFAULT_IMAGE_INLINE_PATH = "/assets/inline-image";
-const DEFAULT_MCP_PATH = "/mcp";
-const DEFAULT_AGENT_PATH = agentWidget.DEFAULT_AGENT_PATH;
-const DEFAULT_AGENT_CONFIG_PATH = agentWidget.DEFAULT_AGENT_CONFIG_PATH;
-const DEFAULT_AGENT_CHAT_PATH = agentWidget.DEFAULT_AGENT_CHAT_PATH;
-const DEFAULT_AGENT_MCP_TOOL_PATH = agentWidget.DEFAULT_AGENT_MCP_TOOL_PATH;
-const DEFAULT_AGENT_EDITOR_PROMPT_PATH = agentWidget.DEFAULT_AGENT_EDITOR_PROMPT_PATH;
-const DEFAULT_AGENT_WIDGET_SCRIPT_PATH = agentWidget.DEFAULT_AGENT_WIDGET_SCRIPT_PATH;
-const DEFAULT_VERSION_PATH = "/version";
-const DEFAULT_STRIPE_API_BASE_URL = "https://api.stripe.com";
-const DEFAULT_STRIPE_CHECKOUT_PATH = presetCatalog.STRIPE_CHECKOUT_DEFAULTS.path;
-const DEFAULT_STRIPE_SUCCESS_URL = presetCatalog.STRIPE_CHECKOUT_DEFAULTS.successUrl;
-const DEFAULT_STRIPE_CANCEL_URL = presetCatalog.STRIPE_CHECKOUT_DEFAULTS.cancelUrl;
-const DEFAULT_ADMIN_COMMIT_MESSAGE = "Update realtime event catalog";
-const DEFAULT_PRESET_ADMIN_COMMIT_MESSAGE = "Update preset library";
-const DEFAULT_HOST = "127.0.0.1";
-const DEFAULT_PORT = 8788;
-const MAX_ID_LENGTH = 128;
-const MAX_EVENT_NAME_LENGTH = 160;
-const MAX_EMIT_BODY_BYTES = 64 * 1024;
-const MAX_PRESET_API_RESPONSE_BYTES = 64 * 1024;
-const MAX_IMAGE_INLINE_BODY_BYTES = 4 * 1024;
-const MAX_MCP_BODY_BYTES = 1024 * 1024;
-const MAX_IMAGE_INLINE_BYTES = 12 * 1024 * 1024;
-const PRESET_API_TIMEOUT_MS = 8000;
-const IMAGE_INLINE_TIMEOUT_MS = 12000;
-const MESSAGE_TYPES = new Set(["runtime.event"]);
-const CONSOLE_HTML = `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Realtime Event Console</title>
-  <style>
-    :root { color-scheme: dark; --bg: #07111d; --panel: #0b1b2a; --line: #20425f; --text: #e6f2ff; --muted: #9fb6cc; --accent: #38bdf8; --ok: #34d399; --bad: #fb7185; }
-    * { box-sizing: border-box; }
-    body { margin: 0; min-height: 100vh; font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--text); }
-    main { width: min(920px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 40px; }
-    header { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
-    h1 { margin: 0; font-size: 28px; line-height: 1.1; }
-    .status { color: var(--muted); font-size: 13px; }
-    form, .result { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); padding: 16px; }
-    form { display: grid; gap: 14px; }
-    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-    label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
-    input, select, textarea, button { width: 100%; border: 1px solid var(--line); border-radius: 6px; background: #06111f; color: var(--text); font: inherit; }
-    input, select { height: 42px; padding: 0 10px; }
-    textarea { min-height: 160px; padding: 10px; resize: vertical; font-family: ui-monospace, SFMo
-
-===== server/server.js :: DEFAULT_MCP_PATH @ 25423 =====
-h || env.REALTIME_CONSOLE_PATH || DEFAULT_CONSOLE_PATH,
-    eventsAdminPath: options.eventsAdminPath || env.REALTIME_EVENTS_ADMIN_PATH || DEFAULT_EVENTS_ADMIN_PATH,
-    eventsAdminCatalogPath: options.eventsAdminCatalogPath || env.REALTIME_EVENTS_ADMIN_CATALOG_PATH || DEFAULT_EVENTS_ADMIN_CATALOG_PATH,
-    presetsAdminPath: options.presetsAdminPath || env.REALTIME_PRESETS_ADMIN_PATH || DEFAULT_PRESETS_ADMIN_PATH,
-    presetsAdminCatalogPath: options.presetsAdminCatalogPath || env.REALTIME_PRESETS_ADMIN_CATALOG_PATH || DEFAULT_PRESETS_ADMIN_CATALOG_PATH,
-    presetsAdminParsePath: options.presetsAdminParsePath || env.REALTIME_PRESETS_ADMIN_PARSE_PATH || DEFAULT_PRESETS_ADMIN_PARSE_PATH,
-    presetsAdminImportPath: options.presetsAdminImportPath || env.REALTIME_PRESETS_ADMIN_IMPORT_PATH || DEFAULT_PRESETS_ADMIN_IMPORT_PATH,
-    imageInlinePath: options.imageInlinePath || env.REALTIME_IMAGE_INLINE_PATH || DEFAULT_IMAGE_INLINE_PATH,
-    mcpPath: options.mcpPath || env.REALTIME_MCP_PATH || DEFAULT_MCP_PATH,
-    agentPath: options.agentPath || env.REALTIME_AGENT_PATH || DEFAULT_AGENT_PATH,
-    agentConfigPath: options.agentConfigPath || env.REALTIME_AGENT_CONFIG_PATH || DEFAULT_AGENT_CONFIG_PATH,
-    agentChatPath: options.agentChatPath || env.REALTIME_AGENT_CHAT_PATH || DEFAULT_AGENT_CHAT_PATH,
-    agentMcpToolPath: options.agentMcpToolPath || env.REALTIME_AGENT_MCP_TOOL_PATH || DEFAULT_AGENT_MCP_TOOL_PATH,
-    agentEditorPromptPath: options.agentEditorPromptPath || env.REALTIME_AGENT_EDITOR_PROMPT_PATH || DEFAULT_AGENT_EDITOR_PROMPT_PATH,
-    agentWidgetScriptPath: options.agentWidgetScriptPath || env.REALTIME_AGENT_WIDGET_SCRIPT_PATH || DEFAULT_AGENT_WIDGET_SCRIPT_PATH,
-    agentHtmlPath: path.resolve(options.agentHtmlPath || env.REALTIME_AGENT_HTML_PATH || path.join(__dirname, "agent.html")),
-    agentWidgetAssetPath: path.resolve(options.agentWidgetAssetPath || env.REALTIME_AGENT_WIDGET_ASSET_PATH || path.join(repoDir, "assets", "agent-widget.js")),
-    versionPath: options.versionPath || env.REALTIME_VERSION_PATH || DEFAULT_VERSION_PATH,
-    stripeCheckoutPath: options.stripeCheckoutPath || env.REALTIME_STRIPE_CHECKOUT_PATH || DEFAULT_STRIPE_CHECKOUT_PATH,
-    stripeApiBaseUrl: options.stripeApiBaseUrl || env.REALTIME_STRIPE_API_BASE_URL || DEFAULT_STRIPE_API_BASE_URL,
-    stripeSecretKey: options.stripeSecretKey ?? env.REALTIME_STRIPE_SECRET_KEY ?? env.STRIPE_SECRET_KEY ?? "",
-    stripeSuccessUrl: options.stripeSuccessUrl || env.REALTIME_STRIPE_SUCCESS_URL || DEFAULT_STRIPE_SUCCESS_URL,
-    stripeCancelUrl: options.stripeCancelUrl || env.REALTIME_STRIPE_CANCEL_URL || DEFAULT_STRIPE_CANCEL_URL,
-    eventCatalogPath: path.resolve(options.eventCatalogPath || env.REALTIME_EVENT_CATALOG_PATH || eventCatalog.DEFAULT_EVENT_CATALOG_PATH),
-    adminHtmlPath: path.resolve(options.adminHtmlPath || env.REALTIME_ADMIN_HTML_PATH || path.join(__dirname, "admin.html")),
-    eventAdminHtmlPath: path.resolve(options.eventAdminHtmlPath || env.REALTIME_EVENT_ADMIN_HTML_PATH || path.join(__dirname, "events-admin.html")),
-    presetLibraryPath,
-    presetAdminHtmlPath: path.resolve(options.presetAdminHtmlPath || env.REALTIME_PRESET_ADMIN_HTML_PATH || path.join(__dirname, "presets-admin.html")),
-    repoDir,
-    releaseFile,
-    adminSecret: options.adminSecret ?? env.REALTIME_ADMIN_SECRET ?? "",
-    mcpSecret: options.mcpSecret ?? env.REALTIME_MCP_SECRET ?? env.MCP_SECRET ?? "",
-    agentSecret: options.agentSecret ?? env.REALTIME_AGENT_SECRET ?? "",
-    agentModel: options.agentModel || env.REALTIME_AGENT_MODEL || agentWidget.DEFAULT_AGENT_MODEL,
-    agentModelBaseUrl: options.agentModelBaseUrl || env.REALTIME_AGENT_MODEL_BASE_URL || "",
-    agentChatCompletionsUrl: options.agentChatCompletionsUrl || env.REALTIME_AGENT_CHAT_COMPLETIONS_URL || "",
-    agentModelApiKey: options.agentModelApiKey ?? env.REALTIME_AGENT_MODEL_API_KEY ?? "",
-    agentWebLlmPackageUrl: options.agentWebLlmPackageUrl || env.REALTIME_AGENT_WEBLLM_PACKAGE_URL || agentWidget
-
-===== server/server.js :: function readJsonBody @ 34722 =====
- https://cdn.jsdelivr.net; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
-    "x-content-type-options": "nosniff",
-    "referrer-policy": "no-referrer",
-    "content-length": Buffer.byteLength(body),
-    ...headers
+===== server/server.js :: request\.method @ 40486 =====
+{
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${config.stripeSecretKey}`,
+      "content-type": "application/x-www-form-urlencoded"
+    },
+    body: stripeCheckoutSessionParams(config, plan, quantity).toString()
   });
-  response.end(body);
-}
-
-function writeScript(response, statusCode, body, headers = {}) {
-  response.writeHead(statusCode, {
-    "content-type": "application/javascript; charset=utf-8",
-    "cache-control": "no-store",
-    "x-content-type-options": "nosniff",
-    "referrer-policy": "no-referrer",
-    "content-length": Buffer.byteLength(body),
-    ...headers
-  });
-  response.end(body);
-}
-
-function bearerToken(request) {
-  const header = String(request.headers.authorization || "");
-  const match = header.match(/^Bearer\s+(.+)$/i);
-  return match ? match[1].trim() : "";
-}
-
-function mcpAuthSecrets(config) {
-  return [...new Set([
-    config.mcpSecret,
-    config.adminSecret,
-    config.emitSecret
-  ].map(secret => String(secret || "")).filter(Boolean))];
-}
-
-function readJsonBody(request, maxBytes = MAX_EMIT_BODY_BYTES) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    let total = 0;
-    request.on("data", chunk => {
-      total += chunk.length;
-      if (total <= maxBytes) chunks.push(chunk);
-    });
-    request.on("error", reject);
-    request.on("end", () => {
-      if (total > maxBytes) {
-        const error = new Error("payload_too_large");
-        error.code = "payload_too_large";
-        reject(error);
-        return;
-      }
-      try {
-        const parsed = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
-        resolve(parsed);
-      } catch (_) {
-        const error = new Error("invalid_json");
-        error.code = "invalid_json";
-        reject(error);
-      }
-    });
-  });
-}
-
-function publicBaseUrl(request) {
-  const proto = String(request.headers["x-forwarded-proto"] || "http").split(",")[0].trim() || "http";
-  const host = String(request.headers["x-forwarded-host"] || request.headers.host || "localhost").split(",")[0].trim();
-  return `${proto}://${host}`;
-}
-
-function eventCatalogResponse(config) {
-  return {
-    ...eventCatalog.eventCatalogResponse(config.eventCatalog),
-    release: releaseResponse(config)
-  };
-}
-
-function releaseResponse(config) {
-  return {
-    ok: true,
-    releaseId: config.release.id,
-    releaseSequence: config.release.sequence,
-    builtAt: config.release.builtAt,
-    sourceCommit: config.release.sourceCommit,
-    deployedCommit: config.release.deployedCommit
-  };
-}
-
-function stripeCheckoutQuantity(plan, value) {
-  const stripe = plan?.stripe || {};
-  if (stripe.quantityMode !== "per_user") return 1;
-  const min = parseInteger(stripe.minQuantity, 1, 1, 10000);
-  const max = parseInteger(stripe.maxQuantity, min, min, 10000);
-  return parseInteger(value, min, min, max);
-}
-
-function stripeCheckoutSessionParams(config, plan, quantity) {
-  const stripe = plan?.stripe || {};
-  const amount = Number(stripe.unitAmountCents);
-  if (!Number.isSafeInteger(amount) || amount <= 0) {
-    const error = new Error("invalid_stripe_amount");
-    error.code = "invalid_stripe_amount";
-    error.status = 500;
-    throw error;
-  }
-  const params = new URLSearchParams();
-  params.set("mode", "subscription");
-  params.set("success_url", config.stripeSuccessUrl);
-  params.set("cancel_url", config.stripeCancelUrl);
-  params.set("client_reference_id", plan.id);
-  params.set("locale", "auto");
-  params.set("billing_address_collection", stripe.billingAddressCollection === "auto" ? "auto" : "required");
-  if (stripe.automaticTax === true) params.set("automatic_tax[enabled]", "true");
-  params.set("allow_promotion_codes", "true");
-  params.set("metadata[contract_plan_id]", plan.id);
-  params.set("metadata[contract_lookup_key]", stripe.lookupKey || plan.id);
-  params.set("metadata[contract_source]", "digitalisierungsplanung.product_contract");
-  params.set("subscription_data[metadata][contract_plan_id]", plan.id);
-  params.set("subscription_data[metadata][co
-
-===== server/server.js :: writeJson @ 33080 =====
-ecret) return { ok: false, code: "missing_secret" };
-  const [body, signature, extra] = String(token || "").split(".");
-  if (!body || !signature || extra !== undefined) return { ok: false, code: "malformed_token" };
-
-  const expected = signTokenBody(body, secret);
-  if (!timingSafeEqualString(signature, expected)) return { ok: false, code: "bad_signature" };
-
-  let payload;
+  let payload = {};
   try {
-    payload = fromBase64UrlJson(body);
+    payload = await response.json();
   } catch (_) {
-    return { ok: false, code: "bad_payload" };
+    payload = { error: { message: await response.text?.().catch(() => "") || "" } };
   }
-
-  if (payload.roomId !== roomId) return { ok: false, code: "room_mismatch" };
-  if (payload.clientId && payload.clientId !== clientId) return { ok: false, code: "client_mismatch" };
-  if (!Number.isFinite(payload.exp) || payload.exp < now) return { ok: false, code: "expired_token" };
-  return { ok: true, payload };
-}
-
-function rejectUpgrade(socket, statusCode, reason) {
-  socket.write(`HTTP/1.1 ${statusCode} ${reason}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
-  socket.destroy();
-}
-
-function writeJson(response, statusCode, payload, headers = {}) {
-  const body = JSON.stringify(payload);
-  response.writeHead(statusCode, {
-    "content-type": "application/json; charset=utf-8",
-    "cache-control": "no-store",
-    "content-length": Buffer.byteLength(body),
-    ...headers
-  });
-  response.end(body);
-}
-
-function writeHtml(response, statusCode, body, headers = {}) {
-  response.writeHead(statusCode, {
-    "content-type": "text/html; charset=utf-8",
-    "cache-control": "no-store",
-    "content-security-policy": "default-src 'none'; connect-src 'self' https://cdn.jsdelivr.net; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://cdn.jsdelivr.net; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
-    "x-content-type-options": "nosniff",
-    "referrer-policy": "no-referrer",
-    "content-length": Buffer.byteLength(body),
-    ...headers
-  });
-  response.end(body);
-}
-
-function writeScript(response, statusCode, body, headers = {}) {
-  response.writeHead(statusCode, {
-    "content-type": "application/javascript; charset=utf-8",
-    "cache-control": "no-store",
-    "x-content-type-options": "nosniff",
-    "referrer-policy": "no-referrer",
-    "content-length": Buffer.byteLength(body),
-    ...headers
-  });
-  response.end(body);
-}
-
-function bearerToken(request) {
-  const header = String(request.headers.authorization || "");
-  const match = header.match(/^Bearer\s+(.+)$/i);
-  return match ? match[1].trim() : "";
-}
-
-function mcpAuthSecrets(config) {
-  return [...new Set([
-    config.mcpSecret,
-    config.adminSecret,
-    config.emitSecret
-  ].map(secret => String(secret || "")).filter(Boolean))];
-}
-
-function readJsonBody(request, maxBytes = MAX_EMIT_BODY_BYTES) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    let total = 0;
-    request.on("data", chunk => {
-      total += chunk.length;
-      if (total <= maxBytes) chunks.push(chunk);
-    });
-    request.on("error", reject);
-    request.on("end", () => {
-      if (total > maxBytes) {
-        const error = new Error("payload_too_large");
-        error.code = "payload_too_large";
-        reject(error);
-        return;
-      }
-      try {
-        const parsed = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
-        resolve(parsed);
-      } catch (_) {
-        const error = new Error("invalid_json");
-        error.code = "invalid_json";
-        reject(error);
-      }
-    });
-  });
-}
-
-function publicBaseUrl(request) {
-  const proto = String(request.headers["x-forwarded-proto"] || "http").split(",")[0].trim() || "http";
-  const host = String(request.headers["x-forwarded-host"] || request.headers.host || "localhost").split(",")[0].trim();
-  return `${proto}://${host}`;
-}
-
-function eventCatalogResponse(config) {
-  return {
-    ...eventCatalog.eventCatalogResponse(config.eventCatalog),
-    release: releaseResponse(config)
-  };
-}
-
-function releaseResponse(config) {
-  return {
-    ok: true,
-    releaseId: config.release.id,
-    releaseSequence: config.relea
-
-===== server/server.js :: writeJson @ 40886 =====
-= "stripe_checkout_failed";
+  if (!response.ok) {
+    const error = new Error("stripe_checkout_failed");
+    error.code = "stripe_checkout_failed";
     error.status = 502;
     error.detail = String(payload?.error?.message || payload?.error || response.status || "").slice(0, 300);
     throw error;
@@ -565,8 +355,8 @@ function runGit(config, args, code) {
 function repoRelativePath(repoDir, absolutePath) {
   const relativ
 
-===== server/server.js :: writeJson @ 53928 =====
-oolean(origin) && origin === publicBaseUrl(request);
+===== server/server.js :: request\.method @ 54030 =====
+lean(origin) && origin === publicBaseUrl(request);
   const corsHeadersForOrigin = (origin, request) => {
     if (!origin || !isOriginAllowed(origin) && !isSamePublicOrigin(origin, request)) return null;
     return {
@@ -672,14 +462,25 @@ oolean(origin) && origin === publicBaseUrl(request);
   };
   const prepareAgentToolResponse = (request, response) => {
     const origin = request.headers.origin || "";
-    const headers = origin ? corsHeadersForOrigin(orig
-
-===== server/server.js :: writeJson @ 55198 =====
-iteJson(response, 503, { error: "admin_secret_required" }, headers);
+    const headers = origin ? corsHeadersForOrigin(origin, request) : {};
+    if (!headers) {
+      writeJson(response, 403, { error: "origin_not_allowed" });
       return { done: true };
     }
-    if (!timingSafeEqualString(bearerToken(request), config.adminSecret)) {
-      writeJson(response, 401, { error: "unauthorized" }, headers);
+    const agentHeaders = {
+      ...headers,
+      "access-control-allow-methods": "POST, OPTIONS",
+      "access-control-allow-headers": "authorization, content-type"
+    };
+    if (request.method === "OPTIONS") {
+      response.writeHead(204, agentHeaders);
+      response.end();
+      return { done: true };
+    }
+    const secrets = agentWidget.agentAuthSecre
+
+===== server/server.js :: request\.method @ 55511 =====
+error: "unauthorized" }, headers);
       return { done: true };
     }
     return { done: false, headers };
@@ -780,13 +581,26 @@ iteJson(response, 503, { error: "admin_secret_required" }, headers);
     const url = new URL(request.url || "/", "http://localhost");
     if (request.method === "GET" && url.pathname === "/healthz") {
       const clients = [...rooms.values()].reduce((sum, room) => sum + room.clients.size, 0);
-      writeJson(response, 200, 
+      writeJson(response, 200, { ...releaseResponse(config), rooms: rooms.size, clients });
+      return;
+    }
+    if (request.method === "GET" && (url.pathname === "/" || url.pathname === config.adminPath)) {
+      writeHtml(response, 200, fs.readFileSync(config.adminHtmlPath, "utf8"));
+      return;
+    }
+    if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.adminRoutesPath) {
+      const prepared = prepareCatalogResponse(request, response);
+      if (prepared.done) return;
+      writeJson(response, 200, {
+        ...adminTools.adminRouteIndex(config),
+        release: releaseResponse(config)
+      }, prepared.headers);
+      return;
+    }
+    if ((request.method === "GET" || request.method =
 
-===== server/server.js :: writeJson @ 56310 =====
-rs = {
-      ...headers,
-      "access-control-allow-methods": "POST, OPTIONS",
-      "access-control-allow-headers": "authorization, content-type, mcp-protocol-version, mcp-session-id"
+===== server/server.js :: request\.method @ 56573 =====
+rsion, mcp-session-id"
     };
     if (request.method === "OPTIONS") {
       response.writeHead(204, mcpHeaders);
@@ -884,10 +698,22 @@ rs = {
       writeHtml(response, 200, CONSOLE_HTML);
       return;
     }
-    if (
+    if (request.method === "GET" && url.pathname === config.eventsAdminPath) {
+      writeHtml(response, 200, fs.readFileSync(config.eventAdminHtmlPath, "utf8"));
+      return;
+    }
+    if ((request.method === "GET" || request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.eventsAdminCatalogPath) {
+      void handleAdminCatalogRequest(request, response);
+      return;
+    }
+    if (request.method === "GET" && url.pathname === config.presetsAdminPath) {
+      writeHtml(response, 200, fs.readFileSync(config.presetAdminHtmlPath, "utf8"));
+      return;
+    }
+    if ((request.method === "GET" || request.method === "POST" || request.met
 
-===== server/server.js :: writeJson @ 59072 =====
-{
+===== server/server.js :: request\.method @ 59169 =====
+") {
       const clients = [...rooms.values()].reduce((sum, room) => sum + room.clients.size, 0);
       writeJson(response, 200, { ...releaseResponse(config), rooms: rooms.size, clients });
       return;
@@ -970,10 +796,124 @@ rs = {
       void handleAgentEditorPromptRequest(request, response);
       return;
     }
-    if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === 
+    if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.agentMcpToolPath) {
+      void handleAgentMcpToolRequest(request, response);
+      return;
+    }
+    if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.agentChatPath) {
+      void handleAgentChatRequest(request, response);
+      return;
+    }
+    if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.eventsPath) {
+      const prepared = prepareCatalogResponse(request, response);
+      if (prepared.done) return;
 
-===== server/server.js :: writeJson @ 61616 =====
-geInlinePath) {
+
+===== server/server.js :: request\.method @ 60329 =====
+ath) {
+      writeHtml(response, 200, CONSOLE_HTML);
+      return;
+    }
+    if (request.method === "GET" && url.pathname === config.eventsAdminPath) {
+      writeHtml(response, 200, fs.readFileSync(config.eventAdminHtmlPath, "utf8"));
+      return;
+    }
+    if ((request.method === "GET" || request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.eventsAdminCatalogPath) {
+      void handleAdminCatalogRequest(request, response);
+      return;
+    }
+    if (request.method === "GET" && url.pathname === config.presetsAdminPath) {
+      writeHtml(response, 200, fs.readFileSync(config.presetAdminHtmlPath, "utf8"));
+      return;
+    }
+    if ((request.method === "GET" || request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.presetsAdminCatalogPath) {
+      void handlePresetCatalogRequest(request, response);
+      return;
+    }
+    if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.presetsAdminParsePath) {
+      void handlePresetParseRequest(request, response);
+      return;
+    }
+    if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.presetsAdminImportPath) {
+      void handlePresetImportRequest(request, response);
+      return;
+    }
+    if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.imageInlinePath) {
+      void handleImageInlineRequest(request, response);
+      return;
+    }
+    if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.mcpPath) {
+      void handleMcpRequest(request, response);
+      return;
+    }
+    if (request.method === "GET" && url.pathname === config.agentPath) {
+      writeHtml(response, 200, fs.readFileSync(config.agentHtmlPath, "utf8"));
+      return;
+    }
+    if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.agentWidgetScriptPath) {
+      const prepared = prepareCatalogResponse(request, response);
+      if (prepared.done) return;
+      writeScript(response, 200, fs.readFileSync(config.agentWidgetAssetPath, "utf8"), prepared.headers);
+      return;
+    }
+    if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.agentConfigPath) {
+      const prepared = prepareCatalogResponse(request, response);
+      if (prepared.done) return;
+      writeJson(response, 200, {
+        ...agentWidget.publicAgentConfig(config),
+        release: releaseResponse(config)
+      }, prepared.headers);
+      return;
+    }
+    if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.agentEditorPromptPath) {
+      void handleAgentEditorPromptRequest(request, response);
+      return;
+    }
+    if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.agentMcpToolPath) {
+      void handleAgentMcpToolRequest(request, response);
+      return;
+    }
+    if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.agentChatPath) {
+      void handleAgentChatRequest(request, response);
+      return;
+    }
+    if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.eventsPath) {
+      const prepared = prepareCatalogResponse(request, response);
+      if (prepared.done) return;
+      writeJson(response, 200, eventCatalogResponse(config), prepared.headers);
+      return;
+    }
+    if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.productContractPath) {
+      const prepared = prepareCatalogResponse(request, response);
+      if (prepared.done) return;
+      writeJson(response, 200, {
+        ...productContract.productContractResponse(config),
+        release: releaseResponse(config)
+      }, prepared.headers);
+      return;
+    }
+    if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.stripeCheckoutPath) {
+      void handleStripeCheckoutRequest(config, request, response);
+      return;
+    }
+    if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.emitPath) {
+      void handleEmitRequest(request, response);
+      return;
+    }
+    if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.tokenPath) {
+      const headers = corsHeadersForOrigin(request.headers.origin || "", request);
+      if (!headers) {
+        writeJson(response, 403, { error: "origin_not_allowed" });
+    
+
+===== server/server.js :: request\.method @ 61407 =====
+eturn;
+    }
+    if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.presetsAdminImportPath) {
+      void handlePresetImportRequest(request, response);
+      return;
+    }
+    if ((request.method === "POST" || request.method === "OPTIONS") && url.pathname === config.imageInlinePath) {
       void handleImageInlineRequest(request, response);
       return;
     }
@@ -1069,11 +1009,19 @@ geInlinePath) {
       }, headers);
       return;
     }
-    writeJson(response, 404, 
+    writeJson(response, 404, { error: "not_found" });
+  });
 
-===== server/server.js :: writeJson @ 62575 =====
-;
-      if (prepared.done) return;
+  const wss = new WebSocketServer({
+    noServer: true,
+    maxPayload: config.maxPayload
+  });
+
+  function getRoom(roomId) {
+    const existing = rooms.get(ro
+
+===== server/server.js :: request\.method @ 62678 =====
+     if (prepared.done) return;
       writeJson(response, 200, {
         ...agentWidget.publicAgentConfig(config),
         release: releaseResponse(config)
@@ -1181,10 +1129,19 @@ geInlinePath) {
     const roomId = sanitizeId(payload.roomId);
     const clientId = sanitizeId(payload.clientId || "server");
     const name = sanitizeEventName(payload.name || "");
-    const emitterId = sanitizeId(paylo
+    const emitterId = sanitizeId(payload.emitterId || "");
+    if (!roomId) return { ok: false, code: "invalid_room" };
+    if (!clientId) return { ok: false, code: "invalid_client" };
+    if (!name || !name.startsWith("realtime.")) return { ok: false, code: "invalid_event_name" };
+    const offered = offeredEventsByName.get(name);
+    if (!offered) return { ok: false, code: "event_not_offered" };
+    if (!emitterId) return { ok: false, code: "invalid_emitter" };
+    const emitter = offeredEmittersById.get(emitterId);
+    if (!emitter)
 
-===== server/server.js :: writeJson @ 63666 =====
- }
+===== server/server.js :: request\.method @ 63759 =====
+rn;
+    }
     if ((request.method === "GET" || request.method === "OPTIONS") && url.pathname === config.productContractPath) {
       const prepared = prepareCatalogResponse(request, response);
       if (prepared.done) return;
@@ -1292,78 +1249,24 @@ geInlinePath) {
   }
 
   async function handleAdminCatalogRequest(request, response) {
-    const requestUrl = new URL(request.url || "/"
+    const requestUrl = new URL(request.url || "/", "http://localhost");
+    const prepared = prepareAdminResponse(request, response);
+    if (prepared.done) return;
+    const headers = prepared.headers;
 
-===== server/server.js :: writeJson @ 64591 =====
-igin(request.headers.origin || "", request);
-      if (!headers) {
-        writeJson(response, 403, { error: "origin_not_allowed" });
-        return;
-      }
-      if (request.method === "OPTIONS") {
-        response.writeHead(204, headers);
-        response.end();
-        return;
-      }
-      const roomId = sanitizeId(url.searchParams.get("roomId"));
-      const clientId = sanitizeId(url.searchParams.get("clientId"));
-      if (!roomId || !clientId) {
-        writeJson(response, 400, { error: "invalid_room_or_client" }, headers);
-        return;
-      }
-      if (!config.roomSecret) {
-        writeJson(response, 503, { error: "room_secret_required" }, headers);
-        return;
-      }
-      writeJson(response, 200, {
-        roomId,
-        clientId,
-        token: createRoomToken({
-          roomId,
-          clientId,
-          secret: config.roomSecret,
-          ttlMs: config.tokenTtlMs
-        }),
-        expiresInMs: config.tokenTtlMs
-      }, headers);
-      return;
-    }
-    writeJson(response, 404, { error: "not_found" });
-  });
+    if (request.method === "GET") {
+      try {
+        const catalog = eventCatalog.loadEventCatalogFile(config.eventCatalogPath);
+        setEventCatalog(catalog);
+        writeJson(response, 200, {
+          catalog,
+          release: releaseResponse(config)
+        }, headers);
+      } catch (error) {
+        writeJson(response, er
 
-  const wss = new WebSocketServer({
-    noServer: true,
-    maxPayload: config.maxPayload
-  });
-
-  function getRoom(roomId) {
-    const existing = rooms.get(roomId);
-    if (existing) return existing;
-    const room = createRoom(roomId);
-    rooms.set(roomId, room);
-    return room;
-  }
-
-  function broadcast(room, sourceSocket, payload) {
-    const body = JSON.stringify(payload);
-    let delivered = 0;
-    for (const peer of room.clients) {
-      if (peer === sourceSocket || peer.readyState !== WebSocket.OPEN) continue;
-      peer.send(body);
-      delivered += 1;
-    }
-    return delivered;
-  }
-
-  function validateEmitPayload(payload) {
-    if (!isPlainObject(payload)) return { ok: false, code: "invalid_json" };
-    const roomId = sanitizeId(payload.roomId);
-    const clientId = sanitizeId(payload.clientId || "server");
-    const name = sanitizeEventName(payload.name || "");
-    const emitterId = sanitizeId(payload.emitterId || "");
-    if (!roomId) return { ok: false, code: "invalid_room" };
-    if (!clientId) return { ok: false, code: "invalid_client" };
-    if (!name || !name.startsWith("realtime.")) return { ok: false, code: "invalid_event_name" };
+===== server/server.js :: request\.method @ 66829 =====
+(!name || !name.startsWith("realtime.")) return { ok: false, code: "invalid_event_name" };
     const offered = offeredEventsByName.get(name);
     if (!offered) return { ok: false, code: "event_not_offered" };
     if (!emitterId) return { ok: false, code: "invalid_emitter" };
@@ -1413,139 +1316,6 @@ igin(request.headers.origin || "", request);
     }
 
     try {
-      const catalog = eventC
-
-===== server/server.js :: writeJson @ 66995 =====
-itter" };
-    const emitter = offeredEmittersById.get(emitterId);
-    if (!emitter) return { ok: false, code: "emitter_not_offered" };
-    if (!emitter.events.includes(name)) return { ok: false, code: "emitter_event_not_allowed" };
-    const detail = payload.detail === undefined ? {} : payload.detail;
-    const detailValidation = eventCatalog.validateEventDetail(detail, offered.detail);
-    if (!detailValidation.ok) return detailValidation;
-    return {
-      ok: true,
-      roomId,
-      clientId,
-      emitterId,
-      name,
-      detail
-    };
-  }
-
-  async function handleAdminCatalogRequest(request, response) {
-    const requestUrl = new URL(request.url || "/", "http://localhost");
-    const prepared = prepareAdminResponse(request, response);
-    if (prepared.done) return;
-    const headers = prepared.headers;
-
-    if (request.method === "GET") {
-      try {
-        const catalog = eventCatalog.loadEventCatalogFile(config.eventCatalogPath);
-        setEventCatalog(catalog);
-        writeJson(response, 200, {
-          catalog,
-          release: releaseResponse(config)
-        }, headers);
-      } catch (error) {
-        writeJson(response, error.status || 500, { error: error.code || "catalog_load_failed" }, headers);
-      }
-      return;
-    }
-
-    let payload;
-    try {
-      payload = await readJsonBody(request, config.maxPayload);
-    } catch (error) {
-      const status = error.code === "payload_too_large" ? 413 : 400;
-      writeJson(response, status, { error: error.code || "invalid_json" }, headers);
-      return;
-    }
-
-    try {
-      const catalog = eventCatalog.validateEventCatalog(payload.catalog);
-      if (payload.validateOnly === true || requestUrl.searchParams.get("validate") === "1") {
-        writeJson(response, 200, { ok: true, catalog }, headers);
-        return;
-      }
-      const result = writeCatalogCommitAndPush(config, catalog, payload.message);
-      setEventCatalog(catalog);
-      if (result.release) config.release = result.release;
-      writeJson(response, 200, result, headers);
-    } catch (error) {
-      writeJson(response, error.status || 500, errorJson(error, "event_catalog_save_failed"), headers);
-    }
-  }
-
-  async function handlePresetCatalogRequest(request, response) {
-    const requestUrl = new URL(request.url || "/", "http://localhost");
-    const prepared = prepareAdminResponse(request, response);
-    if (prepared.done) return;
-    const headers = prepared.headers;
-
-    if (request.method === "GET") {
-      try {
-        const library = presetLibrary.loadPresetLibraryFile(config.presetLibraryPath);
-        setPresetLibrary(library);
-        writeJson(response, 200, {
-          library,
-          supportedVariants: [...presetLibrary.SUPPORTED_VARIANTS].sort(),
-          release: releaseResponse(config)
-        }, headers);
-      } catch (error) {
-        writeJson(response, error.status || 500, { error: error.code || "preset_library_load_failed" }, headers);
-      }
-      return;
-    }
-
-    let payload;
-    try {
-      payload = await readJsonBody(request, config.maxPayload);
-    } catch (error) {
-      const status = error.code === "payload_too_large" ? 413 : 400;
-      writeJson(response, status, { error: error.code || "invalid_json" }, headers);
-      return;
-    }
-
-    try {
-      const library = presetLibrary.validatePresetLibrary(payload.library);
-      if (payload.validateOnly === true || requestUrl.searchParams.get("validate") === "1") {
-        writeJson(response, 200, { ok: true, library }, headers);
-        return;
-      }
-      const result = writePresetLibraryCommitAndPush(config, library, payload.message);
-      setPresetLibrary(library);
-      if (result.release) config.release = result.release;
-      writeJson(response, 200, result, headers);
-    } catch (error) {
-      writeJson(response, error.status || 500, errorJson(error, "preset_library_save_failed"), headers);
-    }
-  }
-
-  async function handlePresetParseRequest(request, response) {
-    const prepared = prepare
-
-===== server/server.js :: writeJson @ 68000 =====
-Json(response, 200, {
-          catalog,
-          release: releaseResponse(config)
-        }, headers);
-      } catch (error) {
-        writeJson(response, error.status || 500, { error: error.code || "catalog_load_failed" }, headers);
-      }
-      return;
-    }
-
-    let payload;
-    try {
-      payload = await readJsonBody(request, config.maxPayload);
-    } catch (error) {
-      const status = error.code === "payload_too_large" ? 413 : 400;
-      writeJson(response, status, { error: error.code || "invalid_json" }, headers);
-      return;
-    }
-
-    try {
       const catalog = eventCatalog.validateEventCatalog(payload.catalog);
       if (payload.validateOnly === true || requestUrl.searchParams.get("validate") === "1") {
         writeJson(response, 200, { ok: true, catalog }, headers);
@@ -1613,32 +1383,27 @@ Json(response, 200, {
     try {
       payload = await readJsonBody(request, config.maxPayload);
     } catch (error) {
+      const status
+
+===== server/server.js :: request\.method @ 68457 =====
+   } catch (error) {
       const status = error.code === "payload_too_large" ? 413 : 400;
       writeJson(response, status, { error: error.code || "invalid_json" }, headers);
       return;
     }
+
     try {
-      writeJson(response, 200, {
-        ok: true,
-        preset: presetLibrary.parseDaisySnippet(payload),
-        daisyVersion: presetLibrary.DAISY_VERSION
-      }, headers);
+      const catalog = eventCatalog.validateEventCatalog(payload.catalog);
+      if (payload.validateOnly === true || requestUrl.searchParams.get("validate") === "1") {
+        writeJson(response, 200, { ok: true, catalog }, headers);
+        return;
+      }
+      const result = writeCatalogCommitAndPush(config, catalog, payload.message);
+      setEventCatalog(catalog);
+      if (result.release) config.release = result.release;
+      writeJson(response, 200, result, headers);
     } catch (error) {
-      writeJson(response, error.status || 400, { error: error.code || "snippet_parse_failed" }, headers);
-    }
-  }
-
-  async function handlePresetImportRequest(request, response) {
-    const prepared = prepareAdminResponse(request, response);
-    if (prepared.done) return;
-    const headers = prepared.headers;
-    let payload;
-    try {
-      payload = await readJsonBody(request, config.maxPayload);
-  
-
-===== server/server.js :: writeJson @ 69167 =====
-;
+      writeJson(response, error.status || 500, errorJson(error, "event_catalog_save_failed"), headers);
     }
   }
 
@@ -1732,680 +1497,10 @@ Json(response, 200, {
 
   async function handleImageInlineRequest(request, response) {
     const prepared = prepareCatalogResponse(request, response);
-    if (prepared.done) return;
-    const headers = prepared.headers;
-    let payload;
-    try {
-      payload = await readJsonBody(request, MAX_IMAGE_INLINE_BODY_BYTES);
-      if (!isPlainObject(payload) || Object.keys(payload).some(key => key !== "url")) {
-        throw imageInlineError("invalid_image_inline_request", 400);
-      }
-    
+    if (prepared.done) return
 
-===== server/server.js :: writeJson @ 70286 =====
-st library = presetLibrary.validatePresetLibrary(payload.library);
-      if (payload.validateOnly === true || requestUrl.searchParams.get("validate") === "1") {
-        writeJson(response, 200, { ok: true, library }, headers);
-        return;
-      }
-      const result = writePresetLibraryCommitAndPush(config, library, payload.message);
-      setPresetLibrary(library);
-      if (result.release) config.release = result.release;
-      writeJson(response, 200, result, headers);
-    } catch (error) {
-      writeJson(response, error.status || 500, errorJson(error, "preset_library_save_failed"), headers);
-    }
-  }
-
-  async function handlePresetParseRequest(request, response) {
-    const prepared = prepareAdminResponse(request, response);
-    if (prepared.done) return;
-    const headers = prepared.headers;
-    let payload;
-    try {
-      payload = await readJsonBody(request, config.maxPayload);
-    } catch (error) {
-      const status = error.code === "payload_too_large" ? 413 : 400;
-      writeJson(response, status, { error: error.code || "invalid_json" }, headers);
-      return;
-    }
-    try {
-      writeJson(response, 200, {
-        ok: true,
-        preset: presetLibrary.parseDaisySnippet(payload),
-        daisyVersion: presetLibrary.DAISY_VERSION
-      }, headers);
-    } catch (error) {
-      writeJson(response, error.status || 400, { error: error.code || "snippet_parse_failed" }, headers);
-    }
-  }
-
-  async function handlePresetImportRequest(request, response) {
-    const prepared = prepareAdminResponse(request, response);
-    if (prepared.done) return;
-    const headers = prepared.headers;
-    let payload;
-    try {
-      payload = await readJsonBody(request, config.maxPayload);
-      if (!isPlainObject(payload) || !isPlainObject(payload.library) || Object.keys(payload).some(key => !["url", "library"].includes(key))) {
-        throw presetApiError("invalid_preset_api_request", 400);
-      }
-      const target = normalizedPresetApiUrl(payload.url);
-      const library = presetLibrary.validatePresetLibrary(payload.library);
-      const imported = await config.presetApiFetcher(target.href);
-      const preset = presetLibrary.validatePresetDefinition(imported, library);
-      writeJson(response, 200, { ok: true, preset }, headers);
-    } catch (error) {
-      writeJson(response, error.status || 400, { error: error.code || "preset_api_import_failed" }, headers);
-    }
-  }
-
-  async function handleImageInlineRequest(request, response) {
-    const prepared = prepareCatalogResponse(request, response);
-    if (prepared.done) return;
-    const headers = prepared.headers;
-    let payload;
-    try {
-      payload = await readJsonBody(request, MAX_IMAGE_INLINE_BODY_BYTES);
-      if (!isPlainObject(payload) || Object.keys(payload).some(key => key !== "url")) {
-        throw imageInlineError("invalid_image_inline_request", 400);
-      }
-      const target = normalizedPublicImageUrl(payload.url);
-      const asset = await config.imageInlineFetcher(target.href, { maxBytes: config.maxImageInlineBytes });
-      const buffer = Buffer.isBuffer(asset?.buffer) ? asset.buffer : Buffer.from(asset?.buffer || "");
-      const mimeType = String(asset?.mimeType || "").split(";")[0].trim().toLowerCase();
-      if (!/^image\/[a-z0-9.+-]+$/i.test(mimeType) || !buffer.length) {
-        throw imageInlineError("invalid_image_inline_response", 502);
-      }
-      if (buffer.length > config.maxImageInlineBytes) {
-        throw imageInlineError("image_response_too_large", 413);
-      }
-      writeJson(response, 200, {
-        ok: true,
-        url: target.href,
-        mimeType,
-        bytes: buffer.length,
-        dataUri: `data:${mimeType};base64,${buffer.toString("base64")}`
-      }, headers);
-    } catch (error) {
-      writeJson(response, error.status || 400, { error: error.code || "image_inline_failed" }, headers);
-    }
-  }
-
-  async function handleMcpRequest(request, response) {
-    const prepared = prepareMcpResponse(request, response);
-    if (prepare
-
-===== server/server.js :: writeJson @ 71501 =====
-),
-        daisyVersion: presetLibrary.DAISY_VERSION
-      }, headers);
-    } catch (error) {
-      writeJson(response, error.status || 400, { error: error.code || "snippet_parse_failed" }, headers);
-    }
-  }
-
-  async function handlePresetImportRequest(request, response) {
-    const prepared = prepareAdminResponse(request, response);
-    if (prepared.done) return;
-    const headers = prepared.headers;
-    let payload;
-    try {
-      payload = await readJsonBody(request, config.maxPayload);
-      if (!isPlainObject(payload) || !isPlainObject(payload.library) || Object.keys(payload).some(key => !["url", "library"].includes(key))) {
-        throw presetApiError("invalid_preset_api_request", 400);
-      }
-      const target = normalizedPresetApiUrl(payload.url);
-      const library = presetLibrary.validatePresetLibrary(payload.library);
-      const imported = await config.presetApiFetcher(target.href);
-      const preset = presetLibrary.validatePresetDefinition(imported, library);
-      writeJson(response, 200, { ok: true, preset }, headers);
-    } catch (error) {
-      writeJson(response, error.status || 400, { error: error.code || "preset_api_import_failed" }, headers);
-    }
-  }
-
-  async function handleImageInlineRequest(request, response) {
-    const prepared = prepareCatalogResponse(request, response);
-    if (prepared.done) return;
-    const headers = prepared.headers;
-    let payload;
-    try {
-      payload = await readJsonBody(request, MAX_IMAGE_INLINE_BODY_BYTES);
-      if (!isPlainObject(payload) || Object.keys(payload).some(key => key !== "url")) {
-        throw imageInlineError("invalid_image_inline_request", 400);
-      }
-      const target = normalizedPublicImageUrl(payload.url);
-      const asset = await config.imageInlineFetcher(target.href, { maxBytes: config.maxImageInlineBytes });
-      const buffer = Buffer.isBuffer(asset?.buffer) ? asset.buffer : Buffer.from(asset?.buffer || "");
-      const mimeType = String(asset?.mimeType || "").split(";")[0].trim().toLowerCase();
-      if (!/^image\/[a-z0-9.+-]+$/i.test(mimeType) || !buffer.length) {
-        throw imageInlineError("invalid_image_inline_response", 502);
-      }
-      if (buffer.length > config.maxImageInlineBytes) {
-        throw imageInlineError("image_response_too_large", 413);
-      }
-      writeJson(response, 200, {
-        ok: true,
-        url: target.href,
-        mimeType,
-        bytes: buffer.length,
-        dataUri: `data:${mimeType};base64,${buffer.toString("base64")}`
-      }, headers);
-    } catch (error) {
-      writeJson(response, error.status || 400, { error: error.code || "image_inline_failed" }, headers);
-    }
-  }
-
-  async function handleMcpRequest(request, response) {
-    const prepared = prepareMcpResponse(request, response);
-    if (prepared.done) return;
-
-    let payload;
-    try {
-      payload = await readJsonBody(request, MAX_MCP_BODY_BYTES);
-    } catch (error) {
-      const status = error.code === "payload_too_large" ? 413 : 400;
-      writeJson(response, status, { error: error.code || "invalid_json" }, prepared.headers);
-      return;
-    }
-
-    try {
-      const options = { modelPath: config.mcpModelPath };
-      if (Array.isArray(payload)) {
-        const batch = payload
-          .map(message => stateBlueprintMcp.handleMessage(message, options))
-          .filter(Boolean);
-        if (!batch.length) {
-          response.writeHead(202, { "cache-control": "no-store", ...prepared.headers });
-          response.end();
-          return;
-        }
-        writeJson(response, 200, batch, prepared.headers);
-        return;
-      }
-      const result = stateBlueprintMcp.handleMessage(payload, options);
-      if (!result) {
-        response.writeHead(202, { "cache-control": "no-store", ...prepared.headers });
-        response.end();
-        return;
-      }
-      writeJson(response, 200, result, prepared.headers);
-    } catch (error) {
-      writeJson(response, 500, { error: error.code || "mcp_request_failed", message: error.message
-
-===== server/server.js :: writeJson @ 72808 =====
-request, response);
-    if (prepared.done) return;
-    const headers = prepared.headers;
-    let payload;
-    try {
-      payload = await readJsonBody(request, MAX_IMAGE_INLINE_BODY_BYTES);
-      if (!isPlainObject(payload) || Object.keys(payload).some(key => key !== "url")) {
-        throw imageInlineError("invalid_image_inline_request", 400);
-      }
-      const target = normalizedPublicImageUrl(payload.url);
-      const asset = await config.imageInlineFetcher(target.href, { maxBytes: config.maxImageInlineBytes });
-      const buffer = Buffer.isBuffer(asset?.buffer) ? asset.buffer : Buffer.from(asset?.buffer || "");
-      const mimeType = String(asset?.mimeType || "").split(";")[0].trim().toLowerCase();
-      if (!/^image\/[a-z0-9.+-]+$/i.test(mimeType) || !buffer.length) {
-        throw imageInlineError("invalid_image_inline_response", 502);
-      }
-      if (buffer.length > config.maxImageInlineBytes) {
-        throw imageInlineError("image_response_too_large", 413);
-      }
-      writeJson(response, 200, {
-        ok: true,
-        url: target.href,
-        mimeType,
-        bytes: buffer.length,
-        dataUri: `data:${mimeType};base64,${buffer.toString("base64")}`
-      }, headers);
-    } catch (error) {
-      writeJson(response, error.status || 400, { error: error.code || "image_inline_failed" }, headers);
-    }
-  }
-
-  async function handleMcpRequest(request, response) {
-    const prepared = prepareMcpResponse(request, response);
-    if (prepared.done) return;
-
-    let payload;
-    try {
-      payload = await readJsonBody(request, MAX_MCP_BODY_BYTES);
-    } catch (error) {
-      const status = error.code === "payload_too_large" ? 413 : 400;
-      writeJson(response, status, { error: error.code || "invalid_json" }, prepared.headers);
-      return;
-    }
-
-    try {
-      const options = { modelPath: config.mcpModelPath };
-      if (Array.isArray(payload)) {
-        const batch = payload
-          .map(message => stateBlueprintMcp.handleMessage(message, options))
-          .filter(Boolean);
-        if (!batch.length) {
-          response.writeHead(202, { "cache-control": "no-store", ...prepared.headers });
-          response.end();
-          return;
-        }
-        writeJson(response, 200, batch, prepared.headers);
-        return;
-      }
-      const result = stateBlueprintMcp.handleMessage(payload, options);
-      if (!result) {
-        response.writeHead(202, { "cache-control": "no-store", ...prepared.headers });
-        response.end();
-        return;
-      }
-      writeJson(response, 200, result, prepared.headers);
-    } catch (error) {
-      writeJson(response, 500, { error: error.code || "mcp_request_failed", message: error.message }, prepared.headers);
-    }
-  }
-
-  async function handleAgentEditorPromptRequest(request, response) {
-    const prepared = prepareAgentEditorResponse(request, response);
-    if (prepared.done) return;
-
-    let payload;
-    try {
-      payload = await readJsonBody(request, MAX_MCP_BODY_BYTES);
-    } catch (error) {
-      const status = error.code === "payload_too_large" ? 413 : 400;
-      writeJson(response, status, { error: error.code || "invalid_json" }, prepared.headers);
-      return;
-    }
-
-    try {
-      writeJson(response, 200, agentWidget.planEditorPrompt(config, payload), prepared.headers);
-    } catch (error) {
-      writeJson(response, error.status || 500, {
-        error: error.code || "agent_editor_prompt_failed",
-        ...(error.detail ? { detail: error.detail } : {}),
-        ...(error.validation ? { validation: error.validation } : {})
-      }, prepared.headers);
-    }
-  }
-
-  async function handleAgentMcpToolRequest(request, response) {
-    const prepared = prepareAgentToolResponse(request, response);
-    if (prepared.done) return;
-
-    let payload;
-    try {
-      payload = await readJsonBody(request, MAX_MCP_BODY_BYTES);
-    } catch (error) {
-      const status = error.code === "payload_too_large" ? 413 : 400;
-      writeJson(response, status, { error: error.code ||
-
-===== server/server.js :: writeJson @ 74020 =====
-  } catch (error) {
-      writeJson(response, error.status || 400, { error: error.code || "image_inline_failed" }, headers);
-    }
-  }
-
-  async function handleMcpRequest(request, response) {
-    const prepared = prepareMcpResponse(request, response);
-    if (prepared.done) return;
-
-    let payload;
-    try {
-      payload = await readJsonBody(request, MAX_MCP_BODY_BYTES);
-    } catch (error) {
-      const status = error.code === "payload_too_large" ? 413 : 400;
-      writeJson(response, status, { error: error.code || "invalid_json" }, prepared.headers);
-      return;
-    }
-
-    try {
-      const options = { modelPath: config.mcpModelPath };
-      if (Array.isArray(payload)) {
-        const batch = payload
-          .map(message => stateBlueprintMcp.handleMessage(message, options))
-          .filter(Boolean);
-        if (!batch.length) {
-          response.writeHead(202, { "cache-control": "no-store", ...prepared.headers });
-          response.end();
-          return;
-        }
-        writeJson(response, 200, batch, prepared.headers);
-        return;
-      }
-      const result = stateBlueprintMcp.handleMessage(payload, options);
-      if (!result) {
-        response.writeHead(202, { "cache-control": "no-store", ...prepared.headers });
-        response.end();
-        return;
-      }
-      writeJson(response, 200, result, prepared.headers);
-    } catch (error) {
-      writeJson(response, 500, { error: error.code || "mcp_request_failed", message: error.message }, prepared.headers);
-    }
-  }
-
-  async function handleAgentEditorPromptRequest(request, response) {
-    const prepared = prepareAgentEditorResponse(request, response);
-    if (prepared.done) return;
-
-    let payload;
-    try {
-      payload = await readJsonBody(request, MAX_MCP_BODY_BYTES);
-    } catch (error) {
-      const status = error.code === "payload_too_large" ? 413 : 400;
-      writeJson(response, status, { error: error.code || "invalid_json" }, prepared.headers);
-      return;
-    }
-
-    try {
-      writeJson(response, 200, agentWidget.planEditorPrompt(config, payload), prepared.headers);
-    } catch (error) {
-      writeJson(response, error.status || 500, {
-        error: error.code || "agent_editor_prompt_failed",
-        ...(error.detail ? { detail: error.detail } : {}),
-        ...(error.validation ? { validation: error.validation } : {})
-      }, prepared.headers);
-    }
-  }
-
-  async function handleAgentMcpToolRequest(request, response) {
-    const prepared = prepareAgentToolResponse(request, response);
-    if (prepared.done) return;
-
-    let payload;
-    try {
-      payload = await readJsonBody(request, MAX_MCP_BODY_BYTES);
-    } catch (error) {
-      const status = error.code === "payload_too_large" ? 413 : 400;
-      writeJson(response, status, { error: error.code || "invalid_json" }, prepared.headers);
-      return;
-    }
-
-    try {
-      writeJson(response, 200, agentWidget.executeMcpTool(config, payload), prepared.headers);
-    } catch (error) {
-      writeJson(response, error.status || 500, {
-        error: error.code || "agent_mcp_tool_failed",
-        ...(error.detail ? { detail: error.detail } : {})
-      }, prepared.headers);
-    }
-  }
-
-  async function handleAgentChatRequest(request, response) {
-    const prepared = prepareAgentToolResponse(request, response);
-    if (prepared.done) return;
-
-    let payload;
-    try {
-      payload = await readJsonBody(request, MAX_MCP_BODY_BYTES);
-    } catch (error) {
-      const status = error.code === "payload_too_large" ? 413 : 400;
-      writeJson(response, status, { error: error.code || "invalid_json" }, prepared.headers);
-      return;
-    }
-
-    try {
-      writeJson(response, 200, await agentWidget.runAgentChat(config, payload), prepared.headers);
-    } catch (error) {
-      writeJson(response, error.status || 500, {
-        error: error.code || "agent_chat_failed",
-        ...(error.detail ? { detail: error.detail } : {})
-      }, prepared.headers);
-    }
-  }
-
-  async function handleEmitRequest(request
-
-===== server/server.js :: writeJson @ 75018 =====
-  writeJson(response, 200, batch, prepared.headers);
-        return;
-      }
-      const result = stateBlueprintMcp.handleMessage(payload, options);
-      if (!result) {
-        response.writeHead(202, { "cache-control": "no-store", ...prepared.headers });
-        response.end();
-        return;
-      }
-      writeJson(response, 200, result, prepared.headers);
-    } catch (error) {
-      writeJson(response, 500, { error: error.code || "mcp_request_failed", message: error.message }, prepared.headers);
-    }
-  }
-
-  async function handleAgentEditorPromptRequest(request, response) {
-    const prepared = prepareAgentEditorResponse(request, response);
-    if (prepared.done) return;
-
-    let payload;
-    try {
-      payload = await readJsonBody(request, MAX_MCP_BODY_BYTES);
-    } catch (error) {
-      const status = error.code === "payload_too_large" ? 413 : 400;
-      writeJson(response, status, { error: error.code || "invalid_json" }, prepared.headers);
-      return;
-    }
-
-    try {
-      writeJson(response, 200, agentWidget.planEditorPrompt(config, payload), prepared.headers);
-    } catch (error) {
-      writeJson(response, error.status || 500, {
-        error: error.code || "agent_editor_prompt_failed",
-        ...(error.detail ? { detail: error.detail } : {}),
-        ...(error.validation ? { validation: error.validation } : {})
-      }, prepared.headers);
-    }
-  }
-
-  async function handleAgentMcpToolRequest(request, response) {
-    const prepared = prepareAgentToolResponse(request, response);
-    if (prepared.done) return;
-
-    let payload;
-    try {
-      payload = await readJsonBody(request, MAX_MCP_BODY_BYTES);
-    } catch (error) {
-      const status = error.code === "payload_too_large" ? 413 : 400;
-      writeJson(response, status, { error: error.code || "invalid_json" }, prepared.headers);
-      return;
-    }
-
-    try {
-      writeJson(response, 200, agentWidget.executeMcpTool(config, payload), prepared.headers);
-    } catch (error) {
-      writeJson(response, error.status || 500, {
-        error: error.code || "agent_mcp_tool_failed",
-        ...(error.detail ? { detail: error.detail } : {})
-      }, prepared.headers);
-    }
-  }
-
-  async function handleAgentChatRequest(request, response) {
-    const prepared = prepareAgentToolResponse(request, response);
-    if (prepared.done) return;
-
-    let payload;
-    try {
-      payload = await readJsonBody(request, MAX_MCP_BODY_BYTES);
-    } catch (error) {
-      const status = error.code === "payload_too_large" ? 413 : 400;
-      writeJson(response, status, { error: error.code || "invalid_json" }, prepared.headers);
-      return;
-    }
-
-    try {
-      writeJson(response, 200, await agentWidget.runAgentChat(config, payload), prepared.headers);
-    } catch (error) {
-      writeJson(response, error.status || 500, {
-        error: error.code || "agent_chat_failed",
-        ...(error.detail ? { detail: error.detail } : {})
-      }, prepared.headers);
-    }
-  }
-
-  async function handleEmitRequest(request, response) {
-    const origin = request.headers.origin || "";
-    const headers = origin ? corsHeadersForOrigin(origin, request) : {};
-    if (!headers) {
-      writeJson(response, 403, { error: "origin_not_allowed" });
-      return;
-    }
-    if (request.method === "OPTIONS") {
-      response.writeHead(204, headers);
-      response.end();
-      return;
-    }
-    if (!config.emitSecret) {
-      writeJson(response, 503, { error: "emit_secret_required" }, headers);
-      return;
-    }
-    if (!timingSafeEqualString(bearerToken(request), config.emitSecret)) {
-      writeJson(response, 401, { error: "unauthorized" }, headers);
-      return;
-    }
-
-    let payload;
-    try {
-      payload = await readJsonBody(request, config.maxPayload);
-    } catch (error) {
-      const status = error.code === "payload_too_large" ? 413 : 400;
-      writeJson(response, status, { error: error.code || "invalid_json" }, headers);
-      return;
-    }
-
-    const emit = validateEmitPayload(payload);
-    if (!e
-
-===== server/server.js :: writeJson @ 76000 =====
-
-
-    try {
-      writeJson(response, 200, agentWidget.planEditorPrompt(config, payload), prepared.headers);
-    } catch (error) {
-      writeJson(response, error.status || 500, {
-        error: error.code || "agent_editor_prompt_failed",
-        ...(error.detail ? { detail: error.detail } : {}),
-        ...(error.validation ? { validation: error.validation } : {})
-      }, prepared.headers);
-    }
-  }
-
-  async function handleAgentMcpToolRequest(request, response) {
-    const prepared = prepareAgentToolResponse(request, response);
-    if (prepared.done) return;
-
-    let payload;
-    try {
-      payload = await readJsonBody(request, MAX_MCP_BODY_BYTES);
-    } catch (error) {
-      const status = error.code === "payload_too_large" ? 413 : 400;
-      writeJson(response, status, { error: error.code || "invalid_json" }, prepared.headers);
-      return;
-    }
-
-    try {
-      writeJson(response, 200, agentWidget.executeMcpTool(config, payload), prepared.headers);
-    } catch (error) {
-      writeJson(response, error.status || 500, {
-        error: error.code || "agent_mcp_tool_failed",
-        ...(error.detail ? { detail: error.detail } : {})
-      }, prepared.headers);
-    }
-  }
-
-  async function handleAgentChatRequest(request, response) {
-    const prepared = prepareAgentToolResponse(request, response);
-    if (prepared.done) return;
-
-    let payload;
-    try {
-      payload = await readJsonBody(request, MAX_MCP_BODY_BYTES);
-    } catch (error) {
-      const status = error.code === "payload_too_large" ? 413 : 400;
-      writeJson(response, status, { error: error.code || "invalid_json" }, prepared.headers);
-      return;
-    }
-
-    try {
-      writeJson(response, 200, await agentWidget.runAgentChat(config, payload), prepared.headers);
-    } catch (error) {
-      writeJson(response, error.status || 500, {
-        error: error.code || "agent_chat_failed",
-        ...(error.detail ? { detail: error.detail } : {})
-      }, prepared.headers);
-    }
-  }
-
-  async function handleEmitRequest(request, response) {
-    const origin = request.headers.origin || "";
-    const headers = origin ? corsHeadersForOrigin(origin, request) : {};
-    if (!headers) {
-      writeJson(response, 403, { error: "origin_not_allowed" });
-      return;
-    }
-    if (request.method === "OPTIONS") {
-      response.writeHead(204, headers);
-      response.end();
-      return;
-    }
-    if (!config.emitSecret) {
-      writeJson(response, 503, { error: "emit_secret_required" }, headers);
-      return;
-    }
-    if (!timingSafeEqualString(bearerToken(request), config.emitSecret)) {
-      writeJson(response, 401, { error: "unauthorized" }, headers);
-      return;
-    }
-
-    let payload;
-    try {
-      payload = await readJsonBody(request, config.maxPayload);
-    } catch (error) {
-      const status = error.code === "payload_too_large" ? 413 : 400;
-      writeJson(response, status, { error: error.code || "invalid_json" }, headers);
-      return;
-    }
-
-    const emit = validateEmitPayload(payload);
-    if (!emit.ok) {
-      writeJson(response, 400, { error: emit.code }, headers);
-      return;
-    }
-
-    const room = rooms.get(emit.roomId);
-    const delivered = room ? broadcast(room, null, {
-      type: "runtime.event",
-      roomId: emit.roomId,
-      clientId: emit.clientId,
-      serverTime: Date.now(),
-      name: emit.name,
-      detail: emit.detail,
-      emitterId: emit.emitterId,
-      event: offeredEventsByName.get(emit.name),
-      emitter: offeredEmittersById.get(emit.emitterId)
-    }) : 0;
-    writeJson(response, 202, {
-      ok: true,
-      roomId: emit.roomId,
-      name: emit.name,
-      delivered
-    }, headers);
-  }
-
-  function removeFromRoom(socket) {
-    const state = socket.realtimeState;
-    if (!state?.joined) return;
-    const room = rooms.get(state.roomId);
-    state.joined = false;
-    if (!room) return;
-    room.clients.delete(socket);
-    if (!room.clients.size) rooms.delete(state.roomId);
-  }
-
-  function replaceDuplicateClient(room, clientId) 
-
-===== server/server.js :: writeJson @ 77182 =====
-
+===== server/server.js :: request\.method @ 77269 =====
+red.headers);
     }
   }
 
@@ -2542,10 +1637,1166 @@ request, response);
     }
 
     const room = getRoom(join.roomId);
-    replaceDupli
+    replaceDuplicateClient(room, join.clientId);
+    const state = socket.realtimeState;
+    state.joined = true;
+    state.roomId = join.roomId;
+    state.clientId = join.clientId;
+    room.clients.add(socket);
+    sendJson(socket, {
+      type: "joined",
+      roomId: join.roomId,
+      clientId: join.clientId,
+      serverTime: Date.now()
+    });
+  }
+
+  function handleMessage(socket, rawData) {
+    const state = socket.realtimeState;
+    const message = parseJsonMessage(rawData);
+    if (!messag
+
+===== server/server.js :: DEFAULT_MCP_PATH @ 1728 =====
+e("./product-contract");
+const agentWidget = require("./agent-widget");
+const { loadReleaseInfo, parseReleaseSource } = require("./release");
+const stateBlueprintMcp = require("../mcp/state-blueprint-server");
+
+const DEFAULT_ALLOWED_ORIGINS = ["https://digitalisierungsplanung.de", "https://www.digitalisierungsplanung.de"];
+const DEFAULT_PATH = "/ws";
+const DEFAULT_TOKEN_PATH = "/token";
+const DEFAULT_EVENTS_PATH = "/events";
+const DEFAULT_PRODUCT_CONTRACT_PATH = "/contract";
+const DEFAULT_EMIT_PATH = "/emit";
+const DEFAULT_ADMIN_PATH = "/admin.html";
+const DEFAULT_ADMIN_ROUTES_PATH = "/admin/routes";
+const DEFAULT_CONSOLE_PATH = "/console.html";
+const DEFAULT_EVENTS_ADMIN_PATH = "/events-admin.html";
+const DEFAULT_EVENTS_ADMIN_CATALOG_PATH = "/events-admin/catalog";
+const DEFAULT_PRESETS_ADMIN_PATH = "/presets-admin.html";
+const DEFAULT_PRESETS_ADMIN_CATALOG_PATH = "/presets-admin/catalog";
+const DEFAULT_PRESETS_ADMIN_PARSE_PATH = "/presets-admin/parse";
+const DEFAULT_PRESETS_ADMIN_IMPORT_PATH = "/presets-admin/import";
+const DEFAULT_IMAGE_INLINE_PATH = "/assets/inline-image";
+const DEFAULT_MCP_PATH = "/mcp";
+const DEFAULT_AGENT_PATH = agentWidget.DEFAULT_AGENT_PATH;
+const DEFAULT_AGENT_CONFIG_PATH = agentWidget.DEFAULT_AGENT_CONFIG_PATH;
+const DEFAULT_AGENT_CHAT_PATH = agentWidget.DEFAULT_AGENT_CHAT_PATH;
+const DEFAULT_AGENT_MCP_TOOL_PATH = agentWidget.DEFAULT_AGENT_MCP_TOOL_PATH;
+const DEFAULT_AGENT_EDITOR_PROMPT_PATH = agentWidget.DEFAULT_AGENT_EDITOR_PROMPT_PATH;
+const DEFAULT_AGENT_WIDGET_SCRIPT_PATH = agentWidget.DEFAULT_AGENT_WIDGET_SCRIPT_PATH;
+const DEFAULT_VERSION_PATH = "/version";
+const DEFAULT_STRIPE_API_BASE_URL = "https://api.stripe.com";
+const DEFAULT_STRIPE_CHECKOUT_PATH = presetCatalog.STRIPE_CHECKOUT_DEFAULTS.path;
+const DEFAULT_STRIPE_SUCCESS_URL = presetCatalog.STRIPE_CHECKOUT_DEFAULTS.successUrl;
+const DEFAULT_STRIPE_CANCEL_URL = presetCatalog.STRIPE_CHECKOUT_DEFAULTS.cancelUrl;
+const DEFAULT_ADMIN_COMMIT_MESSAGE = "Update realtime event catalog";
+const DEFAULT_PRESET_ADMIN_COMMIT_MESSAGE = "Update preset library";
+const DEFAULT_HOST = "127.0.0.1";
+const DEFAULT_PORT = 8788;
+const MAX_ID_LENGTH = 128;
+const MAX_EVENT_NAME_LENGTH = 160;
+const MAX_EMIT_BODY_BYTES = 64 * 1024;
+const MAX_PRESET_API_RESPONSE_BYTES = 64 * 1024;
+const MAX_IMAGE_INLINE_BODY_BYTES = 4 * 1024;
+const MAX_MCP_BODY_BYTES = 1024 * 1024;
+const MAX_IMAGE_INLINE_BYTES = 12 * 1024 * 1024;
+const PRESET_API_TIMEOUT_MS = 8000;
+const IMAGE_INLINE_TIMEOUT_MS = 12000;
+const MESSAGE_TYPES = new Set(["runtime.event"]);
+const CONSOLE_HTML = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Realtime Event Console</title>
+  <style>
+    :root { color-scheme: dark; --bg: #07111d; --panel: #0b1b2a; --line: #20425f; --text: #e6f2ff; --muted: #9fb6cc; --accent: #38bdf8; --ok: #34d399; --bad: #fb7185; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--text); }
+    main { width: min(920px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 40px; }
+    header { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+    h1 { margin: 0; font-size: 28px; line-height: 1.1; }
+    .status { color: var(--muted); font-size: 13px; }
+    form, .result { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); padding: 16px; }
+    form { display: grid; gap: 14px; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+    input, select, textarea, button { width: 100%; border: 1px solid var(--line); border-radius: 6px; background: #06111f; color: var(--text); font: inherit; }
+    input, select { height: 42px; padding: 0 10px; }
+    textarea { min-height: 160px; padding: 10px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 13px; line-height: 1.45; }
+    button { height: 42px; padding: 0 14px; border-color: #23729b; background: #0b3a55; color: #dff7ff; font-weight: 900; cursor: pointer; }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    .actions { display: flex; gap: 10px; align-items: center; }
+    .actions button { width: auto; min-width: 120px; }
+    .hint 
+
+===== server/server.js :: DEFAULT_MCP_PATH @ 25423 =====
+ || env.REALTIME_ADMIN_ROUTES_PATH || DEFAULT_ADMIN_ROUTES_PATH,
+    consolePath: options.consolePath || env.REALTIME_CONSOLE_PATH || DEFAULT_CONSOLE_PATH,
+    eventsAdminPath: options.eventsAdminPath || env.REALTIME_EVENTS_ADMIN_PATH || DEFAULT_EVENTS_ADMIN_PATH,
+    eventsAdminCatalogPath: options.eventsAdminCatalogPath || env.REALTIME_EVENTS_ADMIN_CATALOG_PATH || DEFAULT_EVENTS_ADMIN_CATALOG_PATH,
+    presetsAdminPath: options.presetsAdminPath || env.REALTIME_PRESETS_ADMIN_PATH || DEFAULT_PRESETS_ADMIN_PATH,
+    presetsAdminCatalogPath: options.presetsAdminCatalogPath || env.REALTIME_PRESETS_ADMIN_CATALOG_PATH || DEFAULT_PRESETS_ADMIN_CATALOG_PATH,
+    presetsAdminParsePath: options.presetsAdminParsePath || env.REALTIME_PRESETS_ADMIN_PARSE_PATH || DEFAULT_PRESETS_ADMIN_PARSE_PATH,
+    presetsAdminImportPath: options.presetsAdminImportPath || env.REALTIME_PRESETS_ADMIN_IMPORT_PATH || DEFAULT_PRESETS_ADMIN_IMPORT_PATH,
+    imageInlinePath: options.imageInlinePath || env.REALTIME_IMAGE_INLINE_PATH || DEFAULT_IMAGE_INLINE_PATH,
+    mcpPath: options.mcpPath || env.REALTIME_MCP_PATH || DEFAULT_MCP_PATH,
+    agentPath: options.agentPath || env.REALTIME_AGENT_PATH || DEFAULT_AGENT_PATH,
+    agentConfigPath: options.agentConfigPath || env.REALTIME_AGENT_CONFIG_PATH || DEFAULT_AGENT_CONFIG_PATH,
+    agentChatPath: options.agentChatPath || env.REALTIME_AGENT_CHAT_PATH || DEFAULT_AGENT_CHAT_PATH,
+    agentMcpToolPath: options.agentMcpToolPath || env.REALTIME_AGENT_MCP_TOOL_PATH || DEFAULT_AGENT_MCP_TOOL_PATH,
+    agentEditorPromptPath: options.agentEditorPromptPath || env.REALTIME_AGENT_EDITOR_PROMPT_PATH || DEFAULT_AGENT_EDITOR_PROMPT_PATH,
+    agentWidgetScriptPath: options.agentWidgetScriptPath || env.REALTIME_AGENT_WIDGET_SCRIPT_PATH || DEFAULT_AGENT_WIDGET_SCRIPT_PATH,
+    agentHtmlPath: path.resolve(options.agentHtmlPath || env.REALTIME_AGENT_HTML_PATH || path.join(__dirname, "agent.html")),
+    agentWidgetAssetPath: path.resolve(options.agentWidgetAssetPath || env.REALTIME_AGENT_WIDGET_ASSET_PATH || path.join(repoDir, "assets", "agent-widget.js")),
+    versionPath: options.versionPath || env.REALTIME_VERSION_PATH || DEFAULT_VERSION_PATH,
+    stripeCheckoutPath: options.stripeCheckoutPath || env.REALTIME_STRIPE_CHECKOUT_PATH || DEFAULT_STRIPE_CHECKOUT_PATH,
+    stripeApiBaseUrl: options.stripeApiBaseUrl || env.REALTIME_STRIPE_API_BASE_URL || DEFAULT_STRIPE_API_BASE_URL,
+    stripeSecretKey: options.stripeSecretKey ?? env.REALTIME_STRIPE_SECRET_KEY ?? env.STRIPE_SECRET_KEY ?? "",
+    stripeSuccessUrl: options.stripeSuccessUrl || env.REALTIME_STRIPE_SUCCESS_URL || DEFAULT_STRIPE_SUCCESS_URL,
+    stripeCancelUrl: options.stripeCancelUrl || env.REALTIME_STRIPE_CANCEL_URL || DEFAULT_STRIPE_CANCEL_URL,
+    eventCatalogPath: path.resolve(options.eventCatalogPath || env.REALTIME_EVENT_CATALOG_PATH || eventCatalog.DEFAULT_EVENT_CATALOG_PATH),
+    adminHtmlPath: path.resolve(options.adminHtmlPath || env.REALTIME_ADMIN_HTML_PATH || path.join(__dirname, "admin.html")),
+    eventAdminHtmlPath: path.resolve(options.eventAdminHtmlPath || env.REALTIME_EVENT_ADMIN_HTML_PATH || path.join(__dirname, "events-admin.html")),
+    presetLibraryPath,
+    presetAdminHtmlPath: path.resolve(options.presetAdminHtmlPath || env.REALTIME_PRESET_ADMIN_HTML_PATH || path.join(__dirname, "presets-admin.html")),
+    repoDir,
+    releaseFile,
+    adminSecret: options.adminSecret ?? env.REALTIME_ADMIN_SECRET ?? "",
+    mcpSecret: options.mcpSecret ?? env.REALTIME_MCP_SECRET ?? env.MCP_SECRET ?? "",
+    agentSecret: options.agentSecret ?? env.REALTIME_AGENT_SECRET ?? "",
+    agentModel: options.agentModel || env.REALTIME_AGENT_MODEL || agentWidget.DEFAULT_AGENT_MODEL,
+    agentModelBaseUrl: options.agentModelBaseUrl || env.REALTIME_AGENT_MODEL_BASE_URL || "",
+    agentChatCompletionsUrl: options.agentChatCompletionsUrl || env.REALTIME_AGENT_CHAT_COMPLETIONS_URL || "",
+    agentModelApiKey: options.agentModelApiKey ?? env.REALTIME_AGENT_MODEL_API_KEY ?? "",
+    agentWebLlmPackageUrl: options.agentWebLlmPackageUrl || env.REALTIME_AGENT_WEBLLM_PACKAGE_URL || agentWidget.DEFAULT_AGENT_WEBLLM_PACKAGE_URL,
+    agentModelFetcher: options.agentModelFetcher || globalThis.fetch,
+    gitPushToken: options.gitPushToken ?? env.REALTIME_GIT_PUSH_TOKEN ?? "",
+    gitRunner: options.gitRunner || defaultGitRunner,
+    presetApiFetcher: options.presetApiFetcher || fetchPresetApiDefinition,
+    stripeCheckoutFetcher: options.stripeCheckoutFetcher || globalThis.fetch,
+    imageI
+
+===== server/server.js :: function readJsonBody @ 34722 =====
+; connect-src 'self' https://cdn.jsdelivr.net; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://cdn.jsdelivr.net; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    "x-content-type-options": "nosniff",
+    "referrer-policy": "no-referrer",
+    "content-length": Buffer.byteLength(body),
+    ...headers
+  });
+  response.end(body);
+}
+
+function writeScript(response, statusCode, body, headers = {}) {
+  response.writeHead(statusCode, {
+    "content-type": "application/javascript; charset=utf-8",
+    "cache-control": "no-store",
+    "x-content-type-options": "nosniff",
+    "referrer-policy": "no-referrer",
+    "content-length": Buffer.byteLength(body),
+    ...headers
+  });
+  response.end(body);
+}
+
+function bearerToken(request) {
+  const header = String(request.headers.authorization || "");
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  return match ? match[1].trim() : "";
+}
+
+function mcpAuthSecrets(config) {
+  return [...new Set([
+    config.mcpSecret,
+    config.adminSecret,
+    config.emitSecret
+  ].map(secret => String(secret || "")).filter(Boolean))];
+}
+
+function readJsonBody(request, maxBytes = MAX_EMIT_BODY_BYTES) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let total = 0;
+    request.on("data", chunk => {
+      total += chunk.length;
+      if (total <= maxBytes) chunks.push(chunk);
+    });
+    request.on("error", reject);
+    request.on("end", () => {
+      if (total > maxBytes) {
+        const error = new Error("payload_too_large");
+        error.code = "payload_too_large";
+        reject(error);
+        return;
+      }
+      try {
+        const parsed = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
+        resolve(parsed);
+      } catch (_) {
+        const error = new Error("invalid_json");
+        error.code = "invalid_json";
+        reject(error);
+      }
+    });
+  });
+}
+
+function publicBaseUrl(request) {
+  const proto = String(request.headers["x-forwarded-proto"] || "http").split(",")[0].trim() || "http";
+  const host = String(request.headers["x-forwarded-host"] || request.headers.host || "localhost").split(",")[0].trim();
+  return `${proto}://${host}`;
+}
+
+function eventCatalogResponse(config) {
+  return {
+    ...eventCatalog.eventCatalogResponse(config.eventCatalog),
+    release: releaseResponse(config)
+  };
+}
+
+function releaseResponse(config) {
+  return {
+    ok: true,
+    releaseId: config.release.id,
+    releaseSequence: config.release.sequence,
+    builtAt: config.release.builtAt,
+    sourceCommit: config.release.sourceCommit,
+    deployedCommit: config.release.deployedCommit
+  };
+}
+
+function stripeCheckoutQuantity(plan, value) {
+  const stripe = plan?.stripe || {};
+  if (stripe.quantityMode !== "per_user") return 1;
+  const min = parseInteger(stripe.minQuantity, 1, 1, 10000);
+  const max = parseInteger(stripe.maxQuantity, min, min, 10000);
+  return parseInteger(value, min, min, max);
+}
+
+function stripeCheckoutSessionParams(config, plan, quantity) {
+  const stripe = plan?.stripe || {};
+  const amount = Number(stripe.unitAmountCents);
+  if (!Number.isSafeInteger(amount) || amount <= 0) {
+    const error = new Error("invalid_stripe_amount");
+    error.code = "invalid_stripe_amount";
+    error.status = 500;
+    throw error;
+  }
+  const params = new URLSearchParams();
+  params.set("mode", "subscription");
+  params.set("success_url", config.stripeSuccessUrl);
+  params.set("cancel_url", config.stripeCancelUrl);
+  params.set("client_reference_id", plan.id);
+  params.set("locale", "auto");
+  params.set("billing_address_collection", stripe.billingAddressCollection === "auto" ? "auto" : "required");
+  if (stripe.automaticTax === true) params.set("automatic_tax[enabled]", "true");
+  params.set("allow_promotion_codes", "true");
+  params.set("metadata[contract_plan_id]", plan.id);
+  params.set("metadata[contract_lookup_key]", stripe.lookupKey || plan.id);
+  params.set("metadata[contract_source]", "digitalisierungsplanung.product_contract");
+  params.set("subscription_data[metadata][contract_plan_id]", plan.id);
+  params.set("subscription_data[metadata][contract_lookup_key]", stripe.lookupKey || plan.id);
+  params.set("line_items[0][quantity]", String(quantity));
+  params.set("line_items[0][price_data][currency]", stripe.currency || "eur");
+  params.set("line_items[0][price_data][unit_amount]", String(amount));
+  params.set("line_items[0][price_data][recurring][interval]", stripe.recurringInterval || "month");
+  if (["inclusive", "exclusive"].inclu
+
+===== server/server.js :: writeJson @ 33080 =====
+et)}`;
+}
+
+function verifyRoomToken(token, { roomId, clientId, secret, now = Date.now() }) {
+  if (!secret) return { ok: false, code: "missing_secret" };
+  const [body, signature, extra] = String(token || "").split(".");
+  if (!body || !signature || extra !== undefined) return { ok: false, code: "malformed_token" };
+
+  const expected = signTokenBody(body, secret);
+  if (!timingSafeEqualString(signature, expected)) return { ok: false, code: "bad_signature" };
+
+  let payload;
+  try {
+    payload = fromBase64UrlJson(body);
+  } catch (_) {
+    return { ok: false, code: "bad_payload" };
+  }
+
+  if (payload.roomId !== roomId) return { ok: false, code: "room_mismatch" };
+  if (payload.clientId && payload.clientId !== clientId) return { ok: false, code: "client_mismatch" };
+  if (!Number.isFinite(payload.exp) || payload.exp < now) return { ok: false, code: "expired_token" };
+  return { ok: true, payload };
+}
+
+function rejectUpgrade(socket, statusCode, reason) {
+  socket.write(`HTTP/1.1 ${statusCode} ${reason}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
+  socket.destroy();
+}
+
+function writeJson(response, statusCode, payload, headers = {}) {
+  const body = JSON.stringify(payload);
+  response.writeHead(statusCode, {
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "no-store",
+    "content-length": Buffer.byteLength(body),
+    ...headers
+  });
+  response.end(body);
+}
+
+function writeHtml(response, statusCode, body, headers = {}) {
+  response.writeHead(statusCode, {
+    "content-type": "text/html; charset=utf-8",
+    "cache-control": "no-store",
+    "content-security-policy": "default-src 'none'; connect-src 'self' https://cdn.jsdelivr.net; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://cdn.jsdelivr.net; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    "x-content-type-options": "nosniff",
+    "referrer-policy": "no-referrer",
+    "content-length": Buffer.byteLength(body),
+    ...headers
+  });
+  response.end(body);
+}
+
+function writeScript(response, statusCode, body, headers = {}) {
+  response.writeHead(statusCode, {
+    "content-type": "application/javascript; charset=utf-8",
+    "cache-control": "no-store",
+    "x-content-type-options": "nosniff",
+    "referrer-policy": "no-referrer",
+    "content-length": Buffer.byteLength(body),
+    ...headers
+  });
+  response.end(body);
+}
+
+function bearerToken(request) {
+  const header = String(request.headers.authorization || "");
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  return match ? match[1].trim() : "";
+}
+
+function mcpAuthSecrets(config) {
+  return [...new Set([
+    config.mcpSecret,
+    config.adminSecret,
+    config.emitSecret
+  ].map(secret => String(secret || "")).filter(Boolean))];
+}
+
+function readJsonBody(request, maxBytes = MAX_EMIT_BODY_BYTES) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let total = 0;
+    request.on("data", chunk => {
+      total += chunk.length;
+      if (total <= maxBytes) chunks.push(chunk);
+    });
+    request.on("error", reject);
+    request.on("end", () => {
+      if (total > maxBytes) {
+        const error = new Error("payload_too_large");
+        error.code = "payload_too_large";
+        reject(error);
+        return;
+      }
+      try {
+        const parsed = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
+        resolve(parsed);
+      } catch (_) {
+        const error = new Error("invalid_json");
+        error.code = "invalid_json";
+        reject(error);
+      }
+    });
+  });
+}
+
+function publicBaseUrl(request) {
+  const proto = String(request.headers["x-forwarded-proto"] || "http").split(",")[0].trim() || "http";
+  const host = String(request.headers["x-forwarded-host"] || request.headers.host || "localhost").split(",")[0].trim();
+  return `${proto}://${host}`;
+}
+
+function eventCatalogResponse(config) {
+  return {
+    ...eventCatalog.eventCatalogResponse(config.eventCatalog),
+    release: releaseResponse(config)
+  };
+}
+
+function releaseResponse(config) {
+  return {
+    ok: true,
+    releaseId: config.release.id,
+    releaseSequence: config.release.sequence,
+    builtAt: config.release.builtAt,
+    sourceCommit: config.release.sourceCommit,
+    deployedCommit: config.release.deployedCommit
+  };
+}
+
+function stripeCheckoutQuantity(plan, value) {
+  const stripe = plan?.stripe || {};
+  if (stripe.quantityMode !== "per_user") return 1;
+  const min = parseInteger(stripe.minQuantity, 1, 1, 10000);
+  const max = parseInteger(stripe.maxQuantity, m
+
+===== server/server.js :: writeJson @ 41635 =====
+eHead(204, {
+      "access-control-allow-methods": "GET, OPTIONS",
+      "access-control-allow-headers": "content-type",
+      "cache-control": "no-store"
+    });
+    response.end();
+    return;
+  }
+  const url = new URL(request.url || "/", "http://localhost");
+  const planId = String(url.searchParams.get("plan") || "").trim();
+  if (!planId) {
+    writeJson(response, 400, { error: "stripe_plan_required" });
+    return;
+  }
+  const plan = presetCatalog.stripeCheckoutPlanById(planId);
+  if (!plan) {
+    writeJson(response, 404, { error: "unknown_stripe_plan" });
+    return;
+  }
+  if (!config.stripeSecretKey) {
+    writeJson(response, 503, { error: "stripe_secret_required" });
+    return;
+  }
+  try {
+    const quantity = stripeCheckoutQuantity(plan, url.searchParams.get("quantity"));
+    const session = await createStripeCheckoutSession(config, plan, quantity);
+    response.writeHead(303, {
+      location: session.url,
+      "cache-control": "no-store",
+      "referrer-policy": "no-referrer",
+      "x-content-type-options": "nosniff"
+    });
+    response.end();
+  } catch (error) {
+    writeJson(response, error.status || 502, {
+      error: error.code || "stripe_checkout_failed",
+      ...(error.detail ? { detail: error.detail } : {})
+    });
+  }
+}
+
+function cleanCommitMessage(value, fallback = DEFAULT_ADMIN_COMMIT_MESSAGE) {
+  const text = String(value || "").replace(/[\r\n]+/g, " ").trim();
+  return (text || fallback).slice(0, 120);
+}
+
+function serializeReleaseInfo(release) {
+  return `globalThis.ZUSTAND_RELEASE_SEQUENCE = ${Math.max(0, release.sequence || 0)};\n` +
+    `globalThis.ZUSTAND_RELEASE_ID = ${JSON.stringify(release.id || "dev-local")};\n` +
+    `globalThis.ZUSTAND_RELEASE_BUILT_AT = ${JSON.stringify(release.builtAt || "")};\n` +
+    `globalThis.ZUSTAND_RELEASE_SOURCE = ${JSON.stringify(release.sourceCommit || "")};\n`;
+}
+
+function readFileRelease(config) {
+  try {
+    return parseReleaseSource(fs.readFileSync(config.releaseFile, "utf8"));
+  } catch (_) {
+    return config.release;
+  }
+}
+
+function nextReleaseInfo(config) {
+  const current = readFileRelease(config);
+  const currentSequence = Number.isSafeInteger(current.sequence) && current.sequence > 0
+    ? current.sequence
+    : Number.isSafeInteger(config.release.sequence) ? config.release.sequence : 0;
+  return {
+    id: `release-${currentSequence + 1}`,
+    sequence: currentSequence + 1,
+    builtAt: new Date().toISOString(),
+    sourceCommit: currentShortCommit(config),
+    deployedCommit: ""
+  };
+}
+
+function gitFailure(code, result, status = 500) {
+  const error = new Error(code);
+  error.code = code;
+  error.status = status;
+  error.gitStatus = result?.status;
+  error.gitStdout = String(result?.stdout || "");
+  error.gitStderr = String(result?.stderr || "");
+  return error;
+}
+
+function errorJson(error, fallback) {
+  const payload = { error: error.code || fallback };
+  const detail = String(error.gitStderr || error.gitStdout || "").trim();
+  if (detail && detail !== payload.error) payload.detail = detail.slice(0, 1200);
+  return payload;
+}
+
+function runGit(config, args, code) {
+  const result = config.gitRunner(args, {
+    cwd: config.repoDir,
+    env: process.env
+  });
+  if (!result || result.status !== 0) throw gitFailure(code, result);
+  return result;
+}
+
+function repoRelativePath(repoDir, absolutePath) {
+  const relative = path.relative(repoDir, absolutePath).replaceAll("\\", "/");
+  if (!relative || relative.startsWith("../") || path.isAbsolute(relative)) {
+    const error = new Error("catalog_path_outside_repo");
+    error.code = "catalog_path_outside_repo";
+    error.status = 500;
+    throw error;
+  }
+  return relative;
+}
+
+function pushCurrentHead(config) {
+  const pushArgs = config.gitPushToken
+    ? [
+        "-c",
+        `http.https://github.com/.extraheader=AUTHORIZATION: basic ${Buffer.from(`x-access-token:${config.gitPushToken}`).toString("base64")}`,
+        "push",
+        "origin",
+        "HEAD:main"
+      ]
+    : ["push", "origin", "HEAD:main"];
+  runGit(config, pushArgs, "git_push_failed");
+}
+
+function currentShortCommit(config) {
+  const rev = runGit(config, ["rev-parse", "--short", "HEAD"], "git_rev_parse_failed");
+  return String(rev.stdout || "").trim();
+}
+
+function localAheadCount(config) {
+  const result = config.gitRunner(["rev-list", "--count", "@{u}..HEAD"], {
+    cwd: config.repoDir,
+    env: process.env
+  });
+  if (!result || result.status !== 0) return 0;
+  const count = Number.parseInt(String(result.stdout || "").trim
+
+===== server/server.js :: writeJson @ 69723 =====
+    writeJson(response, 200, {
+          library,
+          supportedVariants: [...presetLibrary.SUPPORTED_VARIANTS].sort(),
+          release: releaseResponse(config)
+        }, headers);
+      } catch (error) {
+        writeJson(response, error.status || 500, { error: error.code || "preset_library_load_failed" }, headers);
+      }
+      return;
+    }
+
+    let payload;
+    try {
+      payload = await readJsonBody(request, config.maxPayload);
+    } catch (error) {
+      const status = error.code === "payload_too_large" ? 413 : 400;
+      writeJson(response, status, { error: error.code || "invalid_json" }, headers);
+      return;
+    }
+
+    try {
+      const library = presetLibrary.validatePresetLibrary(payload.library);
+      if (payload.validateOnly === true || requestUrl.searchParams.get("validate") === "1") {
+        writeJson(response, 200, { ok: true, library }, headers);
+        return;
+      }
+      const result = writePresetLibraryCommitAndPush(config, library, payload.message);
+      setPresetLibrary(library);
+      if (result.release) config.release = result.release;
+      writeJson(response, 200, result, headers);
+    } catch (error) {
+      writeJson(response, error.status || 500, errorJson(error, "preset_library_save_failed"), headers);
+    }
+  }
+
+  async function handlePresetParseRequest(request, response) {
+    const prepared = prepareAdminResponse(request, response);
+    if (prepared.done) return;
+    const headers = prepared.headers;
+    let payload;
+    try {
+      payload = await readJsonBody(request, config.maxPayload);
+    } catch (error) {
+      const status = error.code === "payload_too_large" ? 413 : 400;
+      writeJson(response, status, { error: error.code || "invalid_json" }, headers);
+      return;
+    }
+    try {
+      writeJson(response, 200, {
+        ok: true,
+        preset: presetLibrary.parseDaisySnippet(payload),
+        daisyVersion: presetLibrary.DAISY_VERSION
+      }, headers);
+    } catch (error) {
+      writeJson(response, error.status || 400, { error: error.code || "snippet_parse_failed" }, headers);
+    }
+  }
+
+  async function handlePresetImportRequest(request, response) {
+    const prepared = prepareAdminResponse(request, response);
+    if (prepared.done) return;
+    const headers = prepared.headers;
+    let payload;
+    try {
+      payload = await readJsonBody(request, config.maxPayload);
+      if (!isPlainObject(payload) || !isPlainObject(payload.library) || Object.keys(payload).some(key => !["url", "library"].includes(key))) {
+        throw presetApiError("invalid_preset_api_request", 400);
+      }
+      const target = normalizedPresetApiUrl(payload.url);
+      const library = presetLibrary.validatePresetLibrary(payload.library);
+      const imported = await config.presetApiFetcher(target.href);
+      const preset = presetLibrary.validatePresetDefinition(imported, library);
+      writeJson(response, 200, { ok: true, preset }, headers);
+    } catch (error) {
+      writeJson(response, error.status || 400, { error: error.code || "preset_api_import_failed" }, headers);
+    }
+  }
+
+  async function handleImageInlineRequest(request, response) {
+    const prepared = prepareCatalogResponse(request, response);
+    if (prepared.done) return;
+    const headers = prepared.headers;
+    let payload;
+    try {
+      payload = await readJsonBody(request, MAX_IMAGE_INLINE_BODY_BYTES);
+      if (!isPlainObject(payload) || Object.keys(payload).some(key => key !== "url")) {
+        throw imageInlineError("invalid_image_inline_request", 400);
+      }
+      const target = normalizedPublicImageUrl(payload.url);
+      const asset = await config.imageInlineFetcher(target.href, { maxBytes: config.maxImageInlineBytes });
+      const buffer = Buffer.isBuffer(asset?.buffer) ? asset.buffer : Buffer.from(asset?.buffer || "");
+      const mimeType = String(asset?.mimeType || "").split(";")[0].trim().toLowerCase();
+      if (!/^image\/[a-z0-9.+-]+$/i.test(mimeType) || !buffer.length) {
+        throw imageInlineError("invalid_image_inline_response", 502);
+      }
+      if (buffer.length > config.maxImageInlineBytes) {
+        throw imageInlineError("image_response_too_large", 413);
+      }
+      writeJson(response, 200, {
+        ok: true,
+        url: target.href,
+        mimeType,
+        bytes: buffer.length,
+        dataUri: `data:${mimeType};base64,${buffer.toString("base64")}`
+      }, headers);
+    } catch (error) {
+      writeJson(response, error.status || 400, { error: error.code || "image_inline
+
+===== server/server.js :: writeJson @ 71501 =====
+writeJson(response, 200, {
+        ok: true,
+        preset: presetLibrary.parseDaisySnippet(payload),
+        daisyVersion: presetLibrary.DAISY_VERSION
+      }, headers);
+    } catch (error) {
+      writeJson(response, error.status || 400, { error: error.code || "snippet_parse_failed" }, headers);
+    }
+  }
+
+  async function handlePresetImportRequest(request, response) {
+    const prepared = prepareAdminResponse(request, response);
+    if (prepared.done) return;
+    const headers = prepared.headers;
+    let payload;
+    try {
+      payload = await readJsonBody(request, config.maxPayload);
+      if (!isPlainObject(payload) || !isPlainObject(payload.library) || Object.keys(payload).some(key => !["url", "library"].includes(key))) {
+        throw presetApiError("invalid_preset_api_request", 400);
+      }
+      const target = normalizedPresetApiUrl(payload.url);
+      const library = presetLibrary.validatePresetLibrary(payload.library);
+      const imported = await config.presetApiFetcher(target.href);
+      const preset = presetLibrary.validatePresetDefinition(imported, library);
+      writeJson(response, 200, { ok: true, preset }, headers);
+    } catch (error) {
+      writeJson(response, error.status || 400, { error: error.code || "preset_api_import_failed" }, headers);
+    }
+  }
+
+  async function handleImageInlineRequest(request, response) {
+    const prepared = prepareCatalogResponse(request, response);
+    if (prepared.done) return;
+    const headers = prepared.headers;
+    let payload;
+    try {
+      payload = await readJsonBody(request, MAX_IMAGE_INLINE_BODY_BYTES);
+      if (!isPlainObject(payload) || Object.keys(payload).some(key => key !== "url")) {
+        throw imageInlineError("invalid_image_inline_request", 400);
+      }
+      const target = normalizedPublicImageUrl(payload.url);
+      const asset = await config.imageInlineFetcher(target.href, { maxBytes: config.maxImageInlineBytes });
+      const buffer = Buffer.isBuffer(asset?.buffer) ? asset.buffer : Buffer.from(asset?.buffer || "");
+      const mimeType = String(asset?.mimeType || "").split(";")[0].trim().toLowerCase();
+      if (!/^image\/[a-z0-9.+-]+$/i.test(mimeType) || !buffer.length) {
+        throw imageInlineError("invalid_image_inline_response", 502);
+      }
+      if (buffer.length > config.maxImageInlineBytes) {
+        throw imageInlineError("image_response_too_large", 413);
+      }
+      writeJson(response, 200, {
+        ok: true,
+        url: target.href,
+        mimeType,
+        bytes: buffer.length,
+        dataUri: `data:${mimeType};base64,${buffer.toString("base64")}`
+      }, headers);
+    } catch (error) {
+      writeJson(response, error.status || 400, { error: error.code || "image_inline_failed" }, headers);
+    }
+  }
+
+  async function handleMcpRequest(request, response) {
+    const prepared = prepareMcpResponse(request, response);
+    if (prepared.done) return;
+
+    let payload;
+    try {
+      payload = await readJsonBody(request, MAX_MCP_BODY_BYTES);
+    } catch (error) {
+      const status = error.code === "payload_too_large" ? 413 : 400;
+      writeJson(response, status, { error: error.code || "invalid_json" }, prepared.headers);
+      return;
+    }
+
+    try {
+      const options = { modelPath: config.mcpModelPath };
+      if (Array.isArray(payload)) {
+        const batch = payload
+          .map(message => stateBlueprintMcp.handleMessage(message, options))
+          .filter(Boolean);
+        if (!batch.length) {
+          response.writeHead(202, { "cache-control": "no-store", ...prepared.headers });
+          response.end();
+          return;
+        }
+        writeJson(response, 200, batch, prepared.headers);
+        return;
+      }
+      const result = stateBlueprintMcp.handleMessage(payload, options);
+      if (!result) {
+        response.writeHead(202, { "cache-control": "no-store", ...prepared.headers });
+        response.end();
+        return;
+      }
+      writeJson(response, 200, result, prepared.headers);
+    } catch (error) {
+      writeJson(response, 500, { error: error.code || "mcp_request_failed", message: error.message }, prepared.headers);
+    }
+  }
+
+  async function handleAgentEditorPromptRequest(request, response) {
+    const prepared = prepareAgentEditorResponse(request, response);
+    if (prepared.done) return;
+
+    let payload;
+    try {
+      payload = await readJsonBody(request, MAX_MCP_BODY_BYTES);
+    } catch (error) {
+      const status = error.code === "payload_too_large" ? 413 : 400;
+      writeJso
+
+===== server/server.js :: writeJson @ 72808 =====
+ function handleImageInlineRequest(request, response) {
+    const prepared = prepareCatalogResponse(request, response);
+    if (prepared.done) return;
+    const headers = prepared.headers;
+    let payload;
+    try {
+      payload = await readJsonBody(request, MAX_IMAGE_INLINE_BODY_BYTES);
+      if (!isPlainObject(payload) || Object.keys(payload).some(key => key !== "url")) {
+        throw imageInlineError("invalid_image_inline_request", 400);
+      }
+      const target = normalizedPublicImageUrl(payload.url);
+      const asset = await config.imageInlineFetcher(target.href, { maxBytes: config.maxImageInlineBytes });
+      const buffer = Buffer.isBuffer(asset?.buffer) ? asset.buffer : Buffer.from(asset?.buffer || "");
+      const mimeType = String(asset?.mimeType || "").split(";")[0].trim().toLowerCase();
+      if (!/^image\/[a-z0-9.+-]+$/i.test(mimeType) || !buffer.length) {
+        throw imageInlineError("invalid_image_inline_response", 502);
+      }
+      if (buffer.length > config.maxImageInlineBytes) {
+        throw imageInlineError("image_response_too_large", 413);
+      }
+      writeJson(response, 200, {
+        ok: true,
+        url: target.href,
+        mimeType,
+        bytes: buffer.length,
+        dataUri: `data:${mimeType};base64,${buffer.toString("base64")}`
+      }, headers);
+    } catch (error) {
+      writeJson(response, error.status || 400, { error: error.code || "image_inline_failed" }, headers);
+    }
+  }
+
+  async function handleMcpRequest(request, response) {
+    const prepared = prepareMcpResponse(request, response);
+    if (prepared.done) return;
+
+    let payload;
+    try {
+      payload = await readJsonBody(request, MAX_MCP_BODY_BYTES);
+    } catch (error) {
+      const status = error.code === "payload_too_large" ? 413 : 400;
+      writeJson(response, status, { error: error.code || "invalid_json" }, prepared.headers);
+      return;
+    }
+
+    try {
+      const options = { modelPath: config.mcpModelPath };
+      if (Array.isArray(payload)) {
+        const batch = payload
+          .map(message => stateBlueprintMcp.handleMessage(message, options))
+          .filter(Boolean);
+        if (!batch.length) {
+          response.writeHead(202, { "cache-control": "no-store", ...prepared.headers });
+          response.end();
+          return;
+        }
+        writeJson(response, 200, batch, prepared.headers);
+        return;
+      }
+      const result = stateBlueprintMcp.handleMessage(payload, options);
+      if (!result) {
+        response.writeHead(202, { "cache-control": "no-store", ...prepared.headers });
+        response.end();
+        return;
+      }
+      writeJson(response, 200, result, prepared.headers);
+    } catch (error) {
+      writeJson(response, 500, { error: error.code || "mcp_request_failed", message: error.message }, prepared.headers);
+    }
+  }
+
+  async function handleAgentEditorPromptRequest(request, response) {
+    const prepared = prepareAgentEditorResponse(request, response);
+    if (prepared.done) return;
+
+    let payload;
+    try {
+      payload = await readJsonBody(request, MAX_MCP_BODY_BYTES);
+    } catch (error) {
+      const status = error.code === "payload_too_large" ? 413 : 400;
+      writeJson(response, status, { error: error.code || "invalid_json" }, prepared.headers);
+      return;
+    }
+
+    try {
+      writeJson(response, 200, agentWidget.planEditorPrompt(config, payload), prepared.headers);
+    } catch (error) {
+      writeJson(response, error.status || 500, {
+        error: error.code || "agent_editor_prompt_failed",
+        ...(error.detail ? { detail: error.detail } : {}),
+        ...(error.validation ? { validation: error.validation } : {})
+      }, prepared.headers);
+    }
+  }
+
+  async function handleAgentMcpToolRequest(request, response) {
+    const prepared = prepareAgentToolResponse(request, response);
+    if (prepared.done) return;
+
+    let payload;
+    try {
+      payload = await readJsonBody(request, MAX_MCP_BODY_BYTES);
+    } catch (error) {
+      const status = error.code === "payload_too_large" ? 413 : 400;
+      writeJson(response, status, { error: error.code || "invalid_json" }, prepared.headers);
+      return;
+    }
+
+    try {
+      writeJson(response, 200, agentWidget.executeMcpTool(config, payload), prepared.headers);
+    } catch (error) {
+      writeJson(response, error.status || 500, {
+        error: error.code || "agent_mcp_tool_failed",
+        ...(error.detail ? { detail: error.detail } : {})
+      }, prepared.headers);
+    }
+  }
+
+  async functi
+
+===== server/server.js :: writeJson @ 74020 =====
+ength,
+        dataUri: `data:${mimeType};base64,${buffer.toString("base64")}`
+      }, headers);
+    } catch (error) {
+      writeJson(response, error.status || 400, { error: error.code || "image_inline_failed" }, headers);
+    }
+  }
+
+  async function handleMcpRequest(request, response) {
+    const prepared = prepareMcpResponse(request, response);
+    if (prepared.done) return;
+
+    let payload;
+    try {
+      payload = await readJsonBody(request, MAX_MCP_BODY_BYTES);
+    } catch (error) {
+      const status = error.code === "payload_too_large" ? 413 : 400;
+      writeJson(response, status, { error: error.code || "invalid_json" }, prepared.headers);
+      return;
+    }
+
+    try {
+      const options = { modelPath: config.mcpModelPath };
+      if (Array.isArray(payload)) {
+        const batch = payload
+          .map(message => stateBlueprintMcp.handleMessage(message, options))
+          .filter(Boolean);
+        if (!batch.length) {
+          response.writeHead(202, { "cache-control": "no-store", ...prepared.headers });
+          response.end();
+          return;
+        }
+        writeJson(response, 200, batch, prepared.headers);
+        return;
+      }
+      const result = stateBlueprintMcp.handleMessage(payload, options);
+      if (!result) {
+        response.writeHead(202, { "cache-control": "no-store", ...prepared.headers });
+        response.end();
+        return;
+      }
+      writeJson(response, 200, result, prepared.headers);
+    } catch (error) {
+      writeJson(response, 500, { error: error.code || "mcp_request_failed", message: error.message }, prepared.headers);
+    }
+  }
+
+  async function handleAgentEditorPromptRequest(request, response) {
+    const prepared = prepareAgentEditorResponse(request, response);
+    if (prepared.done) return;
+
+    let payload;
+    try {
+      payload = await readJsonBody(request, MAX_MCP_BODY_BYTES);
+    } catch (error) {
+      const status = error.code === "payload_too_large" ? 413 : 400;
+      writeJson(response, status, { error: error.code || "invalid_json" }, prepared.headers);
+      return;
+    }
+
+    try {
+      writeJson(response, 200, agentWidget.planEditorPrompt(config, payload), prepared.headers);
+    } catch (error) {
+      writeJson(response, error.status || 500, {
+        error: error.code || "agent_editor_prompt_failed",
+        ...(error.detail ? { detail: error.detail } : {}),
+        ...(error.validation ? { validation: error.validation } : {})
+      }, prepared.headers);
+    }
+  }
+
+  async function handleAgentMcpToolRequest(request, response) {
+    const prepared = prepareAgentToolResponse(request, response);
+    if (prepared.done) return;
+
+    let payload;
+    try {
+      payload = await readJsonBody(request, MAX_MCP_BODY_BYTES);
+    } catch (error) {
+      const status = error.code === "payload_too_large" ? 413 : 400;
+      writeJson(response, status, { error: error.code || "invalid_json" }, prepared.headers);
+      return;
+    }
+
+    try {
+      writeJson(response, 200, agentWidget.executeMcpTool(config, payload), prepared.headers);
+    } catch (error) {
+      writeJson(response, error.status || 500, {
+        error: error.code || "agent_mcp_tool_failed",
+        ...(error.detail ? { detail: error.detail } : {})
+      }, prepared.headers);
+    }
+  }
+
+  async function handleAgentChatRequest(request, response) {
+    const prepared = prepareAgentToolResponse(request, response);
+    if (prepared.done) return;
+
+    let payload;
+    try {
+      payload = await readJsonBody(request, MAX_MCP_BODY_BYTES);
+    } catch (error) {
+      const status = error.code === "payload_too_large" ? 413 : 400;
+      writeJson(response, status, { error: error.code || "invalid_json" }, prepared.headers);
+      return;
+    }
+
+    try {
+      writeJson(response, 200, await agentWidget.runAgentChat(config, payload), prepared.headers);
+    } catch (error) {
+      writeJson(response, error.status || 500, {
+        error: error.code || "agent_chat_failed",
+        ...(error.detail ? { detail: error.detail } : {})
+      }, prepared.headers);
+    }
+  }
+
+  async function handleEmitRequest(request, response) {
+    const origin = request.headers.origin || "";
+    const headers = origin ? corsHeadersForOrigin(origin, request) : {};
+    if (!headers) {
+      writeJson(response, 403, { error: "origin_not_allowed" });
+      return;
+    }
+    if (request.method === "OPTIONS") {
+      response.writeHead(204, headers);
+      response.end();
+      return;
+    }
+    if (!config.emitSecret) {
+      w
+
+===== server/server.js :: writeJson @ 75137 =====
+e, 200, batch, prepared.headers);
+        return;
+      }
+      const result = stateBlueprintMcp.handleMessage(payload, options);
+      if (!result) {
+        response.writeHead(202, { "cache-control": "no-store", ...prepared.headers });
+        response.end();
+        return;
+      }
+      writeJson(response, 200, result, prepared.headers);
+    } catch (error) {
+      writeJson(response, 500, { error: error.code || "mcp_request_failed", message: error.message }, prepared.headers);
+    }
+  }
+
+  async function handleAgentEditorPromptRequest(request, response) {
+    const prepared = prepareAgentEditorResponse(request, response);
+    if (prepared.done) return;
+
+    let payload;
+    try {
+      payload = await readJsonBody(request, MAX_MCP_BODY_BYTES);
+    } catch (error) {
+      const status = error.code === "payload_too_large" ? 413 : 400;
+      writeJson(response, status, { error: error.code || "invalid_json" }, prepared.headers);
+      return;
+    }
+
+    try {
+      writeJson(response, 200, agentWidget.planEditorPrompt(config, payload), prepared.headers);
+    } catch (error) {
+      writeJson(response, error.status || 500, {
+        error: error.code || "agent_editor_prompt_failed",
+        ...(error.detail ? { detail: error.detail } : {}),
+        ...(error.validation ? { validation: error.validation } : {})
+      }, prepared.headers);
+    }
+  }
+
+  async function handleAgentMcpToolRequest(request, response) {
+    const prepared = prepareAgentToolResponse(request, response);
+    if (prepared.done) return;
+
+    let payload;
+    try {
+      payload = await readJsonBody(request, MAX_MCP_BODY_BYTES);
+    } catch (error) {
+      const status = error.code === "payload_too_large" ? 413 : 400;
+      writeJson(response, status, { error: error.code || "invalid_json" }, prepared.headers);
+      return;
+    }
+
+    try {
+      writeJson(response, 200, agentWidget.executeMcpTool(config, payload), prepared.headers);
+    } catch (error) {
+      writeJson(response, error.status || 500, {
+        error: error.code || "agent_mcp_tool_failed",
+        ...(error.detail ? { detail: error.detail } : {})
+      }, prepared.headers);
+    }
+  }
+
+  async function handleAgentChatRequest(request, response) {
+    const prepared = prepareAgentToolResponse(request, response);
+    if (prepared.done) return;
+
+    let payload;
+    try {
+      payload = await readJsonBody(request, MAX_MCP_BODY_BYTES);
+    } catch (error) {
+      const status = error.code === "payload_too_large" ? 413 : 400;
+      writeJson(response, status, { error: error.code || "invalid_json" }, prepared.headers);
+      return;
+    }
+
+    try {
+      writeJson(response, 200, await agentWidget.runAgentChat(config, payload), prepared.headers);
+    } catch (error) {
+      writeJson(response, error.status || 500, {
+        error: error.code || "agent_chat_failed",
+        ...(error.detail ? { detail: error.detail } : {})
+      }, prepared.headers);
+    }
+  }
+
+  async function handleEmitRequest(request, response) {
+    const origin = request.headers.origin || "";
+    const headers = origin ? corsHeadersForOrigin(origin, request) : {};
+    if (!headers) {
+      writeJson(response, 403, { error: "origin_not_allowed" });
+      return;
+    }
+    if (request.method === "OPTIONS") {
+      response.writeHead(204, headers);
+      response.end();
+      return;
+    }
+    if (!config.emitSecret) {
+      writeJson(response, 503, { error: "emit_secret_required" }, headers);
+      return;
+    }
+    if (!timingSafeEqualString(bearerToken(request), config.emitSecret)) {
+      writeJson(response, 401, { error: "unauthorized" }, headers);
+      return;
+    }
+
+    let payload;
+    try {
+      payload = await readJsonBody(request, config.maxPayload);
+    } catch (error) {
+      const status = error.code === "payload_too_large" ? 413 : 400;
+      writeJson(response, status, { error: error.code || "invalid_json" }, headers);
+      return;
+    }
+
+    const emit = validateEmitPayload(payload);
+    if (!emit.ok) {
+      writeJson(response, 400, { error: emit.code }, headers);
+      return;
+    }
+
+    const room = rooms.get(emit.roomId);
+    const delivered = room ? broadcast(room, null, {
+      type: "runtime.event",
+      roomId: emit.roomId,
+      clientId: emit.clientId,
+      serverTime: Date.now(),
+      name: emit.name,
+      detail: emit.detail,
+      emitterId: emit.emitterId,
+      event: offeredEventsByName.get(emit.name),
+      emitter: offeredEmittersById.get(emit.emitterId)
+    }) : 0;
+    writeJson(r
 
 ===== server/server.js :: writeJson @ 78526 =====
-feEqualString(bearerToken(request), config.emitSecret)) {
+on(response, 503, { error: "emit_secret_required" }, headers);
+      return;
+    }
+    if (!timingSafeEqualString(bearerToken(request), config.emitSecret)) {
       writeJson(response, 401, { error: "unauthorized" }, headers);
       return;
     }
@@ -2690,10 +2941,26 @@ feEqualString(bearerToken(request), config.emitSecret)) {
     }
 
     const payload = serializeForBroadcast(message, state, room);
-    if (!payload)
+    if (!payload) {
+      sendError(socket, "invalid_message");
+      return;
+    }
+    if (payload.type === "runtime.event") {
+      payload.event = offeredEventsByName.get(payload.name);
+      payload.emitter = payload.emitterId ? offeredEmittersById.get(payload.emitterId) || null : null;
+    }
+    broadcast(room, socket, payload);
+  }
+
+  server.on("upgrade", (request, socket, head) => {
+    const url = new URL(
 
 ===== server/server.js :: module\.exports @ 84392 =====
-ror", onError);
+> {
+        server.off("error", onError);
+        resolve(address());
+      };
+      server.once("error", onError);
       server.once("listening", onListening);
       server.listen(port, host);
     });
