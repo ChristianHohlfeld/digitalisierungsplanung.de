@@ -1,8 +1,0 @@
-{
-  "join": "and",
-  "rules": [
-    { "field": "states.checkbox_a.checked", "operator": "==", "value": true },
-    { "field": "states.checkbox_b.checked", "operator": "==", "value": false },
-    { "field": "states.email.value", "operator": "!=", "value": "" }
-  ]
-}
