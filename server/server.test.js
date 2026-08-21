@@ -2,10 +2,10 @@
 
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
-const path = require("node:path");
 const test = require("node:test");
 const WebSocket = require("ws");
 const adminTools = require("./admin-tools");
+const eventCatalog = require("./event-catalog");
 const presetCatalog = require("./preset-catalog");
 const productContract = require("./product-contract");
 const { createRealtimeServer, createRoomToken, verifyRoomToken } = require("./server");
@@ -41,6 +41,10 @@ const REMOVED_ROUTES = [
   "/assets/agent-widget.js",
   "/mcp"
 ];
+
+function contract() {
+  return productContract.productContractResponse(eventCatalog.DEFAULT_EVENT_CATALOG);
+}
 
 function httpUrl(realtime, routePath) {
   const { port } = realtime.address();
@@ -108,28 +112,28 @@ test("signed room tokens protect runtime rooms", () => {
 });
 
 test("product contract exposes the focused preset contract only", () => {
-  const contract = productContract.productContractResponse();
+  const response = contract();
   assert.deepEqual(presetCatalog.presetCatalogResponse().map(preset => preset.id), FOCUSED_PRESET_IDS);
-  assert.deepEqual(contract.presets.map(preset => preset.id), FOCUSED_PRESET_IDS);
-  assert.equal(contract.presets.some(preset => preset.builtIn === false), false);
-  assert.equal(contract.presets.some(preset => preset.contractOnly || preset.managedOnly || preset.legacy || preset.hidden), false);
+  assert.deepEqual(response.presets.map(preset => preset.id), FOCUSED_PRESET_IDS);
+  assert.equal(response.presets.some(preset => preset.builtIn === false), false);
+  assert.equal(response.presets.some(preset => preset.contractOnly || preset.managedOnly || preset.legacy || preset.hidden), false);
   for (const blocked of ["builtin_daisy_bi_kpi_board", "builtin_daisy_stripe_pricing", "custom_acme_footer"]) {
-    assert.equal(contract.presets.some(preset => preset.id === blocked), false, blocked);
+    assert.equal(response.presets.some(preset => preset.id === blocked), false, blocked);
   }
-  assert.ok(contract.triggerTypes.some(type => type.id === "realtime"));
-  assert.ok(contract.triggerTypes.some(type => type.id === "timer"));
-  assert.ok(contract.valueTypes.some(type => type.id === "email"));
+  assert.ok(response.triggerTypes.some(type => type.id === "realtime"));
+  assert.ok(response.triggerTypes.some(type => type.id === "timer"));
+  assert.ok(response.valueTypes.some(type => type.id === "email"));
 });
 
 test("state trigger context and transition listener fields stay separated", () => {
-  const contract = productContract.productContractResponse();
-  const triggerById = new Map(contract.triggerTypes.map(type => [type.id, type]));
+  const response = contract();
+  const triggerById = new Map(response.triggerTypes.map(type => [type.id, type]));
   assert.ok(triggerById.has("button"));
   assert.ok(triggerById.has("timer"));
   assert.ok(triggerById.has("realtime"));
   assert.ok(triggerById.has("auto"));
   assert.ok(triggerById.get("realtime").events.some(event => event.name === "realtime.sip.call.incoming"));
-  const incoming = contract.datasets.find(dataset => dataset.id === "realtime.sip.call.incoming");
+  const incoming = response.datasets.find(dataset => dataset.id === "realtime.sip.call.incoming");
   assert.ok(incoming);
   assert.deepEqual(incoming.fields, { caller: "text", callee: "text", callId: "text" });
   assert.equal(incoming.fieldSchemas.caller.type, "text");
