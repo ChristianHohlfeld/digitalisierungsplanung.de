@@ -11,12 +11,15 @@ function read(relativePath) {
   return fs.readFileSync(path.join(root, relativePath), "utf8");
 }
 
-test("state editor source is restored and remains the export source", () => {
+test("state editor source is current, recorder-aware and remains the export source", () => {
   const state = read("state.html");
   const build = read("scripts/build-index.mjs");
   assert.ok(state.length > 100_000, "state.html must contain the actual editor source");
-  assert.match(state, /State Blueprint Editor/i);
+  assert.match(state, /<title>Zustand<\/title>/i);
+  assert.match(state, /visueller Editor/i);
   assert.match(state, /id=["']btnExport["']/);
+  assert.match(state, /id=["']btnRecordUrl["']/);
+  assert.match(state, /location\.href = ["']\/recorder\.html["']/);
   assert.match(build, /state\.html\?demo=zustand/);
   assert.doesNotMatch(build, /site_pricing/);
 });
