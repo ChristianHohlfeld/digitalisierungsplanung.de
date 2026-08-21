@@ -8,6 +8,7 @@ BRANCH="${BRANCH:-main}"
 REPO_URL="${REPO_URL:-https://github.com/ChristianHohlfeld/digitalisierungsplanung.de.git}"
 ENV_FILE="${ENV_FILE:-/etc/digitalisierungsplanung-realtime.env}"
 PM2_APP="${PM2_APP:-digitalisierungsplanung-realtime}"
+RECORDER_PM2_APP="${RECORDER_PM2_APP:-digitalisierungsplanung-recorder}"
 STATE_DIR="${STATE_DIR:-/var/lib/digitalisierungsplanung}"
 LOCK_FILE="${LOCK_FILE:-/run/lock/digitalisierungsplanung-auto-deploy.lock}"
 MARKER_FILE="${MARKER_FILE:-${STATE_DIR}/deployed-release.env}"
@@ -19,7 +20,7 @@ HEALTH_RETRY_DELAY="${HEALTH_RETRY_DELAY:-1}"
 AUTO_DEPLOY_INTERVAL="${AUTO_DEPLOY_INTERVAL:-60s}"
 SERVICE_NAME="digitalisierungsplanung-auto-deploy"
 
-export APP_DIR ENV_FILE PM2_APP
+export APP_DIR ENV_FILE PM2_APP RECORDER_PM2_APP
 
 log() {
   printf '[auto-deploy] %s\n' "$*"
@@ -148,8 +149,9 @@ sync_to_commit() {
   fi
 }
 
-pm2_is_online() {
-  pm2 jlist 2>/dev/null | EXPECTED_PM2_APP="$PM2_APP" node -e '
+pm2_app_is_online() {
+  local app_name="$1"
+  pm2 jlist 2>/dev/null | EXPECTED_PM2_APP="$app_name" node -e '
     const fs = require("node:fs");
     const apps = JSON.parse(fs.readFileSync(0, "utf8"));
     const app = apps.find(item => item.name === process.env.EXPECTED_PM2_APP);
@@ -169,13 +171,38 @@ health_reports_release() {
   ' <<<"$payload"
 }
 
+recorder_health_ok() {
+  local payload
+  payload="$(curl -fsS --max-time 5 http://127.0.0.1:8789/healthz 2>/dev/null)" || return 1
+  node -e '
+    const fs = require("node:fs");
+    const body = JSON.parse(fs.readFileSync(0, "utf8"));
+    if (!body.ok || body.service !== "external-recorder") process.exit(1);
+  ' <<<"$payload"
+}
+
+recorder_cors_preflight_ok() {
+  local headers
+  headers="$(curl -sS -D - -o /dev/null --max-time 5 \
+    -X OPTIONS http://127.0.0.1:8789/recorder/sessions \
+    -H 'Origin: https://digitalisierungsplanung.de' \
+    -H 'Access-Control-Request-Method: POST' \
+    -H 'Access-Control-Request-Headers: content-type' 2>/dev/null)" || return 1
+  headers="${headers//$'\r'/}"
+  grep -Eq '^HTTP/[^ ]+ 204([[:space:]]|$)' <<<"$headers" || return 1
+  grep -Eqi '^access-control-allow-origin:[[:space:]]*https://digitalisierungsplanung\.de[[:space:]]*$' <<<"$headers" || return 1
+  grep -Eqi '^access-control-allow-methods:.*POST' <<<"$headers" || return 1
+  grep -Eqi '^access-control-allow-headers:.*content-type' <<<"$headers" || return 1
+}
+
 verify_release() {
   local expected="$1"
   nginx -t >/dev/null 2>&1 || return 1
-  pm2_is_online || return 1
+  pm2_app_is_online "$PM2_APP" || return 1
+  pm2_app_is_online "$RECORDER_PM2_APP" || return 1
   local attempt
   for attempt in $(seq 1 "$HEALTH_ATTEMPTS"); do
-    if health_reports_release "$expected"; then
+    if health_reports_release "$expected" && recorder_health_ok && recorder_cors_preflight_ok; then
       return 0
     fi
     sleep "$HEALTH_RETRY_DELAY"
@@ -184,9 +211,8 @@ verify_release() {
 }
 
 recover_services() {
-  log "Refreshing PM2 environment and restarting Nginx after an unsuccessful verification."
-  pm2 restart "$PM2_APP" --update-env >/dev/null 2>&1 || \
-    pm2 startOrReload "$APP_DIR/server/ecosystem.config.cjs" --update-env >/dev/null 2>&1 || true
+  log "Refreshing both PM2 services and restarting Nginx after an unsuccessful verification."
+  pm2 startOrReload "$APP_DIR/server/ecosystem.config.cjs" --update-env >/dev/null 2>&1 || true
   if nginx -t >/dev/null 2>&1; then
     systemctl restart nginx || true
   fi
@@ -198,7 +224,8 @@ deploy_checked_out_release() {
   while (( attempt <= UPDATE_ATTEMPTS )); do
     log "Deploy attempt ${attempt}/${UPDATE_ATTEMPTS} for ${expected}."
     if APP_DIR="$APP_DIR" BRANCH="$BRANCH" REPO_URL="$REPO_URL" ENV_FILE="$ENV_FILE" \
-      PM2_APP="$PM2_APP" HEALTH_ATTEMPTS="$HEALTH_ATTEMPTS" HEALTH_RETRY_DELAY="$HEALTH_RETRY_DELAY" \
+      PM2_APP="$PM2_APP" RECORDER_PM2_APP="$RECORDER_PM2_APP" \
+      HEALTH_ATTEMPTS="$HEALTH_ATTEMPTS" HEALTH_RETRY_DELAY="$HEALTH_RETRY_DELAY" \
       DEPLOY_SKIP_GIT_SYNC=1 DEPLOY_SKIP_AUTO_DEPLOY=1 bash "$DEPLOY_RUNNER" &&
       verify_release "$expected"; then
       return 0
@@ -226,6 +253,7 @@ BRANCH=${BRANCH}
 REPO_URL=${REPO_URL}
 ENV_FILE=${ENV_FILE}
 PM2_APP=${PM2_APP}
+RECORDER_PM2_APP=${RECORDER_PM2_APP}
 STATE_DIR=${STATE_DIR}
 LOCK_FILE=${LOCK_FILE}
 MARKER_FILE=${MARKER_FILE}
@@ -283,6 +311,8 @@ show_status() {
   fi
   printf '\nlocal API:\n'
   curl -fsS http://127.0.0.1:8788/version || true
+  printf '\nrecorder health:\n'
+  curl -fsS http://127.0.0.1:8789/healthz || true
   printf '\n'
   systemctl --no-pager status "${SERVICE_NAME}.timer" 2>/dev/null || true
 }
