@@ -7,4 +7,11 @@
     const names = await caches.keys().catch(() => []);
     await Promise.all(names.map(name => caches.delete(name)));
   }
+
+  if (/\/state\.html$/.test(location.pathname)) {
+    const script = document.createElement("script");
+    script.src = "/state-recorder-inspector.js";
+    script.async = true;
+    document.head.appendChild(script);
+  }
 })();
