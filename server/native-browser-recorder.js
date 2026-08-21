@@ -16,94 +16,115 @@ function normalizeUrl(value) {
   return parsed.href;
 }
 
-function targetRecorderScript() {
-  return `(() => {
-    if (window.__stateBlueprintNativeRecorderInstalled) return;
-    window.__stateBlueprintNativeRecorderInstalled = true;
-    const pendingInputs = new Map();
-    const specialKeys = new Set(${JSON.stringify(SPECIAL_KEYS)});
-    let scrollTimer = 0;
-    let scrollStartX = window.scrollX || 0;
-    let scrollStartY = window.scrollY || 0;
-    const textOf = node => String(node?.innerText || node?.textContent || node?.value || node?.getAttribute?.("aria-label") || node?.getAttribute?.("title") || node?.getAttribute?.("placeholder") || "").trim().replace(/\\s+/g, " ").slice(0, 160);
-    const cssEscape = value => window.CSS?.escape ? window.CSS.escape(value) : String(value).replace(/[^a-zA-Z0-9_-]/g, m => "\\\\" + m);
-    const selectorFor = el => {
-      if (!el || el === document || el === window) return "";
-      if (el.id) return "#" + cssEscape(el.id);
-      const name = el.getAttribute?.("name");
-      if (name) return el.tagName.toLowerCase() + "[name=\"" + String(name).replace(/\"/g, "\\\\\"") + "\"]";
-      const testId = el.getAttribute?.("data-testid") || el.getAttribute?.("data-test") || el.getAttribute?.("data-id");
-      if (testId) return "[data-testid=\"" + String(testId).replace(/\"/g, "\\\\\"") + "\"]";
-      const parts = [];
-      for (let node = el; node && node.nodeType === 1 && parts.length < 4; node = node.parentElement) {
-        const tag = node.tagName.toLowerCase();
-        const parent = node.parentElement;
-        if (!parent) { parts.unshift(tag); break; }
-        const siblings = [...parent.children].filter(child => child.tagName === node.tagName);
-        const index = siblings.indexOf(node) + 1;
-        parts.unshift(siblings.length > 1 ? tag + ":nth-of-type(" + index + ")" : tag);
-      }
-      return parts.join(" > ");
-    };
-    const targetInfo = el => ({
-      selector: selectorFor(el),
-      id: String(el?.id || ""),
-      name: String(el?.getAttribute?.("name") || ""),
-      label: textOf(el?.closest?.("label") || el),
-      tag: String(el?.tagName || "").toLowerCase(),
-      inputType: String(el?.type || "").toLowerCase()
+function installTargetRecorder(specialKeyList) {
+  if (window.__stateBlueprintNativeRecorderInstalled) return;
+  window.__stateBlueprintNativeRecorderInstalled = true;
+  const specialKeys = new Set(specialKeyList || []);
+  let scrollTimer = 0;
+  let scrollStartX = window.scrollX || 0;
+  let scrollStartY = window.scrollY || 0;
+
+  const textOf = node => String(
+    node?.innerText || node?.textContent || node?.value ||
+    node?.getAttribute?.("aria-label") || node?.getAttribute?.("title") ||
+    node?.getAttribute?.("placeholder") || ""
+  ).trim().replace(/\s+/g, " ").slice(0, 160);
+
+  const cssEscape = value => window.CSS?.escape
+    ? window.CSS.escape(value)
+    : String(value).replace(/[^a-zA-Z0-9_-]/g, char => `\\${char}`);
+
+  const quoted = value => String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  const selectorFor = el => {
+    if (!el || el === document || el === window) return "";
+    if (el.id) return `#${cssEscape(el.id)}`;
+    const name = el.getAttribute?.("name");
+    if (name) return `${el.tagName.toLowerCase()}[name="${quoted(name)}"]`;
+    for (const attr of ["data-testid", "data-test", "data-id"]) {
+      const value = el.getAttribute?.(attr);
+      if (value) return `[${attr}="${quoted(value)}"]`;
+    }
+    const parts = [];
+    for (let node = el; node && node.nodeType === 1 && parts.length < 4; node = node.parentElement) {
+      const tag = node.tagName.toLowerCase();
+      const parent = node.parentElement;
+      if (!parent) { parts.unshift(tag); break; }
+      const siblings = [...parent.children].filter(child => child.tagName === node.tagName);
+      const index = siblings.indexOf(node) + 1;
+      parts.unshift(siblings.length > 1 ? `${tag}:nth-of-type(${index})` : tag);
+    }
+    return parts.join(" > ");
+  };
+
+  const targetInfo = el => ({
+    selector: selectorFor(el),
+    id: String(el?.id || ""),
+    name: String(el?.getAttribute?.("name") || ""),
+    label: textOf(el?.closest?.("label") || el),
+    tag: String(el?.tagName || "").toLowerCase(),
+    inputType: String(el?.type || "").toLowerCase()
+  });
+
+  const send = payload => {
+    try {
+      const bridge = window.__stateBlueprintRecord;
+      if (typeof bridge === "function") Promise.resolve(bridge(payload)).catch(() => {});
+    } catch (_) {}
+  };
+
+  const sendInput = el => {
+    const target = targetInfo(el);
+    const redacted = target.inputType === "password";
+    const booleanInput = target.inputType === "checkbox" || target.inputType === "radio";
+    send({
+      type: "input",
+      selector: target.selector,
+      target,
+      value: redacted || booleanInput ? undefined : String(el.value ?? ""),
+      checked: booleanInput ? Boolean(el.checked) : undefined,
+      redacted
     });
-    const send = payload => { try { window.__stateBlueprintRecord?.(payload); } catch (_) {} };
-    const sendInput = el => {
-      const target = targetInfo(el);
-      const redacted = target.inputType === "password";
-      const booleanInput = target.inputType === "checkbox" || target.inputType === "radio";
-      send({
-        type: "input",
-        selector: target.selector,
-        target,
-        value: redacted || booleanInput ? undefined : String(el.value ?? ""),
-        checked: booleanInput ? Boolean(el.checked) : undefined,
-        redacted
-      });
-    };
-    const scheduleInput = el => {
-      const key = selectorFor(el) || Math.random().toString(36);
-      clearTimeout(pendingInputs.get(key));
-      pendingInputs.set(key, setTimeout(() => { pendingInputs.delete(key); sendInput(el); }, 220));
-    };
-    document.addEventListener("click", event => {
-      const el = event.target?.closest?.("button,a,input,textarea,select,[role=button],[data-id],[data-testid]") || event.target;
-      send({ type: "click", x: Math.round(event.clientX), y: Math.round(event.clientY), selector: selectorFor(el), target: targetInfo(el) });
-    }, true);
-    document.addEventListener("input", event => {
-      const el = event.target;
-      if (!el || !["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName)) return;
-      const type = String(el.type || "").toLowerCase();
-      if (type === "checkbox" || type === "radio") return;
-      scheduleInput(el);
-    }, true);
-    document.addEventListener("change", event => {
-      const el = event.target;
-      if (el && ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName)) sendInput(el);
-    }, true);
-    document.addEventListener("keydown", event => {
-      if (!specialKeys.has(event.key)) return;
-      send({ type: "key", key: event.key, selector: selectorFor(event.target), target: targetInfo(event.target) });
-    }, true);
-    window.addEventListener("scroll", () => {
-      clearTimeout(scrollTimer);
-      scrollTimer = setTimeout(() => {
-        const nextX = window.scrollX || 0;
-        const nextY = window.scrollY || 0;
-        const deltaX = Math.round(nextX - scrollStartX);
-        const deltaY = Math.round(nextY - scrollStartY);
-        scrollStartX = nextX;
-        scrollStartY = nextY;
-        if (deltaX || deltaY) send({ type: "scroll", deltaX, deltaY });
-      }, 180);
-    }, true);
-  })();`;
+  };
+
+  document.addEventListener("click", event => {
+    const el = event.target?.closest?.("button,a,input,textarea,select,[role=button],[data-id],[data-testid],[data-test]") || event.target;
+    send({ type: "click", x: Math.round(event.clientX), y: Math.round(event.clientY), selector: selectorFor(el), target: targetInfo(el) });
+  }, true);
+
+  document.addEventListener("input", event => {
+    const el = event.target;
+    if (!el || !["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName)) return;
+    const type = String(el.type || "").toLowerCase();
+    if (type === "checkbox" || type === "radio") return;
+    sendInput(el);
+  }, true);
+
+  document.addEventListener("change", event => {
+    const el = event.target;
+    if (el && ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName)) sendInput(el);
+  }, true);
+
+  document.addEventListener("keydown", event => {
+    if (!specialKeys.has(event.key)) return;
+    send({ type: "key", key: event.key, selector: selectorFor(event.target), target: targetInfo(event.target) });
+  }, true);
+
+  window.addEventListener("scroll", () => {
+    clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(() => {
+      const nextX = window.scrollX || 0;
+      const nextY = window.scrollY || 0;
+      const deltaX = Math.round(nextX - scrollStartX);
+      const deltaY = Math.round(nextY - scrollStartY);
+      scrollStartX = nextX;
+      scrollStartY = nextY;
+      if (deltaX || deltaY) send({ type: "scroll", deltaX, deltaY });
+    }, 120);
+  }, true);
+}
+
+function targetRecorderScript() {
+  return `(${installTargetRecorder.toString()})(${JSON.stringify(SPECIAL_KEYS)});`;
 }
 
 function createRecording(startUrl, viewport = DEFAULT_VIEWPORT) {
@@ -153,9 +174,10 @@ async function runNativeBrowserRecorder(options = {}) {
       await screenshotSnapshot(source.page, recording, action.atMs).catch(() => {});
     });
   });
-  await context.addInitScript(targetRecorderScript());
+  await context.addInitScript(installTargetRecorder, SPECIAL_KEYS);
   const page = await context.newPage();
   await page.goto(startUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+  await page.evaluate(installTargetRecorder, SPECIAL_KEYS);
   await page.waitForTimeout(300);
   await screenshotSnapshot(page, recording, 0);
 
@@ -204,4 +226,4 @@ async function main() {
 
 if (require.main === module) main().catch(error => { console.error(error.stack || error.message || error); process.exit(1); });
 
-module.exports = { createRecording, normalizeAction, normalizeUrl, runNativeBrowserRecorder, targetRecorderScript };
+module.exports = { createRecording, installTargetRecorder, normalizeAction, normalizeUrl, runNativeBrowserRecorder, targetRecorderScript };
