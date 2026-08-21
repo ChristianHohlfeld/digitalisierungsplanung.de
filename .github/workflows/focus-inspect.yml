@@ -1,0 +1,28 @@
+name: Focus inspect
+
+on:
+  push:
+    branches:
+      - focus/minimal-presets
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect focused preset touch points
+        shell: bash
+        run: |
+          set -euxo pipefail
+          echo '--- input renderer matches ---'
+          grep -n -C 12 'variant === "input"' state.html || true
+          echo '--- state.title matches ---'
+          grep -n -C 5 'state\.title' state.html | head -n 240 || true
+          echo '--- title editor candidates ---'
+          grep -n -E -C 5 'state.*title|title.*state|State.*Titel|Titel.*State' state.html | head -n 320 || true
+          echo '--- preset UI candidates ---'
+          grep -n -E -C 4 'preset|Preset' state.html | head -n 240 || true
