@@ -14,6 +14,7 @@ test("external URL recorder is exposed from the editor host", () => {
   assert.match(host, /URL aufnehmen/);
   assert.match(host, /location\.href = "\/recorder\.html"/);
   assert.doesNotMatch(read("disable-sw.js"), /btnRecordUrl/);
+  assert.doesNotMatch(read("disable-sw.js"), /btnRecordUrl/);
 });
 
 test("external recorder UI uses isolated realtime browser API and canonical editor storage", () => {
