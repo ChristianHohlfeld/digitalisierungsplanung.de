@@ -190,11 +190,7 @@ function builtinStateTemplates(libraryValue) {
 }
 
 function presetCatalogResponse(libraryValue) {
-  const sourceCatalog = base.presetCatalogResponse(libraryValue);
-  const managed = sourceCatalog
-    .filter(preset => preset.builtIn === false)
-    .map(cloneJson);
-  return [...focusedCatalog(libraryValue), ...managed];
+  return focusedCatalog(libraryValue);
 }
 
 function contractPresetCatalogResponse(libraryValue) {
