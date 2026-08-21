@@ -2,6 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
 const recorder = require("./external-recorder");
 const stateCore = require("../mcp/state-blueprint-core");
 
@@ -81,4 +82,14 @@ test("recorder UI exposes external click, keyboard, scroll, finish, import and l
   assert.match(html, /STATE_BLUEPRINT_EXTERNAL_RECORDING_RESULT/);
   assert.match(html, /Original-Website automatisch replayen/);
   assert.match(html, /Passwortwerte werden nie gespeichert/);
+});
+
+test("public recorder exports real replay actions and imports them beside the state model", () => {
+  const html = fs.readFileSync("recorder.html", "utf8");
+  assert.match(html, /Play echter Replay/);
+  assert.match(html, /Pause\/Stop Replay/);
+  assert.match(html, /Export Replay/);
+  assert.match(html, /state-blueprint-recording-package/);
+  assert.match(html, /\.externalRecording/);
+  assert.match(html, /States \+ Replay in Zustand öffnen/);
 });
