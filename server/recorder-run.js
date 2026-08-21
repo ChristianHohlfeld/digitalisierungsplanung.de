@@ -1,5 +1,6 @@
 "use strict";
 
+const dns = require("node:dns");
 const http = require("node:http");
 const { URL } = require("node:url");
 const externalRecorder = require("./external-recorder");
@@ -19,6 +20,63 @@ function envAllowedOrigins() {
     .split(",")
     .map(value => value.trim())
     .filter(Boolean);
+}
+
+function normalizeHost(value) {
+  return String(value || "").trim().toLowerCase().replace(/\.$/, "");
+}
+
+function parseHostAliases(value = process.env.RECORDER_HOST_ALIASES || "") {
+  const aliases = new Map();
+  for (const item of String(value || "").split(/[\s,]+/)) {
+    const clean = item.trim();
+    if (!clean) continue;
+    const separator = clean.includes("=") ? "=" : clean.includes(":") ? ":" : "";
+    if (!separator) continue;
+    const [rawHost, rawAddress] = clean.split(separator, 2);
+    const host = normalizeHost(rawHost);
+    const address = String(rawAddress || "").trim();
+    if (!host || !address) continue;
+    aliases.set(host, address);
+  }
+  return aliases;
+}
+
+function hostResolverRulesFromAliases(aliases, extraRules = process.env.RECORDER_CHROMIUM_HOST_RESOLVER_RULES || "") {
+  const mapped = [...aliases]
+    .map(([host, address]) => `MAP ${host} ${address}`);
+  const extra = String(extraRules || "")
+    .split(",")
+    .map(rule => rule.trim())
+    .filter(Boolean);
+  return [...mapped, ...extra].join(",");
+}
+
+function createAliasLookup(aliases, fallbackLookup = dns.promises.lookup.bind(dns.promises)) {
+  return async function aliasLookup(hostname, options = {}) {
+    const host = normalizeHost(hostname);
+    const address = aliases.get(host);
+    if (address) {
+      const family = address.includes(":") ? 6 : 4;
+      if (options && options.all) return [{ address, family }];
+      return { address, family };
+    }
+    return fallbackLookup(hostname, options);
+  };
+}
+
+function createDefaultRecorderManager() {
+  const hostAliases = parseHostAliases();
+  const hostResolverRules = hostResolverRulesFromAliases(hostAliases);
+  return externalRecorder.createRecorderManager({
+    lookup: createAliasLookup(hostAliases),
+    launchBrowser: async () => {
+      const { chromium } = require("playwright");
+      const args = ["--disable-dev-shm-usage"];
+      if (hostResolverRules) args.push(`--host-resolver-rules=${hostResolverRules}`);
+      return chromium.launch({ headless: true, args });
+    }
+  });
 }
 
 function appendVary(response, value) {
@@ -49,7 +107,7 @@ function createRecorderServer(options = {}) {
   const publicBaseUrl = options.publicBaseUrl || process.env.RECORDER_PUBLIC_BASE_URL || DEFAULT_PUBLIC_BASE_URL;
   const allowedOrigins = Array.isArray(options.allowedOrigins) ? options.allowedOrigins : envAllowedOrigins();
   const allowedOriginSet = new Set(allowedOrigins);
-  const manager = options.manager || externalRecorder.createRecorderManager();
+  const manager = options.manager || createDefaultRecorderManager();
 
   const server = http.createServer((request, response) => {
     const url = new URL(request.url || "/", "http://localhost");
@@ -125,6 +183,10 @@ if (require.main === module) {
 module.exports = {
   CORS_HEADERS,
   CORS_METHODS,
+  createAliasLookup,
+  createDefaultRecorderManager,
   createRecorderServer,
+  hostResolverRulesFromAliases,
+  parseHostAliases,
   startRecorderServer
 };

@@ -60,6 +60,9 @@ module.exports = {
         RECORDER_PORT: "8789",
         RECORDER_PUBLIC_BASE_URL: "https://realtime.digitalisierungsplanung.de",
         RECORDER_ALLOWED_ORIGINS: "https://digitalisierungsplanung.de,https://www.digitalisierungsplanung.de",
+        RECORDER_ALLOWED_PRIVATE_HOSTS: process.env.RECORDER_ALLOWED_PRIVATE_HOSTS || "wobak.de,.wobak.de",
+        RECORDER_HOST_ALIASES: process.env.RECORDER_HOST_ALIASES || "",
+        RECORDER_CHROMIUM_HOST_RESOLVER_RULES: process.env.RECORDER_CHROMIUM_HOST_RESOLVER_RULES || "",
         PLAYWRIGHT_BROWSERS_PATH: playwrightBrowsersPath
       }
     }

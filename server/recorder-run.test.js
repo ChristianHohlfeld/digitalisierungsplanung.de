@@ -3,7 +3,12 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const http = require("node:http");
-const { createRecorderServer } = require("./recorder-run");
+const {
+  createAliasLookup,
+  createRecorderServer,
+  hostResolverRulesFromAliases,
+  parseHostAliases
+} = require("./recorder-run");
 
 const APP_ORIGIN = "https://digitalisierungsplanung.de";
 
@@ -88,4 +93,26 @@ test("recorder API rejects untrusted CORS origins", async t => {
   assert.equal(response.statusCode, 403);
   assert.equal(response.headers["access-control-allow-origin"], undefined);
   assert.deepEqual(JSON.parse(body), { error: "origin_not_allowed" });
+});
+
+test("recorder maps approved intranet host aliases for Node DNS and Chromium", async () => {
+  const aliases = parseHostAliases("aida.wobak.de=10.42.0.15 wob-app15.wobak.de:10.42.0.16");
+  assert.deepEqual([...aliases], [
+    ["aida.wobak.de", "10.42.0.15"],
+    ["wob-app15.wobak.de", "10.42.0.16"]
+  ]);
+  assert.equal(
+    hostResolverRulesFromAliases(aliases, "MAP extra.wobak.de 10.42.0.17"),
+    "MAP aida.wobak.de 10.42.0.15,MAP wob-app15.wobak.de 10.42.0.16,MAP extra.wobak.de 10.42.0.17"
+  );
+
+  const fallbackCalls = [];
+  const lookup = createAliasLookup(aliases, async (hostname, options) => {
+    fallbackCalls.push([hostname, options]);
+    return [{ address: "93.184.216.34", family: 4 }];
+  });
+
+  assert.deepEqual(await lookup("aida.wobak.de", { all: true }), [{ address: "10.42.0.15", family: 4 }]);
+  assert.deepEqual(await lookup("example.com", { all: true }), [{ address: "93.184.216.34", family: 4 }]);
+  assert.equal(fallbackCalls.length, 1);
 });

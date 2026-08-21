@@ -190,17 +190,24 @@ function builtinStateTemplates(libraryValue) {
 }
 
 function presetCatalogResponse(libraryValue) {
-  const sourceCatalog = base.presetCatalogResponse(libraryValue);
-  const managed = sourceCatalog
-    .filter(preset => preset.builtIn === false)
-    .map(cloneJson);
-  return [...focusedCatalog(libraryValue), ...managed];
+  return focusedCatalog(libraryValue);
 }
 
 function contractPresetCatalogResponse(libraryValue) {
   const focused = presetCatalogResponse(libraryValue).map(cloneJson);
   const byId = new Map(focused.map(preset => [preset.id, preset]));
   const sourceCatalog = base.presetCatalogResponse(libraryValue);
+
+  for (const source of sourceCatalog.filter(preset => preset.builtIn === false)) {
+    if (byId.has(source.id)) continue;
+    const preset = cloneJson(source);
+    delete preset.hidden;
+    delete preset.legacy;
+    preset.managedOnly = true;
+    byId.set(preset.id, preset);
+    focused.push(preset);
+  }
+
   for (const id of CONTRACT_ONLY_PRESET_IDS) {
     if (byId.has(id)) continue;
     const source = sourceCatalog.find(preset => preset.id === id);
