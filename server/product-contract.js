@@ -171,7 +171,7 @@ function productContractResponse(configOrCatalog) {
     presetCategories: presetCatalog.presetCategoriesResponse(library),
     presetPackages: presetCatalog.presetPackagesResponse(library),
     subscriptionPlans: presetCatalog.subscriptionPlansResponse(library),
-    presets: presetCatalog.presetCatalogResponse(library),
+    presets: presetCatalog.contractPresetCatalogResponse(library),
     stateContributions: stateContributionsForCatalog(catalog)
   };
 }

@@ -21,8 +21,11 @@ test("external recorder UI uses isolated realtime browser API and canonical edit
   assert.match(html, /https:\/\/realtime\.digitalisierungsplanung\.de/);
   assert.match(html, /\/recorder\/sessions/);
   assert.match(html, /stateBlueprintHotLinked\.model\.v2/);
-  assert.match(html, /Original-Website automatisch replayen/);
-  assert.match(html, /Timings als Timer-Transitionen/);
+  assert.match(html, /Play echter Replay/);
+  assert.match(html, /Pause\/Stop Replay/);
+  assert.match(html, /Export Replay/);
+  assert.match(html, /freigegebene Intranet-URL/);
+  assert.match(html, /echte States, echte Actions, echte Timings/);
 });
 
 test("production runs recorder separately with declared browser runtime and health checks", () => {
@@ -37,7 +40,9 @@ test("production runs recorder separately with declared browser runtime and heal
   assert.match(nginx, /127\.0\.0\.1:8789/);
   assert.equal(packageJson.dependencies.playwright, "1.60.0");
   assert.doesNotMatch(deploy, /npm install --no-save.*playwright/);
-  assert.match(deploy, /playwright install --with-deps chromium/);
+  assert.doesNotMatch(deploy, /npx\s+playwright/);
+  assert.match(deploy, /node \.\/node_modules\/playwright\/cli\.js install --with-deps chromium/);
+  assert.match(deploy, /RECORDER_CHROMIUM/);
   assert.match(deploy, /8789\/healthz/);
 });
 

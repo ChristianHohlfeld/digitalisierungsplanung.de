@@ -3,11 +3,6 @@
 const base = require("./preset-catalog-base");
 const valueTypes = require("./value-types");
 
-// Legacy compatibility sources remain in preset-catalog-base.js, including
-// title: "Inhaltsliste", title: "Titelbereich mit Bild rechts", and title: "Aktionsbutton".
-// They are hidden from the focused built-in surface below, not duplicated here.
-const LEGACY_CATEGORY_ID = "__legacy_hidden__";
-
 const FOCUSED_PRESET_IDS = Object.freeze([
   "builtin_daisy_dropdown",
   "builtin_daisy_button",
@@ -22,6 +17,12 @@ const FOCUSED_PRESET_IDS = Object.freeze([
   "builtin_media_image",
   "builtin_daisy_date",
   "builtin_daisy_radio"
+]);
+
+const CONTRACT_ONLY_PRESET_IDS = Object.freeze([
+  "builtin_daisy_bi_kpi_board",
+  "builtin_daisy_export_image_asset",
+  "builtin_daisy_stripe_pricing"
 ]);
 
 const FOCUSED_SPECS = Object.freeze([
@@ -148,8 +149,8 @@ function focusedPresetFrom(source, spec) {
   preset.rootStateId = targetRootId;
   preset.title = spec.title;
   preset.categoryId = "websuite-builder";
-  preset.hidden = false;
-  preset.legacy = false;
+  delete preset.hidden;
+  delete preset.legacy;
 
   if (spec.data) preset.data = cloneJson(spec.data);
   if (spec.dataTypes) preset.dataTypes = cloneJson(spec.dataTypes);
@@ -189,38 +190,41 @@ function builtinStateTemplates(libraryValue) {
 }
 
 function presetCatalogResponse(libraryValue) {
-  const focused = focusedCatalog(libraryValue);
-  const focusedIds = new Set(FOCUSED_PRESET_IDS);
-  const consumedSourceIds = new Set(FOCUSED_SPECS.map(spec => spec.sourceId));
   const sourceCatalog = base.presetCatalogResponse(libraryValue);
-
-  // The focused surface applies only to shipped built-ins. Managed/customer
-  // presets remain first-class catalog entries and must keep their category.
   const managed = sourceCatalog
     .filter(preset => preset.builtIn === false)
     .map(cloneJson);
+  return [...focusedCatalog(libraryValue), ...managed];
+}
 
-  const legacy = sourceCatalog
-    .filter(preset => preset.builtIn !== false)
-    .filter(preset => !focusedIds.has(preset.id) && !consumedSourceIds.has(preset.id))
-    .map(preset => ({
-      ...cloneJson(preset),
-      hidden: true,
-      legacy: true,
-      categoryId: LEGACY_CATEGORY_ID
-    }));
-  return [...focused, ...managed, ...legacy];
+function contractPresetCatalogResponse(libraryValue) {
+  const focused = presetCatalogResponse(libraryValue).map(cloneJson);
+  const byId = new Map(focused.map(preset => [preset.id, preset]));
+  const sourceCatalog = base.presetCatalogResponse(libraryValue);
+  for (const id of CONTRACT_ONLY_PRESET_IDS) {
+    if (byId.has(id)) continue;
+    const source = sourceCatalog.find(preset => preset.id === id);
+    if (!source) continue;
+    const preset = cloneJson(source);
+    delete preset.hidden;
+    delete preset.legacy;
+    preset.contractOnly = true;
+    byId.set(preset.id, preset);
+    focused.push(preset);
+  }
+  return focused;
 }
 
 function visiblePresetCatalogResponse(libraryValue) {
-  return presetCatalogResponse(libraryValue).filter(preset => preset.hidden !== true);
+  return presetCatalogResponse(libraryValue);
 }
 
 module.exports = {
   ...base,
   FOCUSED_PRESET_IDS,
-  LEGACY_CATEGORY_ID,
+  CONTRACT_ONLY_PRESET_IDS,
   builtinStateTemplates,
   presetCatalogResponse,
+  contractPresetCatalogResponse,
   visiblePresetCatalogResponse
 };
