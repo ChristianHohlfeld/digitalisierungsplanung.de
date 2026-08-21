@@ -1,0 +1,2163 @@
+
+===== state.html :: runtimeRecorderControls @ 228839 =====
+.svg\">\n  <link rel=\"apple-touch-icon\" href=\"/assets/apple-touch-icon.png\">\n  <meta property=\"og:type\" content=\"website\">\n  <meta property=\"og:url\" content=\"https://digitalisierungsplanung.de/\">\n  <meta property=\"og:title\" content=\"Digitalisierungsplanung\">\n  <meta property=\"og:description\" content=\"Zustand macht Business-Prozesse als globales JSON-Zustandsmodell sichtbar, testbar und exportierbar.\">\n  <meta property=\"og:image\" content=\"https://digitalisierungsplanung.de/assets/share-card.png\">\n  <meta name=\"twitter:card\" content=\"summary_large_image\">\n  <meta name=\"twitter:title\" content=\"Digitalisierungsplanung\">\n  <meta name=\"twitter:description\" content=\"Zustand macht Business-Prozesse als globales JSON-Zustandsmodell sichtbar, testbar und exportierbar.\">\n  <meta name=\"twitter:image\" content=\"https://digitalisierungsplanung.de/assets/share-card.png\">\n  <script defer src=\"/disable-sw.js\"><\/script>\n</head>\n<body data-theme=\"night\">\n  <main class=\"app\">\n    <div class=\"top\">\n      <div class=\"title\" id=\"appName\">Generierte App</div>\n      <div class=\"top-actions\">\n        <div class=\"runtime-recorder\" id=\"runtimeRecorderControls\">\n          <button class=\"runtime-recorder-button\" id=\"runtimeRecordButton\" type=\"button\">Aufnehmen</button>\n          <button class=\"runtime-recorder-button runtime-replay-button\" id=\"runtimeReplayPlayButton\" type=\"button\" disabled hidden>Play</button>\n          <button class=\"runtime-recorder-button runtime-replay-button\" id=\"runtimeReplayStopButton\" type=\"button\" disabled hidden>Stop</button>\n          <button class=\"runtime-recorder-button runtime-replay-button\" id=\"runtimeReplayLoopButton\" type=\"button\" disabled hidden aria-pressed=\"false\">Loop</button>\n          <button class=\"runtime-recorder-button runtime-replay-button\" id=\"runtimeReplayExportButton\" type=\"button\" disabled hidden>Export</button>\n          <span class=\"runtime-record-status\" id=\"runtimeRecordStatus\" hidden>0/0</span>\n        </div>\n        <div class=\"state-pill\" id=\"statePill\"></div>\n      </div>\n    </div>\n    <section class=\"screen\" id=\"screen\"></section>\n  </main>\n\n  <script>\n    const DATA_WIRE_ROLES = [\"image\", \"title\", \"price\", \"description\", \"field\", \"link\", \"note\"];\n\n    const IS_STANDALONE_EXPORT = false;\n    let model = blankModel();\n    let current = model.initial;\n    let context = defaultContext(model);\n    let logLines = [];\n    let transitionToNotify = null;\n    let blockedTransitionId = null;\n    let runtimeValidation = null;\n    let suppressNextFocus = false;\n    let pendingRuntimeFocusPath = \"\";\n    let suppressActionUntil = 0;\n    let stateActivationId = 0;\n    let lastRenderedStateId = \"\";\n    let renderContextScopes = [];\n    const shownToastKeys = new Set();\n    const daisyCountdownTimers = new Map();\n\n    const RUNTIME_SESSION_FRAGMENT_KEY = \"state-blueprint-session\";\n    const RUNTIME_SESSION_ID = new URLSearchParams(location.hash.slice(1)).get(RUNTIME_SESSION_FRAGMENT_KEY) || \"\";\n    const RUNTIME_HOST_ORIGIN = location.origin;\n    const RUNTIME_HOST_WINDOW = RUNTIME_SESSION_ID && /^[a-f0-9]{32}$/.test(RUNTIME_SESSION_ID)\n      ? (window.parent && window.parent !== window ? window.parent : null)\n      : null;\n    let runtimeHostModelSyncId = \"\";\n\n    function hasHostWindow() {\n      return Boolean(!IS_STANDALONE_EXPORT && RUNTIME_HOST_WINDOW && RUNTIME_HOST_ORIGIN && RUNTIME_HOST_ORIGIN !== \"null\");\n    }\n\n    function runtimeAcceptsHostMessage(evt, data) {\n      return Boolean(\n        hasHostWindow() &&\n        evt.source === RUNTIME_HOST_WINDOW &&\n        evt.origin === RUNTIME_HOST_ORIGIN &&\n        data &
+
+===== state.html :: runtimeRecorderControls @ 321528 =====
+   return \"\";\n    }\n\n\n    function runtimeRecorderDecorateScreenClone(clone, screen, detail = {}) {\n      const kind = String(detail.kind || detail.eventKind || \"\");\n      const label = runtimeRecorderMarkerLabel(kind, detail);\n      if (!clone || !label) return;\n      const marker = document.createElement(\"div\");\n      marker.className = \"runtime-record-marker \" + kind;\n      marker.textContent = label;\n      const screenWidth = Math.max(0, Math.round(Number(screen?.clientWidth || clone?.clientWidth || 0)));\n      const defaultX = kind === \"transition\" || kind === \"event\" ? Math.max(18, screenWidth - 240) : 18;\n      const x = Number.isFinite(Number(detail.screenX)) ? Number(detail.screenX) : defaultX;\n      const y = Number.isFinite(Number(detail.screenY)) ? Number(detail.screenY) : 18;\n      marker.style.left = Math.max(8, Math.round(x)) + \"px\";\n      marker.style.top = Math.max(8, Math.round(y)) + \"px\";\n      clone.appendChild(marker);\n    }\n\n    function runtimeRecorderCapturePointerEvent(evt) {\n      if (!runtimeRecording.active || runtimeRecording.playing || runtimeRecording.mode !== \"live\") return;\n      if (evt?.target?.closest?.(\"#runtimeRecorderControls\")) return;\n      const point = runtimeRecorderScreenPoint(evt.clientX, evt.clientY);\n      runtimeRecorderCaptureFrame(\"click\", {\n        ...point,\n        source: \"pointer\",\n        pointerType: String(evt.pointerType || \"pointer\"),\n        targetLabel: runtimeRecorderTargetLabel(evt.target)\n      });\n    }\n\n    function runtimeRecorderCaptureScrollEvent() {\n      if (!runtimeRecording.active || runtimeRecording.playing || runtimeRecording.mode !== \"live\") return;\n      runtimeRecorderClearScrollTimer();\n      runtimeRecording.scrollTimer = setTimeout(() => {\n        runtimeRecording.scrollTimer = 0;\n        if (!runtimeRecording.active || runtimeRecording.playing || runtimeRecording.mode !== \"live\") return;\n        const scrollRoot = document.scrollingElement || document.documentElement || document.body;\n        const screen = document.getElementById(\"screen\");\n        runtimeRecorderCaptureFrame(\"scroll\", {\n          source: \"scroll\",\n          scrollX: Math.max(0, Math.round(window.scrollX || scrollRoot?.scrollLeft || 0)),\n          scrollY: Math.max(0, Math.round(window.scrollY || scrollRoot?.scrollTop || 0)),\n          screenScrollTop: Math.max(0, Math.round(screen?.scrollTop || 0)),\n          screenScrollLeft: Math.max(0, Math.round(screen?.scrollLeft || 0)),\n          screenX: 18,\n          screenY: 18\n        });\n      }, 140);\n    }\n\n    function runtimeRecorderSerializeControl(source, clone) {\n      if (!source || !clone) return;\n      const tag = String(source.tagName || \"\").toLowerCase();\n      if (tag === \"textarea\") {\n        clone.textContent = source.value;\n        clone.setAttribute(\"data-recorded-value\", source.value);\n        return;\n      }\n      if (tag === \"select\") {\n        const sourceOptions = Array.from(source.options || []);\n        Array.from(clone.options || []).forEach((option, optionIndex) => {\n          if (sourceOptions[optionIndex]?.selected) option.setAttribute(\"selected\", \"\");\n          else option.removeAttribute(\"selected\");\n        });\n        clone.setAttribute(\"data-recorded-value\", source.value);\n        return;\n      }\n      if (tag === \"input\") {\n        clone.setAttribute(\"value\", source.value);\n        if (source.checked) clone.setAttribute(\"checked\", \"\");\n        else clone.removeAttribute(\"checked\");\n      }\n    }\n\n    function runtimeRecorderSerializeScreen(detail = {}) {\n      const screen = document.getElementById(\"screen\");\n      if (!screen) return { className: \"screen\", html
+
+===== state.html :: runtimeRecorderControls @ 326910 =====
+(scrollX, scrollY);\n        const screen = document.getElementById(\"screen\");\n        if (screen) {\n          screen.scrollLeft = Math.max(0, Math.round(Number(screenSnapshot.screenScrollLeft) || 0));\n          screen.scrollTop = Math.max(0, Math.round(Number(screenSnapshot.screenScrollTop) || 0));\n        }\n      });\n    }\n\n    function runtimeRecorderRenderStoredFrame(frame) {\n      clearDaisyCountdownTimers();\n      syncRuntimeAppName();\n      const statePill = document.getElementById(\"statePill\");\n      if (statePill) statePill.textContent = String(frame?.current || \"\");\n      const screen = document.getElementById(\"screen\");\n      if (screen) {\n        const screenSnapshot = isPlainDataObject(frame?.screen) ? frame.screen : null;\n        screen.className = String(screenSnapshot?.className || \"screen\");\n        screen.dataset.replayFrame = \"true\";\n        screen.innerHTML = String(screenSnapshot?.html || \"\");\n        screen.querySelectorAll(\"input, textarea, select, button, a[href]\").forEach(el => { el.tabIndex = -1; });\n        runtimeRecorderRestoreScroll(screenSnapshot || {});\n      }\n      runtimeRecorderNotifyFrame(frame);\n      syncRuntimeRecorderControls();\n    }\n\n    function runtimeRecorderNotifyFrame(frame) {\n      if (!frame) return false;\n      const frameContext = isPlainDataObject(frame.context) ? runtimeRecorderClone(frame.context) : runtimeRecorderClone(context);\n      return postHostMessage({\n        type: \"STATE_BLUEPRINT_RUNTIME_STATE\",\n        replay: true,\n        current: String(frame.current || \"\"),\n        syncId: runtimeHostModelSyncId,\n        paused: frameContext?.runtime?.paused === true,\n        transitionId: String(frame.transitionId || \"\") || null,\n        from: String(frame.detail?.from || \"\") || null,\n        to: String(frame.current || \"\") || null,\n        label: String(frame.label || \"\") || null,\n        frameIndex: Number(frame.index || 0),\n        frameCount: runtimeRecording.frames.length,\n        context: frameContext\n      });\n    }\n\n    function runtimeRecorderFrameDetail(kind, detail = {}) {\n      const transition = detail.transition || null;\n      const rawDetail = isPlainDataObject(detail.detail) ? detail.detail : null;\n      const summary = {\n        eventName: normalizeTransitionEvent(detail.eventName || detail.triggerEvent || rawDetail?.eventName || \"\"),\n        path: String(detail.path || rawDetail?.path || \"\"),\n        source: String(detail.source || rawDetail?.source || \"\"),\n        value: runtimeRecorderClone(detail.value !== undefined ? detail.value : rawDetail?.value)\n      };\n      [\"screenX\", \"screenY\", \"scrollX\", \"scrollY\", \"screenScrollTop\", \"screenScrollLeft\"].forEach(key => {\n        const value = Number(detail[key] ?? rawDetail?.[key]);\n        if (Number.isFinite(value)) summary[key] = Math.max(0, Math.round(value));\n      });\n      [\"targetLabel\", \"pointerType\"].forEach(key => {\n        const value = String(detail[key] ?? rawDetail?.[key] ?? \"\").trim();\n        if (value) summary[key] = value;\n      });\n      if (transition) {\n        summary.transitionId = String(transition.id || \"\");\n        summary.transitionLabel = runtimeTransitionLabel(transition);\n        summary.from = String(transition.from || \"\");\n        summary.to = String(detail.to || transition.to || \"\");\n      } else {\n        summary.transitionId = String(detail.transitionId || rawDetail?.transitionId || \"\");\n      }\n      Object.keys(summary).forEach(key => {\n        if (summary[key] === undefined || summary[key] === \"\") delete summary[key];\n      });\n      return summary;\n    }\n\n    function runtimeRecorderFrameSummary(frame) {\n      return {\n        index: fr
+
+===== state.html :: runtimeRecorderControls @ 356236 =====
+n        current: String(current || readValueAtPath(context, \"state.current\") || \"\"),\n        label: runtimeRecorderFrameLabel(kind, detail),\n        transitionId: String(detail.transition?.id || detail.transitionId || frameDetail.transitionId || \"\"),\n        triggerEvent: normalizeTransitionEvent(detail.triggerEvent || frameDetail.eventName || \"\"),\n        eventName: normalizeTransitionEvent(detail.eventName || frameDetail.eventName || \"\"),\n        detail: frameDetail,\n        context: runtimeRecorderClone(context),\n        screen: runtimeRecorderSerializeScreen(frameDetail)\n      };\n      runtimeRecording.lastFrameAt = nowMs;\n      if (previous && runtimeRecorderFrameSignature(previous) === runtimeRecorderFrameSignature(frame)) {\n        previous.at = frame.at;\n        previous.atMs = frame.atMs;\n        previous.delayMs += frame.delayMs;\n        previous.kind = frame.kind;\n        previous.label = frame.label;\n        previous.transitionId = frame.transitionId;\n        previous.triggerEvent = frame.triggerEvent;\n        previous.eventName = frame.eventName;\n        previous.detail = frame.detail;\n        previous.screen = frame.screen;\n        syncRuntimeRecorderControls();\n        return previous;\n      }\n      if (runtimeRecording.frames.length >= RUNTIME_RECORDER_MAX_FRAMES) {\n        runtimeRecording.frames.shift();\n        runtimeRecording.frames.forEach((item, index) => { item.index = index + 1; });\n      }\n      frame.index = runtimeRecording.frames.length + 1;\n      runtimeRecording.frames.push(frame);\n      runtimeRecording.index = runtimeRecording.frames.length - 1;\n      syncRuntimeRecorderControls();\n      return frame;\n    }\n\n    function runtimeRecorderQueueFrame(kind = \"snapshot\", detail = {}) {\n      if (!runtimeRecording.active || runtimeRecording.playing) return false;\n      runtimeRecording.pendingFrame = { kind, detail };\n      return true;\n    }\n\n    function runtimeRecorderFlushPendingFrame() {\n      if (!runtimeRecording.pendingFrame) return null;\n      const pending = runtimeRecording.pendingFrame;\n      runtimeRecording.pendingFrame = null;\n      return runtimeRecorderCaptureFrame(pending.kind, pending.detail);\n    }\n\n    function runtimeRecorderStopPlayback() {\n      if (runtimeRecording.timer) clearTimeout(runtimeRecording.timer);\n      runtimeRecording.timer = 0;\n      runtimeRecording.playing = false;\n      syncRuntimeRecorderControls();\n    }\n\n    function runtimeRecorderRestoreFrame(index, opts = {}) {\n      const safeIndex = Math.max(0, Math.min(runtimeRecording.frames.length - 1, Number(index)));\n      const frame = runtimeRecording.frames[safeIndex];\n      if (!frame) return false;\n      if (!opts.keepTimer) runtimeRecorderStopPlayback();\n      runtimeRecording.mode = \"replay\";\n      runtimeRecording.index = safeIndex;\n      runtimeRecording.playing = Boolean(opts.keepTimer || runtimeRecording.timer);\n      blockedTransitionId = null;\n      runtimeValidation = null;\n      runtimeRecorderRenderStoredFrame(frame);\n      return true;\n    }\n\n    function runtimeRecorderPlaybackDelay(index) {\n      const value = Number(runtimeRecording.frames[index]?.delayMs);\n      if (!Number.isFinite(value) || value <= 0) return RUNTIME_RECORDER_STEP_MS;\n      return Math.min(RUNTIME_RECORDER_MAX_STEP_MS, Math.max(RUNTIME_RECORDER_MIN_STEP_MS, Math.round(value)));\n    }\n\n    function runtimeRecorderSchedulePlaybackStep() {\n      if (!runtimeRecording.playing) return;\n      let next = runtimeRecording.index + 1;\n      if (next >= runtimeRecording.frames.length) {\n        if (!runtimeRecording.loop) {\n          runtimeRecorderStopPlayback();\n          return;\n        }\n        next = 0;\n      }\n      runtimeRecording.
+
+===== state.html :: runtimeRecorderControls @ 357485 =====
+us;\n      }\n      if (runtimeRecording.frames.length >= RUNTIME_RECORDER_MAX_FRAMES) {\n        runtimeRecording.frames.shift();\n        runtimeRecording.frames.forEach((item, index) => { item.index = index + 1; });\n      }\n      frame.index = runtimeRecording.frames.length + 1;\n      runtimeRecording.frames.push(frame);\n      runtimeRecording.index = runtimeRecording.frames.length - 1;\n      syncRuntimeRecorderControls();\n      return frame;\n    }\n\n    function runtimeRecorderQueueFrame(kind = \"snapshot\", detail = {}) {\n      if (!runtimeRecording.active || runtimeRecording.playing) return false;\n      runtimeRecording.pendingFrame = { kind, detail };\n      return true;\n    }\n\n    function runtimeRecorderFlushPendingFrame() {\n      if (!runtimeRecording.pendingFrame) return null;\n      const pending = runtimeRecording.pendingFrame;\n      runtimeRecording.pendingFrame = null;\n      return runtimeRecorderCaptureFrame(pending.kind, pending.detail);\n    }\n\n    function runtimeRecorderStopPlayback() {\n      if (runtimeRecording.timer) clearTimeout(runtimeRecording.timer);\n      runtimeRecording.timer = 0;\n      runtimeRecording.playing = false;\n      syncRuntimeRecorderControls();\n    }\n\n    function runtimeRecorderRestoreFrame(index, opts = {}) {\n      const safeIndex = Math.max(0, Math.min(runtimeRecording.frames.length - 1, Number(index)));\n      const frame = runtimeRecording.frames[safeIndex];\n      if (!frame) return false;\n      if (!opts.keepTimer) runtimeRecorderStopPlayback();\n      runtimeRecording.mode = \"replay\";\n      runtimeRecording.index = safeIndex;\n      runtimeRecording.playing = Boolean(opts.keepTimer || runtimeRecording.timer);\n      blockedTransitionId = null;\n      runtimeValidation = null;\n      runtimeRecorderRenderStoredFrame(frame);\n      return true;\n    }\n\n    function runtimeRecorderPlaybackDelay(index) {\n      const value = Number(runtimeRecording.frames[index]?.delayMs);\n      if (!Number.isFinite(value) || value <= 0) return RUNTIME_RECORDER_STEP_MS;\n      return Math.min(RUNTIME_RECORDER_MAX_STEP_MS, Math.max(RUNTIME_RECORDER_MIN_STEP_MS, Math.round(value)));\n    }\n\n    function runtimeRecorderSchedulePlaybackStep() {\n      if (!runtimeRecording.playing) return;\n      let next = runtimeRecording.index + 1;\n      if (next >= runtimeRecording.frames.length) {\n        if (!runtimeRecording.loop) {\n          runtimeRecorderStopPlayback();\n          return;\n        }\n        next = 0;\n      }\n      runtimeRecording.timer = setTimeout(() => {\n        runtimeRecording.timer = 0;\n        if (!runtimeRecording.playing) return;\n        runtimeRecorderRestoreFrame(next, { keepTimer: true });\n        if (!runtimeRecording.loop && next === runtimeRecording.frames.length - 1) {\n          runtimeRecorderStopPlayback();\n          return;\n        }\n        runtimeRecorderSchedulePlaybackStep();\n      }, runtimeRecorderPlaybackDelay(next));\n      syncRuntimeRecorderControls();\n    }\n\n    function runtimeRecorderPlay() {\n      if (runtimeRecording.active || runtimeRecording.frames.length < 2) return false;\n      if (runtimeRecording.playing) {\n        runtimeRecorderStopPlayback();\n        return true;\n      }\n      if (runtimeRecording.index >= runtimeRecording.frames.length - 1) {\n        runtimeRecorderRestoreFrame(0);\n      } else if (runtimeRecording.mode !== \"replay\") {\n        runtimeRecorderRestoreFrame(0);\n      }\n      runtimeRecording.playing = true;\n      runtimeRecording.mode = \"replay\";\n      runtimeRecorderSchedulePlaybackStep();\n      syncRuntimeRecorderControls();\n      return true;\n    }\n\n    function runtimeRecorderStopControl() {\n      if (runtimeRecording.active) {\n        runtimeRecorderStop();\n
+
+===== state.html :: runtimeRecorderControls @ 359277 =====
+runtimeRecorderRenderStoredFrame(frame);\n      return true;\n    }\n\n    function runtimeRecorderPlaybackDelay(index) {\n      const value = Number(runtimeRecording.frames[index]?.delayMs);\n      if (!Number.isFinite(value) || value <= 0) return RUNTIME_RECORDER_STEP_MS;\n      return Math.min(RUNTIME_RECORDER_MAX_STEP_MS, Math.max(RUNTIME_RECORDER_MIN_STEP_MS, Math.round(value)));\n    }\n\n    function runtimeRecorderSchedulePlaybackStep() {\n      if (!runtimeRecording.playing) return;\n      let next = runtimeRecording.index + 1;\n      if (next >= runtimeRecording.frames.length) {\n        if (!runtimeRecording.loop) {\n          runtimeRecorderStopPlayback();\n          return;\n        }\n        next = 0;\n      }\n      runtimeRecording.timer = setTimeout(() => {\n        runtimeRecording.timer = 0;\n        if (!runtimeRecording.playing) return;\n        runtimeRecorderRestoreFrame(next, { keepTimer: true });\n        if (!runtimeRecording.loop && next === runtimeRecording.frames.length - 1) {\n          runtimeRecorderStopPlayback();\n          return;\n        }\n        runtimeRecorderSchedulePlaybackStep();\n      }, runtimeRecorderPlaybackDelay(next));\n      syncRuntimeRecorderControls();\n    }\n\n    function runtimeRecorderPlay() {\n      if (runtimeRecording.active || runtimeRecording.frames.length < 2) return false;\n      if (runtimeRecording.playing) {\n        runtimeRecorderStopPlayback();\n        return true;\n      }\n      if (runtimeRecording.index >= runtimeRecording.frames.length - 1) {\n        runtimeRecorderRestoreFrame(0);\n      } else if (runtimeRecording.mode !== \"replay\") {\n        runtimeRecorderRestoreFrame(0);\n      }\n      runtimeRecording.playing = true;\n      runtimeRecording.mode = \"replay\";\n      runtimeRecorderSchedulePlaybackStep();\n      syncRuntimeRecorderControls();\n      return true;\n    }\n\n    function runtimeRecorderStopControl() {\n      if (runtimeRecording.active) {\n        runtimeRecorderStop();\n        return true;\n      }\n      if (runtimeRecorderIsReplaying()) {\n        runtimeRecorderLeaveReplayMode({ renderLive: true });\n        return true;\n      }\n      runtimeRecorderStopPlayback();\n      return false;\n    }\n\n    function runtimeRecorderLeaveReplayMode(opts = {}) {\n      if (runtimeRecording.mode !== \"replay\") return;\n      runtimeRecorderStopPlayback();\n      runtimeRecording.mode = \"live\";\n      const screen = document.getElementById(\"screen\");\n      if (screen) delete screen.dataset.replayFrame;\n      syncRuntimeRecorderControls();\n      if (opts.renderLive) render();\n    }\n\n    function runtimeRecorderStart() {\n      runtimeRecorderLeaveReplayMode({ renderLive: true });\n      runtimeRecorderStopPlayback();\n      runtimeRecorderClearScrollTimer();\n      runtimeRecording.active = true;\n      runtimeRecording.mode = \"live\";\n      runtimeRecording.frames = [];\n      runtimeRecording.pendingFrame = null;\n      runtimeRecording.index = -1;\n      runtimeRecording.startedAt = runtimeRecorderNowMs();\n      runtimeRecording.lastFrameAt = runtimeRecording.startedAt;\n      runtimeRecording.createdAt = new Date().toISOString();\n      runtimeRecording.model = runtimeRecorderClone(model);\n      const screen = document.getElementById(\"screen\");\n      if (findState(current) && (!screen || !screen.childElementCount)) render();\n      runtimeRecorderCaptureFrame(\"start\");\n      syncRuntimeRecorderControls();\n    }\n\n    function runtimeRecorderStop() {\n      runtimeRecorderClearScrollTimer();\n      runtimeRecorderFlushPendingFrame();\n      runtimeRecording.active = false;\n      runtimeRecorderStopPlayback();\n      syncRuntimeRecorderControls();\n    }\n\n    function runtimeRecorderResetForModel(opts = {}) 
+
+===== state.html :: runtimeRecorderControls @ 360638 =====
+\n      if (runtimeRecording.playing) {\n        runtimeRecorderStopPlayback();\n        return true;\n      }\n      if (runtimeRecording.index >= runtimeRecording.frames.length - 1) {\n        runtimeRecorderRestoreFrame(0);\n      } else if (runtimeRecording.mode !== \"replay\") {\n        runtimeRecorderRestoreFrame(0);\n      }\n      runtimeRecording.playing = true;\n      runtimeRecording.mode = \"replay\";\n      runtimeRecorderSchedulePlaybackStep();\n      syncRuntimeRecorderControls();\n      return true;\n    }\n\n    function runtimeRecorderStopControl() {\n      if (runtimeRecording.active) {\n        runtimeRecorderStop();\n        return true;\n      }\n      if (runtimeRecorderIsReplaying()) {\n        runtimeRecorderLeaveReplayMode({ renderLive: true });\n        return true;\n      }\n      runtimeRecorderStopPlayback();\n      return false;\n    }\n\n    function runtimeRecorderLeaveReplayMode(opts = {}) {\n      if (runtimeRecording.mode !== \"replay\") return;\n      runtimeRecorderStopPlayback();\n      runtimeRecording.mode = \"live\";\n      const screen = document.getElementById(\"screen\");\n      if (screen) delete screen.dataset.replayFrame;\n      syncRuntimeRecorderControls();\n      if (opts.renderLive) render();\n    }\n\n    function runtimeRecorderStart() {\n      runtimeRecorderLeaveReplayMode({ renderLive: true });\n      runtimeRecorderStopPlayback();\n      runtimeRecorderClearScrollTimer();\n      runtimeRecording.active = true;\n      runtimeRecording.mode = \"live\";\n      runtimeRecording.frames = [];\n      runtimeRecording.pendingFrame = null;\n      runtimeRecording.index = -1;\n      runtimeRecording.startedAt = runtimeRecorderNowMs();\n      runtimeRecording.lastFrameAt = runtimeRecording.startedAt;\n      runtimeRecording.createdAt = new Date().toISOString();\n      runtimeRecording.model = runtimeRecorderClone(model);\n      const screen = document.getElementById(\"screen\");\n      if (findState(current) && (!screen || !screen.childElementCount)) render();\n      runtimeRecorderCaptureFrame(\"start\");\n      syncRuntimeRecorderControls();\n    }\n\n    function runtimeRecorderStop() {\n      runtimeRecorderClearScrollTimer();\n      runtimeRecorderFlushPendingFrame();\n      runtimeRecording.active = false;\n      runtimeRecorderStopPlayback();\n      syncRuntimeRecorderControls();\n    }\n\n    function runtimeRecorderResetForModel(opts = {}) {\n      runtimeRecorderStopPlayback();\n      runtimeRecorderClearScrollTimer();\n      runtimeRecording.active = false;\n      runtimeRecording.mode = \"live\";\n      runtimeRecording.pendingFrame = null;\n      if (opts.clearFrames !== false) {\n        runtimeRecording.frames = [];\n        runtimeRecording.index = -1;\n        runtimeRecording.startedAt = 0;\n        runtimeRecording.lastFrameAt = 0;\n        runtimeRecording.createdAt = \"\";\n        runtimeRecording.model = null;\n      }\n      syncRuntimeRecorderControls();\n    }\n\n    function runtimeRecorderSnapshot(opts = {}) {\n      const currentFrame = runtimeRecording.frames[runtimeRecording.index] || null;\n      const includeContext = opts.context !== false;\n      return {\n        active: runtimeRecording.active,\n        mode: runtimeRecording.mode,\n        playing: runtimeRecording.playing,\n        loop: runtimeRecording.loop,\n        index: runtimeRecording.index,\n        frameCount: runtimeRecording.frames.length,\n        createdAt: runtimeRecording.createdAt || \"\",\n        model: includeContext ? runtimeRecorderClone(runtimeRecording.model || model) : null,\n        currentFrame: currentFrame\n          ? includeContext\n            ? runtimeRecorderClone(currentFrame)\n            : runtimeRecorderFrameSummary(currentFrame)\n          : null,\n        
+
+===== state.html :: runtimeRecorderControls @ 361539 =====
+meRecorderLeaveReplayMode(opts = {}) {\n      if (runtimeRecording.mode !== \"replay\") return;\n      runtimeRecorderStopPlayback();\n      runtimeRecording.mode = \"live\";\n      const screen = document.getElementById(\"screen\");\n      if (screen) delete screen.dataset.replayFrame;\n      syncRuntimeRecorderControls();\n      if (opts.renderLive) render();\n    }\n\n    function runtimeRecorderStart() {\n      runtimeRecorderLeaveReplayMode({ renderLive: true });\n      runtimeRecorderStopPlayback();\n      runtimeRecorderClearScrollTimer();\n      runtimeRecording.active = true;\n      runtimeRecording.mode = \"live\";\n      runtimeRecording.frames = [];\n      runtimeRecording.pendingFrame = null;\n      runtimeRecording.index = -1;\n      runtimeRecording.startedAt = runtimeRecorderNowMs();\n      runtimeRecording.lastFrameAt = runtimeRecording.startedAt;\n      runtimeRecording.createdAt = new Date().toISOString();\n      runtimeRecording.model = runtimeRecorderClone(model);\n      const screen = document.getElementById(\"screen\");\n      if (findState(current) && (!screen || !screen.childElementCount)) render();\n      runtimeRecorderCaptureFrame(\"start\");\n      syncRuntimeRecorderControls();\n    }\n\n    function runtimeRecorderStop() {\n      runtimeRecorderClearScrollTimer();\n      runtimeRecorderFlushPendingFrame();\n      runtimeRecording.active = false;\n      runtimeRecorderStopPlayback();\n      syncRuntimeRecorderControls();\n    }\n\n    function runtimeRecorderResetForModel(opts = {}) {\n      runtimeRecorderStopPlayback();\n      runtimeRecorderClearScrollTimer();\n      runtimeRecording.active = false;\n      runtimeRecording.mode = \"live\";\n      runtimeRecording.pendingFrame = null;\n      if (opts.clearFrames !== false) {\n        runtimeRecording.frames = [];\n        runtimeRecording.index = -1;\n        runtimeRecording.startedAt = 0;\n        runtimeRecording.lastFrameAt = 0;\n        runtimeRecording.createdAt = \"\";\n        runtimeRecording.model = null;\n      }\n      syncRuntimeRecorderControls();\n    }\n\n    function runtimeRecorderSnapshot(opts = {}) {\n      const currentFrame = runtimeRecording.frames[runtimeRecording.index] || null;\n      const includeContext = opts.context !== false;\n      return {\n        active: runtimeRecording.active,\n        mode: runtimeRecording.mode,\n        playing: runtimeRecording.playing,\n        loop: runtimeRecording.loop,\n        index: runtimeRecording.index,\n        frameCount: runtimeRecording.frames.length,\n        createdAt: runtimeRecording.createdAt || \"\",\n        model: includeContext ? runtimeRecorderClone(runtimeRecording.model || model) : null,\n        currentFrame: currentFrame\n          ? includeContext\n            ? runtimeRecorderClone(currentFrame)\n            : runtimeRecorderFrameSummary(currentFrame)\n          : null,\n        frames: runtimeRecording.frames.map(frame => includeContext ? runtimeRecorderClone(frame) : runtimeRecorderFrameSummary(frame))\n      };\n    }\n\n    function syncRuntimeRecorderControls() {\n      const recordButton = document.getElementById(\"runtimeRecordButton\");\n      const playButton = document.getElementById(\"runtimeReplayPlayButton\");\n      const stopButton = document.getElementById(\"runtimeReplayStopButton\");\n      const loopButton = document.getElementById(\"runtimeReplayLoopButton\");\n      const exportButton = document.getElementById(\"runtimeReplayExportButton\");\n      const status = document.getElementById(\"runtimeRecordStatus\");\n      const snapshot = runtimeRecorderSnapshot({ context: false });\n      const hasFrames = snapshot.frameCount > 0;\n      const replayControlsVisible = hasFrames && !snapshot.active;\n      const replayDisabled = !replayControlsVi
+
+===== state.html :: runtimeRecorderControls @ 363403 =====
+n        runtimeRecording.startedAt = 0;\n        runtimeRecording.lastFrameAt = 0;\n        runtimeRecording.createdAt = \"\";\n        runtimeRecording.model = null;\n      }\n      syncRuntimeRecorderControls();\n    }\n\n    function runtimeRecorderSnapshot(opts = {}) {\n      const currentFrame = runtimeRecording.frames[runtimeRecording.index] || null;\n      const includeContext = opts.context !== false;\n      return {\n        active: runtimeRecording.active,\n        mode: runtimeRecording.mode,\n        playing: runtimeRecording.playing,\n        loop: runtimeRecording.loop,\n        index: runtimeRecording.index,\n        frameCount: runtimeRecording.frames.length,\n        createdAt: runtimeRecording.createdAt || \"\",\n        model: includeContext ? runtimeRecorderClone(runtimeRecording.model || model) : null,\n        currentFrame: currentFrame\n          ? includeContext\n            ? runtimeRecorderClone(currentFrame)\n            : runtimeRecorderFrameSummary(currentFrame)\n          : null,\n        frames: runtimeRecording.frames.map(frame => includeContext ? runtimeRecorderClone(frame) : runtimeRecorderFrameSummary(frame))\n      };\n    }\n\n    function syncRuntimeRecorderControls() {\n      const recordButton = document.getElementById(\"runtimeRecordButton\");\n      const playButton = document.getElementById(\"runtimeReplayPlayButton\");\n      const stopButton = document.getElementById(\"runtimeReplayStopButton\");\n      const loopButton = document.getElementById(\"runtimeReplayLoopButton\");\n      const exportButton = document.getElementById(\"runtimeReplayExportButton\");\n      const status = document.getElementById(\"runtimeRecordStatus\");\n      const snapshot = runtimeRecorderSnapshot({ context: false });\n      const hasFrames = snapshot.frameCount > 0;\n      const replayControlsVisible = hasFrames && !snapshot.active;\n      const replayDisabled = !replayControlsVisible;\n      if (recordButton) {\n        recordButton.hidden = false;\n        recordButton.disabled = snapshot.playing || (!model.states.length && !snapshot.active);\n        recordButton.textContent = snapshot.active ? \"Stoppen\" : \"Aufnehmen\";\n        recordButton.dataset.recording = snapshot.active ? \"true\" : \"false\";\n        recordButton.setAttribute(\"aria-pressed\", snapshot.active ? \"true\" : \"false\");\n        recordButton.title = snapshot.active ? \"Aufnahme stoppen\" : \"Aufnahme starten\";\n      }\n      for (const button of [playButton, loopButton, exportButton]) {\n        if (!button) continue;\n        button.hidden = !replayControlsVisible;\n      }\n      if (stopButton) stopButton.hidden = !replayControlsVisible || (!snapshot.playing && snapshot.mode !== \"replay\");\n      if (playButton) {\n        playButton.disabled = replayDisabled || snapshot.frameCount < 2;\n        playButton.textContent = snapshot.playing ? \"Pause\" : \"Play\";\n        playButton.dataset.active = snapshot.playing ? \"true\" : \"false\";\n      }\n      if (stopButton) stopButton.disabled = !snapshot.playing && snapshot.mode !== \"replay\";\n      if (loopButton) {\n        loopButton.disabled = replayDisabled;\n        loopButton.dataset.active = snapshot.loop ? \"true\" : \"false\";\n        loopButton.setAttribute(\"aria-pressed\", snapshot.loop ? \"true\" : \"false\");\n      }\n      if (exportButton) exportButton.disabled = replayDisabled;\n      if (status) {\n        status.hidden = !hasFrames && !snapshot.active;\n        status.textContent = hasFrames\n          ? (String(Math.max(1, snapshot.index + 1)) + \"/\" + String(snapshot.frameCount))\n          : \"0/0\";\n      }\n    }\n\n    function bindRuntimeRecorderControls() {\n      const controls = document.getElementById(\"runtimeRecorderControls\");\n      if
+
+===== state.html :: runtimeRecorderControls @ 365888 =====
+utton of [playButton, loopButton, exportButton]) {\n        if (!button) continue;\n        button.hidden = !replayControlsVisible;\n      }\n      if (stopButton) stopButton.hidden = !replayControlsVisible || (!snapshot.playing && snapshot.mode !== \"replay\");\n      if (playButton) {\n        playButton.disabled = replayDisabled || snapshot.frameCount < 2;\n        playButton.textContent = snapshot.playing ? \"Pause\" : \"Play\";\n        playButton.dataset.active = snapshot.playing ? \"true\" : \"false\";\n      }\n      if (stopButton) stopButton.disabled = !snapshot.playing && snapshot.mode !== \"replay\";\n      if (loopButton) {\n        loopButton.disabled = replayDisabled;\n        loopButton.dataset.active = snapshot.loop ? \"true\" : \"false\";\n        loopButton.setAttribute(\"aria-pressed\", snapshot.loop ? \"true\" : \"false\");\n      }\n      if (exportButton) exportButton.disabled = replayDisabled;\n      if (status) {\n        status.hidden = !hasFrames && !snapshot.active;\n        status.textContent = hasFrames\n          ? (String(Math.max(1, snapshot.index + 1)) + \"/\" + String(snapshot.frameCount))\n          : \"0/0\";\n      }\n    }\n\n    function bindRuntimeRecorderControls() {\n      const controls = document.getElementById(\"runtimeRecorderControls\");\n      if (!controls || controls.dataset.bound === \"true\") return;\n      controls.dataset.bound = \"true\";\n      document.getElementById(\"runtimeRecordButton\")?.addEventListener(\"click\", () => {\n        if (runtimeRecording.active) runtimeRecorderStop();\n        else runtimeRecorderStart();\n      });\n      document.getElementById(\"runtimeReplayPlayButton\")?.addEventListener(\"click\", () => runtimeRecorderPlay());\n      document.getElementById(\"runtimeReplayStopButton\")?.addEventListener(\"click\", () => runtimeRecorderStopControl());\n      document.getElementById(\"runtimeReplayLoopButton\")?.addEventListener(\"click\", () => {\n        runtimeRecording.loop = !runtimeRecording.loop;\n        syncRuntimeRecorderControls();\n      });\n      document.getElementById(\"runtimeReplayExportButton\")?.addEventListener(\"click\", () => runtimeRecorderDownload());\n      document.addEventListener(\"pointerup\", runtimeRecorderCapturePointerEvent, { capture: true, passive: true });\n      window.addEventListener(\"scroll\", runtimeRecorderCaptureScrollEvent, { capture: true, passive: true });\n      document.getElementById(\"screen\")?.addEventListener(\"scroll\", runtimeRecorderCaptureScrollEvent, { passive: true });\n      syncRuntimeRecorderControls();\n    }\n\n    function followTransition(transition, fromStateId, reason = \"next\") {\n      blockedTransitionId = null;\n      runtimeValidation = null;\n      const requestedTarget = findState(transition.to);\n      const runtimeTarget = resolveRuntimeTarget(transition.to, transition);\n      if (!findState(runtimeTarget)) return false;\n      applyTransitionSet(transition);\n      const requestedEntry = requestedTarget ? groupEntryState(requestedTarget.id, transition) : null;\n      log(`${fromStateId} --${transition.label || reason}--> ${runtimeTarget}`);\n      if (!enterState(runtimeTarget, transition)) return false;\n      runtimeSet(\"state.previous\", fromStateId || \"\", { source: \"flow\", eventName: \"change.state.previous\" });\n      runtimeSet(\"state.lastTransition\", transition?.id || \"\", { source: \"flow\", eventName: \"change.state.lastTransition\" });\n      runtimeSet(\"state.current\", runtimeTarget || \"\", { source: \"flow\", eventName: \"change.state.current\" });\n      if (requestedTarget && requestedEntry && requestedTarget.id !== runtimeTarget) {\n        recordRuntimeEvent(\"flow.child.entry\", {\n          type: \"flow\",\n          source: \"flow\",\n    
+
+===== state.html :: runtimeRecorderControls @ 367254 =====
+ return;\n      controls.dataset.bound = \"true\";\n      document.getElementById(\"runtimeRecordButton\")?.addEventListener(\"click\", () => {\n        if (runtimeRecording.active) runtimeRecorderStop();\n        else runtimeRecorderStart();\n      });\n      document.getElementById(\"runtimeReplayPlayButton\")?.addEventListener(\"click\", () => runtimeRecorderPlay());\n      document.getElementById(\"runtimeReplayStopButton\")?.addEventListener(\"click\", () => runtimeRecorderStopControl());\n      document.getElementById(\"runtimeReplayLoopButton\")?.addEventListener(\"click\", () => {\n        runtimeRecording.loop = !runtimeRecording.loop;\n        syncRuntimeRecorderControls();\n      });\n      document.getElementById(\"runtimeReplayExportButton\")?.addEventListener(\"click\", () => runtimeRecorderDownload());\n      document.addEventListener(\"pointerup\", runtimeRecorderCapturePointerEvent, { capture: true, passive: true });\n      window.addEventListener(\"scroll\", runtimeRecorderCaptureScrollEvent, { capture: true, passive: true });\n      document.getElementById(\"screen\")?.addEventListener(\"scroll\", runtimeRecorderCaptureScrollEvent, { passive: true });\n      syncRuntimeRecorderControls();\n    }\n\n    function followTransition(transition, fromStateId, reason = \"next\") {\n      blockedTransitionId = null;\n      runtimeValidation = null;\n      const requestedTarget = findState(transition.to);\n      const runtimeTarget = resolveRuntimeTarget(transition.to, transition);\n      if (!findState(runtimeTarget)) return false;\n      applyTransitionSet(transition);\n      const requestedEntry = requestedTarget ? groupEntryState(requestedTarget.id, transition) : null;\n      log(`${fromStateId} --${transition.label || reason}--> ${runtimeTarget}`);\n      if (!enterState(runtimeTarget, transition)) return false;\n      runtimeSet(\"state.previous\", fromStateId || \"\", { source: \"flow\", eventName: \"change.state.previous\" });\n      runtimeSet(\"state.lastTransition\", transition?.id || \"\", { source: \"flow\", eventName: \"change.state.lastTransition\" });\n      runtimeSet(\"state.current\", runtimeTarget || \"\", { source: \"flow\", eventName: \"change.state.current\" });\n      if (requestedTarget && requestedEntry && requestedTarget.id !== runtimeTarget) {\n        recordRuntimeEvent(\"flow.child.entry\", {\n          type: \"flow\",\n          source: \"flow\",\n          parentId: requestedTarget.id,\n          childId: requestedEntry.id,\n          resolvedChildId: runtimeTarget,\n          transitionId: transition?.id || \"\"\n        });\n      }\n      emitRuntimeEvent(\"state.\" + eventSegment(runtimeTarget) + \".entered\", { type: \"state\", from: fromStateId || \"\", transitionId: transition?.id || \"\", source: \"flow\" });\n      runtimeRecorderQueueFrame(\"transition\", {\n        transition,\n        to: runtimeTarget,\n        triggerEvent: reason\n      });\n      if (current === runtimeTarget) runCurrentStateEntryEffects({ fetch: true });\n      return true;\n    }\n\n    function log(text) {\n      logLines.unshift(`[${new Date().toLocaleTimeString()}] ${text}`);\n      logLines = logLines.slice(0, 6);\n    }\n\n    function safeFetchUrl(url) {\n      const raw = String(url || \"\").trim();\n      if (!raw) return \"\";\n      try {\n        const parsed = new URL(raw, window.location.href);\n        return /^https?:$/i.test(parsed.protocol) ? parsed.href : \"\";\n      } catch (_) {\n        return \"\";\n      }\n    }\n\n    function countData(data) {\n      if (Array.isArray(data)) return data.length;\n      if (data && typeof data === \"object\") return Object.keys(data).length;\n      return data === null || data === undefined || data === \"\" ? 0 : 1;\n    }\n\n    function dataSourc
+
+===== state.html :: runtimeRecorderControls @ 499175 =====
+    const pendingTarget = focusables.find(el => el.dataset.runtimeFocusPath === pendingFocusPath);\n        if (pendingTarget) {\n          requestAnimationFrame(() => pendingTarget.focus({ preventScroll: true }));\n          return;\n        }\n      }\n      const firstInput = screen.querySelector(\"input:not([type='hidden'])\");\n      const fallback = screen.querySelector('[data-default-action=\"true\"]');\n      const target = firstInput || fallback;\n      if (target) requestAnimationFrame(() => target.focus({ preventScroll: true }));\n    }\n\n    function runtimeDisplayName(name) {\n      const text = String(name || \"\").trim();\n      return text;\n    }\n\n    function syncRuntimeAppName() {\n      const el = document.getElementById(\"appName\");\n      if (!el) return;\n      const displayName = runtimeDisplayName(model.name);\n      el.textContent = displayName;\n      el.hidden = !displayName;\n    }\n\n    function render() {\n      clearDaisyCountdownTimers();\n      normalizeModel(model);\n      if (!model.states.length || !model.initial && !findState(current)) {\n        setRuntimeCurrent(\"\", \"runtime-empty\", true);\n        syncRuntimeAppName();\n        syncRuntimeRecorderControls();\n        const statePill = document.getElementById(\"statePill\");\n        if (statePill) statePill.textContent = \"\";\n        const screen = document.getElementById(\"screen\");\n        if (screen) {\n          screen.className = \"screen\";\n          screen.innerHTML = \"\";\n        }\n        notifyRuntime();\n        return;\n      }\n      if (!findState(current)) setRuntimeCurrent(model.initial, \"runtime\", true);\n      const runtimeCurrent = resolveRuntimeTarget(current, null);\n      if (runtimeCurrent !== current && findState(runtimeCurrent)) {\n        setRuntimeCurrent(runtimeCurrent, \"runtime\", true);\n        runCurrentStateEntryEffects({ fetch: true, defaults: true });\n      }\n      syncRuntimeCurrent(\"runtime\", true);\n      const s = stateById(current);\n      if (!s) {\n        notifyRuntime();\n        return;\n      }\n      const transitions = outgoing(s.id);\n      const triggerContract = runtimeTransitionTriggerContract(transitions);\n      const executableTransitions = triggerContract.ok ? transitions : [];\n      if (!triggerContract.ok) {\n        runtimeValidation = {\n          type: \"invalid-trigger-contract\",\n          stateId: s.id,\n          reason: triggerContract.reason,\n          transitionIds: triggerContract.transitionIds,\n          message: \"Die Trigger dieses Zustands sind nicht eindeutig.\"\n        };\n        blockedTransitionId = null;\n      } else if (runtimeValidation?.type === \"invalid-trigger-contract\") {\n        runtimeValidation = null;\n      }\n      const automaticTransitions = executableTransitions.filter(t => [\"auto\", \"timer\"].includes(transitionTriggerType(t)));\n      const actionTransitions = runtimeOrderActionTransitionsForState(s, executableTransitions.filter(transitionIsButtonAction));\n      const guardTransitions = executableTransitions.filter(t => ![\"auto\", \"timer\"].includes(transitionTriggerType(t)));\n      scheduleAutomaticContinuation(s.id, stateFetchIsLoading(s) ? [] : automaticTransitions);\n      const defaultActionId = defaultTransitionId(actionTransitions);\n      if (blockedTransitionId && !guardTransitions.some(t => t.id === blockedTransitionId)) blockedTransitionId = null;\n      syncRuntimeAppName();\n      syncRuntimeRecorderControls();\n      const statePill = document.getElementById(\"statePill\");\n      if (statePill) statePill.textContent = current;\n\n      const runtimeViewStateChanged = lastRenderedStateId !== s.id;\n      lastRenderedStateId = s.id;\n      if (runtimeViewStateChanged) {\n        const scrollRoot
+
+===== state.html :: runtimeRecorderControls @ 501459 =====
+];\n      if (!triggerContract.ok) {\n        runtimeValidation = {\n          type: \"invalid-trigger-contract\",\n          stateId: s.id,\n          reason: triggerContract.reason,\n          transitionIds: triggerContract.transitionIds,\n          message: \"Die Trigger dieses Zustands sind nicht eindeutig.\"\n        };\n        blockedTransitionId = null;\n      } else if (runtimeValidation?.type === \"invalid-trigger-contract\") {\n        runtimeValidation = null;\n      }\n      const automaticTransitions = executableTransitions.filter(t => [\"auto\", \"timer\"].includes(transitionTriggerType(t)));\n      const actionTransitions = runtimeOrderActionTransitionsForState(s, executableTransitions.filter(transitionIsButtonAction));\n      const guardTransitions = executableTransitions.filter(t => ![\"auto\", \"timer\"].includes(transitionTriggerType(t)));\n      scheduleAutomaticContinuation(s.id, stateFetchIsLoading(s) ? [] : automaticTransitions);\n      const defaultActionId = defaultTransitionId(actionTransitions);\n      if (blockedTransitionId && !guardTransitions.some(t => t.id === blockedTransitionId)) blockedTransitionId = null;\n      syncRuntimeAppName();\n      syncRuntimeRecorderControls();\n      const statePill = document.getElementById(\"statePill\");\n      if (statePill) statePill.textContent = current;\n\n      const runtimeViewStateChanged = lastRenderedStateId !== s.id;\n      lastRenderedStateId = s.id;\n      if (runtimeViewStateChanged) {\n        const scrollRoot = document.scrollingElement || document.documentElement;\n        if (scrollRoot) {\n          scrollRoot.scrollTop = 0;\n          scrollRoot.scrollLeft = 0;\n        }\n        if (document.body) {\n          document.body.scrollTop = 0;\n          document.body.scrollLeft = 0;\n        }\n        window.scrollTo(0, 0);\n      }\n      const widgetScreen = runtimeStateUsesWidgetScreen(s);\n      const hideStateTitle = widgetScreen && normalizeComponents(s.components).length === 1;\n      const screen = document.getElementById(\"screen\");\n      screen.className = widgetScreen ? \"screen widget-screen\" : \"screen\";\n      delete screen.dataset.replayFrame;\n      const activeValidation = runtimeValidation?.stateId === s.id ? runtimeValidation : null;\n      if (activeValidation) screen.classList.add(\"validation-failed\");\n      screen.innerHTML = \"\";\n\n      if (!hideStateTitle) {\n        const h1 = document.createElement(\"h1\");\n        h1.textContent = renderLiteralText(s.title || s.id);\n        screen.appendChild(h1);\n      }\n      const claimedActionTransitionIds = runtimeClaimedTransitionIdsForState(s, actionTransitions);\n      renderActiveStateComponents(screen, activeStateChain(s), {\n        activeStateId: s.id,\n        actionTransitions,\n        defaultActionId\n      });\n\n\n      const actions = document.createElement(\"div\");\n      actions.className = \"actions\";\n      for (const t of actionTransitions) {\n        if (claimedActionTransitionIds.has(t.id)) continue;\n        actions.appendChild(createTransitionActionElement(t, defaultActionId));\n      }\n      if (actions.childElementCount) screen.appendChild(actions);\n      applyTabOrderAndFocus(screen);\n      runtimeRecorderFlushPendingFrame();\n\n      notifyRuntime();\n    }\n\n    function updateActionButtons() {\n      for (const button of document.querySelectorAll(\"[data-transition-id]\")) {\n        const t = model.transitions.find(item => item.id === button.dataset.transitionId);\n        if (t) button.disabled = false;\n      }\n    }\n\n    if (!IS_STANDALONE_EXPORT) window.addEventListener(\"message\", evt => {\n      const data = evt.data || {};\n      if (!runtimeAcceptsHostMessage(evt, data)) return;\n      if (data.type === \"STATE_BLUEPRIN
+
+===== state.html :: runtimeRecorderControls @ 506835 =====
+edStart !== current));\n      if (entered) {\n        setRuntimeCurrent(requestedStart || model.initial, data.reset ? \"reset\" : \"host\", true);\n        stateActivationId += 1;\n        logLines = [];\n        transitionToNotify = null;\n        blockedTransitionId = null;\n        runtimeValidation = null;\n      }\n      runCurrentStateEntryEffects({ fetch: entered || currentDataSourceTargetChanged(changedTargets), defaults: true });\n      render();\n      startRuntimeRealtimeTransport();\n    });\n\n    document.addEventListener(\"keydown\", evt => {\n      const mod = evt.ctrlKey || evt.metaKey;\n      if (!mod || evt.altKey) return;\n      const key = evt.key.toLowerCase();\n      if (key !== \"s\" && key !== \"o\" && key !== \"n\") return;\n      const hasHost = hasHostWindow();\n      if (!hasHost) return;\n      evt.preventDefault();\n      evt.stopImmediatePropagation();\n      const action = key === \"s\" ? \"save\" : key === \"o\" ? \"load\" : evt.shiftKey ? \"\" : \"new\";\n      if (!action) return;\n      const payload = {\n        type: \"STATE_BLUEPRINT_SHORTCUT\",\n        action\n      };\n      postHostMessage(payload);\n    }, { capture: true });\n\n    bindRuntimeRecorderControls();\n    normalizeModel(model);\n    if (!findState(current)) setRuntimeCurrent(model.initial, \"initial\", true);\n    if (hasHostWindow()) {\n      syncRuntimeAppName();\n      syncRuntimeRecorderControls();\n      const statePill = document.getElementById(\"statePill\");\n      if (statePill) statePill.textContent = \"\";\n    } else {\n      stateActivationId += 1;\n      syncRuntimeCurrent(\"initial\", true);\n      runCurrentStateEntryEffects({ fetch: true });\n      render();\n      startRuntimeRealtimeTransport();\n    }\n  <\/script>\n</body>\n</html>\n";
+    const GENERATED_APP_HTML = APP_HTML;
+    const APP_URL = URL.createObjectURL(new Blob([GENERATED_APP_HTML], { type: "text/html" }));
+    const PRODUCT_CONTRACT_URL = window.ZUSTAND_PRODUCT_CONTRACT_URL ||
+      (location.hostname === "digitalisierungsplanung.de" || location.hostname === "www.digitalisierungsplanung.de"
+        ? "https://realtime.digitalisierungsplanung.de/contract"
+        : "/contract");
+    const IMAGE_INLINE_URL = window.ZUSTAND_IMAGE_INLINE_URL ||
+      (location.hostname === "digitalisierungsplanung.de" || location.hostname === "www.digitalisierungsplanung.de"
+        ? "https://realtime.digitalisierungsplanung.de/assets/inline-image"
+        : "/assets/inline-image");
+    const RUNTIME_MESSAGE_ORIGIN = window.location.origin;
+    const RUNTIME_SESSION_FRAGMENT_KEY = "state-blueprint-session";
+    const WORLD_MIN_X = -10000;
+    const WORLD_MIN_Y = -8000;
+    const WORLD_MAX_X = 20000;
+    const WORLD_MAX_Y = 16000;
+    const WORLD_W = WORLD_MAX_X - WORLD_MIN_X;
+    const WORLD_H = WORLD_MAX_Y - WORLD_MIN_Y;
+    const NODE_W = 192;
+    const GRID_SIZE = 24;
+    const NODE_H = 96;
+    const ROUTE_NODE_CLEARANCE = GRID_SIZE / 2;
+    const WHEEL_ZOOM_PIXEL_DENOMINATOR = 240;
+    const TOUCH_PINCH_ZOOM_RESPONSE = 1.45;
+    const TOUCH_DOUBLE_TAP_MS = 650;
+    const TOUCH_DOUBLE_TAP_RADIUS = 48;
+    const TOUCH_NODE_DRAG_HOLD_MS = 220;
+    const TOUCH_NODE_MOVE_CANCEL_RADIUS = 10;
+    const TOUCH_TEMPLATE_DRAG_HOLD_MS = 140;
+    const TOUCH_TEMPLATE_DRAG_START_PX = 9;
+    const TOUCH_TEMPLATE_SCROLL_CANCEL_PX = 16;
+    const DESKTOP_NODE_DOUBLE_CLICK_MS = 420;
+    const MOUSE_PORT_START_OUTSIDE_PX = 32;
+    const MOUSE_PORT_START_INSIDE_PX = 8;
+    const MOUSE_PORT_START_VERTICAL_PX = 22;
+    const DESKTOP_DRAG_ACTIVATION_PX = 7;
+    const CONNECTION_EMPTY_TARGET_CREATE_PX = GRID_SIZE * 2;
+    const TOUCH_PORT_START_INSIDE_PX = 18;
+    const TOUCH_PORT_START_OUTSIDE_PX = 48;
+    const TOUCH_PORT_START_VERTICAL_PX = 38;
+    const MOBILE_SHEET_DEFAULT_
+
+===== state.html :: runtimeRecording = @ 317493 =====
+     if (op === \">=\") return l >= r;\n        if (op === \"<=\") return l <= r;\n        if (op === \">\") return l > r;\n        if (op === \"<\") return l < r;\n      }\n      if (typeof right === \"number\") {\n        const l = strictNumber(left);\n        if (l === null) return false;\n        return op === \"==\" ? l === right : l !== right;\n      }\n      if (typeof right === \"boolean\") {\n        if (typeof left !== \"boolean\") return false;\n        return op === \"==\" ? left === right : left !== right;\n      }\n      return op === \"==\" ? String(left) === String(right) : String(left) !== String(right);\n      return false;\n    }\n\n    function conditionOk(condition) {\n      const c = String(condition || \"\").trim();\n      if (!c) return true;\n      return c.split(\"||\").some(orPart => orPart.split(\"&&\").every(testAtom));\n    }\n\n    function runtimeStateTitle(id) {\n      const state = findState(id);\n      return String(state?.title || id || \"\");\n    }\n\n\n    const RUNTIME_RECORDER_MAX_FRAMES = 240;\n    const RUNTIME_RECORDER_STEP_MS = 650;\n    const RUNTIME_RECORDER_MIN_STEP_MS = 120;\n    const RUNTIME_RECORDER_MAX_STEP_MS = 3500;\n    const runtimeRecording = {\n      active: false,\n      mode: \"live\",\n      playing: false,\n      timer: 0,\n      scrollTimer: 0,\n      index: -1,\n      frames: [],\n      pendingFrame: null,\n      startedAt: 0,\n      lastFrameAt: 0,\n      createdAt: \"\",\n      model: null,\n      loop: false\n    };\n\n    // Isolated UI replay artifact; never part of the persisted model or transition contract.\n    function runtimeRecorderClone(value) {\n      if (value === undefined) return undefined;\n      return JSON.parse(JSON.stringify(value));\n    }\n\n    function runtimeRecorderNowMs() {\n      return typeof performance !== \"undefined\" && typeof performance.now === \"function\" ? performance.now() : Date.now();\n    }\n\n    function runtimeRecorderClearScrollTimer() {\n      if (runtimeRecording.scrollTimer) clearTimeout(runtimeRecording.scrollTimer);\n      runtimeRecording.scrollTimer = 0;\n    }\n\n    function runtimeRecorderTargetLabel(target) {\n      if (!target || !target.closest) return \"\";\n      const el = target.closest(\"button, a[href], input, textarea, select, [role='button'], label, summary\") || target;\n      const aria = String(el.getAttribute?.(\"aria-label\") || \"\").trim();\n      if (aria) return aria;\n      const placeholder = String(el.getAttribute?.(\"placeholder\") || \"\").trim();\n      if (placeholder) return placeholder;\n      const text = String(el.innerText || el.textContent || \"\").replace(/\\s+/g, \" \").trim();\n      if (text) return text.slice(0, 80);\n      const tag = String(el.tagName || \"\").toLowerCase();\n      return tag ? tag : \"\";\n    }\n\n    function runtimeRecorderScreenPoint(clientX, clientY) {\n      const screen = document.getElementById(\"screen\");\n      if (!screen) return { screenX: 18, screenY: 18 };\n      const rect = screen.getBoundingClientRect();\n      const x = Math.round(Number(clientX) - rect.left + (screen.scrollLeft || 0));\n      const y = Math.round(Number(clientY) - rect.top + (screen.scrollTop || 0));\n      return {\n        screenX: Math.max(12, Math.min(Math.max(12, Math.round(rect.width) - 24), Number.isFinite(x) ? x : 18)),\n        screenY: Math.max(12, Number.isFinite(y) ? y : 18)\n      };\n    }\n\n    function runtimeRecorderMarkerLabel(kind, detail = {}) {\n      const targetLabel = String(detail.targetLabel || \"\").trim();\n      if (kind === \"click\") return targetLabel && targetLabel !== \"input\" ? \"Klick: \" + targetLabel : \"Klick\";\n      if (kind === \"input\") return \"Eingabe\";\n      if (kind === \"scroll\") return \"Scroll\";\n      if (kin
+
+===== state.html :: function runtimeRecorderCaptureFrame @ 354027 =====
+ay\" || runtimeRecording.playing === true;\n    }\n\n    function runtimeRecorderFrameLabel(kind, detail = {}) {\n      const transition = detail.transition || null;\n      if (transition) {\n        const label = runtimeTransitionLabel(transition);\n        const target = runtimeStateTitle(detail.to || transition.to || \"\");\n        return target ? label + \" -> \" + target : label;\n      }\n      if (kind === \"click\") return runtimeRecorderMarkerLabel(\"click\", runtimeRecorderFrameDetail(kind, detail));\n      if (kind === \"scroll\") return \"Scroll\";\n      if (kind === \"input\") return String(detail.path || \"Eingabe\");\n      if (kind === \"event\") return \"Ereignis: \" + String(detail.eventName || detail.detail?.eventName || \"\");\n      if (kind === \"start\") return \"Start\";\n      return runtimeStateTitle(current) || String(current || \"\");\n    }\n\n    function runtimeRecorderFrameSignature(frame) {\n      return String(frame?.kind || \"\") + \"\\u0000\" + String(frame?.current || \"\") + \"\\u0000\" + JSON.stringify(frame?.context || {}) + \"\\u0000\" + JSON.stringify(frame?.detail || {}) + \"\\u0000\" + String(frame?.screen?.html || \"\");\n    }\n\n    function runtimeRecorderCaptureFrame(kind = \"snapshot\", detail = {}) {\n      if (!runtimeRecording.active || runtimeRecording.playing) return null;\n      const nowMs = runtimeRecorderNowMs();\n      if (!runtimeRecording.startedAt) runtimeRecording.startedAt = nowMs;\n      if (!runtimeRecording.createdAt) runtimeRecording.createdAt = new Date().toISOString();\n      if (!runtimeRecording.model) runtimeRecording.model = runtimeRecorderClone(model);\n      const previous = runtimeRecording.frames[runtimeRecording.frames.length - 1];\n      const frameDetail = runtimeRecorderFrameDetail(kind, detail);\n      frameDetail.kind = String(kind || \"snapshot\");\n      const frame = {\n        index: runtimeRecording.frames.length + 1,\n        at: new Date().toISOString(),\n        atMs: Math.max(0, Math.round(nowMs - runtimeRecording.startedAt)),\n        delayMs: previous ? Math.max(0, Math.round(nowMs - (runtimeRecording.lastFrameAt || nowMs))) : 0,\n        kind: String(kind || \"snapshot\"),\n        current: String(current || readValueAtPath(context, \"state.current\") || \"\"),\n        label: runtimeRecorderFrameLabel(kind, detail),\n        transitionId: String(detail.transition?.id || detail.transitionId || frameDetail.transitionId || \"\"),\n        triggerEvent: normalizeTransitionEvent(detail.triggerEvent || frameDetail.eventName || \"\"),\n        eventName: normalizeTransitionEvent(detail.eventName || frameDetail.eventName || \"\"),\n        detail: frameDetail,\n        context: runtimeRecorderClone(context),\n        screen: runtimeRecorderSerializeScreen(frameDetail)\n      };\n      runtimeRecording.lastFrameAt = nowMs;\n      if (previous && runtimeRecorderFrameSignature(previous) === runtimeRecorderFrameSignature(frame)) {\n        previous.at = frame.at;\n        previous.atMs = frame.atMs;\n        previous.delayMs += frame.delayMs;\n        previous.kind = frame.kind;\n        previous.label = frame.label;\n        previous.transitionId = frame.transitionId;\n        previous.triggerEvent = frame.triggerEvent;\n        previous.eventName = frame.eventName;\n        previous.detail = frame.detail;\n        previous.screen = frame.screen;\n        syncRuntimeRecorderControls();\n        return previous;\n      }\n      if (runtimeRecording.frames.length >= RUNTIME_RECORDER_MAX_FRAMES) {\n        runtimeRecording.frames.shift();\n        runtimeRecording.frames.forEach((item, index) => { item.index = index + 1; });\n      }\n      frame.index = runtimeRecording.frames.length + 1;\n      runtimeRecording.frames.push(frame);\n      runtim
+
+===== state.html :: addEventListener\(.*runtimeRecorder @ 225166 =====
+rResetTimers = () => {\n        resetTimers.forEach(timer => clearTimeout(timer));\n        resetTimers = [];\n        clearTimeout(releaseTimer);\n        releaseTimer = 0;\n      };\n\n      const resetInitialViewport = () => {\n        if (!resetActive) return;\n        const root = document.scrollingElement || document.documentElement;\n        if (root) {\n          root.scrollTop = 0;\n          root.scrollLeft = 0;\n        }\n        if (document.body) {\n          document.body.scrollTop = 0;\n          document.body.scrollLeft = 0;\n        }\n        window.scrollTo(0, 0);\n      };\n\n      const stopInitialViewportReset = () => {\n        resetActive = false;\n        clearResetTimers();\n      };\n\n      const beginInitialViewportReset = () => {\n        clearResetTimers();\n        resetActive = true;\n        resetInitialViewport();\n        requestAnimationFrame(() => {\n          resetInitialViewport();\n          requestAnimationFrame(resetInitialViewport);\n        });\n        resetTimers = [80, 240, 700, 1400].map(delay => setTimeout(resetInitialViewport, delay));\n        releaseTimer = setTimeout(stopInitialViewportReset, 1600);\n      };\n\n      document.addEventListener(\"DOMContentLoaded\", beginInitialViewportReset, { once: true });\n      window.addEventListener(\"load\", beginInitialViewportReset, { once: true });\n      window.addEventListener(\"pageshow\", beginInitialViewportReset);\n      window.visualViewport?.addEventListener(\"resize\", resetInitialViewport, { passive: true });\n      [\"pointerdown\", \"touchstart\", \"wheel\", \"keydown\"].forEach(type => {\n        window.addEventListener(type, stopInitialViewportReset, { capture: true, passive: true });\n      });\n      beginInitialViewportReset();\n    })();\n  <\/script>\n  <meta name=\"description\" content=\"Zustand macht Business-Prozesse als globales JSON-Zustandsmodell sichtbar, testbar und exportierbar.\">\n  <meta name=\"theme-color\" content=\"#07111f\">\n  <meta name=\"application-name\" content=\"Zustand\">\n  <link rel=\"canonical\" href=\"https://digitalisierungsplanung.de/\">\n  <link rel=\"manifest\" href=\"/manifest.webmanifest\">\n  <link rel=\"icon\" type=\"image/svg+xml\" href=\"/assets/zustand-icon.svg\">\n  <link rel=\"apple-touch-icon\" href=\"/assets/apple-touch-icon.png\">\n  <meta property=\"og:type\" content=\"website\">\n  <meta property=\"og:url\" content=\"https://digitalisierungsplanung.de/\">\n  <meta property=\"og:title\" content=\"Digitalisierungsplanung\">\n  <meta property=\"og:description\" content=\"Zustand macht Business-Prozesse als globales JSON-Zustandsmodell sichtbar, testbar und exportierbar.\">\n  <meta property=\"og:image\" content=\"https://digitalisierungsplanung.de/assets/share-card.png\">\n  <meta name=\"twitter:card\" content=\"summary_large_image\">\n  <meta name=\"twitter:title\" content=\"Digitalisierungsplanung\">\n  <meta name=\"twitter:description\" content=\"Zustand macht Business-Prozesse als globales JSON-Zustandsmodell sichtbar, testbar und exportierbar.\">\n  <meta name=\"twitter:image\" content=\"https://digitalisierungsplanung.de/assets/share-card.png\">\n  <script defer src=\"/disable-sw.js\"><\/script>\n  <meta name=\"description\" content=\"Zustand macht Business-Prozesse als globales JSON-Zustandsmodell sichtbar, testbar und exportierbar.\">\n  <meta name=\"theme-color\" content=\"#07111f\">\n  <meta name=\"application-name\" content=\"Zustand\">\n  <link rel=\"canonical\" href=\"https://digitalisierungsplanung.de/\">\n  <link rel=\"manifest\" href=\"/manifest.webmanifest\">\n  <link rel=\"icon\" type=\"image/svg+xml\" href=\"/assets/zustand-icon.svg\">\n  <link rel=\"apple-touch-icon\" href=\"/assets/apple-touch-icon.png\">\n  <meta property=\"og:type\" content=\"websit
+
+===== state.html :: postRuntimePayload @ 518458 =====
+      setTimeout(() => revokeRuntimeAppUrl(url), 60000);
+          return true;
+        }
+      } catch (_) {}
+      revokeRuntimeAppUrl(url);
+      return false;
+    }
+
+    function openStandaloneAppWindow() {
+      let popup = null;
+      try { popup = window.open("about:blank", "_blank"); } catch (_) {}
+      let html = "";
+      try {
+        html = standaloneAppHtml();
+      } catch (err) {
+        try { popup?.close?.(); } catch (_) {}
+        modalAlert(err?.message || "Die App konnte nicht in einem neuen Fenster vorbereitet werden.", "Öffnen fehlgeschlagen");
+        return false;
+      }
+      if (writeStandaloneAppToPopup(popup, html)) return true;
+      if (navigatePopupToStandaloneUrl(popup, html)) return true;
+      modalAlert("Der Browser hat das neue Fenster blockiert. Bitte Pop-ups für diese Seite erlauben und erneut tippen.", "Öffnen blockiert");
+      return false;
+    }
+
+    function revokeRuntimeAppUrl(url) {
+      const blobUrl = String(url || "").split("#", 1)[0];
+      if (blobUrl && blobUrl !== APP_URL) URL.revokeObjectURL(blobUrl);
+    }
+
+    function runtimePayloadForSession(payload, sessionId) {
+      return { ...payload, sessionId };
+    }
+
+    function postRuntimePayloadToWindow(targetWindow, payload, sessionId) {
+      if (!targetWindow || !sessionId || !payload || typeof payload !== "object") return false;
+      targetWindow.postMessage(runtimePayloadForSession(payload, sessionId), RUNTIME_MESSAGE_ORIGIN);
+      return true;
+    }
+
+    let appFrameSessionId = createRuntimeSessionId();
+    let appFrameUrl = runtimeAppUrl(appFrameSessionId);
+    let selected = null;
+    let dragging = null;
+    let connecting = null;
+    let connectingTargetId = null;
+    let panning = null;
+    let boxSelecting = null;
+    let draggingTemplateId = "";
+    let templateDragOverStateId = "";
+    let stateDragOverStateId = "";
+    let canvasMoveFrame = 0;
+    let queuedCanvasMoveEvent = null;
+    let syncTimer = null;
+    let appFrameReady = false;
+    let pendingFramePayloads = [];
+    let runtimeModelSyncSequence = 0;
+    let pendingRuntimeModelSyncId = "";
+    let pendingHistoryRestoreSyncId = "";
+    let pendingRuntimeDefaultOverrideStateIds = new Set();
+    let refreshInspectorGlobalStateTree = null;
+    let pendingAppStartStateId = null;
+    let pendingAppStartSuppressLayerFollow = false;
+    let pendingAutoEntryLayerBackPulseId = "";
+    let lastAppTransitionId = null;
+    let hoveredEdgeId = null;
+    let allowInspectorProgrammaticFocusUntil = 0;
+    let transitionInspectorKeyboardEditing = false;
+    let quickRenameSession = null;
+    let openComponentEditorIds = new Set();
+    let currentLayerId = null;
+    const DATA_WIRE_ROLES = ["image", "title", "price", "description", "field", "link", "note"];
+    const SUPPORTED_DAISY_VARIANTS = new Set([
+      "accordion", "alert", "avatar", "badge", "bottom-navigation", "breadcrumbs",
+      "button", "calendar", "card", "chart", "carousel", "checkbox", "countdown", "drawer", "dropdown",
+      "feature-grid", "file-input", "footer", "hero", "indicator", "input", "loading", "mask", "menu", "modal",
+      "navbar", "pricing", "progress", "radial-progress", "radio", "range", "rating",
+      "select", "stat", "steps", "table", "tabs", "textarea", "timeline",
+      "toast", "toggle"
+    ]);
+    const SUPPORTED_DAISY_NAVBAR_LAYOUTS = new Set(["title-only", "menu-submenu", "search-dropdown", "cart-profile"]);
+    const SUPPORTED_DAISY_HERO_LAYOUTS = new Set(["centered", "figure", "figure-reverse", "form", "overlay"]);
+    const DATA_WIRE_DRAG_MIME = "application/x-state-blueprint-data-path";
+    const INSPECTOR_PANEL_MIN = 240;
+    const INSPECTOR_PANEL_DEFAULT = 340;
+    const INSPECTOR_PANEL_MAX = 680;
+    const PREVIEW_PANEL_MIN = 240;
+    const PREVIEW_PANEL_MOBILE_MIN = 80;
+
+===== state.html :: postRuntimePayload @ 923770 =====
+";
+    }
+
+    function applyRuntimeStateView(stateId) {
+      if (!runtimeStateEl) return;
+      runtimeStateEl.dataset.stateId = String(stateId || "");
+      syncRuntimeStateLabel();
+    }
+
+    function syncRuntimeStateLabel() {
+      const paused = hostRuntimePausedView();
+      runtimeStateEl.classList.toggle("paused", paused);
+      runtimeStateEl.textContent = (paused ? "Pausiert: " : "Zustand: ") + (hostRuntimeStateView() || "\u2014");
+    }
+
+    function syncRuntimePauseButton(paused) {
+      workspaceEl?.classList.toggle("runtime-paused", Boolean(paused));
+      if (runtimePauseBannerEl) runtimePauseBannerEl.hidden = !paused;
+      if (!btnPause) return;
+      btnPause.textContent = paused ? "Fortsetzen" : "Pausieren";
+      btnPause.title = paused ? "Timer und automatische Änderungen fortsetzen" : "Timer und automatische Änderungen pausieren";
+      btnPause.setAttribute("aria-pressed", paused ? "true" : "false");
+      btnPause.classList.toggle("runtime-paused", paused);
+    }
+
+    function applyRuntimePaused(paused, opts = {}) {
+      const next = Boolean(paused);
+      syncRuntimePauseButton(next);
+      syncRuntimeStateLabel();
+      if (opts.send !== false) {
+        postRuntimePayload({ type: "STATE_BLUEPRINT_RUNTIME_CONTROL", paused: next });
+      }
+    }
+
+    function draw() {
+      if (drawFrame) {
+        cancelAnimationFrame(drawFrame);
+        drawFrame = 0;
+      }
+      recordPerfMetric("drawCalls");
+      normalizeModel(model);
+      selected = normalizeSelection();
+      const snapshot = buildVisibleFrameSnapshot(currentLayerId);
+      try {
+      const states = snapshot.states;
+      const layerStates = statesInLayer(currentLayerId);
+      const transitions = snapshot.transitions;
+      _frameVisibleTransitions = transitions;
+      _framePortTransitionOrders = new Map();
+      updateLayerFrame(layerStates);
+      const fastRoutes = dragging || Date.now() < fastRouteDrawUntil;
+      _frameRoutes = computeFrameRoutes(fastRoutes
+        ? {
+            metricName: dragging ? "liveDragRouteBuilds" : "finalRouteBuilds",
+            allowDenseGridSearch: false,
+            transitions
+          }
+        : { transitions });
+      const nodeSelection = selectedNodeIds();
+      const edgeSelection = selectedEdgeIds();
+      const runtimeStateId = hostRuntimeStateView();
+
+      const activeEl = document.activeElement;
+      let focusedNodeId = null;
+      if (activeEl && nodesEl.contains(activeEl)) {
+        const nodeEl = activeEl.closest(".node");
+        if (nodeEl) {
+          focusedNodeId = nodeEl.dataset.id;
+        }
+      }
+
+      nodesEl.__recycledNodes = nodesEl.__recycledNodes || new Map();
+      const oldNodes = nodesEl.__recycledNodes;
+      const nextNodes = new Map();
+
+      const portOverlay = getPortOverlay();
+      bindSvgInteractionDelegates(portOverlay);
+      const wireFragment = document.createDocumentFragment();
+      const portFragment = document.createDocumentFragment();
+      const wireSync = createSvgSync(wiresEl, wireFragment, {
+        createMetric: "wireElementsCreated",
+        reuseMetric: "wireElementsReused",
+        removeMetric: "wireElementsRemoved"
+      });
+      const portSync = createSvgSync(portOverlay, portFragment, {
+        createMetric: "portElementsCreated",
+        reuseMetric: "portElementsReused",
+        removeMetric: "portElementsRemoved"
+      });
+      const appendWireElement = (key, name, attrs) => syncSvgElement(wireSync, key, name, attrs);
+      const appendPortElement = (key, name, attrs) => syncSvgElement(portSync, key, name, attrs);
+      recordPerfMetric("wireSyncs");
+      const edgeTipHits = [];
+      syncRuntimeStateLabel();
+
+      for (const t of transitions) {
+        if (connecting?.edgeId === t.id) continue;
+        const from = byId(t.from);
+  
+
+===== state.html :: postRuntimePayload @ 1237312 =====
+== "object") return;
+      payload = prepareRuntimePayload(payload);
+      const type = String(payload.type || "");
+      if (type === "STATE_BLUEPRINT_MODEL") {
+        pendingFramePayloads = pendingFramePayloads.filter(item => item?.type !== type);
+      } else if (type === "STATE_BLUEPRINT_RUNTIME_CONTROL") {
+        pendingFramePayloads = pendingFramePayloads.filter(item => item?.type !== type);
+      }
+      pendingFramePayloads.push(payload);
+    }
+
+    function pendingRuntimePayloadPriority(payload) {
+      if (payload?.type === "STATE_BLUEPRINT_MODEL") return 0;
+      if (payload?.type === "STATE_BLUEPRINT_RUNTIME_CONTROL") return 1;
+      return 2;
+    }
+
+    function flushPendingRuntimePayloads() {
+      if (!appFrameReady || !frameEl.contentWindow || !appFrameContainsGeneratedApp()) return false;
+      const queue = pendingFramePayloads
+        .map((payload, index) => ({ payload, index }))
+        .sort((a, b) => pendingRuntimePayloadPriority(a.payload) - pendingRuntimePayloadPriority(b.payload) || a.index - b.index)
+        .map(item => item.payload);
+      pendingFramePayloads = [];
+      for (let index = 0; index < queue.length; index += 1) {
+        try {
+          postRuntimePayloadToWindow(frameEl.contentWindow, queue[index], appFrameSessionId);
+        } catch (_) {
+          pendingFramePayloads.unshift(...queue.slice(index));
+          return false;
+        }
+      }
+      return true;
+    }
+
+    function runtimeModelPayloadForReload() {
+      if (!productContract) return null;
+      const activeStateId = hostRuntimeStateView();
+      const startStateId = activeStateId && byId(activeStateId) ? activeStateId : model.initial;
+      return {
+        type: "STATE_BLUEPRINT_MODEL",
+        model: snapshotModelForRuntime(),
+        reset: true,
+        startStateId,
+        paused: hostRuntimePausedView(),
+        preserveFocus: true
+      };
+    }
+
+    function reloadAppFrame(payload = null, opts = {}) {
+      const reloadPayload = runtimeModelPayloadForReload();
+      if (payload?.type !== "STATE_BLUEPRINT_MODEL" && reloadPayload) queuePendingRuntimePayload(reloadPayload);
+      if (payload) queuePendingRuntimePayload(payload);
+      const activeStateId = hostRuntimeStateView();
+      if (!payload && opts.preserveCurrent && activeStateId && byId(activeStateId)) {
+        pendingAppStartStateId = activeStateId;
+        pendingAppStartSuppressLayerFollow = false;
+      }
+      appFrameReady = false;
+      const previousUrl = appFrameUrl;
+      appFrameSessionId = createRuntimeSessionId();
+      appFrameUrl = createRuntimeAppUrl(appFrameSessionId);
+      frameEl.src = appFrameUrl;
+      revokeRuntimeAppUrl(previousUrl);
+    }
+
+    function postRuntimePayload(payload) {
+      payload = prepareRuntimePayload(payload);
+      if (appFrameReady && frameEl.contentWindow) {
+        if (!appFrameContainsGeneratedApp()) {
+          reloadAppFrame(payload);
+        } else {
+          try {
+            postRuntimePayloadToWindow(frameEl.contentWindow, payload, appFrameSessionId);
+          } catch (_) {
+            queuePendingRuntimePayload(payload);
+          }
+        }
+      } else {
+        queuePendingRuntimePayload(payload);
+      }
+      return payload;
+    }
+
+    function clearPresetPreviewUi() {
+      presetPreviewActive = false;
+      previewTemplateId = "";
+      document.querySelectorAll(".state-template-card.previewing,.component-preset-card.previewing").forEach(el => el.classList.remove("previewing"));
+      if (previewTitleTextEl) previewTitleTextEl.textContent = "Generierte App";
+      if (syncStateEl && syncStateEl.textContent === "Vorlage") syncStateEl.textContent = "aktiv";
+    }
+
+    function presetInfoPreviewPayload(template) {
+      const previewTemplate = composerTemplateFrom(template);
+      if (!previe
+
+===== state.html :: postRuntimePayload @ 1238814 =====
+ontract) return null;
+      const activeStateId = hostRuntimeStateView();
+      const startStateId = activeStateId && byId(activeStateId) ? activeStateId : model.initial;
+      return {
+        type: "STATE_BLUEPRINT_MODEL",
+        model: snapshotModelForRuntime(),
+        reset: true,
+        startStateId,
+        paused: hostRuntimePausedView(),
+        preserveFocus: true
+      };
+    }
+
+    function reloadAppFrame(payload = null, opts = {}) {
+      const reloadPayload = runtimeModelPayloadForReload();
+      if (payload?.type !== "STATE_BLUEPRINT_MODEL" && reloadPayload) queuePendingRuntimePayload(reloadPayload);
+      if (payload) queuePendingRuntimePayload(payload);
+      const activeStateId = hostRuntimeStateView();
+      if (!payload && opts.preserveCurrent && activeStateId && byId(activeStateId)) {
+        pendingAppStartStateId = activeStateId;
+        pendingAppStartSuppressLayerFollow = false;
+      }
+      appFrameReady = false;
+      const previousUrl = appFrameUrl;
+      appFrameSessionId = createRuntimeSessionId();
+      appFrameUrl = createRuntimeAppUrl(appFrameSessionId);
+      frameEl.src = appFrameUrl;
+      revokeRuntimeAppUrl(previousUrl);
+    }
+
+    function postRuntimePayload(payload) {
+      payload = prepareRuntimePayload(payload);
+      if (appFrameReady && frameEl.contentWindow) {
+        if (!appFrameContainsGeneratedApp()) {
+          reloadAppFrame(payload);
+        } else {
+          try {
+            postRuntimePayloadToWindow(frameEl.contentWindow, payload, appFrameSessionId);
+          } catch (_) {
+            queuePendingRuntimePayload(payload);
+          }
+        }
+      } else {
+        queuePendingRuntimePayload(payload);
+      }
+      return payload;
+    }
+
+    function clearPresetPreviewUi() {
+      presetPreviewActive = false;
+      previewTemplateId = "";
+      document.querySelectorAll(".state-template-card.previewing,.component-preset-card.previewing").forEach(el => el.classList.remove("previewing"));
+      if (previewTitleTextEl) previewTitleTextEl.textContent = "Generierte App";
+      if (syncStateEl && syncStateEl.textContent === "Vorlage") syncStateEl.textContent = "aktiv";
+    }
+
+    function presetInfoPreviewPayload(template) {
+      const previewTemplate = composerTemplateFrom(template);
+      if (!previewTemplate) return null;
+      ensureComposerVariableDataTypes(previewTemplate);
+      const instance = instantiateStateTemplate(previewTemplate, 120, 120, null);
+      return {
+        type: "STATE_BLUEPRINT_MODEL",
+        model: {
+          version: 2,
+          name: "",
+          initial: instance.root.id,
+          states: instance.states,
+          transitions: instance.transitions
+        },
+        reset: true,
+        startStateId: instance.root.id,
+        paused: false,
+        preserveFocus: true
+      };
+    }
+
+    function unbindPresetInfoPreviewDismiss() {
+      document.removeEventListener("pointerdown", handlePresetInfoPreviewOutside, true);
+      document.removeEventListener("keydown", handlePresetInfoPreviewKeydown, true);
+      window.removeEventListener("resize", closePresetInfoOverlay);
+      window.removeEventListener("scroll", closePresetInfoOverlay, true);
+    }
+
+    function closePresetInfoOverlay() {
+      if (presetInfoPreviewSendTimer) {
+        clearTimeout(presetInfoPreviewSendTimer);
+        presetInfoPreviewSendTimer = null;
+      }
+      unbindPresetInfoPreviewDismiss();
+      presetInfoPreviewAnchor?.querySelector?.(".template-info")?.setAttribute("aria-expanded", "false");
+      presetInfoPreviewAnchor?.classList?.remove("info-open");
+      presetInfoPreviewAnchor = null;
+      if (presetInfoPreviewEl) {
+        presetInfoPreviewEl.remove();
+        presetInfoPreviewEl = null;
+      }
+      if (presetInfoPreviewUrl) {
+        revokeRuntimeApp
+
+===== state.html :: postRuntimePayload @ 1245241 =====
+ 6 18"></path><path d="m6 6 12 12"></path></svg></button>
+          <div class="preset-preview-desc"></div>
+        </div>
+        <div class="preset-preview-frame-wrap">
+          <iframe class="preset-preview-frame" title="${escapeHtml(title)} Vorschau"></iframe>
+        </div>
+      `;
+      overlay.querySelector(".preset-preview-title").textContent = title;
+      overlay.querySelector(".preset-preview-desc").textContent = description;
+      overlay.querySelector(".preset-preview-close").onclick = evt => {
+        evt.preventDefault();
+        evt.stopPropagation();
+        closePresetInfoOverlay();
+      };
+      document.body.appendChild(overlay);
+      presetInfoPreviewEl = overlay;
+      presetInfoPreviewAnchor = anchor || null;
+      presetInfoPreviewAnchor?.classList?.add("info-open");
+      presetInfoPreviewAnchor?.querySelector?.(".template-info")?.setAttribute("aria-expanded", "true");
+      positionPresetInfoOverlay(anchor, overlay);
+
+      const frame = overlay.querySelector(".preset-preview-frame");
+      const sessionId = createRuntimeSessionId();
+      presetInfoPreviewUrl = createDetachedRuntimeAppUrl(sessionId);
+      const send = () => {
+        try {
+          postRuntimePayloadToWindow(frame.contentWindow, payload, sessionId);
+        } catch (_) {}
+      };
+      frame.addEventListener("load", () => {
+        send();
+        presetInfoPreviewSendTimer = setTimeout(send, 120);
+      }, { once: true });
+      frame.src = presetInfoPreviewUrl;
+      setTimeout(() => {
+        document.addEventListener("pointerdown", handlePresetInfoPreviewOutside, true);
+        document.addEventListener("keydown", handlePresetInfoPreviewKeydown, true);
+        window.addEventListener("resize", closePresetInfoOverlay);
+        window.addEventListener("scroll", closePresetInfoOverlay, true);
+      }, 0);
+      return true;
+    }
+
+    function togglePresetInfoOverlay(template, anchor) {
+      if (presetInfoPreviewEl && presetInfoPreviewAnchor === anchor) {
+        closePresetInfoOverlay();
+        return true;
+      }
+      return showPresetInfoOverlay(template, anchor);
+    }
+
+
+
+    function syncToApp(reset, opts = {}) {
+      if (!productContract) return;
+      if (modelTransitionTriggerContractIssue(model)) return null;
+      clearPresetPreviewUi();
+      syncStateEl.textContent = reset ? "neu" : "aktiv";
+      if (reset) {
+        pendingHistoryRestoreSyncId = "";
+        pendingAppStartStateId = null;
+        pendingAppStartSuppressLayerFollow = false;
+        pendingRuntimeDefaultOverrideStateIds.clear();
+      }
+      const defaultOverrideStateIds = reset ? [] : takeRuntimeDefaultOverrideStateIds(opts.defaultOverrideStateIds);
+      const payload = {
+        type: "STATE_BLUEPRINT_MODEL",
+        model: snapshotModelForRuntime(),
+        reset: Boolean(reset),
+        paused: hostRuntimePausedView(),
+        preserveFocus: !reset
+      };
+      if (defaultOverrideStateIds.length) payload.defaultOverrideStateIds = defaultOverrideStateIds;
+      const sentPayload = postRuntimePayload(payload);
+      setTimeout(() => { syncStateEl.textContent = "aktiv"; }, 400);
+      return sentPayload;
+    }
+
+    function syncRuntimeAfterStateDataChange(state, opts = {}) {
+      if (!state?.id) {
+        scheduleSync(false);
+        return;
+      }
+      const defaultOverrideStateIds = opts.defaultOverride ? [state.id] : [];
+      const runtimeStateId = hostRuntimeStateView();
+      const activeState = runtimeStateId ? byId(runtimeStateId) : null;
+      const affectsActiveView = runtimeStateId === state.id || Boolean(activeState && isDescendant(state.id, runtimeStateId));
+      if (affectsActiveView && opts.immediate !== false) {
+        if (defaultOverrideStateIds.length) syncToApp(false, { defaultOverrideStateIds });
+        else syncToAp
+
+===== state.html :: postRuntimePayload @ 1247067 =====
+     }, 0);
+      return true;
+    }
+
+    function togglePresetInfoOverlay(template, anchor) {
+      if (presetInfoPreviewEl && presetInfoPreviewAnchor === anchor) {
+        closePresetInfoOverlay();
+        return true;
+      }
+      return showPresetInfoOverlay(template, anchor);
+    }
+
+
+
+    function syncToApp(reset, opts = {}) {
+      if (!productContract) return;
+      if (modelTransitionTriggerContractIssue(model)) return null;
+      clearPresetPreviewUi();
+      syncStateEl.textContent = reset ? "neu" : "aktiv";
+      if (reset) {
+        pendingHistoryRestoreSyncId = "";
+        pendingAppStartStateId = null;
+        pendingAppStartSuppressLayerFollow = false;
+        pendingRuntimeDefaultOverrideStateIds.clear();
+      }
+      const defaultOverrideStateIds = reset ? [] : takeRuntimeDefaultOverrideStateIds(opts.defaultOverrideStateIds);
+      const payload = {
+        type: "STATE_BLUEPRINT_MODEL",
+        model: snapshotModelForRuntime(),
+        reset: Boolean(reset),
+        paused: hostRuntimePausedView(),
+        preserveFocus: !reset
+      };
+      if (defaultOverrideStateIds.length) payload.defaultOverrideStateIds = defaultOverrideStateIds;
+      const sentPayload = postRuntimePayload(payload);
+      setTimeout(() => { syncStateEl.textContent = "aktiv"; }, 400);
+      return sentPayload;
+    }
+
+    function syncRuntimeAfterStateDataChange(state, opts = {}) {
+      if (!state?.id) {
+        scheduleSync(false);
+        return;
+      }
+      const defaultOverrideStateIds = opts.defaultOverride ? [state.id] : [];
+      const runtimeStateId = hostRuntimeStateView();
+      const activeState = runtimeStateId ? byId(runtimeStateId) : null;
+      const affectsActiveView = runtimeStateId === state.id || Boolean(activeState && isDescendant(state.id, runtimeStateId));
+      if (affectsActiveView && opts.immediate !== false) {
+        if (defaultOverrideStateIds.length) syncToApp(false, { defaultOverrideStateIds });
+        else syncToApp(false);
+      } else {
+        if (defaultOverrideStateIds.length) scheduleSync(false, { defaultOverrideStateIds });
+        else scheduleSync(false);
+      }
+    }
+
+    function startAppAtState(id, opts = {}) {
+      if (!productContract) return;
+      if (!byId(id)) return;
+      if (modelTransitionTriggerContractIssue(model)) return;
+      clearPresetPreviewUi();
+      pendingHistoryRestoreSyncId = "";
+      runtimeLayerFollowEnabled = Boolean(opts.allowLayerFollow);
+      if (opts.allowLayerFollow) suppressRuntimeLayerFollowUntil = 0;
+      if (opts.suppressLayerFollow) suppressRuntimeLayerFollowUntil = Date.now() + 4000;
+      pendingAppStartStateId = id;
+      pendingAppStartSuppressLayerFollow = Boolean(opts.suppressLayerFollow);
+      syncStateEl.textContent = "Start";
+      const payload = {
+        type: "STATE_BLUEPRINT_MODEL",
+        model: snapshotModelForRuntime(),
+        reset: Boolean(opts.resetContext),
+        startStateId: id,
+        paused: hostRuntimePausedView(),
+        preserveFocus: Boolean(opts.preserveFocus)
+      };
+      const defaultOverrideStateIds = opts.resetContext ? [] : takeRuntimeDefaultOverrideStateIds(opts.defaultOverrideStateIds);
+      if (defaultOverrideStateIds.length) payload.defaultOverrideStateIds = defaultOverrideStateIds;
+      postRuntimePayload(payload);
+      if (opts.redraw !== false) draw();
+      setTimeout(() => { syncStateEl.textContent = "aktiv"; }, 400);
+    }
+
+    function safeExternalAppUrl(url) {
+      const raw = String(url || "").trim();
+      if (!raw) return "";
+      try {
+        const parsed = new URL(raw);
+        return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.href : "";
+      } catch (_) {
+        return "";
+      }
+    }
+
+    function openPreviewExternalUrl(url) {
+      const href = safeExter
+
+===== state.html :: postRuntimePayload @ 1249142 =====
+rrideStateIds });
+        else scheduleSync(false);
+      }
+    }
+
+    function startAppAtState(id, opts = {}) {
+      if (!productContract) return;
+      if (!byId(id)) return;
+      if (modelTransitionTriggerContractIssue(model)) return;
+      clearPresetPreviewUi();
+      pendingHistoryRestoreSyncId = "";
+      runtimeLayerFollowEnabled = Boolean(opts.allowLayerFollow);
+      if (opts.allowLayerFollow) suppressRuntimeLayerFollowUntil = 0;
+      if (opts.suppressLayerFollow) suppressRuntimeLayerFollowUntil = Date.now() + 4000;
+      pendingAppStartStateId = id;
+      pendingAppStartSuppressLayerFollow = Boolean(opts.suppressLayerFollow);
+      syncStateEl.textContent = "Start";
+      const payload = {
+        type: "STATE_BLUEPRINT_MODEL",
+        model: snapshotModelForRuntime(),
+        reset: Boolean(opts.resetContext),
+        startStateId: id,
+        paused: hostRuntimePausedView(),
+        preserveFocus: Boolean(opts.preserveFocus)
+      };
+      const defaultOverrideStateIds = opts.resetContext ? [] : takeRuntimeDefaultOverrideStateIds(opts.defaultOverrideStateIds);
+      if (defaultOverrideStateIds.length) payload.defaultOverrideStateIds = defaultOverrideStateIds;
+      postRuntimePayload(payload);
+      if (opts.redraw !== false) draw();
+      setTimeout(() => { syncStateEl.textContent = "aktiv"; }, 400);
+    }
+
+    function safeExternalAppUrl(url) {
+      const raw = String(url || "").trim();
+      if (!raw) return "";
+      try {
+        const parsed = new URL(raw);
+        return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.href : "";
+      } catch (_) {
+        return "";
+      }
+    }
+
+    function openPreviewExternalUrl(url) {
+      const href = safeExternalAppUrl(url);
+      if (!href) return;
+      try { window.open(href, "_blank", "noopener,noreferrer"); } catch (_) {}
+    }
+
+    function nextStateTitle() {
+      let i = model.states.length + 1;
+      const titles = new Set(model.states.map(s => String(s.title || "").toLowerCase()));
+      while (titles.has(("Zustand " + i).toLowerCase())) i++;
+      return "Zustand " + i;
+    }
+
+    function makeState(x, y, title, parentId = currentLayerId) {
+      title = title || nextStateTitle();
+      const id = uniqueModelEntityId(title);
+      const state = {
+        id,
+        title,
+        components: [],
+        data: {},
+        dataTypes: {},
+        dataSource: normalizeDataSource({ target: stateDataScopeForId(id) + ".fetch" }),
+        repeat: normalizeRepeatConfig(null),
+        dataWires: [],
+        boundary: normalizeBoundaryConfig(null),
+        parentId: parentId && byId(parentId) ? parentId : null,
+        x,
+        y
+      };
+      state.x = snapClampToGrid(x, WORLD_MIN_X, WORLD_MAX_X - nodeWidth(state));
+      state.y = snapClampToGrid(y, WORLD_MIN_Y, WORLD_MAX_Y - NODE_H);
+      return state;
+    }
+
+
+
+    function addBlankStateTemplate() {
+      modalAlert("Neue Presets werden zentral im Product Contract angelegt, nicht im Canvas gespeichert.", "Contract-Presets");
+    }
+
+    function simpleContentPresetComponent(template) {
+      if (!template?.builtIn) return null;
+      const copy = snapshotStateTemplates([template])[0];
+      if (!copy) return null;
+      const components = normalizeComponents(copy.components);
+      if (components.length !== 1 || !componentPresetTypes().includes(components[0].type)) return null;
+      if (snapshotTemplateStates(copy).length || snapshotTemplateTransitions(copy).length) return null;
+      if (normalizeDataWires(copy.dataWires).length) return null;
+      return cloneComponents(components)[0] || null;
+    }
+
+    function primaryEditableComponentId(state) {
+      const component = normalizeComponents(state?.components).find(component =>
+        ["heading", "text", "image", "link", "note", "lis
+
+===== state.html :: function validateModel @ 628659 =====
+     });
+    }
+
+    function validateBoundaryDefinition(value, path) {
+      if (value === undefined) return normalizeBoundaryConfig(null);
+      assertPlainObject(value, path);
+      const allowed = new Set(["entryId", "exitId", "entryDisabled", "exitDisabled", "title", "note"]);
+      for (const key of Object.keys(value)) {
+        if (!allowed.has(key)) throw new Error(`${path}.${key} is not part of the canonical boundary contract.`);
+      }
+      for (const key of ["entryDisabled", "exitDisabled"]) {
+        if (key in value && typeof value[key] !== "boolean") throw new Error(`${path}.${key} must be a boolean.`);
+      }
+      return {
+        entryId: "entryId" in value ? assertString(value.entryId, `${path}.entryId`, { allowEmpty: true }) : "",
+        exitId: "exitId" in value ? assertString(value.exitId, `${path}.exitId`, { allowEmpty: true }) : "",
+        entryDisabled: Boolean(value.entryDisabled),
+        exitDisabled: Boolean(value.exitDisabled),
+        title: "title" in value ? assertString(value.title, `${path}.title`, { allowEmpty: true }) : "",
+        note: "note" in value ? assertString(value.note, `${path}.note`, { allowEmpty: true }) : ""
+      };
+    }
+
+    function validateModelDefinition(source) {
+      assertPlainObject(source, "definition.model");
+      if (source.version !== DEFINITION_SCHEMA_VERSION) throw new Error("definition.model.version must be 2.");
+      assertString(source.name, "definition.model.name");
+      const initial = assertString(source.initial, "definition.model.initial", { allowEmpty: true });
+      if (!Array.isArray(source.states)) throw new Error("definition.model.states must be an array.");
+      if (!Array.isArray(source.transitions)) throw new Error("definition.model.transitions must be an array.");
+      if ("editorGroups" in source) throw new Error("definition.model.editorGroups is not part of the contract; use real parent states.");
+
+      const ids = new Set();
+      const states = source.states.map((state, index) => {
+        const path = `definition.model.states[${index}]`;
+        assertPlainObject(state, path);
+        if ("renderMode" in state) throw new Error(`${path}.renderMode is not part of the contract; put visible components on the state itself.`);
+        const id = assertString(state.id, `${path}.id`);
+        if (isReservedRuntimeId(id)) throw new Error(`${path}.id must not use the reserved runtime id namespace.`);
+        if (ids.has(id)) throw new Error(`${path}.id must be unique.`);
+        ids.add(id);
+        const parentId = "parentId" in state ? validateNullableString(state.parentId, `${path}.parentId`, { allowEmpty: true }) : "";
+        const dataObject = validateStateDataObject(state.data, `${path}.data`);
+        return {
+          id,
+          title: assertString(state.title, `${path}.title`),
+          components: validateComponents(state.components, `${path}.components`, { stateId: id }),
+          data: dataObject,
+          dataTypes: validateDataTypesObject(state.dataTypes, `${path}.dataTypes`, dataObject),
+          dataSource: validateDataSource(state.dataSource, `${path}.dataSource`, { fallbackTarget: stateDataScopeForId(id) + ".fetch" }),
+          repeat: validateRepeatConfig(state.repeat, `${path}.repeat`),
+          dataWires: validateDataWires(state.dataWires, `${path}.dataWires`),
+          subscriptions: validateSubscriptions(state.subscriptions, `${path}.subscriptions`),
+          boundary: validateBoundaryDefinition(state.boundary, `${path}.boundary`),
+          parentId: parentId || null,
+          x: assertFiniteNumber(state.x, `${path}.x`),
+          y: assertFiniteNumber(state.y, `${path}.y`)
+        };
+      });
+
+      if (states.length && !initial) throw new Error("definition.model.initial must reference an existing state."
+
+===== state.html :: function save @ 558500 =====
+ypeof data === "object" && data.model ? data : null;
+      } catch (_) { return null; }
+    }
+
+    function applyPersistedEditorState(data) {
+      if (!data || typeof data !== "object" || !data.model) return;
+      if (modelTransitionTriggerContractIssue(data.model)) {
+        try { localStorage.removeItem(EDITOR_STORAGE_KEY); } catch (_) {}
+        return false;
+      }
+      const nextModel = normalizeModel(JSON.parse(JSON.stringify(data.model)));
+      if (modelTransitionTriggerContractIssue(nextModel)) {
+        try { localStorage.removeItem(EDITOR_STORAGE_KEY); } catch (_) {}
+        return false;
+      }
+      model = nextModel;
+      currentLayerId = data.currentLayerId && byId(data.currentLayerId) ? data.currentLayerId : null;
+      selected = normalizeSelection(data.selected || null);
+      return true;
+    }
+
+    function loadCamera() {
+      try {
+        const text = localStorage.getItem(STORAGE_KEY + ".camera");
+        return text ? JSON.parse(text) : null;
+      } catch (_) { return null; }
+    }
+
+    function cameraSnapshotForPersistence(value = null) {
+      const source = value || camera;
+      return { x: source.x, y: source.y, scale: source.scale };
+    }
+
+    function saveCamera(value = null) {
+      try { localStorage.setItem(STORAGE_KEY + ".camera", JSON.stringify(cameraSnapshotForPersistence(value))); } catch (_) {}
+    }
+
+    function scheduleCameraSave() {
+      clearTimeout(cameraSaveTimer);
+      const snapshot = cameraSnapshotForPersistence();
+      cameraSaveTimer = setTimeout(() => {
+        cameraSaveTimer = null;
+        saveCamera(snapshot);
+      }, 140);
+    }
+
+    function normalizeMobileWorkspaceView(view) {
+      return ["canvas", "presets", "edit", "app"].includes(view) ? view : "canvas";
+    }
+
+    function isMobileWorkspaceLayout() {
+      return Boolean(window.matchMedia?.("(max-width: 720px), (max-width: 899px) and (pointer: coarse), (max-height: 520px) and (max-width: 900px)")?.matches);
+    }
+
+    function normalizeStateExplorerGroup(group) {
+      const categories = Array.isArray(productContract?.presetCategories) ? productContract.presetCategories : [];
+      const ids = categories.map(category => category.id);
+      if (ids.includes(group)) return group;
+      return ids[0] || "websuite-builder";
+    }
+
+    let panelResize = null;
+
+    function clampNumber(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function normalizeMobileSheetTopRatio(value) {
+      const number = Number(value);
+      return Number.isFinite(number) ? clampNumber(number, 0, 1) : MOBILE_SHEET_DEFAULT_TOP_RATIO;
+    }
+
+    function normalizeStoredPanelWidth(value, min, max, fallback) {
+      const number = Number(value);
+      return Number.isFinite(number) ? clampNumber(Math.round(number), min, max) : fallback;
+    }
+
+    function normalizeStoredPanelHeight(value, min, max, fallback) {
+      const number = Number(value);
+      return Number.isFinite(number) ? clampNumber(Math.round(number), min, max) : fallback;
+    }
+
+    function defaultPreviewCollapsed() {
+      return isMobileWorkspaceLayout();
+    }
+
+    function loadUiState() {
+      const mobilePreviewLayout = isMobileWorkspaceLayout();
+      const previewMin = mobilePreviewLayout ? PREVIEW_PANEL_MOBILE_MIN : PREVIEW_PANEL_MIN;
+      const fallback = {
+        inspectorCollapsed: true,
+        previewCollapsed: defaultPreviewCollapsed(),
+        stateExplorerCollapsed: false,
+        stateExplorerGroup: "websuite-builder",
+        mobileWorkspaceView: "canvas",
+        mobileSheetTopRatio: MOBILE_SHEET_DEFAULT_TOP_RATIO,
+        inspectorWidth: INSPECTOR_PANEL_DEFAULT,
+        previewWidth: mobilePreviewLayout ? PREVIEW_PANEL_MOBILE_DEFAULT : PREVIEW_PANEL_DEFAULT,
+        stateExplorerHeight: STATE_EXPLORER_DOCK_DEFAULT
+ 
+
+===== state.html :: function save @ 563127 =====
+tTopRatio(stored.mobileSheetTopRatio),
+          inspectorWidth: normalizeStoredPanelWidth(stored.inspectorWidth, INSPECTOR_PANEL_MIN, INSPECTOR_PANEL_MAX, fallback.inspectorWidth),
+          previewWidth: normalizeStoredPanelWidth(stored.previewWidth, previewMin, PREVIEW_PANEL_MAX, fallback.previewWidth),
+          stateExplorerHeight: normalizeStoredPanelHeight(stored.stateExplorerHeight, STATE_EXPLORER_DOCK_MIN, STATE_EXPLORER_DOCK_MAX, fallback.stateExplorerHeight)
+        };
+      } catch (_) {
+        return fallback;
+      }
+    }
+
+    function snapshotUiState() {
+      return {
+        inspectorCollapsed: Boolean(inspectorCollapsed),
+        previewCollapsed: Boolean(previewCollapsed),
+        stateExplorerCollapsed: Boolean(stateExplorerCollapsed),
+        stateExplorerGroup: normalizeStateExplorerGroup(stateExplorerGroup),
+        mobileWorkspaceView: normalizeMobileWorkspaceView(mobileWorkspaceView),
+        mobileSheetTopRatio: normalizeMobileSheetTopRatio(mobileSheetTopRatio),
+        inspectorWidth: Math.round(inspectorPanelWidth),
+        previewWidth: Math.round(previewPanelWidth),
+        stateExplorerHeight: Math.round(stateExplorerDockHeight)
+      };
+    }
+
+    function saveUiState() {
+      try {
+        localStorage.setItem(UI_STATE_KEY, JSON.stringify(snapshotUiState()));
+      } catch (_) {}
+    }
+
+    function workspacePanelWidth() {
+      return workspaceEl.getBoundingClientRect().width || window.innerWidth || 1280;
+    }
+
+    function workspacePanelHeight() {
+      return workspaceEl.getBoundingClientRect().height || window.innerHeight || 720;
+    }
+
+    function usesStackedPreviewLayout() {
+      return Boolean(window.matchMedia?.("(max-width: 900px)")?.matches);
+    }
+
+    function mobileCanvasPreviewSideBySide() {
+      return Boolean(window.matchMedia?.("(max-width: 899px) and (pointer: coarse) and (orientation: landscape)")?.matches);
+    }
+
+    function visibleRectHeight(rect) {
+      if (!rect || rect.width <= 0 || rect.height <= 0) return 0;
+      const top = Math.max(0, Math.min(window.innerHeight || rect.bottom, rect.top));
+      const bottom = Math.max(0, Math.min(window.innerHeight || rect.bottom, rect.bottom));
+      return Math.max(0, bottom - top);
+    }
+
+    function mobilePreviewRuntimeBottomInsetPx() {
+      if (!isMobileWorkspaceLayout() || mobileWorkspaceView !== "app") return 0;
+      const commandInset = visibleRectHeight(mobileCommandBarEl?.getBoundingClientRect());
+      const tabsInset = visibleRectHeight(mobileTabsEl?.getBoundingClientRect());
+      const visualViewportBottom = window.visualViewport
+        ? window.visualViewport.offsetTop + window.visualViewport.height
+        : window.innerHeight;
+      const browserInset = Math.max(0, (window.innerHeight || 0) - visualViewportBottom);
+      return Math.max(0, Math.round(commandInset + tabsInset + browserInset + 16));
+    }
+
+    function applyMobilePreviewRuntimeInset() {
+      const inset = mobilePreviewRuntimeBottomInsetPx();
+      workspaceEl.style.setProperty("--mobile-runtime-preview-bottom-inset", inset + "px");
+      try {
+        const doc = frameEl?.contentDocument;
+        if (!doc?.documentElement) return;
+        const value = inset + "px";
+        doc.documentElement.style.setProperty("--zustand-host-bottom-inset", value);
+        doc.body?.style.setProperty("--zustand-host-bottom-inset", value);
+      } catch (_) {}
+    }
+
+    function mobileWorkspaceAvailableHeight() {
+      const topbarBottom = document.querySelector(".topbar")?.getBoundingClientRect().bottom || 0;
+      const tabsTop = mobileTabsEl?.getBoundingClientRect().top || window.innerHeight || 720;
+      return Math.max(workspacePanelHeight(), tabsTop - topbarBottom);
+    }
+
+    function maxMobilePreviewPanelSize() {
+      const available = mobileCanv
+
+===== state.html :: function save @ 589995 =====
+ve && !historyTextEditEvent(evt)) beginHistoryAction();
+    }, { capture: true });
+    document.addEventListener("drop", beginHistoryAction, { capture: true });
+
+    function initHistory() {
+      historyCurrent = editorSnapshot();
+      undoStack = [];
+      redoStack = [];
+      beginHistoryAction();
+      updateHistoryButtons();
+    }
+
+    function restoreRejectedEditorMutation() {
+      if (!historyCurrent) throw new Error("A valid editor history snapshot is required before changing the model.");
+      const restored = parseEditorSnapshot(historyCurrent);
+      const restoredModel = normalizeModel(JSON.parse(JSON.stringify(restored.model)));
+      const issue = modelTransitionTriggerContractIssue(restoredModel);
+      if (issue) throw new Error(issue.message);
+      model = restoredModel;
+      currentLayerId = restored.currentLayerId && byId(restored.currentLayerId) ? restored.currentLayerId : null;
+      selected = normalizeSelection(restored.selected);
+      connecting = null;
+      connectingTargetId = null;
+      dragging = null;
+      boxSelecting = null;
+      updateSelectRect();
+      draw();
+      renderStateExplorer();
+      refreshInspectorForSelection();
+    }
+
+    function saveEditorState(historyKey = null, sync = true) {
+      if (!flushingInspectorTextCommit && pendingInspectorTextCommit) {
+        flushInspectorTextCommit();
+      }
+      if (modelTransitionTriggerContractIssue(model)) {
+        restoreRejectedEditorMutation();
+        return false;
+      }
+      selected = normalizeSelection();
+      const next = editorSnapshot();
+      if (next === historyCurrent) {
+        persistModel(sync);
+        return true;
+      }
+      const historyGroup = historyKey ? `${historyActionId}:${historyKey}` : null;
+      if (!historyCurrent) {
+        historyCurrent = next;
+      } else if (historyGroup && historyGroup === lastHistoryGroup && undoStack.length) {
+        // Repeated mutations within one explicit user interaction remain one undo step.
+      } else {
+        undoStack.push(historyCurrent);
+        if (undoStack.length > 100) undoStack.shift();
+      }
+      redoStack = [];
+      historyCurrent = next;
+      lastHistoryGroup = historyGroup;
+      persistModel(sync);
+      updateHistoryButtons();
+      return true;
+    }
+
+    function saveModel(historyKey = null) {
+      return saveEditorState(historyKey, true);
+    }
+
+    function saveSelection(historyKey = null) {
+      return saveEditorState(historyKey, false);
+    }
+
+    function restoreHistorySnapshot(snapshot) {
+      const restored = parseEditorSnapshot(snapshot);
+      const restoredModel = normalizeModel(JSON.parse(JSON.stringify(restored.model)));
+      const issue = modelTransitionTriggerContractIssue(restoredModel);
+      if (issue) throw new Error(issue.message);
+      model = restoredModel;
+      currentLayerId = byId(restored.currentLayerId) ? restored.currentLayerId : null;
+      selected = normalizeSelection(restored.selected);
+      historyCurrent = editorSnapshot();
+      runtimeLayerFollowEnabled = false;
+      suppressRuntimeLayerFollowUntil = 0;
+      pendingAppStartStateId = null;
+      pendingAppStartSuppressLayerFollow = false;
+      pendingAutoEntryLayerBackPulseId = "";
+      connecting = null;
+      connectingTargetId = null;
+      dragging = null;
+      stateDragOverStateId = "";
+      boxSelecting = null;
+      updateSelectRect();
+      clearTimeout(syncTimer);
+      syncTimer = null;
+      persistModel(false);
+      draw();
+      renderStateExplorer();
+      refreshInspectorForSelection();
+      pendingHistoryRestoreSyncId = String(syncToApp(false)?.syncId || "");
+      updateHistoryButtons();
+    }
+
+    function undoModel() {
+      flushInspectorTextCommit();
+      if (!undoStack.length) return;
+      const current = editorSnap
+
+===== state.html :: function save @ 591083 =====
+updateSelectRect();
+      draw();
+      renderStateExplorer();
+      refreshInspectorForSelection();
+    }
+
+    function saveEditorState(historyKey = null, sync = true) {
+      if (!flushingInspectorTextCommit && pendingInspectorTextCommit) {
+        flushInspectorTextCommit();
+      }
+      if (modelTransitionTriggerContractIssue(model)) {
+        restoreRejectedEditorMutation();
+        return false;
+      }
+      selected = normalizeSelection();
+      const next = editorSnapshot();
+      if (next === historyCurrent) {
+        persistModel(sync);
+        return true;
+      }
+      const historyGroup = historyKey ? `${historyActionId}:${historyKey}` : null;
+      if (!historyCurrent) {
+        historyCurrent = next;
+      } else if (historyGroup && historyGroup === lastHistoryGroup && undoStack.length) {
+        // Repeated mutations within one explicit user interaction remain one undo step.
+      } else {
+        undoStack.push(historyCurrent);
+        if (undoStack.length > 100) undoStack.shift();
+      }
+      redoStack = [];
+      historyCurrent = next;
+      lastHistoryGroup = historyGroup;
+      persistModel(sync);
+      updateHistoryButtons();
+      return true;
+    }
+
+    function saveModel(historyKey = null) {
+      return saveEditorState(historyKey, true);
+    }
+
+    function saveSelection(historyKey = null) {
+      return saveEditorState(historyKey, false);
+    }
+
+    function restoreHistorySnapshot(snapshot) {
+      const restored = parseEditorSnapshot(snapshot);
+      const restoredModel = normalizeModel(JSON.parse(JSON.stringify(restored.model)));
+      const issue = modelTransitionTriggerContractIssue(restoredModel);
+      if (issue) throw new Error(issue.message);
+      model = restoredModel;
+      currentLayerId = byId(restored.currentLayerId) ? restored.currentLayerId : null;
+      selected = normalizeSelection(restored.selected);
+      historyCurrent = editorSnapshot();
+      runtimeLayerFollowEnabled = false;
+      suppressRuntimeLayerFollowUntil = 0;
+      pendingAppStartStateId = null;
+      pendingAppStartSuppressLayerFollow = false;
+      pendingAutoEntryLayerBackPulseId = "";
+      connecting = null;
+      connectingTargetId = null;
+      dragging = null;
+      stateDragOverStateId = "";
+      boxSelecting = null;
+      updateSelectRect();
+      clearTimeout(syncTimer);
+      syncTimer = null;
+      persistModel(false);
+      draw();
+      renderStateExplorer();
+      refreshInspectorForSelection();
+      pendingHistoryRestoreSyncId = String(syncToApp(false)?.syncId || "");
+      updateHistoryButtons();
+    }
+
+    function undoModel() {
+      flushInspectorTextCommit();
+      if (!undoStack.length) return;
+      const current = editorSnapshot();
+      const previous = undoStack.pop();
+      redoStack.push(current);
+      beginHistoryAction();
+      restoreHistorySnapshot(previous);
+    }
+
+    function redoModel() {
+      flushInspectorTextCommit();
+      if (!redoStack.length) return;
+      const current = editorSnapshot();
+      const next = redoStack.pop();
+      undoStack.push(current);
+      beginHistoryAction();
+      restoreHistorySnapshot(next);
+    }
+
+    function definitionPayload() {
+      const definition = {
+        kind: DEFINITION_KIND,
+        schemaVersion: DEFINITION_SCHEMA_VERSION,
+        app: "Zustand",
+        savedAt: new Date().toISOString(),
+        model: modelDefinitionSnapshot(),
+        camera: {
+          x: Number(camera.x),
+          y: Number(camera.y),
+          scale: Number(camera.scale)
+        },
+        previewCollapsed: Boolean(previewCollapsed)
+      };
+      return validateBlueprintDefinition(definition);
+    }
+
+    function isPlainObject(value) {
+      return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+    }
+
+    function assertPlainObjec
+
+===== state.html :: function save @ 647554 =====
+= String(t.groupEntryId);
+      if (t.groupExitId) snapshot.groupExitId = String(t.groupExitId);
+      const triggerMatch = normalizeTransitionTriggerMatch(t.triggerMatch);
+      if (!transitionTriggerMatchIsEmpty(triggerMatch)) snapshot.triggerMatch = triggerMatch;
+      return snapshot;
+    }
+
+    function isBoundaryFlowTransition(t) {
+      return Boolean(t?.boundaryFlow) || isBoundaryProxyId(t?.from) || isBoundaryProxyId(t?.to);
+    }
+
+    function componentExportPayload(type, payload) {
+      return {
+        kind: COMPONENT_EXPORT_KIND,
+        schemaVersion: COMPONENT_EXPORT_SCHEMA_VERSION,
+        app: "Zustand",
+        exportedAt: new Date().toISOString(),
+        component: {
+          type,
+          ...payload
+        }
+      };
+    }
+
+    function exportStateComponentFile(s) {
+      const snapshot = stateExportSnapshot(s);
+      const payload = componentExportPayload("state", { state: snapshot });
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      downloadTextFile(
+        JSON.stringify(payload, null, 2) + "\n",
+        `${normalizeId(snapshot.title || snapshot.id)}-${stamp}.state-component.json`,
+        "application/json"
+      );
+    }
+
+    function saveDefinitionFile() {
+      flushInspectorTextCommit();
+      persistModel(false);
+      saveCamera();
+      saveUiState();
+      const definition = definitionPayload();
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const text = JSON.stringify(definition, null, 2) + "\n";
+      downloadTextFile(text, `${normalizeId(model.name || "state-app")}-${stamp}.state.json`, "application/json");
+    }
+
+    async function exportHtmlFile() {
+      flushInspectorTextCommit();
+      persistModel(false);
+      saveCamera();
+      saveUiState();
+      let text;
+      try {
+        const payload = await inlineExportImages(definitionPayload());
+        const appHtml = typeof GENERATED_APP_HTML === "string" ? GENERATED_APP_HTML : await (await fetch(APP_URL, { cache: "no-store" })).text();
+        text = buildStandaloneAppHtml(appHtml, payload);
+      } catch (err) {
+        await modalAlert(err?.message || "Die eigenständige App konnte nicht exportiert werden.", "Export fehlgeschlagen");
+        return;
+      }
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      downloadTextFile(text, `${normalizeId(model.name || "state-app")}-${stamp}.html`, "text/html");
+    }
+
+    function requestLoadBlueprintFile() {
+      pendingLoadIntent = "definition";
+      fileLoadEl.value = "";
+      fileLoadEl.click();
+    }
+
+    function requestImportComponentFile() {
+      pendingLoadIntent = "component";
+      fileLoadEl.value = "";
+      fileLoadEl.click();
+    }
+
+    function importBlueprintDefinition(definition) {
+      const data = validateBlueprintDefinition(definition);
+      model = normalizeModel(JSON.parse(JSON.stringify(data.model)));
+      camera = { ...data.camera };
+      previewCollapsed = data.previewCollapsed;
+      selected = null;
+      dragging = null;
+      connecting = null;
+      connectingTargetId = null;
+      stateDragOverStateId = "";
+      boxSelecting = null;
+      currentLayerId = null;
+      applyRuntimeStateView("");
+      applyRuntimePaused(false, { send: false });
+      pendingAppStartStateId = null;
+      pendingAppStartSuppressLayerFollow = false;
+      lastAppTransitionId = null;
+      hoveredEdgeId = null;
+      showEmptyInspector();
+      updateSelectRect();
+      applyPreviewCollapsed();
+      applyCamera();
+      renderStateExplorer();
+      draw();
+      initHistory();
+      persistModel();
+      syncToApp(true);
+    }
+
+
+    function parseJsonImportText(text) {
+      try {
+        return JSON.parse(text);
+      } catch (_) {
+        throw new Error("Import expects a formal .state.json or .stat
+
+===== state.html :: function addState @ 1314901 =====
+.usageRank || 1000) - Number(b.dataset.usageRank || 1000) ||
+          String(a.querySelector(".template-title")?.textContent || "").localeCompare(String(b.querySelector(".template-title")?.textContent || ""))
+        );
+      });
+      renderStateExplorerTabs(explorerGroups);
+      const visibleGroups = explorerGroups.map(group => ({
+        ...group,
+        cards: group.cards.filter(card => presetCardMatchesSearch(card, searchQuery))
+      }));
+      visibleGroups.forEach(group => {
+        const kind = `core ${group.key}`;
+        appendSection(kind, group.label, group.cards);
+      });
+      if (searchQuery && !visibleGroups.some(group => group.cards.length)) {
+        const empty = document.createElement("div");
+        empty.className = "state-explorer-empty-results";
+        empty.textContent = `Keine Vorlagen für "${stateExplorerSearch.trim()}" gefunden.`;
+        stateExplorerListEl.appendChild(empty);
+      }
+      requestAnimationFrame(() => {
+        if (opts.scrollToGroup && !searchQuery) scrollStateExplorerToGroup(stateExplorerGroup);
+        else restoreStateExplorerScroll(scrollSnapshot);
+        updateStateExplorerSearchDragMode(searchQuery);
+      });
+    }
+
+    function addStateAt(x, y, showAtX, showAtY) {
+      const layerBeforeCreate = currentLayerId && byId(currentLayerId) ? currentLayerId : null;
+      const title = nextStateTitle();
+      const s = makeState(x - nodeWidth({ title }) / 2, y - NODE_H / 2, title, layerBeforeCreate);
+      model.states.push(s);
+      wireFirstStateToBoundary(s);
+      selected = selectionFromParts([s.id], []);
+      lastCreatedStateId = s.id;
+      lastCreatedStateTime = Date.now();
+      lastTouchNodeTap = null;
+      suppressRuntimeLayerFollowUntil = Date.now() + 1200;
+      saveModel();
+      currentLayerId = layerBeforeCreate && byId(layerBeforeCreate) ? layerBeforeCreate : null;
+      draw();
+      showNodeInspector(s, { focus: false });
+    }
+
+    function handleCanvasMove(evt) {
+      if (boxSelecting) {
+        boxSelecting.currentX = evt.clientX;
+        boxSelecting.currentY = evt.clientY;
+        boxSelecting.moved = Math.hypot(evt.clientX - boxSelecting.startX, evt.clientY - boxSelecting.startY) > 4;
+        updateSelectRect();
+        if (boxSelecting.moved) {
+          const ids = nodesInSelection();
+          selected = selectionFromParts(ids, []);
+          const idSet = new Set(ids);
+          document.querySelectorAll(".node").forEach(el => {
+            el.classList.toggle("selected", idSet.has(el.dataset.id));
+          });
+          updateSelectionActions();
+        }
+        return;
+      }
+      if (panning) {
+        stopRuntimeLayerFollow();
+        camera.x = panning.cameraX + (evt.clientX - panning.startX);
+        camera.y = panning.cameraY + (evt.clientY - panning.startY);
+        applyCamera();
+        return;
+      }
+      if (dragging) {
+        stopRuntimeLayerFollow();
+        const s = byId(dragging.id);
+        if (!s) return;
+        dragging.lastClientX = evt.clientX;
+        dragging.lastClientY = evt.clientY;
+        const wasMoved = dragging.moved;
+        dragging.moved = dragging.moved || Math.hypot(evt.clientX - dragging.startClientX, evt.clientY - dragging.startClientY) > 4;
+        const p = screenToWorld(evt);
+        const nextX = snapClampToGrid(p.x - dragging.dx, WORLD_MIN_X, WORLD_MAX_X - nodeWidth(s));
+        const nextY = snapClampToGrid(p.y - dragging.dy, WORLD_MIN_Y, WORLD_MAX_Y - nodeHeight(s));
+        const positionChanged = nextX !== s.x || nextY !== s.y;
+        s.x = nextX;
+        s.y = nextY;
+        stateExplorerEl.classList.toggle("drag-over", pointInElement(evt.clientX, evt.clientY, stateExplorerEl));
+        const dropTarget = dragging.moved ? stateDragDropTargetAtClientPoint(evt.clientX, evt.clientY, s) : nul
+
+===== state.html :: model\.states\.push @ 805065 =====
+ap(nodeMap);
+      copies.forEach(copy => rewriteScopedStateClone(copy, scopeMap));
+      const copiedEdges = [];
+      for (const edge of Array.isArray(payload?.edges) ? payload.edges : []) {
+        const from = nodeMap.get(String(edge.from || ""));
+        const to = nodeMap.get(String(edge.to || ""));
+        if (!from || !to) continue;
+        const scopedEdge = rewriteScopedTransitionClone(edge, scopeMap);
+        const nextEdge = {
+          id: nextTransitionId(copies, copiedEdges),
+          from,
+          to,
+          label: String(edge.label || defaultTransitionLabel()),
+          condition: scopedEdge.condition,
+          triggerType: scopedEdge.triggerType,
+          triggerEvent: "",
+          timerMs: normalizeTransitionTimerMs(scopedEdge.timerMs),
+          set: normalizeDataObject(scopedEdge.set),
+          groupEntryId: edge.groupEntryId ? (nodeMap.get(String(edge.groupEntryId)) || "") : "",
+          groupExitId: edge.groupExitId ? (nodeMap.get(String(edge.groupExitId)) || "") : ""
+        };
+        nextEdge.triggerEvent = normalizeTransitionTriggerEvent({ ...nextEdge, triggerEvent: scopedEdge.triggerEvent });
+        copiedEdges.push(nextEdge);
+      }
+      model.states.push(...copies);
+      model.transitions.push(...copiedEdges);
+      selected = selectionFromParts(copies.map(s => s.id), copiedEdges.map(t => t.id));
+      saveModel();
+      draw();
+      return true;
+    }
+
+    function deleteSelectedItems() {
+      if (!selected) return false;
+      const ids = selectedRealStateIdList();
+      const edgeIds = [...new Set([...(selected.edges || []), ...selectedEdgeIdList()])];
+      const removable = ids.filter(id => byId(id));
+      const removeEdges = new Set(edgeIds);
+      if (removable.length) stopRuntimeLayerFollow();
+      if (selected.allCurrentLayer && removable.length) {
+        const removedNodes = removeStatesById(removable);
+        if (!removedNodes) return false;
+        selected = null;
+        showEmptyInspector();
+        saveModel();
+        draw();
+        return true;
+      }
+      if (removeEdges.size) {
+        const boundaryIds = [];
+        for (const edgeId of removeEdges) {
+          if (deleteBoundaryFlowById(edgeId)) boundaryIds.push(edgeId);
+        }
+        model.transitions = model.transitions.filter(t => !removeEdges.has(t.id) && !boundaryIds.includes(t.id));
+        const remainingNodes = removable.filter(id => byId(id));
+        selected = remainingNodes.length ? selectionFromParts(remainingNodes, []) : null;
+        if (!selected) showEmptyInspector();
+        saveModel();
+        draw();
+        return true;
+      }
+      const removedNodes = removable.length ? removeStatesById(removable) : false;
+      if (!removedNodes) return false;
+      selected = null;
+      showEmptyInspector();
+      saveModel();
+      draw();
+      return true;
+    }
+
+    function deleteBoundaryFlowById(edgeId) {
+      const transition = model.transitions.find(t => t.id === edgeId);
+      const flow = boundaryFlowInfoFromTransition(transition, edgeId);
+      if (!flow) return false;
+      const parent = boundaryParentFromFlow(flow);
+      const side = flow.side;
+      if (side === "input" || side === "output") clearBoundaryEndpoint(parent, side);
+      else clearBoundaryRoute(parent);
+      model.transitions = model.transitions.filter(item => {
+        if (item.id === edgeId) return false;
+        const itemFlow = boundaryFlowInfoFromTransition(item, item.id);
+        return !(itemFlow && itemFlow.parentId === flow.parentId && itemFlow.side === side);
+      });
+      return true;
+    }
+
+    function deleteActiveSelection() {
+      if (selected && deleteSelectedItems()) return true;
+      if (inspectorEdgeId && deleteBoundaryFlowById(inspectorEdgeId)) {
+        selected = null;
+        showEmp
+
+===== state.html :: model\.states\.push @ 823737 =====
+ildId;
+        if (transition.from === parentId && ids.has(transition.groupExitId)) transition.groupExitId = newDirectChildId;
+      }
+    }
+
+    function collapseSelectedStatesToParent() {
+      const selectedIds = selectedStateIdsForCollapse();
+      if (!selectedIds.length) return false;
+      const selectedSet = new Set(selectedIds);
+      const states = selectedIds.map(id => byModelId(model, id)).filter(Boolean);
+      if (!states.length) return false;
+      const entry = collapseEntryStateFor(states, selectedSet);
+      const exit = collapseExitStateFor(states, selectedSet);
+      if (!entry || !exit) return false;
+      const outerParentId = currentLayerId || null;
+      const outerParent = currentLayerContainer();
+      const outerBoundary = normalizeBoundaryConfig(outerParent.rootLayer ? model.boundary : outerParent.boundary);
+      const bounds = stateGroupBounds(states);
+      const group = makeState(
+        snapToGrid((bounds.minX + bounds.maxX) / 2 - NODE_W / 2),
+        snapToGrid((bounds.minY + bounds.maxY) / 2 - NODE_H / 2),
+        "Group",
+        outerParentId
+      );
+      group.boundary = normalizeBoundaryConfig({ entryId: entry.id, exitId: exit.id });
+      model.states.push(group);
+
+      for (const transition of model.transitions) {
+        if (isBoundaryFlowTransition(transition)) continue;
+        const originalFrom = transition.from;
+        const originalTo = transition.to;
+        const fromSelected = selectedSet.has(originalFrom);
+        const toSelected = selectedSet.has(originalTo);
+        if (!fromSelected && toSelected) {
+          transition.to = group.id;
+          transition.groupEntryId = originalTo;
+        }
+        if (fromSelected && !toSelected) {
+          transition.from = group.id;
+          transition.groupExitId = originalFrom;
+        }
+      }
+
+      for (const state of states) {
+        state.parentId = group.id;
+      }
+      replaceNestedBoundaryReferences(selectedSet, group.id, outerParentId);
+      if (outerBoundary.entryId && selectedSet.has(outerBoundary.entryId)) setBoundaryEndpoint(outerParent, "input", group.id);
+      if (outerBoundary.exitId && selectedSet.has(outerBoundary.exitId)) setBoundaryEndpoint(outerParent, "output", group.id);
+      if (selectedSet.has(model.initial)) model.initial = group.id;
+      ensureDefaultBoundaryTransitions(outerParent, statesInLayer(outerParentId));
+      ensureDefaultBoundaryTransitions(group, statesInLayer(group.id));
+      normalizeModel(model);
+      selected = selectionFromParts([group.id], []);
+      manualDegroupTargetId = group.id;
+      showNodeInspector(group, { focus: false });
+      saveModel("group:collapse");
+      draw();
+      return true;
+    }
+
+    function childBoundaryState(parent, side) {
+      const children = statesInLayer(parent.id);
+      const boundary = normalizeBoundaryConfig(parent.boundary);
+      const configuredId = side === "input" ? boundary.entryId : boundary.exitId;
+      const configured = children.find(state => state.id === configuredId);
+      return configured || null;
+    }
+
+    function removeBoundaryFlowsForParent(parentId) {
+      const proxyPrefix = `proxy:${parentId}:`;
+      model.transitions = model.transitions.filter(transition =>
+        transition.boundaryFlow?.parentId !== parentId &&
+        !String(transition.from || "").startsWith(proxyPrefix) &&
+        !String(transition.to || "").startsWith(proxyPrefix)
+      );
+    }
+
+    function degroupCompositeState(parent) {
+      if (!parent || parent.virtualProxy) return false;
+      const children = statesInLayer(parent.id);
+      if (!children.length) return false;
+      const childIds = new Set(children.map(child => child.id));
+      const outerParentId = stateParentId(parent);
+      const outerParent = outerParentId ? byId(outerPa
+
+===== state.html :: model\.states\.push @ 1155199 =====
+;
+      updateSubscriptionsPreview(false);
+      renderStateFlowTriggerEditor();
+      bindDataSourceEditor(s, root, historyKey => {
+        saveModel(`${historyKey}:${s.id}`);
+        scheduleSync(false);
+      }, "state");
+      bindRepeatEditor(s, root, historyKey => {
+        saveModel(`${historyKey}:${s.id}`);
+        scheduleSync(false);
+      }, "state");
+      renderComponentEditors(s, null, root);
+      initialButton.onclick = () => {
+        model.initial = s.id;
+        updateInitialButton();
+        saveModel();
+        draw();
+      };
+      root.querySelector("#pDuplicate").onclick = () => {
+        const copy = makeState(s.x + GRID_SIZE * 2, s.y + GRID_SIZE * 5, (s.title || s.id) + " Kopie");
+        copy.components = cloneComponents(s.components);
+        copy.data = normalizeStateDataObject(s.data);
+        copy.dataTypes = normalizeDataTypes(s.dataTypes, copy.data);
+        copy.dataSource = normalizeDataSource(s.dataSource);
+        copy.repeat = normalizeRepeatConfig(s.repeat);
+        copy.dataWires = normalizeDataWires(s.dataWires);
+        copy.subscriptions = normalizeSubscriptions(s.subscriptions);
+        applyScopedStateCloneBindings(copy, s.id);
+        model.states.push(copy);
+        selected = selectionFromParts([copy.id], []);
+        saveModel();
+        draw();
+        showNodeInspector(copy, { forceOpen: true });
+      };
+      root.querySelector("#pExportState").onclick = () => exportStateComponentFile(s);
+      root.querySelector("#pImportState").onclick = requestImportComponentFile;
+      root.querySelector("#pDelete").onclick = () => {
+        selected = selectionFromParts([s.id], []);
+        deleteSelectedItems();
+      };
+      const focusEditor = opts.focus !== false;
+      setupEditorAccessibility(root, focusEditor, {
+        onCommit: showEmptyInspector,
+        selectFirstInput: Boolean(opts.selectTitle)
+      });
+      if (!focusEditor) focusCanvasForSelection();
+    }
+
+
+    function conditionInputSummary(condition) {
+      const inputs = inferConditionInputs(condition);
+      if (!inputs.length) return "Keine Eingaben. Immer verfügbar.";
+      return "Eingaben: " + inputs.map(input => `${input.name}:${input.type}`).join(", ");
+    }
+
+    function inferConditionInputs(condition) {
+      const map = new Map();
+      const upsert = (name, type = "boolean") => {
+        const key = String(name || "");
+        if (!key || ["true", "false", "and", "or", "null", "undefined", "always"].includes(key.toLowerCase())) return;
+        const previous = map.get(key);
+        const rank = { boolean: 0, int: 1, float: 2, text: 3 };
+        const nextType = rank[type] > rank[previous?.type || "boolean"] ? type : previous?.type || type;
+        map.set(key, { name: key, type: nextType });
+      };
+      const source = String(condition || "");
+      const searchable = source.replace(/(["'])(?:\\.|(?!\1)[\s\S])*?\1/g, "");
+      for (const name of searchable.match(/[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*/g) || []) upsert(name);
+      for (const numeric of searchable.matchAll(/([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\s*(==|!=|>=|<=|>|<)\s*(-?\d+(?:\.\d+)?)/g)) {
+        upsert(numeric[1], numeric[3].includes(".") ? "float" : "int");
+      }
+      for (const quoted of source.matchAll(/([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\s*(==|!=)\s*(['"])(.*?)\3/g)) {
+        upsert(quoted[1], "text");
+      }
+      return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    function valueTypeLabel(value) {
+      if (Array.isArray(value)) return "array";
+      if (value === null) return "null";
+      return typeof value;
+    }
+
+    function conditionScopeStates(t) {
+      const states = [];
+      const seen = new Set();
+      const add = state => {
+        if
+
+===== state.html :: model\.states\.push @ 1253552 =====
+;
+      openComponentEditorIds.add(component.id);
+      selected = selectionFromParts([state.id], []);
+      saveModel(historyKey || ("state:component:add:" + state.id));
+      draw();
+      showNodeInspector(state, { focus: false });
+      syncRuntimeAfterStateDataChange(state, { resetActive: false });
+      return true;
+    }
+
+    function addTemplateToCurrentLayer(template) {
+      closePresetInfoOverlay();
+      const contentOwner = currentLayerId ? byId(currentLayerId) : null;
+      if (contentOwner && addSimpleContentPresetToState(
+        contentOwner,
+        template,
+        "state:component:add:" + contentOwner.id
+      )) return contentOwner;
+      const parent = currentLayerContainer();
+      const parentId = layerChildParentId(parent);
+      const layerWasEmpty = !statesInLayer(parentId).some(state => !state.virtualProxy);
+      const position = currentLayerId
+        ? nextChildPosition(currentLayerId)
+        : viewportCenterWorld();
+      const x = currentLayerId ? position.x : position.x - nodeWidth(template) / 2;
+      const y = currentLayerId ? position.y : position.y - NODE_H / 2;
+      const instance = instantiateStateTemplate(template, x, y, parentId);
+      model.states.push(...instance.states);
+      model.transitions.push(...instance.transitions);
+      wireFreshLayerRootToBoundary(parent, instance.root, layerWasEmpty);
+      selected = selectionFromParts([instance.root.id], []);
+      openPrimaryComponentEditor(instance.root);
+      saveModel("layer:add-template:" + (currentLayerId || "root"));
+      draw();
+      showNodeInspector(instance.root, { focus: false, pulse: true });
+      if (currentLayerId) syncToApp(false);
+      else startAppAtState(instance.root.id, { suppressLayerFollow: true });
+      return instance.root;
+    }
+
+
+    function widgetPresetInfo(template) {
+      const copy = snapshotStateTemplates([template])[0];
+      if (!copy) return null;
+      const components = normalizeComponents(copy.components).filter(component => component.type === "daisy");
+      if (components.length !== 1) return null;
+      const component = components[0];
+      const sourceId = String(copy.rootStateId || copy.id || component.variant || copy.title || "widget");
+      const sourcePath = stateDataScopeForId(sourceId);
+      const sourceLocalPath = component.dataPath === sourcePath
+        ? ""
+        : stateVariableLocalPath({ id: sourceId }, component.dataPath);
+      const key = normalizeId(sourceId || component.variant || copy.title || "widget");
+      if (!sourcePath || !key) return null;
+      return {
+        template: copy,
+        component,
+        sourcePath,
+        sourceLocalPath,
+        key,
+        label: String(copy.title || component.dataLabel || component.variant || "Baustein")
+      };
+    }
+
+    function widgetDataPathForState(state, info) {
+      const scope = stateDataScopeForId(state?.id || "");
+      return scope && info?.key ? `${scope}.${info.key}` : "";
+    }
+
+    function widgetComponentMatches(component, info, state = null) {
+      if (!component || !info || component.type !== "daisy") return false;
+      if (String(component.variant || "") !== String(info.component.variant || "")) return false;
+      if (String(component.dataLabel || "") !== info.label) return false;
+      if (!state) return true;
+      const expectedPath = widgetDataPathForState(state, info);
+      return Boolean(expectedPath && normalizeBindingPath(component.dataPath, "") === expectedPath);
+    }
+
+    function widgetPresetComponentInState(state, template) {
+      const info = widgetPresetInfo(template);
+      if (!state || !info) return null;
+      return normalizeComponents(state.components).find(component => widgetComponentMatches(component, info, state)) || null;
+    }
+
+    function deleteDataObjectPathWit
+
+===== state.html :: model\.states\.push @ 1294123 =====
+transition.groupExitId ? (idMap.get(transition.groupExitId) || "") : ""
+          };
+          nextTransition.triggerEvent = normalizeTransitionTriggerEvent({ ...nextTransition, triggerEvent: scopedTransition.triggerEvent });
+          transitions.push(nextTransition);
+        }
+      appendDefaultFlowForInteractivePreset(root, states, transitions);
+      return { root, states, transitions };
+    }
+
+    function nextChildPosition(parentId) {
+      const count = childStateCount(parentId);
+      return {
+        x: snapToGrid(120 + (count % 3) * GRID_SIZE * 10),
+        y: snapToGrid(120 + Math.floor(count / 3) * GRID_SIZE * 6)
+      };
+    }
+
+    function addTemplateInside(templateId, parentId, opts = {}) {
+      const template = templateById(templateId);
+      const parent = byId(parentId);
+      if (!template || !parent) return null;
+      if (addSimpleContentPresetToState(parent, template, "state:component:add:" + parent.id)) return parent;
+      const position = nextChildPosition(parent.id);
+      const layerWasEmpty = !statesInLayer(parent.id).some(state => !state.virtualProxy);
+      const instance = instantiateStateTemplate(template, position.x, position.y, parent.id);
+      model.states.push(...instance.states);
+      model.transitions.push(...instance.transitions);
+      wireFreshLayerRootToBoundary(parent, instance.root, layerWasEmpty);
+      selected = selectionFromParts([parent.id], []);
+      saveModel("layer:add-child:" + parent.id);
+      draw();
+      showNodeInspector(parent, {
+        forceOpen: true,
+        manualOpen: true,
+        selectTitle: Boolean(opts.selectTitle)
+      });
+      syncToApp(false);
+      return instance.root;
+    }
+
+
+    function addTemplateAt(templateId, clientX, clientY) {
+      const template = templateById(templateId);
+      if (!template) return;
+      const contentOwner = currentLayerId ? byId(currentLayerId) : null;
+      if (contentOwner && addSimpleContentPresetToState(
+        contentOwner,
+        template,
+        "state:component:add:" + contentOwner.id
+      )) return;
+      const parent = currentLayerContainer();
+      const parentId = layerChildParentId(parent);
+      const layerWasEmpty = !statesInLayer(parentId).some(state => !state.virtualProxy);
+      const splitTarget = transitionDropCandidateAtClientPoint(clientX, clientY, parentId);
+      const p = screenToWorldXY(clientX, clientY);
+      const instance = instantiateStateTemplate(template, p.x - nodeWidth(template) / 2, p.y - NODE_H / 2, parentId);
+      model.states.push(...instance.states);
+      model.transitions.push(...instance.transitions);
+      wireFreshLayerRootToBoundary(parent, instance.root, layerWasEmpty);
+      const split = splitTransitionWithInsertedState(splitTarget?.id || "", instance.root);
+      selected = selectionFromParts([instance.root.id], []);
+      openPrimaryComponentEditor(instance.root);
+      saveModel(split ? "template:insert-transition:" + splitTarget.id : "template:drop");
+      draw();
+      showNodeInspector(instance.root, { focus: false, pulse: true });
+      startAppAtState(instance.root.id, { suppressLayerFollow: true });
+    }
+
+    function templateCardDescription(template) {
+      const explicit = String(template?.description || "").trim();
+      if (explicit) return explicit;
+      const component = normalizeComponents(template?.components).find(item => item.text);
+      if (component?.text) return component.text.split(/\r?\n/).map(line => line.trim()).filter(Boolean).slice(0, 2).join(" - ");
+      return "Direkt nutzbarer Zustand";
+    }
+
+    function pointInElement(clientX, clientY, el) {
+      if (!el || !Number.isFinite(clientX) || !Number.isFinite(clientY)) return false;
+      const r = el.getBoundingClientRect();
+      return clientX >= r.left && clientX <= r.right && c
+
+===== state.html :: model\.states\.push @ 1295436 =====
+rRootToBoundary(parent, instance.root, layerWasEmpty);
+      selected = selectionFromParts([parent.id], []);
+      saveModel("layer:add-child:" + parent.id);
+      draw();
+      showNodeInspector(parent, {
+        forceOpen: true,
+        manualOpen: true,
+        selectTitle: Boolean(opts.selectTitle)
+      });
+      syncToApp(false);
+      return instance.root;
+    }
+
+
+    function addTemplateAt(templateId, clientX, clientY) {
+      const template = templateById(templateId);
+      if (!template) return;
+      const contentOwner = currentLayerId ? byId(currentLayerId) : null;
+      if (contentOwner && addSimpleContentPresetToState(
+        contentOwner,
+        template,
+        "state:component:add:" + contentOwner.id
+      )) return;
+      const parent = currentLayerContainer();
+      const parentId = layerChildParentId(parent);
+      const layerWasEmpty = !statesInLayer(parentId).some(state => !state.virtualProxy);
+      const splitTarget = transitionDropCandidateAtClientPoint(clientX, clientY, parentId);
+      const p = screenToWorldXY(clientX, clientY);
+      const instance = instantiateStateTemplate(template, p.x - nodeWidth(template) / 2, p.y - NODE_H / 2, parentId);
+      model.states.push(...instance.states);
+      model.transitions.push(...instance.transitions);
+      wireFreshLayerRootToBoundary(parent, instance.root, layerWasEmpty);
+      const split = splitTransitionWithInsertedState(splitTarget?.id || "", instance.root);
+      selected = selectionFromParts([instance.root.id], []);
+      openPrimaryComponentEditor(instance.root);
+      saveModel(split ? "template:insert-transition:" + splitTarget.id : "template:drop");
+      draw();
+      showNodeInspector(instance.root, { focus: false, pulse: true });
+      startAppAtState(instance.root.id, { suppressLayerFollow: true });
+    }
+
+    function templateCardDescription(template) {
+      const explicit = String(template?.description || "").trim();
+      if (explicit) return explicit;
+      const component = normalizeComponents(template?.components).find(item => item.text);
+      if (component?.text) return component.text.split(/\r?\n/).map(line => line.trim()).filter(Boolean).slice(0, 2).join(" - ");
+      return "Direkt nutzbarer Zustand";
+    }
+
+    function pointInElement(clientX, clientY, el) {
+      if (!el || !Number.isFinite(clientX) || !Number.isFinite(clientY)) return false;
+      const r = el.getBoundingClientRect();
+      return clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom;
+    }
+
+    function hasTemplateDrag(evt) {
+      if (draggingTemplateId && templateById(draggingTemplateId)) return true;
+      const types = evt.dataTransfer?.types;
+      if (!types) return false;
+      if (typeof types.includes === "function") return types.includes("text/state-template-id");
+      if (typeof types.contains === "function") return types.contains("text/state-template-id");
+      return Array.from(types).includes("text/state-template-id");
+    }
+
+    function templateIdFromDrag(evt) {
+      const explicit = evt.dataTransfer?.getData?.("text/state-template-id") || "";
+      if (explicit) return explicit;
+      return draggingTemplateId && templateById(draggingTemplateId) ? draggingTemplateId : "";
+    }
+
+    function clearTemplateDragState() {
+      draggingTemplateId = "";
+      templateDragOverStateId = "";
+      stateDragOverStateId = "";
+      clearTemplateTouchDragUi();
+      document.querySelectorAll(".node").forEach(el => el.classList.remove("inner-drop-target"));
+    }
+
+    function clearTemplateTouchDragUi() {
+      const pointerTarget = templateTouchDrag?.pointerTarget;
+      const pointerId = templateTouchDrag?.pointerId;
+      try {
+        if (pointerTarget?.hasPointerCapture?.(pointerId)) pointerTarget.releasePointerCapture(
+
+===== state.html :: model\.states\.push @ 1328101 =====
+            model.transitions.push(t);
+            }
+          }
+          selected = selectionFromParts([], [t.id]);
+          saveModel();
+          connecting = null;
+          connectingTargetId = null;
+          mapEl.classList.remove("connecting");
+          draw();
+          showEdgeInspector(t, { focus: false });
+          return;
+        }
+        if (nodeAtWorldPoint(dropPoint)) {
+          connecting = null;
+          connectingTargetId = null;
+          mapEl.classList.remove("connecting");
+          draw();
+          return;
+        }
+        if (!targetId) {
+          if (connectionDistance < CONNECTION_EMPTY_TARGET_CREATE_PX) {
+            connecting = null;
+            connectingTargetId = null;
+            mapEl.classList.remove("connecting");
+            draw();
+            return;
+          }
+          const title = nextStateTitle();
+          const s = makeState(dropPoint.x - nodeWidth({ title }) / 2, dropPoint.y - NODE_H / 2, title);
+          s.parentId = currentLayerId || null;
+          const boundaryEdge = connecting.edgeId ? model.transitions.find(item => item.id === connecting.edgeId && item.boundaryFlow) : null;
+          if (boundaryEdge) {
+            model.states.push(s);
+            const splitBoundary = splitBoundaryFlowConnection(s.id);
+            selected = selectionFromParts([s.id], splitBoundary ? [splitBoundary.id] : []);
+            saveModel();
+            connecting = null;
+            connectingTargetId = null;
+            mapEl.classList.remove("connecting");
+            draw();
+            if (!wasRewire) showNodeInspector(s, { focus: false });
+            return;
+          }
+          const fromBoundary = byId(connecting.from);
+          if (fromBoundary?.virtualProxy?.side === "input") {
+            model.states.push(s);
+            const parent = currentLayerContainer();
+            setBoundaryEndpoint(parent, "input", s.id);
+            wireFirstChildToBoundary(parent, s);
+            ensureDefaultBoundaryTransitions(parent, statesInLayer(currentLayerId));
+            selected = selectionFromParts([s.id], []);
+            saveModel();
+            connecting = null;
+            connectingTargetId = null;
+            mapEl.classList.remove("connecting");
+            draw();
+            if (!wasRewire) showNodeInspector(s, { focus: false });
+            return;
+          }
+          const rewireTransition = connecting.edgeId ? model.transitions.find(item => item.id === connecting.edgeId && !item.boundaryFlow) : null;
+          let t = rewireTransition || null;
+          model.states.push(s);
+          const duplicate = transitionBetween(connecting.from, s.id, t?.id || null);
+          if (duplicate) {
+            if (t) model.transitions = model.transitions.filter(item => item.id !== t.id);
+            t = duplicate;
+          } else if (t) {
+            t.to = s.id;
+          } else {
+            t = { id: nextTransitionId(), from: connecting.from, to: s.id, label: defaultTransitionLabel(), condition: "", triggerType: "button", triggerEvent: "", set: {} };
+            t.triggerEvent = normalizeTransitionTriggerEvent(t);
+            if (modelTransitionTriggerConflict(t)) {
+              connecting = null;
+              draw();
+              return;
+            }
+            model.transitions.push(t);
+          }
+          selected = selectionFromParts([s.id], []);
+          saveModel();
+          connecting = null;
+          connectingTargetId = null;
+          mapEl.classList.remove("connecting");
+          draw();
+          if (!wasRewire) showNodeInspector(s, { focus: false });
+          return;
+        }
+        connecting = null;
+        connectingTargetId = null;
+        mapEl.classList.remove("connecting");
+        draw();
+      }
+    }
+
+    mapEl.addEventListener("contextmenu",
+
+===== state.html :: model\.states\.push @ 1329462 =====
+itBoundary.id] : []);
+            saveModel();
+            connecting = null;
+            connectingTargetId = null;
+            mapEl.classList.remove("connecting");
+            draw();
+            if (!wasRewire) showNodeInspector(s, { focus: false });
+            return;
+          }
+          const fromBoundary = byId(connecting.from);
+          if (fromBoundary?.virtualProxy?.side === "input") {
+            model.states.push(s);
+            const parent = currentLayerContainer();
+            setBoundaryEndpoint(parent, "input", s.id);
+            wireFirstChildToBoundary(parent, s);
+            ensureDefaultBoundaryTransitions(parent, statesInLayer(currentLayerId));
+            selected = selectionFromParts([s.id], []);
+            saveModel();
+            connecting = null;
+            connectingTargetId = null;
+            mapEl.classList.remove("connecting");
+            draw();
+            if (!wasRewire) showNodeInspector(s, { focus: false });
+            return;
+          }
+          const rewireTransition = connecting.edgeId ? model.transitions.find(item => item.id === connecting.edgeId && !item.boundaryFlow) : null;
+          let t = rewireTransition || null;
+          model.states.push(s);
+          const duplicate = transitionBetween(connecting.from, s.id, t?.id || null);
+          if (duplicate) {
+            if (t) model.transitions = model.transitions.filter(item => item.id !== t.id);
+            t = duplicate;
+          } else if (t) {
+            t.to = s.id;
+          } else {
+            t = { id: nextTransitionId(), from: connecting.from, to: s.id, label: defaultTransitionLabel(), condition: "", triggerType: "button", triggerEvent: "", set: {} };
+            t.triggerEvent = normalizeTransitionTriggerEvent(t);
+            if (modelTransitionTriggerConflict(t)) {
+              connecting = null;
+              draw();
+              return;
+            }
+            model.transitions.push(t);
+          }
+          selected = selectionFromParts([s.id], []);
+          saveModel();
+          connecting = null;
+          connectingTargetId = null;
+          mapEl.classList.remove("connecting");
+          draw();
+          if (!wasRewire) showNodeInspector(s, { focus: false });
+          return;
+        }
+        connecting = null;
+        connectingTargetId = null;
+        mapEl.classList.remove("connecting");
+        draw();
+      }
+    }
+
+    mapEl.addEventListener("contextmenu", evt => {
+      if (evt.target?.closest?.("input, textarea, select, [contenteditable]")) return;
+      evt.preventDefault();
+      suppressCanvasTextSelection();
+    });
+    function selectionNodeInCanvas(node) {
+      const el = node?.nodeType === 3 ? node.parentElement : node;
+      return Boolean(el && mapEl.contains(el));
+    }
+
+    function canvasTextSelectionActive(selection = window.getSelection?.()) {
+      return Boolean(selection?.rangeCount && (
+        selectionNodeInCanvas(selection.anchorNode) ||
+        selectionNodeInCanvas(selection.focusNode)
+      ));
+    }
+
+    function clearCanvasTextSelection() {
+      const selection = window.getSelection?.();
+      if (selection && selection.rangeCount) selection.removeAllRanges();
+    }
+
+    function clearCanvasTextSelectionIfActive() {
+      const selection = window.getSelection?.();
+      if (canvasTextSelectionActive(selection)) selection.removeAllRanges();
+    }
+
+    function suppressCanvasTextSelection(durationMs = 900) {
+      suppressCanvasTextSelectionUntil = Math.max(suppressCanvasTextSelectionUntil, Date.now() + durationMs);
+      clearCanvasTextSelection();
+      requestAnimationFrame(clearCanvasTextSelectionIfActive);
+      setTimeout(clearCanvasTextSelectionIfActive, 0);
+      setTimeout(clearCanvasTextSelectionIfActive, 90);
+      setTimeout(clearCanvasTextSelectionIf
