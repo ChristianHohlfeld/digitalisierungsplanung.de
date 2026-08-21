@@ -10,36 +10,26 @@ permissions:
 
 jobs:
   inspect:
+    if: github.event.head_commit.message == 'chore: inspect focused preset integration points'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: focus/minimal-presets
-      - name: Capture exact focused snippets
+      - name: Capture exact integration snippets
         shell: bash
         run: |
           set -euxo pipefail
-          changed=0
-          if [ ! -f .tmp-input-renderer.txt ]; then
-            {
-              echo '--- input / daisy renderer ---'
-              grep -n -E -C 35 'inputType|variant[^\n]{0,80}input|input[^\n]{0,80}variant|case ["'"']input["'"']|daisy[^\n]{0,80}input|createElement\(["'"']input["'"']\)' state.html | head -n 1200 || true
-            } > .tmp-input-renderer.txt
-            changed=1
-          fi
-          if [ ! -f .tmp-state-title-editor.txt ]; then
-            {
-              echo '--- state title editor / mutations ---'
-              grep -n -E -C 28 'titleInput|stateTitle|state-title|State title|State-Titel|Zustand.*Titel|Titel.*Zustand|\.title[[:space:]]*=|title:[[:space:]]*.*value|placeholder=.*Titel|value=.*\.title' state.html | head -n 1400 || true
-              echo '--- selected inspector areas ---'
-              grep -n -E -C 20 'selectedState|activeState|Inspector|Eigenschaften|properties|stateInspector' state.html | head -n 1000 || true
-            } > .tmp-state-title-editor.txt
-            changed=1
-          fi
-          if [ "$changed" -eq 1 ]; then
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add .tmp-input-renderer.txt .tmp-state-title-editor.txt
-            git commit -m 'chore: capture exact renderer and title snippets'
-            git push origin HEAD:focus/minimal-presets
-          fi
+          {
+            echo '--- input renderer candidates ---'
+            grep -n -E -C 35 'variant.*input|input.*variant|inputType|type=.date.|createElement\(.input|<input|type=.email.|type=.password.|type=.search.|type=.number.' state.html | head -n 1800 || true
+            echo '--- state title editor candidates ---'
+            grep -n -E -C 25 'state\.title|\.title =|titleInput|stateTitle|State-Titel|Zustand.*Titel|Titel.*Zustand' state.html | tail -n 1800 || true
+            echo '--- preset references in tests ---'
+            grep -R -n -E -C 8 'builtin_daisy_|presetCatalog|preset catalog|presets|pricing|bi-kpi|accordion|navbar|hero|file-input|countdown' server/*.test.js tests/*.spec.js | head -n 2500 || true
+          } > .tmp-focus-deep.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .tmp-focus-deep.txt
+          git commit -m 'chore: capture focused integration snippets'
+          git push origin HEAD:focus/minimal-presets
