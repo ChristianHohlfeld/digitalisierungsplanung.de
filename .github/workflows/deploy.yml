@@ -108,7 +108,7 @@ jobs:
             echo "main moved after production verification: local=${LOCAL_HEAD} remote=${REMOTE_HEAD}" >&2
             exit 1
           fi
-          VERIFIED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          export VERIFIED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
           node - <<'NODE'
           const fs = require("node:fs");
           const payload = {
@@ -124,5 +124,3 @@ jobs:
           git add production-release-verified.json
           git commit -m "Verify production ${VERIFIED_RELEASE_ID}"
           git push origin HEAD:main
-        env:
-          VERIFIED_AT: ""
