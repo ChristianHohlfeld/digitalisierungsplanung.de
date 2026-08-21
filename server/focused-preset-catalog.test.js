@@ -3,6 +3,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const presets = require("./preset-catalog");
+const basePresets = require("./preset-catalog-base");
 
 const EXPECTED_IDS = [
   "builtin_daisy_dropdown",
@@ -20,26 +21,59 @@ const EXPECTED_IDS = [
   "builtin_daisy_radio"
 ];
 
-test("focused preset surface contains exactly the 13 supported presets", () => {
-  assert.deepEqual(presets.FOCUSED_PRESET_IDS, EXPECTED_IDS);
-  assert.deepEqual(
-    presets.visiblePresetCatalogResponse().map(preset => preset.id),
-    EXPECTED_IDS
+function managedCatalogById() {
+  return new Map(
+    basePresets.presetCatalogResponse()
+      .filter(preset => preset.builtIn === false)
+      .map(preset => [preset.id, preset])
   );
+}
+
+test("focused preset surface contains exactly the 13 supported built-ins plus managed presets", () => {
+  const visible = presets.visiblePresetCatalogResponse();
+  const visibleBuiltIns = visible.filter(preset => preset.builtIn !== false);
+  const visibleManaged = visible.filter(preset => preset.builtIn === false);
+  const baseManaged = managedCatalogById();
+
+  assert.deepEqual(presets.FOCUSED_PRESET_IDS, EXPECTED_IDS);
+  assert.deepEqual(visibleBuiltIns.map(preset => preset.id), EXPECTED_IDS);
   assert.deepEqual(
     presets.builtinStateTemplates().map(preset => preset.id),
     EXPECTED_IDS
   );
+  assert.deepEqual(
+    visibleManaged.map(preset => preset.id).sort(),
+    [...baseManaged.keys()].sort()
+  );
+
+  for (const preset of visibleManaged) {
+    const original = baseManaged.get(preset.id);
+    assert.ok(original, preset.id + " missing from managed base catalog");
+    assert.equal(preset.hidden, original.hidden);
+    assert.equal(preset.categoryId, original.categoryId);
+    assert.deepEqual(preset.packageIds, original.packageIds);
+    assert.notEqual(preset.categoryId, presets.LEGACY_CATEGORY_ID);
+  }
 });
 
-test("legacy presets stay available only as hidden compatibility entries", () => {
+test("legacy shipped presets stay hidden without hiding managed presets", () => {
   const catalog = presets.presetCatalogResponse();
   const visible = catalog.filter(preset => preset.hidden !== true);
   const legacy = catalog.filter(preset => preset.hidden === true);
+  const visibleBuiltIns = visible.filter(preset => preset.builtIn !== false);
+  const visibleManaged = visible.filter(preset => preset.builtIn === false);
+  const baseManaged = managedCatalogById();
 
-  assert.deepEqual(visible.map(preset => preset.id), EXPECTED_IDS);
+  assert.deepEqual(visibleBuiltIns.map(preset => preset.id), EXPECTED_IDS);
+  assert.deepEqual(
+    visibleManaged.map(preset => preset.id).sort(),
+    [...baseManaged.keys()].sort()
+  );
   assert.ok(legacy.length > 0);
+  assert.ok(legacy.every(preset => preset.builtIn !== false));
   assert.ok(legacy.every(preset => preset.categoryId === presets.LEGACY_CATEGORY_ID));
+  assert.ok(legacy.every(preset => preset.legacy === true));
+  assert.ok(legacy.every(preset => preset.hidden === true));
   assert.equal(catalog.find(preset => preset.id === "builtin_daisy_accordion")?.hidden, true);
   assert.equal(catalog.some(preset => preset.id === "builtin_daisy_calendar"), false);
 });
