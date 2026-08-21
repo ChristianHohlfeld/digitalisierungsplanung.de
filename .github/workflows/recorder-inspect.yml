@@ -19,25 +19,25 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import re
-          def extracts(path, terms, before=1200, after=2600, limit=120):
+          def extracts(path, terms, before=1400, after=3200, limit=160):
               src=Path(path).read_text()
               out=[]; seen=[]
               for term in terms:
                   for m in re.finditer(term, src, re.I):
                       pos=m.start()
-                      if any(abs(pos-p)<900 for p in seen): continue
+                      if any(abs(pos-p)<1000 for p in seen): continue
                       seen.append(pos)
                       out.append(f'\n===== {path} :: {term} @ {pos} =====\n'+src[max(0,pos-before):min(len(src),pos+after)])
               return '\n'.join(out[:limit])
-          state_terms=[r'runtimeRecorderControls', r'runtimeRecording =', r'function runtimeRecorderCaptureFrame', r'function runtimeRecorderStart', r'function runtimeRecorderStop', r'function runtimeRecorderPlay', r'addEventListener\(.*runtimeRecorder', r'postRuntimePayload', r'function validateModel', r'function save', r'function addState', r'model\.states\.push']
-          server_terms=[r'function createServer', r'http\.createServer', r'req\.method', r'DEFAULT_MCP_PATH', r'function readJsonBody', r'writeJson', r'module\.exports', r'healthz']
+          state_terms=[r'runtimeRecorderControls', r'runtimeRecording =', r'function runtimeRecorderCaptureFrame', r'function runtimeRecorderStart', r'function runtimeRecorderStop', r'function runtimeRecorderPlay', r'bindRuntimeRecorderControls', r'postRuntimePayload', r'window\.addEventListener\([\"\']message', r'STATE_BLUEPRINT_RUNTIME_STATE', r'function validateModel', r'function save', r'function addState', r'model\.states\.push', r'definition', r'import', r'normalizeModel', r'setModel', r'persist']
+          server_terms=[r'function createRealtimeServer', r'http\.createServer', r'request\.method', r'DEFAULT_MCP_PATH', r'function readJsonBody', r'writeJson', r'module\.exports', r'healthz']
           Path('.tmp-recorder-state.txt').write_text(extracts('state.html', state_terms))
-          Path('.tmp-recorder-server.txt').write_text(extracts('server/server.js', server_terms, 1000, 3000))
+          Path('.tmp-recorder-server.txt').write_text(extracts('server/server.js', server_terms, 1100, 3400))
           PY
       - name: Commit inspection output
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .tmp-recorder-state.txt .tmp-recorder-server.txt
-          git commit -m "chore: inspect recorder integration points" || exit 0
+          git commit -m "chore: inspect recorder host integration" || exit 0
           git push
