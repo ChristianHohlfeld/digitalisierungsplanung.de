@@ -1,80 +1,117 @@
 "use strict";
 
 const http = require("node:http");
-const externalRecorder = require("./external-recorder");
+const os = require("node:os");
+const path = require("node:path");
+const { createNativeRecorderSession, replayNativePackage } = require("./native-browser-recorder");
+const { replayRecording } = require("./replay-engine");
+const { ReplayTaskStore } = require("./replay-task-service");
 
 const DEFAULT_HOST = process.env.LOCAL_RECORDER_HOST || "127.0.0.1";
 const DEFAULT_PORT = Math.max(1, Math.min(65535, Number(process.env.LOCAL_RECORDER_PORT) || 8799));
-const DEFAULT_ORIGIN = `http://${DEFAULT_HOST}:${DEFAULT_PORT}`;
+const EDITOR_ORIGIN = "https://digitalisierungsplanung.de";
+const MAX_BODY = 3 * 1024 * 1024;
 
-function localRecorderHtml() {
-  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Lokaler Recorder · Zustand</title><style>:root{color-scheme:dark;--bg:#07111d;--panel:#0b1b2a;--line:#20425f;--text:#e6f2ff;--muted:#9fb6cc;--accent:#38bdf8;--ok:#34d399;--bad:#fb7185}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.4 system-ui,sans-serif}main{width:min(1180px,calc(100% - 24px));margin:auto;padding:18px 0 28px}header{display:flex;gap:14px;align-items:end;justify-content:space-between;margin-bottom:14px}h1{margin:0;font-size:24px}p{margin:4px 0;color:var(--muted)}.panel{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:12px;margin-bottom:12px}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}input,button,select{min-height:40px;border:1px solid var(--line);border-radius:8px;background:#06111f;color:var(--text);font:inherit;padding:0 10px}input[type=url]{flex:1;min-width:260px}button{cursor:pointer;font-weight:800}button.primary{background:#0b3a55;border-color:#23729b}button.good{background:#064e3b;border-color:#15966d}button.danger{background:#5f1721;border-color:#a4384a}button:disabled{opacity:.45;cursor:not-allowed}.viewport{position:relative;display:grid;place-items:center;overflow:auto;min-height:420px;max-height:calc(100vh - 270px);background:#020617;border:1px solid var(--line);border-radius:12px;outline:none}.viewport:focus{box-shadow:0 0 0 3px rgba(56,189,248,.2);border-color:#38bdf8}.viewport img{display:block;max-width:100%;height:auto;cursor:crosshair;user-select:none;-webkit-user-drag:none}.status{font-family:ui-monospace,monospace;color:var(--muted)}.ok{color:var(--ok)}.bad{color:var(--bad)}#after{display:none}.hint{font-size:12px;color:var(--muted)}.kbd{color:#bfdbfe}.pill{display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(56,189,248,.34);border-radius:999px;padding:4px 8px;color:#bfdbfe;background:#071321;font-size:12px;font-weight:800}.hidden-capture{position:fixed;left:-1000px;top:-1000px;width:1px;height:1px;opacity:0}@media(max-width:680px){header{display:block}.row>*{flex:1}button{min-width:90px}}</style></head><body><main><header><div><h1>Lokaler Recorder</h1><p>Browser läuft auf diesem Rechner im Kundennetz. Klick, Tippen, Paste und Mausrad werden direkt aufgenommen.</p></div><div class="status" id="status">Bereit</div></header><section class="panel"><div class="row"><input id="url" type="url" autocomplete="url" placeholder="https://wob-app15.wobak.de/de/cockpit"><button class="primary" id="start">Aufnahme starten</button></div><div class="hint">Nach dem Start: in die Website klicken, dann normal tippen. <span class="kbd">Mausrad</span> scrollt die Zielseite, <span class="kbd">Paste</span> schreibt Text. Passwortwerte werden nicht exportiert.</div></section><section class="panel" id="controls" hidden><div class="row"><span class="pill" id="captureState">Browserfenster nicht fokussiert</span><select id="key"><option>Enter</option><option>Tab</option><option>Escape</option><option>Backspace</option><option>Delete</option><option>ArrowDown</option><option>ArrowUp</option><option>ArrowLeft</option><option>ArrowRight</option></select><button id="sendKey">Taste senden</button><button class="good" id="finish">Fertig → States</button><button class="danger" id="cancel">Abbrechen</button></div></section><section class="viewport" id="viewport" tabindex="0" aria-label="Aufgenommene Website. Hier klicken, tippen und scrollen."><div class="status">URL eingeben und Aufnahme starten.</div></section><textarea class="hidden-capture" id="capture" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea><section class="panel" id="after"><div class="row"><button class="good" id="import">In Zustand übernehmen</button><button id="replay">Original-Website automatisch replayen</button><button id="download">JSON laden</button></div><div class="hint" id="summary"></div></section></main><script>const q=new URLSearchParams(location.search);const allowed=new Set(["https://digitalisierungsplanung.de","https://www.digitalisierungsplanung.de"]);const targetOrigin=allowed.has(q.get("targetOrigin"))?q.get("targetOrigin"):"https://digitalisierungsplanung.de";const status=document.getElementById("status"),viewport=document.getElementById("viewport"),controls=document.getElementById("controls"),after=document.getElementById("after"),capture=document.getElementById("capture"),captureState=document.getElementById("captureState");let session=null,definition=null,lastViewport=null,typeBuffer="",typeTimer=0,busy=false;function setStatus(text,ok=true){status.textContent=text;status.className="status "+(ok?"ok":"bad")}function setCapture(active){captureState.textContent=active?"Browserfenster fokussiert · Tippen aktiv":"Browserfenster nicht fokussiert";captureState.style.borderColor=active?"rgba(52,211,153,.72)":"rgba(56,189,248,.34)"}async function api(path,body,method="POST"){const r=await fetch(path,{method,headers:{"content-type":"application/json"},body:body===undefined?undefined:JSON.stringify(body),cache:"no-store"});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.message||data.error||("HTTP "+r.status));return data}function focusCapture(){viewport.focus();capture.focus({preventScroll:true});setCapture(true)}function render(data){session=data.sessionId||session;lastViewport=data.viewport||lastViewport;const shot=data.current;if(!shot?.image)return;viewport.innerHTML="";const img=new Image();img.src=shot.image;img.alt=shot.title||shot.url||"Website";img.dataset.w=String(data.viewport?.width||1024);img.dataset.h=String(data.viewport?.height||640);img.addEventListener("click",async e=>{if(!session||busy)return;focusCapture();const r=img.getBoundingClientRect();const x=Math.round((e.clientX-r.left)/r.width*Number(img.dataset.w));const y=Math.round((e.clientY-r.top)/r.height*Number(img.dataset.h));try{busy=true;setStatus("Klick …");render(await api("/recorder/sessions/"+encodeURIComponent(session)+"/actions",{type:"click",x,y}));setStatus("Aufnahme · Klick aufgenommen")}catch(err){setStatus(err.message,false)}finally{busy=false;focusCapture()}});img.addEventListener("wheel",onWheel,{passive:false});viewport.appendChild(img);focusCapture()}async function flushText(){const text=typeBuffer;typeBuffer="";clearTimeout(typeTimer);typeTimer=0;if(!text||!session)return;try{busy=true;render(await api("/recorder/sessions/"+encodeURIComponent(session)+"/actions",{type:"input",text}));setStatus("Eingabe aufgenommen")}catch(err){setStatus(err.message,false)}finally{busy=false;focusCapture()}}function queueText(text){typeBuffer+=String(text||"");clearTimeout(typeTimer);typeTimer=setTimeout(flushText,140)}async function sendKey(key){await flushText();if(!session||!key)return;try{busy=true;render(await api("/recorder/sessions/"+encodeURIComponent(session)+"/actions",{type:"key",key}));setStatus("Taste aufgenommen") }catch(err){setStatus(err.message,false)}finally{busy=false;focusCapture()}}let wheelTimer=0,wheelX=0,wheelY=0;function onWheel(e){if(!session)return;e.preventDefault();focusCapture();wheelX+=Math.max(-1200,Math.min(1200,Math.round(e.deltaX||0)));wheelY+=Math.max(-1200,Math.min(1200,Math.round(e.deltaY||0)));clearTimeout(wheelTimer);wheelTimer=setTimeout(async()=>{const dx=wheelX,dy=wheelY;wheelX=0;wheelY=0;try{busy=true;render(await api("/recorder/sessions/"+encodeURIComponent(session)+"/actions",{type:"scroll",deltaX:dx,deltaY:dy}));setStatus("Scroll aufgenommen")}catch(err){setStatus(err.message,false)}finally{busy=false;focusCapture()}},90)}capture.addEventListener("beforeinput",e=>{if(!session)return;if(e.inputType==="insertText"&&e.data){e.preventDefault();queueText(e.data)}else if(e.inputType==="insertFromPaste"){e.preventDefault();const text=e.data||"";if(text)queueText(text)}});capture.addEventListener("paste",e=>{if(!session)return;e.preventDefault();queueText(e.clipboardData?.getData("text")||"")});capture.addEventListener("keydown",e=>{if(!session)return;if(e.ctrlKey||e.metaKey||e.altKey)return;if(e.key.length===1){e.preventDefault();queueText(e.key);return}const allowed=new Set(["Enter","Tab","Escape","Backspace","Delete","ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Home","End","PageUp","PageDown"]);if(allowed.has(e.key)){e.preventDefault();void sendKey(e.key)}});viewport.addEventListener("focus",()=>setCapture(true));viewport.addEventListener("blur",()=>setCapture(document.activeElement===capture));document.getElementById("start").onclick=async()=>{try{setStatus("Öffne lokalen Browser …");const data=await api("/recorder/sessions",{url:document.getElementById("url").value});render(data);controls.hidden=false;setStatus("Aufnahme läuft · Klick, Tippen, Scroll aktiv")}catch(err){setStatus(err.message,false)}};document.getElementById("sendKey").onclick=()=>sendKey(document.getElementById("key").value);document.getElementById("finish").onclick=async()=>{try{await flushText();setStatus("Kompiliere States …");const data=await api("/recorder/sessions/"+encodeURIComponent(session)+"/finish",{});definition=data.definition;controls.hidden=true;after.style.display="block";document.getElementById("summary").textContent=data.recording.actions.length+" Aktionen · "+data.recording.snapshotCount+" States · echte Replay-Actions exportiert";setStatus("FSM erzeugt")}catch(err){setStatus(err.message,false)}};document.getElementById("import").onclick=()=>{if(!definition)return;window.opener?.postMessage({type:"STATE_BLUEPRINT_EXTERNAL_RECORDING_RESULT",definition,sessionId:session},targetOrigin);setStatus("An Zustand übergeben")};document.getElementById("replay").onclick=async()=>{try{setStatus("Replay läuft …");const data=await api("/recorder/sessions/"+encodeURIComponent(session)+"/replay",{});viewport.innerHTML='<img alt="Replay result" style="max-width:100%" src="'+data.image+'">';setStatus("Replay: "+data.actionCount+" Aktionen")}catch(err){setStatus(err.message,false)}};document.getElementById("download").onclick=()=>{if(!definition)return;const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(definition,null,2)],{type:"application/json"}));a.download="website-recording.json";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};document.getElementById("cancel").onclick=async()=>{if(session)await api("/recorder/sessions/"+encodeURIComponent(session),undefined,"DELETE").catch(()=>{});session=null;controls.hidden=true;viewport.innerHTML='<div class="status">Abgebrochen.</div>';setStatus("Bereit")};</script></body></html>`;
+async function readJson(request) {
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of request) {
+    size += chunk.length;
+    if (size > MAX_BODY) throw Object.assign(new Error("Request body too large."), { statusCode: 413 });
+    chunks.push(chunk);
+  }
+  if (!chunks.length) return {};
+  try { return JSON.parse(Buffer.concat(chunks).toString("utf8")); }
+  catch (_) { throw Object.assign(new Error("Invalid JSON body."), { statusCode: 400 }); }
 }
 
-function writeHtml(response, statusCode, body) {
+function writeJson(response, statusCode, payload) {
+  const body = JSON.stringify(payload);
   response.writeHead(statusCode, {
-    "content-type": "text/html; charset=utf-8",
+    "content-type": "application/json; charset=utf-8",
     "cache-control": "no-store",
-    "content-security-policy": "default-src 'self'; img-src 'self' data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'self'",
     "x-content-type-options": "nosniff",
-    "referrer-policy": "no-referrer",
     "content-length": Buffer.byteLength(body)
   });
   response.end(body);
 }
 
-function writeJson(response, statusCode, body) {
-  const text = JSON.stringify(body);
-  response.writeHead(statusCode, {
-    "content-type": "application/json; charset=utf-8",
-    "cache-control": "no-store",
-    "x-content-type-options": "nosniff",
-    "content-length": Buffer.byteLength(text)
-  });
-  response.end(text);
+function localRecorderHtml() {
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Recorder · Zustand</title><style>:root{color-scheme:dark;--bg:#07111d;--panel:#0b1b2a;--line:#20425f;--text:#e6f2ff;--muted:#9fb6cc;--ok:#34d399;--bad:#fb7185}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,sans-serif}main{width:min(920px,calc(100% - 24px));margin:auto;padding:24px 0}h1{margin:0 0 4px;font-size:26px}p{margin:0 0 16px;color:var(--muted)}.panel{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:14px;margin:12px 0}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}input,select,button{min-height:42px;border:1px solid var(--line);border-radius:9px;background:#06111f;color:var(--text);font:inherit;padding:0 11px}input[type=url],input[type=text]{flex:1;min-width:220px}button{cursor:pointer;font-weight:850}button.primary{background:#0b3a55;border-color:#23729b}button.good{background:#064e3b;border-color:#15966d}button.danger{background:#5f1721;border-color:#a4384a}button:disabled{opacity:.42;cursor:not-allowed}.status{font:13px ui-monospace,monospace;color:var(--muted);margin-top:10px}.ok{color:var(--ok)}.bad{color:var(--bad)}.hint{font-size:12px;color:var(--muted);margin-top:8px}.task{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;border-top:1px solid #173650;padding:9px 0}.task:first-child{border-top:0}.pill{display:inline-block;padding:3px 8px;border:1px solid var(--line);border-radius:999px;color:#bfdbfe;font-size:12px}@media(max-width:620px){.row>*{width:100%}.task{grid-template-columns:1fr}.task button{width:100%}}</style></head><body><main><h1>Echter Browser-Recorder</h1><p>Chromium öffnet sich lokal. Du bedienst die Website normal; Zustand zeichnet den Ablauf im Hintergrund auf.</p><section class="panel"><div class="row"><input id="url" type="url" autocomplete="url" placeholder="https://wob-app15.wobak.de/de/cockpit"><button class="primary" id="start">Browser öffnen + aufnehmen</button></div><div class="hint">Klicks, Inputs, Checkboxen, Dropdowns, Tasten, Scroll und Timings werden als echte Replay-Actions gespeichert. Passwortwerte bleiben draußen.</div></section><section class="panel"><div class="row"><span class="pill" id="state">Bereit</span><button class="good" id="finish" disabled>Fertig → State-Chart</button><button id="replay" disabled>Echten Replay starten</button><button id="editor" disabled>Im Editor öffnen</button><button class="danger" id="cancel" disabled>Abbrechen</button></div><div class="status" id="status">Bereit.</div></section><section class="panel" id="taskPanel" hidden><strong>Als Replay-Task speichern</strong><div class="row" style="margin-top:8px"><input id="taskName" type="text" placeholder="Task-Name"><select id="schedule"><option value="manual">Manuell</option><option value="cron">Cron</option></select><input id="cron" type="text" value="0 7 * * 1-5" placeholder="0 7 * * 1-5" hidden><button id="saveTask">Task speichern</button></div><div class="hint">Cron = Minute Stunde Tag Monat Wochentag. Event/Webhook-Trigger bleiben im State-Modell.</div></section><section class="panel"><div class="row"><strong>Lokale Replay-Tasks</strong><button id="refresh">Aktualisieren</button></div><div id="tasks" class="hint">Keine Tasks.</div></section></main><script>const qs=new URLSearchParams(location.search);const urlEl=document.getElementById("url"),start=document.getElementById("start"),finish=document.getElementById("finish"),replay=document.getElementById("replay"),editor=document.getElementById("editor"),cancel=document.getElementById("cancel"),status=document.getElementById("status"),state=document.getElementById("state"),taskPanel=document.getElementById("taskPanel"),schedule=document.getElementById("schedule"),cron=document.getElementById("cron"),tasks=document.getElementById("tasks");let pkg=null;urlEl.value=qs.get("url")||"";function stat(text,ok=true){status.textContent=text;status.className="status "+(ok?"ok":"bad")}function controls(recording,done){start.disabled=recording;finish.disabled=!recording;cancel.disabled=!recording;replay.disabled=!done;editor.disabled=!done;taskPanel.hidden=!done}async function api(route,body,method="POST"){const r=await fetch(route,{method,headers:body===undefined?undefined:{"content-type":"application/json"},body:body===undefined?undefined:JSON.stringify(body),cache:"no-store"});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.message||d.error||("HTTP "+r.status));return d}start.onclick=async()=>{try{stat("Öffne echtes Chromium …");await api("/recording/start",{url:urlEl.value});pkg=null;controls(true,false);state.textContent="Aufnahme läuft";stat("Chromium ist offen. Website jetzt ganz normal bedienen.")}catch(e){stat(e.message,false)}};finish.onclick=async()=>{try{stat("Erzeuge State-Chart + Replay …");const d=await api("/recording/finish",{});pkg=d.package;controls(false,true);state.textContent=d.actionCount+" Aktionen · "+d.stateCount+" States";document.getElementById("taskName").value="Replay · "+new URL(pkg.recording.startUrl).hostname;stat("Fertig. State-Chart und echter Replay sind bereit.")}catch(e){stat(e.message,false)}};cancel.onclick=async()=>{await api("/recording",undefined,"DELETE").catch(()=>{});pkg=null;controls(false,false);state.textContent="Bereit";stat("Aufnahme abgebrochen.")};replay.onclick=async()=>{try{replay.disabled=true;stat("Echter Replay läuft in Chromium …");const d=await api("/recording/replay",{});stat("Replay erfolgreich · "+d.actionCount+" Aktionen · "+d.durationMs+" ms")}catch(e){stat(e.message,false)}finally{replay.disabled=false}};editor.onclick=()=>{if(!pkg)return;const target=window.open("${EDITOR_ORIGIN}/state.html?recorded=1&replay=1","zustand-editor");if(!target){stat("Popup blockiert. Popups erlauben und erneut klicken.",false);return}let tries=0;const timer=setInterval(()=>{tries++;try{target.postMessage({type:"ZUSTAND_RECORDING_IMPORT",package:pkg},"${EDITOR_ORIGIN}")}catch(_){}if(tries>32)clearInterval(timer)},250);stat("Recording an visuellen Editor übergeben.")};schedule.onchange=()=>cron.hidden=schedule.value!=="cron";document.getElementById("saveTask").onclick=async()=>{if(!pkg)return;try{await api("/tasks",{name:document.getElementById("taskName").value,runner:"local",recording:pkg.recording,schedule:schedule.value==="cron"?{type:"cron",expression:cron.value}:{type:"manual"}});stat("Replay-Task gespeichert.");await loadTasks()}catch(e){stat(e.message,false)}};async function loadTasks(){try{const d=await api("/tasks",undefined,"GET");tasks.innerHTML="";if(!d.tasks.length){tasks.textContent="Keine Tasks.";return}for(const t of d.tasks){const row=document.createElement("div");row.className="task";const label=document.createElement("div");label.innerHTML="<strong>"+esc(t.name)+"</strong><br><span>"+esc(t.schedule.type==="cron"?t.schedule.expression:"manuell")+(t.lastRun?" · letzter Run: "+esc(t.lastRun.status):"")+"</span>";const run=document.createElement("button");run.textContent="Run";run.onclick=async()=>{try{stat("Task läuft …");const r=await api("/tasks/"+encodeURIComponent(t.id)+"/run",{});stat("Task erfolgreich · "+r.actionCount+" Actions");await loadTasks()}catch(e){stat(e.message,false)}};const del=document.createElement("button");del.className="danger";del.textContent="Löschen";del.onclick=async()=>{await api("/tasks/"+encodeURIComponent(t.id),undefined,"DELETE");await loadTasks()};row.append(label,run,del);tasks.append(row)}}catch(e){tasks.textContent=e.message}}function esc(value){return String(value??"").replace(/[&<>\"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'\"':"&quot;"}[ch]))}document.getElementById("refresh").onclick=loadTasks;controls(false,false);loadTasks();</script></body></html>`;
 }
 
 function createLocalRecorderServer(options = {}) {
-  const manager = options.manager || externalRecorder.createRecorderManager({
-    ttlMs: Number(process.env.LOCAL_RECORDER_TTL_MS) || 5 * 60 * 1000,
-    maxSessions: Number(process.env.LOCAL_RECORDER_MAX_SESSIONS) || 2,
-    maxSessionsPerClient: 1
+  let activeSession = null;
+  let lastPackage = null;
+  const taskStore = options.taskStore || new ReplayTaskStore({
+    filePath: options.taskFile || process.env.LOCAL_REPLAY_TASKS_FILE || path.join(os.homedir(), ".zustand", "replay-tasks.json"),
+    runner: (recording, runOptions = {}) => replayRecording(recording, {
+      headless: true,
+      ignoreHTTPSErrors: true,
+      respectTiming: true,
+      secrets: runOptions.secrets || {}
+    })
   });
-  const publicBaseUrl = options.publicBaseUrl || DEFAULT_ORIGIN;
-  const allowedOrigins = options.allowedOrigins || [publicBaseUrl, "http://127.0.0.1:8799", "http://localhost:8799"];
-  const server = http.createServer((request, response) => {
-    const url = new URL(request.url || "/", publicBaseUrl);
-    if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/local-recorder.html")) {
-      writeHtml(response, 200, localRecorderHtml());
-      return;
+  taskStore.start();
+
+  const server = http.createServer(async (request, response) => {
+    try {
+      const url = new URL(request.url || "/", `http://${DEFAULT_HOST}:${DEFAULT_PORT}`);
+      if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/local-recorder.html")) {
+        const body = localRecorderHtml();
+        response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-length": Buffer.byteLength(body) });
+        return response.end(body);
+      }
+      if (request.method === "GET" && url.pathname === "/healthz") return writeJson(response, 200, { ok: true, service: "local-recorder-agent", recording: Boolean(activeSession) });
+      if (request.method === "POST" && url.pathname === "/recording/start") {
+        if (activeSession) await activeSession.cancel().catch(() => {});
+        const body = await readJson(request);
+        activeSession = await createNativeRecorderSession({ url: body.url, headless: false, ignoreHTTPSErrors: true });
+        lastPackage = null;
+        return writeJson(response, 201, { ok: true, startUrl: activeSession.startUrl });
+      }
+      if (request.method === "POST" && url.pathname === "/recording/finish") {
+        if (!activeSession) return writeJson(response, 409, { error: "recording_not_active", message: "No active recording." });
+        lastPackage = await activeSession.finish();
+        activeSession = null;
+        return writeJson(response, 200, { ok: true, package: lastPackage, actionCount: lastPackage.recording.actions.length, stateCount: lastPackage.recording.snapshotCount });
+      }
+      if (request.method === "DELETE" && url.pathname === "/recording") {
+        if (activeSession) await activeSession.cancel().catch(() => {});
+        activeSession = null;
+        return writeJson(response, 200, { ok: true });
+      }
+      if (request.method === "POST" && url.pathname === "/recording/replay") {
+        if (!lastPackage) return writeJson(response, 409, { error: "recording_missing", message: "Finish a recording first." });
+        return writeJson(response, 200, await replayNativePackage(lastPackage, { headless: false }));
+      }
+      if (request.method === "GET" && url.pathname === "/tasks") return writeJson(response, 200, { tasks: await taskStore.list() });
+      if (request.method === "POST" && url.pathname === "/tasks") return writeJson(response, 201, { task: await taskStore.create(await readJson(request)) });
+      const taskMatch = url.pathname.match(/^\/tasks\/([^/]+)(?:\/(run))?$/);
+      if (taskMatch) {
+        const id = decodeURIComponent(taskMatch[1]);
+        if (request.method === "POST" && taskMatch[2] === "run") return writeJson(response, 200, await taskStore.run(id, await readJson(request)));
+        if (request.method === "DELETE" && !taskMatch[2]) return writeJson(response, 200, await taskStore.remove(id));
+      }
+      return writeJson(response, 404, { error: "not_found" });
+    } catch (error) {
+      return writeJson(response, Number(error?.statusCode) || 500, { error: error?.code || "local_recorder_failed", message: String(error?.message || error), run: error?.run || null });
     }
-    if (request.method === "GET" && url.pathname === "/healthz") {
-      writeJson(response, 200, { ok: true, service: "local-recorder-agent" });
-      return;
-    }
-    if (externalRecorder.matchesRecorderPath(url.pathname)) {
-      void externalRecorder.handleRecorderRequest(request, response, url, { manager, allowedOrigins, publicBaseUrl })
-        .catch(error => {
-          if (response.headersSent) return response.end();
-          writeJson(response, 500, { error: "local_recorder_failed", message: String(error?.message || error) });
-        });
-      return;
-    }
-    writeJson(response, 404, { error: "not_found" });
   });
-  return { server, manager, host: options.host || DEFAULT_HOST, port: options.port || DEFAULT_PORT, publicBaseUrl };
+  return { server, taskStore, host: options.host || DEFAULT_HOST, port: options.port || DEFAULT_PORT, get activeSession() { return activeSession; } };
 }
 
 function startLocalRecorderServer(options = {}) {
   const runtime = createLocalRecorderServer(options);
   runtime.server.listen(runtime.port, runtime.host, () => {
-    console.log(`Local recorder agent listening on http://${runtime.host}:${runtime.port}`);
-    console.log("Open this URL on the intranet client and record normally: click, type, paste, scroll.");
+    console.log(`Zustand local recorder: http://${runtime.host}:${runtime.port}`);
+    console.log("Start recording there; a real Chromium window opens for normal browser use.");
   });
-  async function shutdown() {
+  const shutdown = async () => {
+    runtime.taskStore.stop();
+    await runtime.activeSession?.cancel?.().catch(() => {});
     runtime.server.close();
-    await runtime.manager.close?.().catch(() => {});
-  }
+  };
   process.on("SIGTERM", () => { void shutdown().finally(() => process.exit(0)); });
   process.on("SIGINT", () => { void shutdown().finally(() => process.exit(0)); });
   return runtime;
@@ -82,8 +119,4 @@ function startLocalRecorderServer(options = {}) {
 
 if (require.main === module) startLocalRecorderServer();
 
-module.exports = {
-  createLocalRecorderServer,
-  localRecorderHtml,
-  startLocalRecorderServer
-};
+module.exports = { createLocalRecorderServer, localRecorderHtml, startLocalRecorderServer };
