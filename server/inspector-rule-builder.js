@@ -1,7 +1,9 @@
 "use strict";
 
-const OPERATORS = Object.freeze(["==", "!=", ">", ">=", "<", "<=", "truthy", "falsy", "contains"]);
+const OPERATORS = Object.freeze(["==", "!=", ">", ">=", "<", "<=", "truthy", "falsy"]);
 const JOINERS = Object.freeze(["and", "or"]);
+const PRIMARY_RULE_FIELDS = new Set(["checked", "value", "selected", "selectedValue", "enabled", "visible", "count"]);
+const HIDDEN_UI_FIELDS = new Set(["label", "placeholder", "help", "hint", "title", "description", "min", "max", "step", "src", "url"]);
 
 function isPlainObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -19,15 +21,32 @@ function inferType(value, declared = "") {
   return "text";
 }
 
+function leafName(path) {
+  return String(path || "").split(".").filter(Boolean).at(-1) || "";
+}
+
+function shouldExposeRuleField(localPath, value, type) {
+  const leaf = leafName(localPath);
+  if (!leaf) return false;
+  if (PRIMARY_RULE_FIELDS.has(leaf)) return true;
+  if (HIDDEN_UI_FIELDS.has(leaf)) return false;
+  if (["boolean", "number", "email", "date", "password"].includes(type)) return true;
+  if (typeof value === "string" && leaf === "value") return true;
+  return false;
+}
+
 function walkStateData(state, value, localPath = "", out = []) {
   if (!isPlainObject(value)) {
     if (!localPath || Array.isArray(value)) return out;
     const type = inferType(value, state.dataTypes?.[localPath]);
+    if (!shouldExposeRuleField(localPath, value, type)) return out;
+    const stateId = String(state.id || "").trim();
+    const title = String(state.title || stateId || "State").trim();
     out.push({
-      path: `states.${state.id}.${localPath}`,
-      label: `${state.title || state.id} · ${localPath}`,
+      path: `states.${stateId}.${localPath}`,
+      label: `${title} (${stateId}) · ${localPath}`,
       source: "state",
-      stateId: state.id,
+      stateId,
       type
     });
     return out;
@@ -39,11 +58,23 @@ function walkStateData(state, value, localPath = "", out = []) {
   return out;
 }
 
-function stateFields(model, stateId) {
+function stateFields(model, stateId = "") {
   const states = Array.isArray(model?.states) ? model.states : [];
-  const state = states.find(item => String(item.id) === String(stateId));
-  if (!state) return [];
-  return walkStateData(state, isPlainObject(state.data) ? state.data : {});
+  const wanted = String(stateId || "");
+  const selected = wanted ? states.filter(item => String(item.id) === wanted) : states;
+  return selected.flatMap(state => walkStateData(state, isPlainObject(state.data) ? state.data : {}));
+}
+
+function allStateFields(model, sourceStateId = "") {
+  const states = Array.isArray(model?.states) ? model.states : [];
+  const source = String(sourceStateId || "");
+  const sorted = [...states].sort((a, b) => {
+    const aSource = String(a.id) === source ? 0 : 1;
+    const bSource = String(b.id) === source ? 0 : 1;
+    if (aSource !== bSource) return aSource - bSource;
+    return String(a.title || a.id).localeCompare(String(b.title || b.id));
+  });
+  return sorted.flatMap(state => walkStateData(state, isPlainObject(state.data) ? state.data : {}));
 }
 
 function eventFields(contract = {}) {
@@ -68,13 +99,14 @@ function eventFields(contract = {}) {
 
 function contextFieldsForTransition(model, transition = {}, contract = {}) {
   const from = String(transition.from || "");
-  const fields = [...stateFields(model, from), ...eventFields(contract)];
+  const fields = [...allStateFields(model, from), ...eventFields(contract)];
   const seen = new Set();
   return fields.filter(field => {
     const path = cleanPath(field.path);
     if (!path || seen.has(path)) return false;
     seen.add(path);
     field.path = path;
+    field.sourceState = field.source === "state" && String(field.stateId) === from;
     return true;
   });
 }
@@ -89,11 +121,7 @@ function parseValue(raw = "") {
 
 function valueLiteral(value) {
   if (typeof value === "number" || typeof value === "boolean") return String(value);
-  const text = String(value ?? "").trim();
-  if (!text) return "\"\"";
-  if (/^-?\d+(?:\.\d+)?$/.test(text) || text === "true" || text === "false") return text;
-  if (/^[a-zA-Z0-9_@.:-]+$/.test(text)) return text;
-  return JSON.stringify(text);
+  return JSON.stringify(String(value ?? ""));
 }
 
 function parseAtom(raw = "") {
@@ -122,7 +150,6 @@ function compileRule(rule = {}) {
   const operator = OPERATORS.includes(rule.operator) ? rule.operator : "==";
   if (operator === "truthy") return field;
   if (operator === "falsy") return `!${field}`;
-  if (operator === "contains") return `${field} != \"\" && ${field} != null`;
   return `${field} ${operator} ${valueLiteral(rule.value)}`;
 }
 
@@ -135,6 +162,13 @@ function removeRule(rules = [], index) {
   return rules.filter((_, current) => current !== Number(index));
 }
 
+function operatorsForFieldType(type = "text") {
+  const normalized = String(type || "text").toLowerCase();
+  if (normalized === "boolean") return ["==", "!=", "truthy", "falsy"];
+  if (normalized === "number") return ["==", "!=", ">", ">=", "<", "<="];
+  return ["==", "!=", "truthy", "falsy"];
+}
+
 module.exports = {
   OPERATORS,
   JOINERS,
@@ -143,6 +177,7 @@ module.exports = {
   compileRule,
   contextFieldsForTransition,
   eventFields,
+  operatorsForFieldType,
   parseCondition,
   removeRule,
   stateFields
