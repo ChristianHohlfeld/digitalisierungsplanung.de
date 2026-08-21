@@ -1,0 +1,22 @@
+name: Final catalog scan
+on:
+  push:
+    branches:
+      - fix/final-recorder-focused-catalog
+permissions:
+  contents: read
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect editor component catalog and storage seeds
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== COMPONENT CATALOG CANDIDATES ==='
+          grep -nEi 'Baustein|component[^[:alnum:]_]*(type|variant)|daisy[^[:alnum:]_]*variant|componentTypes|componentPalette|componentOption|addComponent' state.html | head -n 700 || true
+          echo '=== STORAGE SEEDS ==='
+          grep -nE 'localStorage\.setItem\(' tests/state-tool.spec.js || true
+          echo '=== FOCUSED/PRESET REFERENCES ==='
+          grep -nE 'builtin_daisy_|builtin_page_heading|builtin_media_image|stateTemplates|presetCatalog' tests/state-tool.spec.js | head -n 500 || true
