@@ -15,25 +15,31 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: focus/minimal-presets
-      - name: Capture focused source snippets once
+      - name: Capture exact focused snippets
         shell: bash
         run: |
           set -euxo pipefail
-          if [ -f .tmp-focus-inspect.txt ]; then
-            exit 0
+          changed=0
+          if [ ! -f .tmp-input-renderer.txt ]; then
+            {
+              echo '--- input / daisy renderer ---'
+              grep -n -E -C 35 'inputType|variant[^\n]{0,80}input|input[^\n]{0,80}variant|case ["'"']input["'"']|daisy[^\n]{0,80}input|createElement\(["'"']input["'"']\)' state.html | head -n 1200 || true
+            } > .tmp-input-renderer.txt
+            changed=1
           fi
-          {
-            echo '--- input renderer matches ---'
-            grep -n -C 24 'variant === "input"' state.html || true
-            echo '--- state.title matches ---'
-            grep -n -C 12 'state\.title' state.html | head -n 500 || true
-            echo '--- title editor candidates ---'
-            grep -n -E -C 12 'State.*Titel|Titel.*State|state.*title|title.*state|contenteditable' state.html | head -n 700 || true
-            echo '--- state update / save candidates ---'
-            grep -n -E -C 8 'updateState|saveState|persist|scheduleSave|markDirty|render.*State|activeState|selectedState' state.html | head -n 900 || true
-          } > .tmp-focus-inspect.txt
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add .tmp-focus-inspect.txt
-          git commit -m 'chore: capture focused source snippets'
-          git push origin HEAD:focus/minimal-presets
+          if [ ! -f .tmp-state-title-editor.txt ]; then
+            {
+              echo '--- state title editor / mutations ---'
+              grep -n -E -C 28 'titleInput|stateTitle|state-title|State title|State-Titel|Zustand.*Titel|Titel.*Zustand|\.title[[:space:]]*=|title:[[:space:]]*.*value|placeholder=.*Titel|value=.*\.title' state.html | head -n 1400 || true
+              echo '--- selected inspector areas ---'
+              grep -n -E -C 20 'selectedState|activeState|Inspector|Eigenschaften|properties|stateInspector' state.html | head -n 1000 || true
+            } > .tmp-state-title-editor.txt
+            changed=1
+          fi
+          if [ "$changed" -eq 1 ]; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add .tmp-input-renderer.txt .tmp-state-title-editor.txt
+            git commit -m 'chore: capture exact renderer and title snippets'
+            git push origin HEAD:focus/minimal-presets
+          fi
