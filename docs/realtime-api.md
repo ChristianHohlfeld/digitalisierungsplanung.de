@@ -703,3 +703,8 @@ lastEvent
 triggerType: realtime
 triggerEvent: realtime.sip.call.incoming
 ```
+
+
+## External URL Recorder
+
+`/recorder.html` ist die statische Authoring-Oberfläche. Sie nutzt `https://realtime.digitalisierungsplanung.de/recorder/sessions`: `POST /recorder/sessions` startet eine kurzlebige Browser-Session, `POST /recorder/sessions/:id/actions` führt `click`, `input`, `key`, `scroll` oder Navigation aus, `POST /recorder/sessions/:id/finish` kompiliert in eine kanonische State-Blueprint-Definition, `POST /recorder/sessions/:id/replay` spielt den Originalablauf ab und `DELETE /recorder/sessions/:id` verwirft die Session. Private Ziele und URL-Credentials sind verboten; Passwortwerte werden nicht gespeichert.

@@ -9,10 +9,11 @@ const root = path.resolve(__dirname, "..");
 const read = relative => fs.readFileSync(path.join(root, relative), "utf8");
 
 test("external URL recorder is exposed from the editor host", () => {
-  const host = read("disable-sw.js");
+  const host = read("state.html");
   assert.match(host, /btnRecordUrl/);
   assert.match(host, /URL aufnehmen/);
   assert.match(host, /location\.href = "\/recorder\.html"/);
+  assert.doesNotMatch(read("disable-sw.js"), /btnRecordUrl/);
 });
 
 test("external recorder UI uses isolated realtime browser API and canonical editor storage", () => {
@@ -33,7 +34,8 @@ test("production runs recorder separately and proxies only recorder API to it", 
   assert.match(ecosystem, /RECORDER_PORT: "8789"/);
   assert.match(nginx, /location \^~ \/recorder\//);
   assert.match(nginx, /127\.0\.0\.1:8789/);
-  assert.match(deploy, /playwright@1\.60\.0/);
+  assert.equal(require("../package.json").dependencies.playwright, "1.60.0");
+  assert.doesNotMatch(deploy, /npm install --no-save.*playwright/);
   assert.match(deploy, /playwright install --with-deps chromium/);
   assert.match(deploy, /external-recorder/);
   assert.match(deploy, /8789\/healthz/);
