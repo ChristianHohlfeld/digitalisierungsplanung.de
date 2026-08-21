@@ -140,18 +140,21 @@ function listenerForAction(action = {}) {
 
 function projectFromRecording(recording, options = {}) {
   const snapshots = Array.isArray(recording?.snapshots) ? recording.snapshots.filter(item => item?.image) : [];
-  const actions = Array.isArray(recording?.actions) ? recording.actions : [];
+  const actions = Array.isArray(recording?.actions) ? recording.actions.filter(Boolean) : [];
   if (!snapshots.length) throw new Error("Recording has no visual states");
   const host = (() => {
     try { return new URL(recording.startUrl || snapshots[0].url).hostname; } catch (_) { return "Website"; }
   })();
-  const states = snapshots.map((snapshot, index) => {
-    const id = `state_${String(index + 1).padStart(3, "0")}`;
+  const stateCount = Math.max(1, actions.length + 1);
+  const states = Array.from({ length: stateCount }, (_, index) => {
+    const snapshot = snapshots[index] || snapshots[snapshots.length - 1] || {};
     const outgoing = actions[index] || null;
+    const id = `state_${String(index + 1).padStart(3, "0")}`;
     const field = fieldFromAction(outgoing, id);
+    const actionLabel = outgoing?.target?.label || outgoing?.selector || outgoing?.key || outgoing?.type || "";
     return {
       id,
-      title: String(snapshot.title || snapshot.url || `${host} ${index + 1}`).slice(0, 180),
+      title: String(snapshot.title || snapshot.url || actionLabel || `${host} ${index + 1}`).slice(0, 180),
       x: 80 + (index % 4) * 240,
       y: 80 + Math.floor(index / 4) * 150,
       trigger: {
@@ -168,18 +171,15 @@ function projectFromRecording(recording, options = {}) {
       }
     };
   });
-  const transitions = states.slice(0, -1).map((state, index) => {
-    const action = actions[index] || {};
-    return {
-      id: `transition_${String(index + 1).padStart(3, "0")}`,
-      from: state.id,
-      to: states[index + 1].id,
-      label: String(action.target?.label || action.selector || action.key || action.type || "Weiter").slice(0, 140),
-      listener: listenerForAction(action),
-      rules: { join: "and", items: [] },
-      replay: { delayMs: Math.max(0, Math.round(Number(action.delayMs) || 0)) }
-    };
-  });
+  const transitions = actions.map((action, index) => ({
+    id: `transition_${String(index + 1).padStart(3, "0")}`,
+    from: states[index].id,
+    to: states[index + 1].id,
+    label: String(action.target?.label || action.selector || action.key || action.type || "Weiter").slice(0, 140),
+    listener: listenerForAction(action),
+    rules: { join: "and", items: [] },
+    replay: { delayMs: Math.max(0, Math.round(Number(action.delayMs) || 0)) }
+  }));
   return {
     kind: "zustand-project",
     version: 1,
