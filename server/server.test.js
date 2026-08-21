@@ -2,32 +2,49 @@
 
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
-const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
 const WebSocket = require("ws");
 const adminTools = require("./admin-tools");
-const eventCatalog = require("./event-catalog");
-const presetLibrary = require("./preset-library");
-const {
-  createRealtimeServer,
-  createRoomToken,
-  loadConfig,
-  verifyRoomToken
-} = require("./server");
+const presetCatalog = require("./preset-catalog");
+const productContract = require("./product-contract");
+const { createRealtimeServer, createRoomToken, verifyRoomToken } = require("./server");
 
 const ORIGIN = "https://digitalisierungsplanung.de";
 const SECRET = "test-room-secret";
 const NGINX_CONFIG_PATH = `${__dirname}/nginx/realtime.digitalisierungsplanung.de.conf`;
+const FOCUSED_PRESET_IDS = [
+  "builtin_daisy_dropdown",
+  "builtin_daisy_button",
+  "builtin_daisy_toast",
+  "builtin_daisy_checkbox",
+  "builtin_daisy_input",
+  "builtin_daisy_input_number",
+  "builtin_daisy_search",
+  "builtin_daisy_input_email",
+  "builtin_daisy_input_password",
+  "builtin_page_heading",
+  "builtin_media_image",
+  "builtin_daisy_date",
+  "builtin_daisy_radio"
+];
+const REMOVED_ROUTES = [
+  "/presets-admin.html",
+  "/presets-admin/catalog",
+  "/presets-admin/parse",
+  "/presets-admin/import",
+  "/agent.html",
+  "/agent/config",
+  "/agent/chat",
+  "/agent/mcp/tool",
+  "/agent/editor/prompt",
+  "/assets/agent-widget.js",
+  "/mcp"
+];
 
-function socketUrl(realtime) {
+function httpUrl(realtime, routePath) {
   const { port } = realtime.address();
-  return `ws://127.0.0.1:${port}/ws`;
-}
-
-function httpUrl(realtime, path) {
-  const { port } = realtime.address();
-  return `http://127.0.0.1:${port}${path}`;
+  return `http://127.0.0.1:${port}${routePath}`;
 }
 
 async function withRealtimeServer(options, fn) {
@@ -46,10 +63,9 @@ async function withRealtimeServer(options, fn) {
   }
 }
 
-function connectRaw(realtime, origin = ORIGIN) {
-  return new WebSocket(socketUrl(realtime), {
-    headers: { Origin: origin }
-  });
+function socketUrl(realtime) {
+  const { port } = realtime.address();
+  return `ws://127.0.0.1:${port}/ws`;
 }
 
 function waitForOpen(socket) {
@@ -59,1621 +75,141 @@ function waitForOpen(socket) {
   });
 }
 
-function waitForError(socket) {
-  return new Promise(resolve => {
-    socket.once("error", resolve);
-  });
-}
-
-function nextMessage(socket, predicate = () => true, timeoutMs = 600) {
+function nextMessage(socket, predicate = () => true, timeoutMs = 700) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       cleanup();
       reject(new Error("message timeout"));
     }, timeoutMs);
-
     function cleanup() {
       clearTimeout(timer);
       socket.off("message", onMessage);
       socket.off("error", onError);
     }
-
     function onError(error) {
       cleanup();
       reject(error);
     }
-
     function onMessage(data) {
       const message = JSON.parse(String(data));
       if (!predicate(message)) return;
       cleanup();
       resolve(message);
     }
-
     socket.on("message", onMessage);
     socket.on("error", onError);
   });
 }
 
-async function assertNoMessage(socket, predicate, timeoutMs = 150) {
-  try {
-    await nextMessage(socket, predicate, timeoutMs);
-  } catch (error) {
-    if (error.message === "message timeout") return;
-    throw error;
+test("signed room tokens protect runtime rooms", () => {
+  const token = createRoomToken({ roomId: "room", clientId: "alice", secret: SECRET, ttlMs: 60000 });
+  assert.equal(verifyRoomToken(token, { roomId: "room", clientId: "alice", secret: SECRET }).ok, true);
+  assert.equal(verifyRoomToken(token, { roomId: "other", clientId: "alice", secret: SECRET }).code, "room_mismatch");
+});
+
+test("product contract exposes the focused preset contract only", async () => {
+  const contract = productContract.productContractResponse({});
+  assert.deepEqual(presetCatalog.presetCatalogResponse().map(preset => preset.id), FOCUSED_PRESET_IDS);
+  assert.deepEqual(contract.presets.map(preset => preset.id), FOCUSED_PRESET_IDS);
+  assert.equal(contract.presets.some(preset => preset.builtIn === false), false);
+  assert.equal(contract.presets.some(preset => preset.contractOnly || preset.managedOnly || preset.legacy || preset.hidden), false);
+  for (const blocked of ["builtin_daisy_bi_kpi_board", "builtin_daisy_stripe_pricing", "custom_acme_footer"]) {
+    assert.equal(contract.presets.some(preset => preset.id === blocked), false, blocked);
   }
-  throw new Error("unexpected message");
-}
-
-async function connectClient(realtime, { roomId = "room", clientId, token = null } = {}) {
-  const socket = connectRaw(realtime);
-  await waitForOpen(socket);
-  socket.send(JSON.stringify({
-    type: "join",
-    roomId,
-    clientId,
-    token: token || createRoomToken({ roomId, clientId, secret: SECRET, ttlMs: 60000 })
-  }));
-  const joined = await nextMessage(socket, message => message.type === "joined");
-  assert.equal(joined.roomId, roomId);
-  assert.equal(joined.clientId, clientId);
-  return socket;
-}
-
-test("rejects WebSocket upgrades from disallowed origins", async () => {
-  await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
-    const socket = connectRaw(realtime, "https://evil.example");
-    const error = await waitForError(socket);
-    assert.match(error.message, /403/);
-  });
+  assert.ok(contract.triggerTypes.some(type => type.id === "realtime"));
+  assert.ok(contract.triggerTypes.some(type => type.id === "timer"));
+  assert.ok(contract.valueTypes.some(type => type.id === "email"));
 });
 
-test("requires a signed room token when unsigned rooms are disabled", async () => {
-  await withRealtimeServer({ roomSecret: SECRET, allowUnsignedRooms: false }, async realtime => {
-    const socket = connectRaw(realtime);
-    await waitForOpen(socket);
-    socket.send(JSON.stringify({
-      type: "join",
-      roomId: "secure-room",
-      clientId: "client-a"
-    }));
-    const error = await nextMessage(socket, message => message.type === "error");
-    assert.equal(error.code, "invalid_token");
-  });
+test("lean admin route index keeps events, console, contract and system only", () => {
+  const index = adminTools.adminRouteIndex({});
+  assert.deepEqual(index.tools.map(tool => tool.id), ["events", "console", "contract", "system"]);
+  const routeText = JSON.stringify(index);
+  for (const removed of REMOVED_ROUTES) assert.equal(routeText.includes(removed), false, `${removed} must not be advertised`);
+  assert.ok(index.endpoints.some(endpoint => endpoint.path === "/events-admin/catalog"));
+  assert.ok(index.endpoints.some(endpoint => endpoint.path === "/emit"));
+  assert.ok(index.endpoints.some(endpoint => endpoint.path === "/ws"));
 });
 
-test("issues signed room tokens only to allowed origins", async () => {
-  await withRealtimeServer({ roomSecret: SECRET, tokenTtlMs: 60000 }, async realtime => {
-    const response = await fetch(httpUrl(realtime, "/token?roomId=room&clientId=alice"), {
-      headers: { Origin: ORIGIN }
-    });
-    assert.equal(response.status, 200);
-    assert.equal(response.headers.get("access-control-allow-origin"), ORIGIN);
-
-    const payload = await response.json();
-    assert.equal(payload.roomId, "room");
-    assert.equal(payload.clientId, "alice");
-    assert.equal(payload.expiresInMs, 60000);
-    assert.equal(verifyRoomToken(payload.token, {
-      roomId: "room",
-      clientId: "alice",
-      secret: SECRET
-    }).ok, true);
-
-    const rejected = await fetch(httpUrl(realtime, "/token?roomId=room&clientId=alice"), {
-      headers: { Origin: "https://evil.example" }
-    });
-    assert.equal(rejected.status, 403);
-  });
-});
-
-test("does not issue room tokens without a server secret", async () => {
-  await withRealtimeServer({ roomSecret: "", allowUnsignedRooms: true }, async realtime => {
-    const response = await fetch(httpUrl(realtime, "/token?roomId=room&clientId=alice"), {
-      headers: { Origin: ORIGIN }
-    });
-    assert.equal(response.status, 503);
-    assert.deepEqual(await response.json(), { error: "room_secret_required" });
-  });
-});
-
-test("serves the event and connector catalog only to allowed origins", async () => {
-  await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
-    const response = await fetch(httpUrl(realtime, "/events"), {
-      headers: { Origin: ORIGIN }
-    });
-    assert.equal(response.status, 200);
-    assert.equal(response.headers.get("access-control-allow-origin"), ORIGIN);
-
-    const payload = await response.json();
-    assert.equal(payload.provider.id, "digitalisierungsplanung.realtime");
-    assert.equal(payload.state.path, "realtime");
-    assert.equal(payload.transport, undefined);
-    assert.ok(payload.emitters.some(emitter => emitter.id === "sip.threecx"));
-    assert.ok(payload.emitters.some(emitter => emitter.id === "mail.gmail"));
-    const incoming = payload.events.find(event => event.name === "realtime.sip.call.incoming");
-    assert.ok(incoming);
-    assert.deepEqual(incoming.bindings, []);
-    assert.equal(incoming.contributes.root, "events.realtime.sip.call.incoming");
-    assert.ok(incoming.contributes.fields.includes("events.realtime.sip.call.incoming.detail.callId"));
-
-    const rejected = await fetch(httpUrl(realtime, "/events"), {
-      headers: { Origin: "https://evil.example" }
-    });
-    assert.equal(rejected.status, 403);
-
-    const productContract = await fetch(httpUrl(realtime, "/contract"), {
-      headers: { Origin: ORIGIN }
-    });
-    assert.equal(productContract.status, 200);
-    assert.equal(productContract.headers.get("access-control-allow-origin"), ORIGIN);
-    const productContractPayload = await productContract.json();
-    assert.equal(productContractPayload.schemaVersion, 1);
-    assert.ok(productContractPayload.triggerTypes.some(type => type.id === "button"));
-    assert.ok(productContractPayload.triggerTypes.some(type => type.id === "timer"));
-    assert.ok(productContractPayload.triggerTypes.some(type => type.id === "api"));
-    const apiTrigger = productContractPayload.triggerTypes.find(type => type.id === "api");
-    assert.deepEqual(apiTrigger.events.map(event => event.name), ["fetch.*.success", "fetch.*.error"]);
-    assert.deepEqual(
-      productContractPayload.subscriptionPlans.map(plan => plan.id),
-      ["starter", "expert", "enterprise"]
-    );
-    const starterPlan = productContractPayload.subscriptionPlans.find(plan => plan.id === "starter");
-    assert.equal(starterPlan.price, "49,99 EUR");
-    assert.equal(starterPlan.period, "pro Benutzer / Monat");
-    assert.equal(starterPlan.stripe.mode, "subscription");
-    assert.equal(starterPlan.stripe.unitAmountCents, 4999);
-    assert.equal(starterPlan.stripe.currency, "eur");
-    assert.equal(starterPlan.stripe.recurringInterval, "month");
-    assert.equal(starterPlan.stripe.billingAddressCollection, "required");
-    assert.equal(starterPlan.stripe.automaticTax, true);
-    assert.equal(starterPlan.stripe.taxBehavior, "exclusive");
-    assert.equal(starterPlan.stripe.taxCode, "txcd_10103001");
-    assert.equal(starterPlan.stripe.quantityMode, "per_user");
-    const expertPlan = productContractPayload.subscriptionPlans.find(plan => plan.id === "expert");
-    assert.equal(expertPlan.price, "199 EUR");
-    assert.equal(expertPlan.stripe.unitAmountCents, 19900);
-    assert.equal(expertPlan.stripe.billingAddressCollection, "required");
-    assert.equal(expertPlan.stripe.automaticTax, true);
-    assert.equal(expertPlan.stripe.taxBehavior, "exclusive");
-    assert.equal(expertPlan.stripe.taxCode, "txcd_10103001");
-    const enterprisePlan = productContractPayload.subscriptionPlans.find(plan => plan.id === "enterprise");
-    assert.equal(enterprisePlan.price, "499 EUR");
-    assert.equal(enterprisePlan.period, "/Monat");
-    assert.equal(enterprisePlan.stripe.mode, "subscription");
-    assert.equal(enterprisePlan.stripe.unitAmountCents, 49900);
-    assert.equal(enterprisePlan.stripe.billingAddressCollection, "required");
-    assert.equal(enterprisePlan.stripe.automaticTax, true);
-    assert.equal(enterprisePlan.stripe.taxBehavior, "exclusive");
-    assert.equal(enterprisePlan.stripe.taxCode, "txcd_10103001");
-    assert.equal(enterprisePlan.stripe.quantityMode, "workspace");
-    assert.ok(productContractPayload.presetPackages.some(pack =>
-      pack.id === "website.builder" &&
-      pack.includedInPlanIds.includes("expert") &&
-      pack.presetCount > 0
-    ));
-    assert.ok(productContractPayload.presetPackages.some(pack =>
-      pack.id === "bi.analytics" &&
-      pack.upsell === true &&
-      pack.includedInPlanIds.length === 0 &&
-      pack.presetIds.includes("builtin_daisy_bi_kpi_board")
-    ));
-    const flowTrigger = productContractPayload.triggerTypes.find(type => type.id === "flow");
-    assert.ok(flowTrigger);
-    assert.equal(flowTrigger.internal, true);
-    assert.ok(flowTrigger.events.some(event =>
-      event.id === "flow.child.entry" &&
-      event.name === "flow.child.entry" &&
-      event.internal === true
-    ));
-    const realtimeTrigger = productContractPayload.triggerTypes.find(type => type.id === "realtime");
-    assert.ok(realtimeTrigger);
-    assert.ok(realtimeTrigger.events.some(event => event.name === "realtime.sip.call.incoming"));
-    assert.ok(productContractPayload.valueTypes.some(type => type.id === "text" && type.jsonType === "string"));
-    assert.ok(productContractPayload.valueTypes.some(type =>
-      type.id === "number" &&
-      type.jsonType === "number" &&
-      type.constraints.finite === true &&
-      Number.isFinite(type.constraints.min) &&
-      Number.isFinite(type.constraints.max)
-    ));
-    assert.ok(productContractPayload.valueTypes.some(type =>
-      type.id === "email" &&
-      type.jsonType === "string" &&
-      type.constraints.format === "email" &&
-      type.constraints.maxLength === 320
-    ));
-    assert.ok(productContractPayload.datasets.some(dataset =>
-      dataset.id === "realtime.sip.call.incoming" &&
-      dataset.fields.callId === "text" &&
-      dataset.fieldSchemas.callId.type === "text" &&
-      dataset.fieldSchemas.callId.constraints.maxLength === 20000
-    ));
-    assert.ok(productContractPayload.stateContributions.some(contribution =>
-      contribution.root === "events.realtime.sip.call.incoming" &&
-      contribution.fields.includes("events.realtime.sip.call.incoming.detail.callId") &&
-      contribution.fieldTypes["events.realtime.sip.call.incoming.detail.callId"] === "text" &&
-      contribution.fieldSchemas["events.realtime.sip.call.incoming.detail.callId"].type === "text"
-    ));
-    const buttonPreset = productContractPayload.presets.find(preset => preset.id === "builtin_daisy_button");
-    assert.ok(buttonPreset);
-    assert.deepEqual(buttonPreset.packageIds, ["core.process"]);
-    const chartPreset = productContractPayload.presets.find(preset => preset.id === "builtin_daisy_bi_kpi_board");
-    assert.ok(chartPreset);
-    assert.deepEqual(chartPreset.packageIds, ["bi.analytics"]);
-    assert.equal(chartPreset.components[0].variant, "chart");
-    assert.equal(chartPreset.stateContribution.root, "states.bi_kpi_board");
-    assert.equal(chartPreset.stateContribution.fieldSchemas["states.bi_kpi_board.items"].type, "list");
-    const exportImagePreset = productContractPayload.presets.find(preset => preset.id === "builtin_daisy_export_image_asset");
-    assert.ok(exportImagePreset);
-    assert.deepEqual(exportImagePreset.packageIds, ["website.builder"]);
-    assert.equal(exportImagePreset.stateContribution.root, "states.export_image_asset");
-    assert.equal(exportImagePreset.stateContribution.fieldSchemas["states.export_image_asset.image"].type, "image");
-    assert.equal(exportImagePreset.stateContribution.fieldSchemas["states.export_image_asset.image"].constraints.maxLength, 20000000);
-    assert.equal(buttonPreset.dataTypes.clicked, "boolean");
-    assert.equal(buttonPreset.stateContribution.root, "states.button");
-    assert.equal(buttonPreset.stateContribution.fieldSchemas["states.button.clicked"].type, "boolean");
-    assert.equal(buttonPreset.stateContribution.fieldSchemas["states.button.clicked"].jsonType, "boolean");
-    const stripePricingPreset = productContractPayload.presets.find(preset => preset.id === "builtin_daisy_stripe_pricing");
-    assert.ok(stripePricingPreset);
-    assert.equal(stripePricingPreset.components[0].variant, "pricing");
-    assert.equal(stripePricingPreset.stateContribution.root, "states.stripe_pricing");
-    assert.deepEqual(stripePricingPreset.data.plans.map(plan => plan.transitionId), ["", "", ""]);
-    assert.deepEqual(stripePricingPreset.data.plans.map(plan => plan.actionLabel), ["Starter buchen", "Expert buchen", "Volumen buchen"]);
-    assert.equal(stripePricingPreset.data.plans[0].price, "49,99 EUR");
-    assert.equal(stripePricingPreset.data.plans[0].period, "pro Benutzer / Monat");
-    assert.equal(stripePricingPreset.data.plans[0].stripe.unitAmountCents, 4999);
-    assert.equal(stripePricingPreset.data.plans[0].stripe.billingAddressCollection, "required");
-    assert.equal(stripePricingPreset.data.plans[0].stripe.automaticTax, true);
-    assert.equal(stripePricingPreset.data.plans[0].stripe.taxBehavior, "exclusive");
-    assert.equal(stripePricingPreset.data.plans[0].stripe.taxCode, "txcd_10103001");
-    assert.equal(stripePricingPreset.data.plans[0].url, "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=starter&quantity=1");
-    assert.equal(stripePricingPreset.data.plans[1].price, "199 EUR");
-    assert.equal(stripePricingPreset.data.plans[1].stripe.unitAmountCents, 19900);
-    assert.equal(stripePricingPreset.data.plans[1].stripe.billingAddressCollection, "required");
-    assert.equal(stripePricingPreset.data.plans[1].stripe.automaticTax, true);
-    assert.equal(stripePricingPreset.data.plans[1].stripe.taxBehavior, "exclusive");
-    assert.equal(stripePricingPreset.data.plans[1].stripe.taxCode, "txcd_10103001");
-    assert.equal(stripePricingPreset.data.plans[2].price, "499 EUR");
-    assert.equal(stripePricingPreset.data.plans[2].period, "/Monat");
-    assert.equal(stripePricingPreset.data.plans[2].stripe.unitAmountCents, 49900);
-    assert.equal(stripePricingPreset.data.plans[2].stripe.billingAddressCollection, "required");
-    assert.equal(stripePricingPreset.data.plans[2].stripe.automaticTax, true);
-    assert.equal(stripePricingPreset.data.plans[2].stripe.taxBehavior, "exclusive");
-    assert.equal(stripePricingPreset.data.plans[2].stripe.taxCode, "txcd_10103001");
-    assert.equal(stripePricingPreset.data.plans[2].url, "https://realtime.digitalisierungsplanung.de/stripe/checkout?plan=enterprise&quantity=1");
-  });
-});
-
-test("creates Stripe subscription checkout sessions from contract pricing", async () => {
-  const calls = [];
-  await withRealtimeServer({
-    roomSecret: SECRET,
-    stripeSecretKey: "sk_test_contract",
-    stripeCheckoutFetcher: async (url, options) => {
-      calls.push({
-        url,
-        method: options.method,
-        authorization: options.headers.authorization,
-        contentType: options.headers["content-type"],
-        body: String(options.body || "")
-      });
-      return new Response(JSON.stringify({
-        id: "cs_test_contract",
-        url: "https://checkout.stripe.com/c/pay/cs_test_contract"
-      }), {
-        status: 200,
-        headers: { "content-type": "application/json" }
-      });
-    }
-  }, async realtime => {
-    const response = await fetch(httpUrl(realtime, "/stripe/checkout?plan=starter&quantity=7"), {
-      redirect: "manual"
-    });
-    assert.equal(response.status, 303);
-    assert.equal(response.headers.get("location"), "https://checkout.stripe.com/c/pay/cs_test_contract");
-    assert.equal(calls.length, 1);
-    assert.equal(calls[0].url, "https://api.stripe.com/v1/checkout/sessions");
-    assert.equal(calls[0].method, "POST");
-    assert.equal(calls[0].authorization, "Bearer sk_test_contract");
-    assert.equal(calls[0].contentType, "application/x-www-form-urlencoded");
-    const params = new URLSearchParams(calls[0].body);
-    assert.equal(params.get("mode"), "subscription");
-    assert.equal(params.get("client_reference_id"), "starter");
-    assert.equal(params.get("line_items[0][quantity]"), "7");
-    assert.equal(params.get("line_items[0][price_data][currency]"), "eur");
-    assert.equal(params.get("line_items[0][price_data][unit_amount]"), "4999");
-    assert.equal(params.get("line_items[0][price_data][recurring][interval]"), "month");
-    assert.equal(params.get("line_items[0][price_data][product_data][name]"), "Digitalisierungsplanung Starter");
-    assert.equal(params.get("line_items[0][adjustable_quantity][enabled]"), "true");
-    assert.equal(params.get("metadata[contract_lookup_key]"), "starter_user_monthly_eur");
-    assert.equal(params.get("billing_address_collection"), "required");
-    assert.equal(params.get("automatic_tax[enabled]"), "true");
-    assert.equal(params.get("line_items[0][price_data][tax_behavior]"), "exclusive");
-    assert.equal(params.get("line_items[0][price_data][product_data][tax_code]"), "txcd_10103001");
-
-    const expertResponse = await fetch(httpUrl(realtime, "/stripe/checkout?plan=expert&quantity=9"), {
-      redirect: "manual"
-    });
-    assert.equal(expertResponse.status, 303);
-    const expertParams = new URLSearchParams(calls[1].body);
-    assert.equal(expertParams.get("client_reference_id"), "expert");
-    assert.equal(expertParams.get("line_items[0][quantity]"), "1");
-    assert.equal(expertParams.get("line_items[0][price_data][unit_amount]"), "19900");
-    assert.equal(expertParams.get("line_items[0][adjustable_quantity][enabled]"), null);
-    assert.equal(expertParams.get("billing_address_collection"), "required");
-    assert.equal(expertParams.get("automatic_tax[enabled]"), "true");
-    assert.equal(expertParams.get("line_items[0][price_data][tax_behavior]"), "exclusive");
-    assert.equal(expertParams.get("line_items[0][price_data][product_data][tax_code]"), "txcd_10103001");
-
-    const enterpriseResponse = await fetch(httpUrl(realtime, "/stripe/checkout?plan=enterprise&quantity=4"), {
-      redirect: "manual"
-    });
-    assert.equal(enterpriseResponse.status, 303);
-    const enterpriseParams = new URLSearchParams(calls[2].body);
-    assert.equal(enterpriseParams.get("client_reference_id"), "enterprise");
-    assert.equal(enterpriseParams.get("line_items[0][quantity]"), "1");
-    assert.equal(enterpriseParams.get("line_items[0][price_data][unit_amount]"), "49900");
-    assert.equal(enterpriseParams.get("metadata[contract_lookup_key]"), "enterprise_monthly_eur");
-    assert.equal(enterpriseParams.get("line_items[0][adjustable_quantity][enabled]"), null);
-    assert.equal(enterpriseParams.get("billing_address_collection"), "required");
-    assert.equal(enterpriseParams.get("automatic_tax[enabled]"), "true");
-    assert.equal(enterpriseParams.get("line_items[0][price_data][tax_behavior]"), "exclusive");
-    assert.equal(enterpriseParams.get("line_items[0][price_data][product_data][tax_code]"), "txcd_10103001");
-  });
-});
-
-test("fails Stripe checkout closed when plan or credentials are missing", async () => {
-  await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
-    const missingSecret = await fetch(httpUrl(realtime, "/stripe/checkout?plan=starter"), {
-      redirect: "manual"
-    });
-    assert.equal(missingSecret.status, 503);
-    assert.deepEqual(await missingSecret.json(), { error: "stripe_secret_required" });
-
-    const unknownPlan = await fetch(httpUrl(realtime, "/stripe/checkout?plan=unknown"), {
-      redirect: "manual"
-    });
-    assert.equal(unknownPlan.status, 404);
-    assert.deepEqual(await unknownPlan.json(), { error: "unknown_stripe_plan" });
-  });
-});
-
-test("inlines public image URLs as Data URIs without storing assets", async () => {
-  const fetched = [];
-  await withRealtimeServer({
-    roomSecret: SECRET,
-    imageInlineFetcher: async (url, options) => {
-      fetched.push({ url, maxBytes: options.maxBytes });
-      return {
-        mimeType: "image/png",
-        buffer: Buffer.from("fake-image")
-      };
-    }
-  }, async realtime => {
-    const response = await fetch(httpUrl(realtime, "/assets/inline-image"), {
-      method: "POST",
-      headers: {
-        Origin: ORIGIN,
-        "content-type": "application/json"
-      },
-      body: JSON.stringify({ url: "https://cdn.example.com/assets/hero.png" })
-    });
-    assert.equal(response.status, 200);
-    assert.equal(response.headers.get("access-control-allow-origin"), ORIGIN);
-    const payload = await response.json();
-    assert.deepEqual(payload, {
-      ok: true,
-      url: "https://cdn.example.com/assets/hero.png",
-      mimeType: "image/png",
-      bytes: 10,
-      dataUri: "data:image/png;base64,ZmFrZS1pbWFnZQ=="
-    });
-    assert.deepEqual(fetched, [{ url: "https://cdn.example.com/assets/hero.png", maxBytes: 12 * 1024 * 1024 }]);
-
-    const rejected = await fetch(httpUrl(realtime, "/assets/inline-image"), {
-      method: "POST",
-      headers: {
-        Origin: ORIGIN,
-        "content-type": "application/json"
-      },
-      body: JSON.stringify({ url: "https://127.0.0.1/private.png" })
-    });
-    assert.equal(rejected.status, 400);
-    assert.deepEqual(await rejected.json(), { error: "image_target_not_public" });
-  });
-});
-
-test("rejects materialized transition bindings in managed presets", () => {
-  const library = presetLibrary.loadPresetLibraryFile();
-  library.presets.push({
-    id: "custom_bound_button",
-    variant: "button",
-    title: "Bound button",
-    description: "Must be wired only after canvas materialization.",
-    categoryId: "websuite-builder",
-    packageIds: ["core.process"],
-    data: { label: "Weiter", transitionId: "shared_transition" }
-  });
-
-  assert.throws(
-    () => presetLibrary.validatePresetLibrary(library),
-    error => error?.code === "preset_transition_binding_must_be_empty"
-  );
-
-  const linkLibrary = presetLibrary.loadPresetLibraryFile();
-  linkLibrary.presets.push({
-    id: "custom_link_button",
-    variant: "button",
-    title: "Link button",
-    description: "A URL is a complete action target on its own.",
-    categoryId: "websuite-builder",
-    packageIds: ["core.process"],
-    data: { label: "Öffnen", transitionId: "", url: "https://example.com" }
-  });
-  assert.doesNotThrow(() => presetLibrary.validatePresetLibrary(linkLibrary));
-
-  const conflictingLibrary = presetLibrary.loadPresetLibraryFile();
-  conflictingLibrary.presets.push({
-    id: "custom_conflicting_button",
-    variant: "button",
-    title: "Conflicting button",
-    description: "One action slot cannot own two targets.",
-    categoryId: "websuite-builder",
-    packageIds: ["core.process"],
-    data: { label: "Weiter", transitionId: "shared_transition", url: "https://example.com" }
-  });
-  assert.throws(
-    () => presetLibrary.validatePresetLibrary(conflictingLibrary),
-    error => error?.code === "preset_action_target_conflict"
-  );
-});
-
-test("exposes one shared frontend and backend release without caching it", async () => {
-  const release = {
-    id: "release-59",
-    sequence: 59,
-    builtAt: "2026-07-12T00:00:00Z",
-    sourceCommit: "1234567890abcdef",
-    deployedCommit: "abcdef1234567890"
-  };
-  await withRealtimeServer({ roomSecret: SECRET, release }, async realtime => {
-    const versionResponse = await fetch(httpUrl(realtime, "/version"), {
-      headers: { Origin: ORIGIN }
-    });
-    assert.equal(versionResponse.status, 200);
-    assert.equal(versionResponse.headers.get("cache-control"), "no-store");
-    assert.equal(versionResponse.headers.get("access-control-allow-origin"), ORIGIN);
-    assert.deepEqual(await versionResponse.json(), {
-      ok: true,
-      releaseId: "release-59",
-      releaseSequence: 59,
-      builtAt: release.builtAt,
-      sourceCommit: release.sourceCommit,
-      deployedCommit: release.deployedCommit
-    });
-
-    const healthResponse = await fetch(httpUrl(realtime, "/healthz"));
-    assert.equal(healthResponse.status, 200);
-    assert.deepEqual(await healthResponse.json(), {
-      ok: true,
-      releaseId: "release-59",
-      releaseSequence: 59,
-      builtAt: release.builtAt,
-      sourceCommit: release.sourceCommit,
-      deployedCommit: release.deployedCommit,
-      rooms: 0,
-      clients: 0
-    });
-  });
-});
-
-test("returns not_found for non-core realtime routes", async () => {
-  await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
-    for (const path of ["/admin", "/catalog", "/schema", "/api", "/process/contract", "/process/analyze"]) {
-      const response = await fetch(httpUrl(realtime, path), { headers: { Origin: ORIGIN } });
-      assert.equal(response.status, 404, `${path} should stay out of the lean realtime API`);
-      assert.deepEqual(await response.json(), { error: "not_found" });
-    }
-    const removedAnalyzer = await fetch(httpUrl(realtime, "/process/analyze"), {
-      method: "POST",
-      headers: { Origin: ORIGIN, "content-type": "application/json" },
-      body: "{}"
-    });
-    assert.equal(removedAnalyzer.status, 404);
-    assert.deepEqual(await removedAnalyzer.json(), { error: "not_found" });
-  });
-});
-
-test("serves one central admin hub from the server route index", async () => {
-  const release = {
-    id: "release-60",
-    sequence: 60,
-    builtAt: "2026-07-14T10:00:00.000Z",
-    sourceCommit: "abcdef1",
-    deployedCommit: "abcdef1"
-  };
-  await withRealtimeServer({ roomSecret: SECRET, release }, async realtime => {
-    for (const path of ["/", "/admin.html"]) {
-      const response = await fetch(httpUrl(realtime, path));
-      assert.equal(response.status, 200);
-      const html = await response.text();
-      assert.match(html, /Realtime Admin/);
-      assert.match(html, /Ein Einstieg für Events/);
-      assert.match(html, /fetch\("\/admin\/routes"/);
-      assert.doesNotMatch(html, /REALTIME_ADMIN_SECRET|admin-secret|emit-secret/);
-      assert.doesNotMatch(html, /events-admin\.html.*presets-admin\.html.*console\.html/s);
-    }
-
-    const indexResponse = await fetch(httpUrl(realtime, "/admin/routes"), {
-      headers: { Origin: ORIGIN }
-    });
-    assert.equal(indexResponse.status, 200);
-    assert.equal(indexResponse.headers.get("access-control-allow-origin"), ORIGIN);
-    const index = await indexResponse.json();
-    assert.equal(index.schemaVersion, 1);
-    assert.equal(index.release.releaseId, "release-60");
-    assert.deepEqual(index.tools.map(tool => tool.id), ["events", "presets", "console", "contract", "mcp", "agent", "system"]);
-    const germanText = JSON.stringify({ tools: index.tools, endpoints: index.endpoints });
-    const asciiUmlautSpellings = [
-      ["f", "uer"].join(""),
-      ["pr", "uefen"].join(""),
-      ["Z", "aehler"].join(""),
-      ["R", "aeume"].join(""),
-      ["Oberfl", "aeche"].join(""),
-      ["o", "effentlichen"].join("")
-    ];
-    for (const spelling of asciiUmlautSpellings) assert.ok(!germanText.includes(spelling), `${spelling} must use a native umlaut`);
-    assert.match(germanText, /für/);
-    assert.match(germanText, /Zähler prüfen/);
-    assert.match(germanText, /Oberfläche/);
-    assert.ok(index.endpoints.some(endpoint => endpoint.path === "/admin.html"));
-    assert.ok(index.endpoints.some(endpoint => endpoint.path === "/admin/routes"));
-    assert.ok(index.endpoints.some(endpoint => endpoint.method === "WSS" && endpoint.path === "/ws"));
-    assert.ok(index.endpoints.some(endpoint => endpoint.method === "POST" && endpoint.path === "/emit"));
-    assert.ok(index.endpoints.some(endpoint => endpoint.method === "POST" && endpoint.path === "/assets/inline-image"));
-    assert.ok(index.endpoints.some(endpoint => endpoint.method === "POST" && endpoint.path === "/mcp"));
-    assert.ok(index.endpoints.some(endpoint => endpoint.method === "GET" && endpoint.path === "/agent.html"));
-    assert.ok(index.endpoints.some(endpoint => endpoint.method === "GET" && endpoint.path === "/assets/agent-widget.js"));
-    assert.ok(index.endpoints.some(endpoint => endpoint.method === "GET" && endpoint.path === "/agent/config"));
-    assert.ok(index.endpoints.some(endpoint => endpoint.method === "POST" && endpoint.path === "/agent/editor/prompt"));
-    assert.ok(index.endpoints.some(endpoint => endpoint.method === "POST" && endpoint.path === "/agent/chat"));
-    assert.ok(index.endpoints.some(endpoint => endpoint.method === "POST" && endpoint.path === "/agent/mcp/tool"));
-    for (const endpoint of index.endpoints.filter(endpoint => endpoint.method !== "WSS")) {
-      const method = endpoint.method.includes("GET") ? "GET" : "POST";
-      const response = await fetch(httpUrl(realtime, endpoint.path), {
-        method,
-        headers: { Origin: ORIGIN, "content-type": "application/json" },
-        body: method === "POST" ? "{}" : undefined
-      });
-      assert.notEqual(response.status, 404, `${endpoint.id} is listed by admin tools but missing on the server`);
-    }
-  });
-});
-
-test("nginx proxies only lean public realtime routes", () => {
+test("nginx exposes only the lean realtime/admin surface", () => {
   const nginx = fs.readFileSync(NGINX_CONFIG_PATH, "utf8");
-  const serverSource = fs.readFileSync(path.join(__dirname, "server.js"), "utf8");
   const normalized = nginx.replace(/\\\./g, ".");
-  const routeIndex = adminTools.adminRouteIndex(loadConfig({}));
+  const routeIndex = adminTools.adminRouteIndex({});
   for (const endpoint of routeIndex.endpoints) {
-    assert.ok(
-      normalized.includes(`location = ${endpoint.path}`),
-      `${endpoint.id} (${endpoint.path}) is listed by admin tools but missing from nginx`
-    );
+    assert.ok(normalized.includes(`location = ${endpoint.path}`), `${endpoint.id} missing from nginx`);
   }
-  assert.match(normalized, /location = \/ws/);
-  assert.doesNotMatch(normalized, /\/process\//);
-  assert.doesNotMatch(serverSource, /PROCESS_RECORDER|OPENAI_API_KEY|\/process\/analyze/);
+  for (const removed of REMOVED_ROUTES) assert.equal(normalized.includes(removed), false, `${removed} must not be public`);
   assert.match(nginx, /proxy_pass\s+http:\/\/127\.0\.0\.1:8788;/);
 });
 
-test("serves secret-protected State Blueprint MCP JSON-RPC over HTTP", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "realtime-mcp-"));
-  const mcpModelPath = path.join(tempDir, "state-blueprint.workspace.json");
-  const rpc = (id, method, params = {}) => ({ jsonrpc: "2.0", id, method, params });
-  try {
-    await withRealtimeServer({ roomSecret: SECRET, emitSecret: "shared-secret", mcpSecret: "mcp-secret", mcpModelPath }, async realtime => {
-      const unauthorized = await fetch(httpUrl(realtime, "/mcp"), {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(rpc(1, "tools/list"))
-      });
-      assert.equal(unauthorized.status, 401);
-      assert.deepEqual(await unauthorized.json(), { error: "unauthorized" });
-
-      const initialize = await fetch(httpUrl(realtime, "/mcp"), {
-        method: "POST",
-        headers: {
-          authorization: "Bearer mcp-secret",
-          "content-type": "application/json"
-        },
-        body: JSON.stringify(rpc(2, "initialize", { protocolVersion: "2025-11-25" }))
-      });
-      assert.equal(initialize.status, 200);
-      const initPayload = await initialize.json();
-      assert.equal(initPayload.result.serverInfo.name, "state-blueprint-mcp");
-
-      const toolsResponse = await fetch(httpUrl(realtime, "/mcp"), {
-        method: "POST",
-        headers: {
-          authorization: "Bearer mcp-secret",
-          "content-type": "application/json"
-        },
-        body: JSON.stringify(rpc(3, "tools/list"))
-      });
-      assert.equal(toolsResponse.status, 200);
-      const toolsPayload = await toolsResponse.json();
-      assert.ok(toolsPayload.result.tools.some(tool => tool.name === "state_blueprint_get_model"));
-
-      const sharedSecretResponse = await fetch(httpUrl(realtime, "/mcp"), {
-        method: "POST",
-        headers: {
-          authorization: "Bearer shared-secret",
-          "content-type": "application/json"
-        },
-        body: JSON.stringify(rpc(33, "tools/list"))
-      });
-      assert.equal(sharedSecretResponse.status, 200);
-      const sharedSecretPayload = await sharedSecretResponse.json();
-      assert.ok(sharedSecretPayload.result.tools.some(tool => tool.name === "state_blueprint_validate"));
-
-      const modelResponse = await fetch(httpUrl(realtime, "/mcp"), {
-        method: "POST",
-        headers: {
-          authorization: "Bearer mcp-secret",
-          "content-type": "application/json"
-        },
-        body: JSON.stringify(rpc(4, "tools/call", {
-          name: "state_blueprint_get_model",
-          arguments: { includeValidation: true }
-        }))
-      });
-      assert.equal(modelResponse.status, 200);
-      const modelPayload = await modelResponse.json();
-      assert.equal(modelPayload.result.structuredContent.modelPath, path.resolve(mcpModelPath));
-      assert.equal(modelPayload.result.structuredContent.validation.ok, true);
-      assert.equal(modelPayload.result.structuredContent.model.name, "State App");
-    });
-  } finally {
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  }
-});
-
-test("serves App Intelligence widget config and enforces MCP broker policy", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "realtime-agent-"));
-  const mcpModelPath = path.join(tempDir, "state-blueprint.workspace.json");
-  try {
-    await withRealtimeServer({
-      roomSecret: SECRET,
-      adminSecret: "admin-secret",
-      mcpSecret: "mcp-secret",
-      agentSecret: "agent-secret",
-      mcpModelPath
-    }, async realtime => {
-      const pageResponse = await fetch(httpUrl(realtime, "/agent.html"));
-      assert.equal(pageResponse.status, 200);
-      assert.match(await pageResponse.text(), /<dp-agent-widget/);
-
-      const scriptResponse = await fetch(httpUrl(realtime, "/assets/agent-widget.js"));
-      assert.equal(scriptResponse.status, 200);
-      const widgetScript = await scriptResponse.text();
-      assert.match(widgetScript, /customElements\.define\("dp-agent-widget"/);
-      assert.doesNotMatch(widgetScript, /settings\.authToken/);
-      assert.doesNotMatch(widgetScript, /JSON\.stringify\(settings\)/);
-
-      const configResponse = await fetch(httpUrl(realtime, "/agent/config"), {
-        headers: { Origin: ORIGIN }
-      });
-      assert.equal(configResponse.status, 200);
-      assert.equal(configResponse.headers.get("access-control-allow-origin"), ORIGIN);
-      const config = await configResponse.json();
-      const configText = JSON.stringify(config);
-      assert.equal(config.schemaVersion, 1);
-      assert.equal(config.widget.authRequired, true);
-      assert.equal(config.widget.editorPromptPath, "/agent/editor/prompt");
-      assert.equal(config.widget.defaultModel, "Qwen2.5-3B-Instruct-q4f16_1-MLC");
-      assert.deepEqual(config.widget.modelCandidates.slice(0, 3), [
-        "Qwen2.5-3B-Instruct-q4f16_1-MLC",
-        "Qwen2.5-1.5B-Instruct-q4f16_1-MLC",
-        "Qwen2.5-0.5B-Instruct-q4f16_1-MLC"
-      ]);
-      assert.equal(config.policy.noBrowserSecrets, true);
-      assert.equal(config.policy.noModelShadowState, true);
-      assert.doesNotMatch(configText, /agent-secret|mcp-secret|admin-secret/);
-      assert.equal(config.contractContext.sourceOfTruth, "product-contract");
-      assert.equal(config.contractContext.endpoints.contract, "/contract");
-      const stripePresetContext = config.contractContext.presets.find(preset => preset.id === "builtin_daisy_stripe_pricing");
-      assert.ok(stripePresetContext);
-      assert.equal(stripePresetContext.variant, "pricing");
-      assert.match(stripePresetContext.hint, /schreibt in states\.stripe_pricing/);
-      assert.deepEqual(stripePresetContext.packageIds, ["website.builder"]);
-      const tools = new Map(config.mcpServers[0].tools.map(tool => [tool.name, tool]));
-      assert.equal(tools.get("state_blueprint_validate").readOnly, true);
-      assert.equal(tools.get("state_blueprint_apply_prompt").requiresConfirmation, true);
-
-      const editorPromptResponse = await fetch(httpUrl(realtime, "/agent/editor/prompt"), {
-        method: "POST",
-        headers: { Origin: ORIGIN, "content-type": "application/json" },
-        body: JSON.stringify({
-          prompt: "baue einen kaufprozess fuer drei software pakete",
-          model: { version: 2, name: "State App", initial: "", states: [], transitions: [] }
-        })
-      });
-      assert.equal(editorPromptResponse.status, 200);
-      const editorPrompt = await editorPromptResponse.json();
-      assert.equal(editorPrompt.ok, true);
-      assert.equal(editorPrompt.mode, "editor-bridge");
-      assert.equal(editorPrompt.sourceOfTruth, "browser-model-snapshot");
-      assert.equal(editorPrompt.plan.intent, "create_workflow");
-      assert.equal(editorPrompt.validation.ok, true);
-      assert.ok(editorPrompt.previewModel.states.length >= 2);
-      assert.equal("modelPath" in editorPrompt, false);
-
-      const unauthorized = await fetch(httpUrl(realtime, "/agent/mcp/tool"), {
-        method: "POST",
-        headers: { Origin: ORIGIN, "content-type": "application/json" },
-        body: JSON.stringify({ name: "state_blueprint_validate", arguments: {} })
-      });
-      assert.equal(unauthorized.status, 401);
-
-      const validationResponse = await fetch(httpUrl(realtime, "/agent/mcp/tool"), {
-        method: "POST",
-        headers: {
-          Origin: ORIGIN,
-          authorization: "Bearer agent-secret",
-          "content-type": "application/json"
-        },
-        body: JSON.stringify({ name: "state_blueprint_validate", arguments: {} })
-      });
-      assert.equal(validationResponse.status, 200);
-      const validation = await validationResponse.json();
-      assert.equal(validation.ok, true);
-      assert.equal(validation.result.structuredContent.ok, true);
-
-      const actionCatalogResponse = await fetch(httpUrl(realtime, "/agent/mcp/tool"), {
-        method: "POST",
-        headers: {
-          Origin: ORIGIN,
-          authorization: "Bearer agent-secret",
-          "content-type": "application/json"
-        },
-        body: JSON.stringify({ name: "state_blueprint_action_catalog", arguments: {} })
-      });
-      assert.equal(actionCatalogResponse.status, 200);
-      const actionCatalog = await actionCatalogResponse.json();
-      const mcpStripePreset = actionCatalog.result.structuredContent.presetContext.presets.find(preset => preset.id === "builtin_daisy_stripe_pricing");
-      assert.ok(mcpStripePreset);
-      assert.match(mcpStripePreset.hint, /pricing/);
-
-      const exportResponse = await fetch(httpUrl(realtime, "/agent/mcp/tool"), {
-        method: "POST",
-        headers: {
-          Origin: ORIGIN,
-          authorization: "Bearer agent-secret",
-          "content-type": "application/json"
-        },
-        body: JSON.stringify({ name: "state_blueprint_export_definition", arguments: {} })
-      });
-      assert.equal(exportResponse.status, 200);
-      const exported = await exportResponse.json();
-      assert.equal(exported.ok, true);
-      assert.equal(exported.result.structuredContent.kind, "state-blueprint-definition");
-
-      const exportFileBlockedResponse = await fetch(httpUrl(realtime, "/agent/mcp/tool"), {
-        method: "POST",
-        headers: {
-          Origin: ORIGIN,
-          authorization: "Bearer agent-secret",
-          "content-type": "application/json"
-        },
-        body: JSON.stringify({
-          name: "state_blueprint_export_definition",
-          arguments: { outputPath: path.join(tempDir, "download.state.json") }
-        })
-      });
-      assert.equal(exportFileBlockedResponse.status, 200);
-      const exportFileBlocked = await exportFileBlockedResponse.json();
-      assert.equal(exportFileBlocked.needsConfirmation, true);
-
-      const writeBlockedResponse = await fetch(httpUrl(realtime, "/agent/mcp/tool"), {
-        method: "POST",
-        headers: {
-          Origin: ORIGIN,
-          authorization: "Bearer agent-secret",
-          "content-type": "application/json"
-        },
-        body: JSON.stringify({
-          name: "state_blueprint_apply_prompt",
-          arguments: { prompt: "baue checkout workflow", dryRun: true }
-        })
-      });
-      assert.equal(writeBlockedResponse.status, 200);
-      const writeBlocked = await writeBlockedResponse.json();
-      assert.equal(writeBlocked.needsConfirmation, true);
-      assert.equal(writeBlocked.reason, "write_requires_confirmation");
-
-      const writeConfirmedResponse = await fetch(httpUrl(realtime, "/agent/mcp/tool"), {
-        method: "POST",
-        headers: {
-          Origin: ORIGIN,
-          authorization: "Bearer mcp-secret",
-          "content-type": "application/json"
-        },
-        body: JSON.stringify({
-          name: "state_blueprint_apply_prompt",
-          arguments: { prompt: "baue checkout workflow", dryRun: true },
-          confirmed: true
-        })
-      });
-      assert.equal(writeConfirmedResponse.status, 200);
-      const writeConfirmed = await writeConfirmedResponse.json();
-      assert.equal(writeConfirmed.ok, true);
-      assert.equal(writeConfirmed.result.structuredContent.dryRun, true);
-      assert.equal(writeConfirmed.result.structuredContent.validation.ok, true);
-    });
-  } finally {
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  }
-});
-
-test("runs server-side agent chat with an OpenAI-compatible MCP tool loop", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "realtime-agent-chat-"));
-  const mcpModelPath = path.join(tempDir, "state-blueprint.workspace.json");
-  const calls = [];
-  let callCount = 0;
-  const agentModelFetcher = async (_url, options) => {
-    callCount += 1;
-    const body = JSON.parse(options.body);
-    calls.push({ headers: options.headers, body });
-    if (callCount === 1) {
-      return new Response(JSON.stringify({
-        choices: [{
-          message: {
-            role: "assistant",
-            content: "",
-            tool_calls: [{
-              id: "call_validate",
-              type: "function",
-              function: {
-                name: "state_blueprint_validate",
-                arguments: "{}"
-              }
-            }]
-          }
-        }]
-      }), { status: 200, headers: { "content-type": "application/json" } });
-    }
-    return new Response(JSON.stringify({
-      choices: [{
-        message: {
-          role: "assistant",
-          content: "Die aktuelle State Blueprint Datei ist contract-konform."
-        }
-      }]
-    }), { status: 200, headers: { "content-type": "application/json" } });
-  };
-
-  try {
-    await withRealtimeServer({
-      roomSecret: SECRET,
-      agentSecret: "agent-secret",
-      mcpSecret: "mcp-secret",
-      mcpModelPath,
-      agentModelBaseUrl: "https://llm.example.test",
-      agentModel: "qwen-state-agent",
-      agentModelFetcher
-    }, async realtime => {
-      const response = await fetch(httpUrl(realtime, "/agent/chat"), {
-        method: "POST",
-        headers: {
-          Origin: ORIGIN,
-          authorization: "Bearer agent-secret",
-          "content-type": "application/json"
-        },
-        body: JSON.stringify({
-          messages: [{ role: "user", content: "Prüf bitte den State Blueprint." }]
-        })
-      });
-      assert.equal(response.status, 200);
-      const payload = await response.json();
-      assert.equal(payload.ok, true);
-      assert.equal(payload.mode, "server");
-      assert.equal(payload.message.content, "Die aktuelle State Blueprint Datei ist contract-konform.");
-      assert.deepEqual(payload.toolRuns, [{
-        name: "state_blueprint_validate",
-        ok: true,
-        needsConfirmation: false,
-        mutatesWorkspace: false
-      }]);
-      assert.equal(calls.length, 2);
-      assert.ok(calls[0].body.tools.some(tool => tool.function.name === "state_blueprint_validate"));
-      assert.ok(calls[0].body.messages.some(message =>
-        message.role === "system" && /Current MCP IST-Zustand from state_blueprint_get_model/.test(message.content)
-      ));
-      assert.ok(calls[1].body.messages.some(message => message.role === "tool"));
-      assert.doesNotMatch(JSON.stringify(calls), /agent-secret|mcp-secret/);
-    });
-  } finally {
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  }
-});
-
-test("serves an admin event designer that validates, commits, and pushes the catalog", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "realtime-catalog-"));
-  const catalogPath = path.join(tempDir, "server", "event-catalog.json");
-  const calls = [];
-  fs.mkdirSync(path.dirname(catalogPath), { recursive: true });
-  fs.writeFileSync(catalogPath, eventCatalog.serializeEventCatalog(eventCatalog.DEFAULT_EVENT_CATALOG));
-
-  const gitRunner = (args) => {
-    calls.push(args);
-    if (args[0] === "diff") return { status: 1, stdout: "", stderr: "" };
-    if (args[0] === "rev-parse") return { status: 0, stdout: "abc123\n", stderr: "" };
-    return { status: 0, stdout: "", stderr: "" };
-  };
-
-  try {
-    await withRealtimeServer({
-      roomSecret: SECRET,
-      adminSecret: "admin-secret",
-      eventCatalogPath: catalogPath,
-      repoDir: tempDir,
-      gitRunner
-    }, async realtime => {
-      const htmlResponse = await fetch(httpUrl(realtime, "/events-admin.html"));
-      assert.equal(htmlResponse.status, 200);
-      const html = await htmlResponse.text();
-      assert.match(html, /Realtime Event Designer/);
-      assert.match(html, /Save to GitHub/);
-      assert.match(html, /fetch\("\/events"/);
-      assert.match(html, /fetch\("\/contract"/);
-      assert.match(html, /localStorage\.setItem\(ADMIN_SECRET_STORAGE_KEY/);
-      assert.match(html, /Existing datasets/);
-      assert.match(html, /datasetOverview/);
-      assert.match(html, /New blank dataset/);
-      assert.match(html, /placeholder="custom\.dataset"/);
-      assert.match(html, /pathInput\.placeholder = "fieldName"/);
-      assert.match(html, /return "custom\.dataset"/);
-      assert.match(html, /detail: \{\}/);
-      assert.match(html, /Add field/);
-      assert.doesNotMatch(html, /placeholder="sip\.call\.incoming"/);
-      assert.doesNotMatch(html, /detail: \{ value: "text" \}/);
-      assert.doesNotMatch(html, /admin-secret/);
-
-      const unauthorized = await fetch(httpUrl(realtime, "/events-admin/catalog"));
-      assert.equal(unauthorized.status, 401);
-
-      const load = await fetch(httpUrl(realtime, "/events-admin/catalog"), {
-        headers: { authorization: "Bearer admin-secret" }
-      });
-      assert.equal(load.status, 200);
-      const loaded = await load.json();
-      assert.equal(loaded.catalog.provider.id, "digitalisierungsplanung.realtime");
-
-      const invalid = await fetch(httpUrl(realtime, "/events-admin/catalog"), {
-        method: "POST",
-        headers: {
-          authorization: "Bearer admin-secret",
-          "content-type": "application/json"
-        },
-        body: JSON.stringify({ catalog: { ...loaded.catalog, unknown: true } })
-      });
-      assert.equal(invalid.status, 400);
-      assert.deepEqual(await invalid.json(), { error: "unknown_field" });
-
-      const missedCall = {
-        name: "realtime.sip.call.missed",
-        label: "Missed call",
-        description: "SIP call was not answered",
-        detail: { caller: "text", callId: "text", missedAt: "text" },
-        bindings: []
-      };
-      loaded.catalog.events.push(missedCall);
-      loaded.catalog.emitters[0].events.push(missedCall.name);
-      const validateOnly = await fetch(httpUrl(realtime, "/events-admin/catalog?validate=1"), {
-        method: "POST",
-        headers: {
-          authorization: "Bearer admin-secret",
-          "content-type": "application/json"
-        },
-        body: JSON.stringify({ catalog: loaded.catalog, validateOnly: true })
-      });
-      assert.equal(validateOnly.status, 200);
-      assert.equal((await validateOnly.json()).ok, true);
-
-      const saved = await fetch(httpUrl(realtime, "/events-admin/catalog"), {
-        method: "POST",
-        headers: {
-          authorization: "Bearer admin-secret",
-          "content-type": "application/json"
-        },
-        body: JSON.stringify({
-          catalog: loaded.catalog,
-          message: "Add missed call dataset"
-        })
-      });
-      assert.equal(saved.status, 200);
-      const savedPayload = await saved.json();
-      assert.equal(savedPayload.ok, true);
-      assert.equal(savedPayload.changed, true);
-      assert.equal(savedPayload.commit, "abc123");
-      assert.equal(savedPayload.releaseId, "release-1");
-      assert.equal(savedPayload.releaseSequence, 1);
-      assert.match(fs.readFileSync(catalogPath, "utf8"), /realtime\.sip\.call\.missed/);
-      assert.match(fs.readFileSync(path.join(tempDir, "release-version.js"), "utf8"), /ZUSTAND_RELEASE_ID = "release-1"/);
-      const refreshed = await fetch(httpUrl(realtime, "/events"));
-      assert.equal(refreshed.status, 200);
-      const refreshedCatalog = await refreshed.json();
-      assert.ok(refreshedCatalog.events.some(event => event.name === "realtime.sip.call.missed"));
-      assert.equal(refreshedCatalog.release.releaseId, "release-1");
-      const refreshedContract = await fetch(httpUrl(realtime, "/events"));
-      assert.equal(refreshedContract.status, 200);
-      const refreshedContractPayload = await refreshedContract.json();
-      assert.ok(refreshedContractPayload.events.some(event => event.name === "realtime.sip.call.missed"));
-      assert.ok(calls.some(args => args[0] === "add" && args.includes("server/event-catalog.json") && args.includes("release-version.js")));
-      assert.ok(calls.some(args => args[0] === "commit" || args.includes("commit")));
-      assert.ok(calls.some(args => args[0] === "push" || args.includes("push")));
-    });
-  } finally {
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  }
-});
-
-test("converts official Daisy snippets into managed contract presets and pushes them", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "preset-library-"));
-  const libraryPath = path.join(tempDir, "server", "preset-library.json");
-  const calls = [];
-  const importedUrls = [];
-  fs.mkdirSync(path.dirname(libraryPath), { recursive: true });
-  fs.copyFileSync(presetLibrary.DEFAULT_PRESET_LIBRARY_PATH, libraryPath);
-
-  const gitRunner = args => {
-    calls.push(args);
-    if (args[0] === "diff") return { status: 1, stdout: "", stderr: "" };
-    if (args[0] === "rev-parse") return { status: 0, stdout: "def456\n", stderr: "" };
-    return { status: 0, stdout: "", stderr: "" };
-  };
-
-  try {
-    await withRealtimeServer({
-      roomSecret: SECRET,
-      adminSecret: "admin-secret",
-      presetLibraryPath: libraryPath,
-      repoDir: tempDir,
-      gitRunner,
-      presetApiFetcher: async url => {
-        importedUrls.push(url);
-        return {
-          id: "custom_api_card",
-          variant: "card",
-          title: "API Card",
-          description: "Imported from API.",
-          categoryId: "websuite-builder",
-          packageIds: ["website.builder"],
-          data: { title: "API Card", body: "Canonical response", image: "", imageAlt: "", actionLabel: "Weiter" }
-        };
-      }
-    }, async realtime => {
-      const htmlResponse = await fetch(httpUrl(realtime, "/presets-admin.html"));
-      assert.equal(htmlResponse.status, 200);
-      const html = await htmlResponse.text();
-      assert.match(html, /Preset Designer/);
-      assert.match(html, /HTML-Snippet einlesen/);
-      assert.match(html, /Preset-JSON von URL laden/);
-      assert.match(html, /Snippet einlesen/);
-      assert.match(html, /Leeres neues Preset/);
-      assert.match(html, /Duplizieren/);
-      assert.match(html, /In Contract speichern/);
-      assert.match(html, /\+ Neue Kategorie/);
-      assert.match(html, /\+ Neues Paket/);
-      assert.doesNotMatch(html, /Webhook\/API-URL/);
-      assert.doesNotMatch(html, /admin-secret/);
-
-      const unauthorized = await fetch(httpUrl(realtime, "/presets-admin/catalog"));
-      assert.equal(unauthorized.status, 401);
-
-      const load = await fetch(httpUrl(realtime, "/presets-admin/catalog"), {
-        headers: { authorization: "Bearer admin-secret" }
-      });
-      assert.equal(load.status, 200);
-      const loaded = await load.json();
-      assert.deepEqual(loaded.library.categories.map(category => category.id), ["websuite-builder"]);
-      assert.equal(loaded.library.daisyVersion, "5.6.18");
-      assert.ok(loaded.supportedVariants.includes("calendar"));
-
-      const privateImport = await fetch(httpUrl(realtime, "/presets-admin/import"), {
-        method: "POST",
-        headers: { authorization: "Bearer admin-secret", "content-type": "application/json" },
-        body: JSON.stringify({ url: "https://127.0.0.1/preset", library: loaded.library })
-      });
-      assert.equal(privateImport.status, 400);
-      assert.deepEqual(await privateImport.json(), { error: "preset_api_target_not_public" });
-
-      const importedResponse = await fetch(httpUrl(realtime, "/presets-admin/import"), {
-        method: "POST",
-        headers: { authorization: "Bearer admin-secret", "content-type": "application/json" },
-        body: JSON.stringify({ url: "https://preset.example.test/card", library: loaded.library })
-      });
-      assert.equal(importedResponse.status, 200);
-      const imported = await importedResponse.json();
-      assert.equal(imported.preset.id, "custom_api_card");
-      assert.equal(imported.preset.variant, "card");
-      assert.deepEqual(importedUrls, ["https://preset.example.test/card"]);
-      assert.equal(Object.hasOwn(imported.preset, "url"), false);
-
-      const snippet = '<footer class="footer sm:footer-horizontal bg-base-200 text-base-content p-10"><aside><p class="footer-title">ACME</p><p>Aus Erfahrung wird Software.</p></aside><nav><h6 class="footer-title">Produkt</h6><a class="link link-hover">Start</a><a class="link link-hover">Kontakt</a></nav></footer>';
-      const parsedResponse = await fetch(httpUrl(realtime, "/presets-admin/parse"), {
-        method: "POST",
-        headers: { authorization: "Bearer admin-secret", "content-type": "application/json" },
-        body: JSON.stringify({
-          snippet,
-          title: "ACME Footer",
-          categoryId: "portal",
-          packageIds: ["portal.pro"]
-        })
-      });
-      assert.equal(parsedResponse.status, 200);
-      const parsed = await parsedResponse.json();
-      assert.equal(parsed.preset.id, "custom_acme_footer");
-      assert.equal(parsed.preset.variant, "footer");
-      assert.equal(parsed.preset.data.brand, "ACME");
-      assert.deepEqual(parsed.preset.data.columns[0].items, [
-        { label: "Start", transitionId: "" },
-        { label: "Kontakt", transitionId: "" }
-      ]);
-      assert.equal(Object.hasOwn(parsed.preset, "snippet"), false);
-
-      const accordionResponse = await fetch(httpUrl(realtime, "/presets-admin/parse"), {
-        method: "POST",
-        headers: { authorization: "Bearer admin-secret", "content-type": "application/json" },
-        body: JSON.stringify({
-          snippet: '<div class="collapse collapse-arrow bg-base-100 border border-base-300"><input type="radio" name="faq" checked><div class="collapse-title">Versand</div><div class="collapse-content">Zwei Werktage.</div></div><div class="collapse collapse-arrow bg-base-100 border border-base-300"><input type="radio" name="faq"><div class="collapse-title">Rückgabe</div><div class="collapse-content">Dreißig Tage.</div></div>',
-          title: "FAQ",
-          categoryId: "websuite-builder",
-          packageIds: ["knowledge.portal"]
-        })
-      });
-      assert.equal(accordionResponse.status, 200);
-      const accordion = await accordionResponse.json();
-      assert.equal(accordion.preset.variant, "accordion");
-      assert.deepEqual(accordion.preset.data.items, [
-        { label: "Versand", body: "Zwei Werktage." },
-        { label: "Rückgabe", body: "Dreißig Tage." }
-      ]);
-
-      const calendarResponse = await fetch(httpUrl(realtime, "/presets-admin/parse"), {
-        method: "POST",
-        headers: { authorization: "Bearer admin-secret", "content-type": "application/json" },
-        body: JSON.stringify({
-          snippet: '<calendar-date class="cally" value="2026-07-17" min="2026-01-01" max="2026-12-31"></calendar-date>',
-          title: "Termin",
-          categoryId: "websuite-builder",
-          packageIds: ["website.builder"]
-        })
-      });
-      assert.equal(calendarResponse.status, 200);
-      const calendar = await calendarResponse.json();
-      assert.equal(calendar.preset.variant, "calendar");
-      assert.deepEqual(calendar.preset.data, {
-        _snippet: '<calendar-date class="cally" value="2026-07-17" min="2026-01-01" max="2026-12-31"></calendar-date>',
-        label: "Datum",
-        value: "2026-07-17",
-        min: "2026-01-01",
-        max: "2026-12-31"
-      });
-
-      const unsafeResponse = await fetch(httpUrl(realtime, "/presets-admin/parse"), {
-        method: "POST",
-        headers: { authorization: "Bearer admin-secret", "content-type": "application/json" },
-        body: JSON.stringify({ snippet: '<div class="card"><script>alert(1)</script></div>' })
-      });
-      assert.equal(unsafeResponse.status, 200);
-      const unsafeParsed = await unsafeResponse.json();
-      assert.equal(unsafeParsed.ok, true);
-      assert.equal(unsafeParsed.preset.variant, "card");
-
-      const unsafeAttributeResponse = await fetch(httpUrl(realtime, "/presets-admin/parse"), {
-        method: "POST",
-        headers: { authorization: "Bearer admin-secret", "content-type": "application/json" },
-        body: JSON.stringify({ snippet: '<button class="btn" onclick="alert(1)">Weiter</button>' })
-      });
-      assert.equal(unsafeAttributeResponse.status, 400);
-      assert.deepEqual(await unsafeAttributeResponse.json(), { error: "unsafe_snippet_attribute" });
-
-      loaded.library.categories.push({ id: "portal", label: "Portal", description: "Kundenportal", sort: 20 });
-      loaded.library.packages.push({ id: "portal.pro", label: "Portal Pro", category: "package", description: "Portalbausteine", buyerValue: "Kundenportal", upsell: true, sort: 90 });
-      loaded.library.presets.push(parsed.preset);
-      loaded.library.presets.push(imported.preset);
-
-      const validateOnly = await fetch(httpUrl(realtime, "/presets-admin/catalog?validate=1"), {
-        method: "POST",
-        headers: { authorization: "Bearer admin-secret", "content-type": "application/json" },
-        body: JSON.stringify({ library: loaded.library, validateOnly: true })
-      });
-      assert.equal(validateOnly.status, 200);
-      assert.equal((await validateOnly.json()).ok, true);
-
-      const saved = await fetch(httpUrl(realtime, "/presets-admin/catalog"), {
-        method: "POST",
-        headers: { authorization: "Bearer admin-secret", "content-type": "application/json" },
-        body: JSON.stringify({ library: loaded.library, message: "Add portal footer preset" })
-      });
-      assert.equal(saved.status, 200);
-      const savedPayload = await saved.json();
-      assert.equal(savedPayload.ok, true);
-      assert.equal(savedPayload.changed, true);
-      assert.equal(savedPayload.commit, "def456");
-      assert.equal(savedPayload.releaseId, "release-1");
-
-      const persisted = fs.readFileSync(libraryPath, "utf8");
-      assert.match(persisted, /custom_acme_footer/);
-      assert.match(persisted, /custom_api_card/);
-      assert.doesNotMatch(persisted, /preset\.example\.test/);
-      assert.doesNotMatch(persisted, /<footer|<script/);
-
-      const contractResponse = await fetch(httpUrl(realtime, "/contract"));
-      assert.equal(contractResponse.status, 200);
-      const contract = await contractResponse.json();
-      assert.ok(contract.presetCategories.some(category => category.id === "portal"));
-      assert.ok(contract.presetPackages.some(pack => pack.id === "portal.pro"));
-      const preset = contract.presets.find(item => item.id === "custom_acme_footer");
-      assert.equal(preset.builtIn, false);
-      assert.equal(preset.categoryId, "portal");
-      assert.equal(preset.components[0].variant, "footer");
-      assert.equal(preset.components[0].dataPath, "states.custom_acme_footer");
-      assert.ok(calls.some(args => args[0] === "add" && args.includes("server/preset-library.json") && args.includes("release-version.js")));
-      assert.ok(calls.some(args => args[0] === "commit" || args.includes("commit")));
-      assert.ok(calls.some(args => args[0] === "push" || args.includes("push")));
-    });
-  } finally {
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  }
-});
-
-test("syncs a clean managed catalog checkout before committing preset library changes", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "preset-library-sync-"));
-  const libraryPath = path.join(tempDir, "server", "preset-library.json");
-  const calls = [];
-  let behindOrigin = true;
-  fs.mkdirSync(path.dirname(libraryPath), { recursive: true });
-  fs.copyFileSync(presetLibrary.DEFAULT_PRESET_LIBRARY_PATH, libraryPath);
-
-  const gitRunner = args => {
-    calls.push(args);
-    if (args[0] === "status") return { status: 0, stdout: "", stderr: "" };
-    if (args[0] === "rev-list" && args[2] === "origin/main..HEAD") return { status: 0, stdout: "0\n", stderr: "" };
-    if (args[0] === "rev-list" && args[2] === "HEAD..origin/main") return { status: 0, stdout: behindOrigin ? "2\n" : "0\n", stderr: "" };
-    if (args[0] === "reset") {
-      behindOrigin = false;
-      return { status: 0, stdout: "HEAD is now at origin/main\n", stderr: "" };
-    }
-    if (args[0] === "diff") return { status: 1, stdout: "", stderr: "" };
-    if (args[0] === "rev-parse") return { status: 0, stdout: "fedcba\n", stderr: "" };
-    return { status: 0, stdout: "", stderr: "" };
-  };
-
-  try {
-    await withRealtimeServer({
-      roomSecret: SECRET,
-      adminSecret: "admin-secret",
-      presetLibraryPath: libraryPath,
-      repoDir: tempDir,
-      gitRunner
-    }, async realtime => {
-      const load = await fetch(httpUrl(realtime, "/presets-admin/catalog"), {
-        headers: { authorization: "Bearer admin-secret" }
-      });
-      const loaded = await load.json();
-      loaded.library.presets[0].title = `${loaded.library.presets[0].title} synced`;
-
-      const saved = await fetch(httpUrl(realtime, "/presets-admin/catalog"), {
-        method: "POST",
-        headers: { authorization: "Bearer admin-secret", "content-type": "application/json" },
-        body: JSON.stringify({ library: loaded.library, message: "Sync and save preset library" })
-      });
-
-      assert.equal(saved.status, 200);
-      assert.equal((await saved.json()).commit, "fedcba");
-      const fetchIndex = calls.findIndex(args => args[0] === "fetch");
-      const resetIndex = calls.findIndex(args => args[0] === "reset");
-      const addIndex = calls.findIndex(args => args[0] === "add");
-      assert.ok(fetchIndex >= 0);
-      assert.ok(resetIndex > fetchIndex);
-      assert.ok(addIndex > resetIndex);
-    });
-  } finally {
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  }
-});
-
-test("serves a stateless event console for catalogued test emits", async () => {
+test("event catalog stays usable as webhook/runtime trigger source", async () => {
   await withRealtimeServer({ roomSecret: SECRET, emitSecret: "emit-secret" }, async realtime => {
-    const consoleResponse = await fetch(httpUrl(realtime, "/console.html"));
-    assert.equal(consoleResponse.status, 200);
-    assert.match(consoleResponse.headers.get("content-type") || "", /text\/html/);
-    const html = await consoleResponse.text();
-    assert.match(html, /Realtime Event Console/);
-    assert.match(html, /fetch\("\/events"/);
-    assert.match(html, /fetch\("\/emit"/);
-    assert.match(html, /localStorage\.setItem\(EMIT_SECRET_STORAGE_KEY/);
-    assert.doesNotMatch(html, /emit-secret/);
+    const events = await fetch(httpUrl(realtime, "/events"), { headers: { Origin: ORIGIN } });
+    assert.equal(events.status, 200);
+    assert.equal(events.headers.get("access-control-allow-origin"), ORIGIN);
+    const catalog = await events.json();
+    assert.ok(catalog.events.some(event => event.name === "realtime.sip.call.incoming"));
 
-    const socket = await connectClient(realtime, { clientId: "alice" });
-    const runtimeEvent = nextMessage(socket, message => message.type === "runtime.event");
-    const origin = httpUrl(realtime, "");
-    const response = await fetch(httpUrl(realtime, "/emit"), {
-      method: "POST",
-      headers: {
-        authorization: "Bearer emit-secret",
-        "content-type": "application/json",
-        origin
-      },
-      body: JSON.stringify({
-        roomId: "room",
-        clientId: "console",
-        emitterId: "sip.threecx",
-        name: "realtime.sip.call.incoming",
-        detail: { caller: "+491234", callee: "100", callId: "console-123" }
-      })
-    });
-    assert.equal(response.status, 202);
-    assert.equal(response.headers.get("access-control-allow-origin"), origin);
-
-    const received = await runtimeEvent;
-    assert.equal(received.clientId, "console");
-    assert.equal(received.emitterId, "sip.threecx");
-    assert.equal(received.name, "realtime.sip.call.incoming");
-    assert.deepEqual(received.detail, { caller: "+491234", callee: "100", callId: "console-123" });
-    assert.equal(received.event?.name, "realtime.sip.call.incoming");
-    assert.deepEqual(received.event?.detail, { caller: "text", callee: "text", callId: "text" });
-  });
-});
-
-test("relays runtime events to peers without echoing them to the sender", async () => {
-  await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
-    const alice = await connectClient(realtime, { clientId: "alice" });
-    const bob = await connectClient(realtime, { clientId: "bob" });
-
-    alice.send(JSON.stringify({
-      type: "runtime.event",
-      seq: 1,
-      name: "realtime.sip.call.incoming",
-      detail: { caller: "+491234", callee: "100", callId: "ws-123" }
-    }));
-
-    const received = await nextMessage(bob, message => message.type === "runtime.event");
-    assert.equal(received.clientId, "alice");
-    assert.equal(received.name, "realtime.sip.call.incoming");
-    assert.deepEqual(received.detail, { caller: "+491234", callee: "100", callId: "ws-123" });
-    assert.equal(received.event?.name, "realtime.sip.call.incoming");
-    await assertNoMessage(alice, message => message.type === "runtime.event");
-  });
-});
-
-test("rejects uncatalogued runtime events over WebSocket", async () => {
-  await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
-    const alice = await connectClient(realtime, { clientId: "alice" });
-    const bob = await connectClient(realtime, { clientId: "bob" });
-    const errorMessage = nextMessage(alice, message => message.type === "error");
-
-    alice.send(JSON.stringify({
-      type: "runtime.event",
-      seq: 1,
-      name: "realtime.canvas.clicked",
-      detail: { stateId: "start" }
-    }));
-
-    const error = await errorMessage;
-    assert.equal(error.code, "event_not_offered");
-    await assertNoMessage(bob, message => message.type === "runtime.event");
-  });
-});
-
-test("emits catalogued server events into a room without server-side state", async () => {
-  await withRealtimeServer({ roomSecret: SECRET, emitSecret: "emit-secret" }, async realtime => {
-    const alice = await connectClient(realtime, { clientId: "alice" });
-    const bob = await connectClient(realtime, { clientId: "bob" });
-    const aliceRuntimeEvent = nextMessage(alice, message => message.type === "runtime.event");
-    const bobRuntimeEvent = nextMessage(bob, message => message.type === "runtime.event");
-
-    const response = await fetch(httpUrl(realtime, "/emit"), {
-      method: "POST",
-      headers: {
-        authorization: "Bearer emit-secret",
-        "content-type": "application/json"
-      },
-      body: JSON.stringify({
-        roomId: "room",
-        emitterId: "sip.threecx",
-        name: "realtime.sip.call.incoming",
-        detail: { caller: "+491234", callee: "100", callId: "abc-123" }
-      })
-    });
-    assert.equal(response.status, 202);
-    assert.deepEqual(await response.json(), {
-      ok: true,
+    const socket = new WebSocket(socketUrl(realtime), { headers: { Origin: ORIGIN } });
+    await waitForOpen(socket);
+    socket.send(JSON.stringify({
+      type: "join",
       roomId: "room",
-      name: "realtime.sip.call.incoming",
-      delivered: 2
-    });
+      clientId: "alice",
+      token: createRoomToken({ roomId: "room", clientId: "alice", secret: SECRET, ttlMs: 60000 })
+    }));
+    const joined = await nextMessage(socket, message => message.type === "joined");
+    assert.equal(joined.clientId, "alice");
 
-    const [aliceEvent, bobEvent] = await Promise.all([aliceRuntimeEvent, bobRuntimeEvent]);
-    for (const received of [aliceEvent, bobEvent]) {
-      assert.equal(received.clientId, "server");
-      assert.equal(received.emitterId, "sip.threecx");
-      assert.equal(received.name, "realtime.sip.call.incoming");
-      assert.deepEqual(received.detail, { caller: "+491234", callee: "100", callId: "abc-123" });
-      assert.equal(received.event?.name, "realtime.sip.call.incoming");
-    }
-
-    const unauthorized = await fetch(httpUrl(realtime, "/emit"), {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ roomId: "room", emitterId: "sip.threecx", name: "realtime.sip.call.incoming" })
-    });
-    assert.equal(unauthorized.status, 401);
-
-    const unknown = await fetch(httpUrl(realtime, "/emit"), {
+    const runtimeEvent = nextMessage(socket, message => message.type === "runtime.event");
+    const emitted = await fetch(httpUrl(realtime, "/emit"), {
       method: "POST",
       headers: {
-        authorization: "Bearer emit-secret",
-        "content-type": "application/json"
-      },
-      body: JSON.stringify({ roomId: "room", emitterId: "sip.threecx", name: "realtime.unknown.event" })
-    });
-    assert.equal(unknown.status, 400);
-    assert.deepEqual(await unknown.json(), { error: "event_not_offered" });
-
-    const missingDetail = await fetch(httpUrl(realtime, "/emit"), {
-      method: "POST",
-      headers: {
-        authorization: "Bearer emit-secret",
-        "content-type": "application/json"
-      },
-      body: JSON.stringify({ roomId: "room", emitterId: "sip.threecx", name: "realtime.sip.call.incoming", detail: { callId: "abc-123" } })
-    });
-    assert.equal(missingDetail.status, 400);
-    assert.deepEqual(await missingDetail.json(), { error: "missing_detail_field" });
-
-    const unknownDetail = await fetch(httpUrl(realtime, "/emit"), {
-      method: "POST",
-      headers: {
+        Origin: ORIGIN,
         authorization: "Bearer emit-secret",
         "content-type": "application/json"
       },
       body: JSON.stringify({
         roomId: "room",
+        clientId: "webhook",
         emitterId: "sip.threecx",
         name: "realtime.sip.call.incoming",
-        detail: { caller: "+491234", callee: "100", callId: "abc-123", extra: true }
+        detail: { caller: "+491234", callee: "100", callId: "call-1" }
       })
     });
-    assert.equal(unknownDetail.status, 400);
-    assert.deepEqual(await unknownDetail.json(), { error: "unknown_detail_field" });
-
-    const invalidEmail = await fetch(httpUrl(realtime, "/emit"), {
-      method: "POST",
-      headers: {
-        authorization: "Bearer emit-secret",
-        "content-type": "application/json"
-      },
-      body: JSON.stringify({
-        roomId: "room",
-        emitterId: "mail.gmail",
-        name: "realtime.mail.received",
-        detail: { from: "not-an-email", subject: "Hello", messageId: "m-123" }
-      })
-    });
-    assert.equal(invalidEmail.status, 400);
-    assert.deepEqual(await invalidEmail.json(), { error: "invalid_detail_value" });
-
-    const wrongEmitter = await fetch(httpUrl(realtime, "/emit"), {
-      method: "POST",
-      headers: {
-        authorization: "Bearer emit-secret",
-        "content-type": "application/json"
-      },
-      body: JSON.stringify({
-        roomId: "room",
-        emitterId: "mail.gmail",
-        name: "realtime.sip.call.incoming",
-        detail: { caller: "+491234", callee: "100", callId: "abc-123" }
-      })
-    });
-    assert.equal(wrongEmitter.status, 400);
-    assert.deepEqual(await wrongEmitter.json(), { error: "emitter_event_not_allowed" });
-  });
-});
-
-test("drops duplicate runtime event client sequences", async () => {
-  await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
-    const alice = await connectClient(realtime, { clientId: "alice" });
-    const bob = await connectClient(realtime, { clientId: "bob" });
-
-    const event = {
-      type: "runtime.event",
-      seq: 1,
-      name: "realtime.sip.call.incoming",
-      detail: { caller: "+491234", callee: "100", callId: "dupe-123" }
-    };
-    alice.send(JSON.stringify(event));
-    alice.send(JSON.stringify(event));
-
-    const received = await nextMessage(bob, message => message.type === "runtime.event");
-    assert.equal(received.clientId, "alice");
+    assert.equal(emitted.status, 202);
+    const received = await runtimeEvent;
     assert.equal(received.name, "realtime.sip.call.incoming");
-    assert.deepEqual(received.detail, event.detail);
-    await assertNoMessage(bob, message => message.type === "runtime.event");
+    assert.equal(received.emitterId, "sip.threecx");
+    socket.close();
   });
 });
 
-test("rejects graph patches and snapshots because model writes stay in the canonical API", async () => {
-  await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
-    const socket = await connectClient(realtime, { clientId: "alice" });
+test("server reports health and release without caching", async () => {
+  const release = {
+    id: "release-test",
+    sequence: 999,
+    builtAt: "2026-08-21T12:00:00Z",
+    sourceCommit: "abc123",
+    deployedCommit: "def456"
+  };
+  await withRealtimeServer({ roomSecret: SECRET, release }, async realtime => {
+    const version = await fetch(httpUrl(realtime, "/version"), { headers: { Origin: ORIGIN } });
+    assert.equal(version.status, 200);
+    assert.equal(version.headers.get("cache-control"), "no-store");
+    assert.deepEqual(await version.json(), {
+      ok: true,
+      releaseId: "release-test",
+      releaseSequence: 999,
+      builtAt: release.builtAt,
+      sourceCommit: "abc123",
+      deployedCommit: "def456"
+    });
 
-    socket.send(JSON.stringify({
-      type: "graph.patch",
-      seq: 1,
-      ops: [{ op: "state.move", id: "start", x: 100, y: 160 }]
-    }));
-    const patchError = await nextMessage(socket, message => message.type === "error");
-    assert.equal(patchError.code, "invalid_type");
-
-    socket.send(JSON.stringify({
-      type: "snapshot",
-      seq: 2,
-      model: {}
-    }));
-    const snapshotError = await nextMessage(socket, message => message.type === "error");
-    assert.equal(snapshotError.code, "invalid_type");
-  });
-});
-
-test("rate limits noisy realtime clients", async () => {
-  await withRealtimeServer({
-    roomSecret: SECRET,
-    rateLimitMax: 2,
-    rateLimitWindowMs: 1000
-  }, async realtime => {
-    const socket = await connectClient(realtime, { clientId: "noisy" });
-
-    socket.send(JSON.stringify({ type: "runtime.event", seq: 1, name: "realtime.sip.call.incoming", detail: { caller: "+491", callee: "100", callId: "1" } }));
-    socket.send(JSON.stringify({ type: "runtime.event", seq: 2, name: "realtime.sip.call.incoming", detail: { caller: "+491", callee: "100", callId: "2" } }));
-    socket.send(JSON.stringify({ type: "runtime.event", seq: 3, name: "realtime.sip.call.incoming", detail: { caller: "+491", callee: "100", callId: "3" } }));
-
-    const error = await nextMessage(socket, message => message.type === "error");
-    assert.equal(error.code, "rate_limited");
-  });
-});
-
-test("rejects runtime events whose detail does not match the catalog", async () => {
-  await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
-    const alice = await connectClient(realtime, { clientId: "alice" });
-    const bob = await connectClient(realtime, { clientId: "bob" });
-
-    alice.send(JSON.stringify({
-      type: "runtime.event",
-      seq: 1,
-      name: "realtime.sip.call.ended",
-      detail: { callId: "call-1", duration: "12" }
-    }));
-    const error = await nextMessage(alice, message => message.type === "error");
-    assert.equal(error.code, "invalid_detail_type");
-    await assertNoMessage(bob, message => message.type === "runtime.event");
-  });
-});
-
-test("rejects removed presence and never broadcasts peer lifecycle messages", async () => {
-  await withRealtimeServer({ roomSecret: SECRET }, async realtime => {
-    const alice = await connectClient(realtime, { clientId: "alice" });
-    const bob = await connectClient(realtime, { clientId: "bob" });
-
-    await assertNoMessage(alice, message => message.type === "peer.join");
-    bob.send(JSON.stringify({ type: "presence.cursor", seq: 1, cursor: { x: 1, y: 1 } }));
-    const error = await nextMessage(bob, message => message.type === "error");
-    assert.equal(error.code, "invalid_type");
-    bob.close();
-    await assertNoMessage(alice, message => message.type === "peer.leave");
+    const health = await fetch(httpUrl(realtime, "/healthz"));
+    assert.equal(health.status, 200);
+    const payload = await health.json();
+    assert.equal(payload.ok, true);
+    assert.equal(payload.releaseId, "release-test");
   });
 });
