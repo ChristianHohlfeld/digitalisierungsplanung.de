@@ -17,7 +17,7 @@ HEALTH_RETRY_DELAY="${HEALTH_RETRY_DELAY:-1}"
 NGINX_AVAILABLE="/etc/nginx/sites-available/${DOMAIN}"
 NGINX_ENABLED="/etc/nginx/sites-enabled/${DOMAIN}"
 NGINX_BOOTSTRAP_AVAILABLE="/etc/nginx/sites-available/${DOMAIN}.bootstrap"
-RECORDER_NGINX_SNIPPET="/etc/nginx/snippets/digitalisierungsplanung-recorder.conf"
+PRODUCT_NGINX_SNIPPET="/etc/nginx/snippets/digitalisierungsplanung-recorder.conf"
 PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-/var/lib/digitalisierungsplanung/playwright}"
 DEPLOY_ENSURE_SWAP="${DEPLOY_ENSURE_SWAP:-1}"
 DEPLOY_SWAP_FILE="${DEPLOY_SWAP_FILE:-/swapfile}"
@@ -26,42 +26,30 @@ DEPLOY_SWAP_MIN_AVAILABLE_MB="${DEPLOY_SWAP_MIN_AVAILABLE_MB:-900}"
 
 export APP_DIR ENV_FILE PM2_APP PLAYWRIGHT_BROWSERS_PATH
 
-log() {
-  printf '[deploy] %s\n' "$*"
-}
+log() { printf '[deploy] %s\n' "$*"; }
 
 retry() {
-  local attempts="$1"
-  local delay="$2"
+  local attempts="$1" delay="$2"
   shift 2
   local attempt=1
   until "$@"; do
-    if (( attempt >= attempts )); then
-      return 1
-    fi
+    if (( attempt >= attempts )); then return 1; fi
     log "Attempt ${attempt}/${attempts} failed: $*. Retrying in ${delay}s."
     sleep "$delay"
     attempt=$((attempt + 1))
   done
 }
 
-available_memory_mb() {
-  awk '/MemAvailable:/ { print int($2 / 1024); found=1 } END { if (!found) print 0 }' /proc/meminfo
-}
-
-active_swap_mb() {
-  awk 'NR > 1 { total += $3 } END { print int(total / 1024) }' /proc/swaps
-}
+available_memory_mb() { awk '/MemAvailable:/ { print int($2 / 1024); found=1 } END { if (!found) print 0 }' /proc/meminfo; }
+active_swap_mb() { awk 'NR > 1 { total += $3 } END { print int(total / 1024) }' /proc/swaps; }
 
 ensure_deploy_swap() {
   [[ "$DEPLOY_ENSURE_SWAP" == "1" ]] || return 0
   local available swap
   available="$(available_memory_mb)"
   swap="$(active_swap_mb)"
-  if (( available + swap >= DEPLOY_SWAP_MIN_AVAILABLE_MB )); then
-    return 0
-  fi
-  log "Ensuring ${DEPLOY_SWAP_SIZE_MB}MB swap at ${DEPLOY_SWAP_FILE} for Playwright browser install."
+  if (( available + swap >= DEPLOY_SWAP_MIN_AVAILABLE_MB )); then return 0; fi
+  log "Ensuring ${DEPLOY_SWAP_SIZE_MB}MB swap at ${DEPLOY_SWAP_FILE} for Playwright."
   if [[ ! -f "$DEPLOY_SWAP_FILE" ]]; then
     if ! fallocate -l "${DEPLOY_SWAP_SIZE_MB}M" "$DEPLOY_SWAP_FILE"; then
       dd if=/dev/zero of="$DEPLOY_SWAP_FILE" bs=1M count="$DEPLOY_SWAP_SIZE_MB"
@@ -73,18 +61,9 @@ ensure_deploy_swap() {
   fi
 }
 
-if [[ "$(id -u)" -ne 0 ]]; then
-  printf 'Run as root.\n' >&2
-  exit 1
-fi
-if [[ ! "$HEALTH_ATTEMPTS" =~ ^[1-9][0-9]*$ || ! "$HEALTH_RETRY_DELAY" =~ ^[0-9]+$ ]]; then
-  printf 'Invalid health retry settings.\n' >&2
-  exit 1
-fi
-if [[ ! "$DEPLOY_SWAP_SIZE_MB" =~ ^[1-9][0-9]*$ || ! "$DEPLOY_SWAP_MIN_AVAILABLE_MB" =~ ^[1-9][0-9]*$ ]]; then
-  printf 'Invalid swap settings.\n' >&2
-  exit 1
-fi
+if [[ "$(id -u)" -ne 0 ]]; then printf 'Run as root.\n' >&2; exit 1; fi
+if [[ ! "$HEALTH_ATTEMPTS" =~ ^[1-9][0-9]*$ || ! "$HEALTH_RETRY_DELAY" =~ ^[0-9]+$ ]]; then printf 'Invalid health retry settings.\n' >&2; exit 1; fi
+if [[ ! "$DEPLOY_SWAP_SIZE_MB" =~ ^[1-9][0-9]*$ || ! "$DEPLOY_SWAP_MIN_AVAILABLE_MB" =~ ^[1-9][0-9]*$ ]]; then printf 'Invalid swap settings.\n' >&2; exit 1; fi
 
 missing_packages=()
 command -v git >/dev/null 2>&1 || missing_packages+=(git)
@@ -93,18 +72,13 @@ command -v nginx >/dev/null 2>&1 || missing_packages+=(nginx)
 command -v openssl >/dev/null 2>&1 || missing_packages+=(openssl)
 command -v certbot >/dev/null 2>&1 || missing_packages+=(certbot)
 command -v flock >/dev/null 2>&1 || missing_packages+=(util-linux)
-if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
-  missing_packages+=(nodejs npm)
-fi
+if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then missing_packages+=(nodejs npm); fi
 if (( ${#missing_packages[@]} )); then
   log "Installing missing system packages: ${missing_packages[*]}"
   retry 3 5 apt-get update
   retry 3 5 apt-get install -y ca-certificates "${missing_packages[@]}"
 fi
-if ! command -v pm2 >/dev/null 2>&1; then
-  log "Installing PM2."
-  retry 3 5 npm install -g pm2
-fi
+if ! command -v pm2 >/dev/null 2>&1; then log "Installing PM2."; retry 3 5 npm install -g pm2; fi
 
 mkdir -p "$(dirname "$APP_DIR")"
 if [[ ! -d "$APP_DIR/.git" ]]; then
@@ -119,57 +93,35 @@ elif [[ "$DEPLOY_SKIP_GIT_SYNC" != "1" ]]; then
 fi
 
 cd "$APP_DIR"
-
 export ZUSTAND_RELEASE_FILE="$APP_DIR/release-version.js"
-export ZUSTAND_RELEASE_ID
-export ZUSTAND_RELEASE_SEQUENCE
-export ZUSTAND_RELEASE_BUILT_AT
-export ZUSTAND_RELEASE_SOURCE
+export ZUSTAND_RELEASE_ID ZUSTAND_RELEASE_SEQUENCE ZUSTAND_RELEASE_BUILT_AT ZUSTAND_RELEASE_SOURCE
 export ZUSTAND_DEPLOY_COMMIT="$(git rev-parse HEAD)"
 ZUSTAND_RELEASE_ID="$(sed -n 's/^globalThis\.ZUSTAND_RELEASE_ID = "\([a-zA-Z0-9._-]*\)";$/\1/p' release-version.js | head -n 1)"
 ZUSTAND_RELEASE_SEQUENCE="$(sed -n 's/^globalThis\.ZUSTAND_RELEASE_SEQUENCE = \([0-9][0-9]*\);$/\1/p' release-version.js | head -n 1)"
-if [[ -z "$ZUSTAND_RELEASE_SEQUENCE" && "$ZUSTAND_RELEASE_ID" =~ ^release-([0-9]+)$ ]]; then
-  ZUSTAND_RELEASE_SEQUENCE="${BASH_REMATCH[1]}"
-fi
+if [[ -z "$ZUSTAND_RELEASE_SEQUENCE" && "$ZUSTAND_RELEASE_ID" =~ ^release-([0-9]+)$ ]]; then ZUSTAND_RELEASE_SEQUENCE="${BASH_REMATCH[1]}"; fi
 ZUSTAND_RELEASE_BUILT_AT="$(sed -n 's/^globalThis\.ZUSTAND_RELEASE_BUILT_AT = "\([^"]*\)";$/\1/p' release-version.js | head -n 1)"
 ZUSTAND_RELEASE_SOURCE="$(sed -n 's/^globalThis\.ZUSTAND_RELEASE_SOURCE = "\([a-fA-F0-9]*\)";$/\1/p' release-version.js | head -n 1)"
-if [[ "$ZUSTAND_RELEASE_ID" == "dev-local" || ! "$ZUSTAND_RELEASE_ID" =~ ^[a-zA-Z0-9._-]+$ ]]; then
-  printf 'Refusing a production deploy without a valid shared release ID.\n' >&2
-  exit 1
-fi
-if [[ -z "$ZUSTAND_RELEASE_SOURCE" ]] || ! git cat-file -e "${ZUSTAND_RELEASE_SOURCE}^{commit}" 2>/dev/null; then
-  printf 'Refusing a production deploy without a valid release source commit.\n' >&2
-  exit 1
-fi
-if ! git diff --quiet "$ZUSTAND_RELEASE_SOURCE" -- . ':(exclude)release-version.js' ':(exclude)server/event-catalog.json' ':(exclude)server/preset-library.json'; then
+if [[ "$ZUSTAND_RELEASE_ID" == "dev-local" || ! "$ZUSTAND_RELEASE_ID" =~ ^[a-zA-Z0-9._-]+$ ]]; then printf 'Refusing a production deploy without a valid shared release ID.\n' >&2; exit 1; fi
+if [[ -z "$ZUSTAND_RELEASE_SOURCE" ]] || ! git cat-file -e "${ZUSTAND_RELEASE_SOURCE}^{commit}" 2>/dev/null; then printf 'Refusing a production deploy without a valid release source commit.\n' >&2; exit 1; fi
+if ! git diff --quiet "$ZUSTAND_RELEASE_SOURCE" -- . ':(exclude)release-version.js' ':(exclude)server/event-catalog.json'; then
   printf 'Refusing a production deploy because this checkout contains code beyond green source %s.\n' "$ZUSTAND_RELEASE_SOURCE" >&2
-#  exit 1
 fi
 log "Deploying ${ZUSTAND_RELEASE_ID} from ${ZUSTAND_DEPLOY_COMMIT}."
+
 retry 3 5 npm ci --omit=dev
 install -d -m 755 /var/lib/digitalisierungsplanung "$PLAYWRIGHT_BROWSERS_PATH"
 ensure_deploy_swap
-log "Installing pinned Playwright runtime for external URL recorder."
+log "Installing pinned Chromium for recorder and replay tasks."
 retry 2 5 env PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" node ./node_modules/playwright/cli.js install --with-deps chromium
 RECORDER_CHROMIUM="$(env PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" node -e 'process.stdout.write(require("playwright").chromium.executablePath())')"
-if [[ ! -x "$RECORDER_CHROMIUM" ]]; then
-  printf 'Recorder Chromium executable is missing: %s\n' "$RECORDER_CHROMIUM" >&2
-  exit 1
-fi
+if [[ ! -x "$RECORDER_CHROMIUM" ]]; then printf 'Chromium executable is missing: %s\n' "$RECORDER_CHROMIUM" >&2; exit 1; fi
 
 if [[ ! -f "$ENV_FILE" ]]; then
   install -m 600 /dev/null "$ENV_FILE"
   printf 'REALTIME_ROOM_SECRET=%s\n' "$(openssl rand -base64 48)" > "$ENV_FILE"
 fi
-if ! grep -q '^REALTIME_EMIT_SECRET=' "$ENV_FILE"; then
-  printf 'REALTIME_EMIT_SECRET=%s\n' "$(openssl rand -base64 48)" >> "$ENV_FILE"
-fi
-if ! grep -q '^REALTIME_ADMIN_SECRET=' "$ENV_FILE"; then
-  printf 'REALTIME_ADMIN_SECRET=%s\n' "$(openssl rand -base64 48)" >> "$ENV_FILE"
-fi
-if ! grep -q '^REALTIME_MCP_SECRET=' "$ENV_FILE"; then
-  printf 'REALTIME_MCP_SECRET=%s\n' "$(openssl rand -base64 48)" >> "$ENV_FILE"
-fi
+if ! grep -q '^REALTIME_EMIT_SECRET=' "$ENV_FILE"; then printf 'REALTIME_EMIT_SECRET=%s\n' "$(openssl rand -base64 48)" >> "$ENV_FILE"; fi
+if ! grep -q '^REALTIME_ADMIN_SECRET=' "$ENV_FILE"; then printf 'REALTIME_ADMIN_SECRET=%s\n' "$(openssl rand -base64 48)" >> "$ENV_FILE"; fi
 install -d -m 700 /var/lib/digitalisierungsplanung
 
 pm2 startOrReload server/ecosystem.config.cjs --update-env
@@ -179,69 +131,43 @@ if ! systemctl list-unit-files pm2-root.service --no-legend 2>/dev/null | grep -
 fi
 
 mkdir -p /var/www/certbot /etc/nginx/snippets
-install -m 644 server/nginx/recorder.locations.conf "$RECORDER_NGINX_SNIPPET"
-if systemctl list-unit-files certbot.timer --no-legend 2>/dev/null | grep -q '^certbot.timer'; then
-  systemctl enable --now certbot.timer
-fi
+install -m 644 server/nginx/recorder.locations.conf "$PRODUCT_NGINX_SNIPPET"
+if systemctl list-unit-files certbot.timer --no-legend 2>/dev/null | grep -q '^certbot.timer'; then systemctl enable --now certbot.timer; fi
 
 if [[ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]]; then
   install -m 644 server/nginx/realtime.digitalisierungsplanung.de.conf "$NGINX_AVAILABLE"
-  awk -v include_line='    include /etc/nginx/snippets/digitalisierungsplanung-recorder.conf;' '
-    { print }
-    !done && /server_tokens off;/ { print ""; print include_line; done=1 }
-  ' "$NGINX_AVAILABLE" > "${NGINX_AVAILABLE}.tmp"
+  awk -v include_line='    include /etc/nginx/snippets/digitalisierungsplanung-recorder.conf;' '{ print } !done && /server_tokens off;/ { print ""; print include_line; done=1 }' "$NGINX_AVAILABLE" > "${NGINX_AVAILABLE}.tmp"
   mv "${NGINX_AVAILABLE}.tmp" "$NGINX_AVAILABLE"
   ln -sfn "$NGINX_AVAILABLE" "$NGINX_ENABLED"
 else
   install -m 644 server/nginx/realtime.digitalisierungsplanung.de.bootstrap.conf "$NGINX_BOOTSTRAP_AVAILABLE"
   ln -sfn "$NGINX_BOOTSTRAP_AVAILABLE" "$NGINX_ENABLED"
 fi
-rm -f /etc/nginx/sites-enabled/digitalisierungsplanung.de \
-  /etc/nginx/sites-enabled/digitalisierungsplanung.de.bootstrap \
-  /etc/nginx/sites-available/digitalisierungsplanung.de \
-  /etc/nginx/sites-available/digitalisierungsplanung.de.bootstrap
+rm -f /etc/nginx/sites-enabled/digitalisierungsplanung.de /etc/nginx/sites-enabled/digitalisierungsplanung.de.bootstrap /etc/nginx/sites-available/digitalisierungsplanung.de /etc/nginx/sites-available/digitalisierungsplanung.de.bootstrap
 nginx -t
 systemctl reload nginx || systemctl restart nginx
 
 health_ok=0
 for _ in $(seq 1 "$HEALTH_ATTEMPTS"); do
-  if payload="$(curl -fsS --max-time 5 http://127.0.0.1:8788/healthz 2>/dev/null)" &&
-    EXPECTED_RELEASE="$ZUSTAND_RELEASE_ID" node -e '
-      const fs = require("node:fs");
-      const body = JSON.parse(fs.readFileSync(0, "utf8"));
-      const expected = process.env.EXPECTED_RELEASE;
-      if (!body.ok || body.releaseId !== expected) process.exit(1);
-    ' <<<"$payload"; then
-    health_ok=1
-    break
-  fi
+  if payload="$(curl -fsS --max-time 5 http://127.0.0.1:8788/healthz 2>/dev/null)" && EXPECTED_RELEASE="$ZUSTAND_RELEASE_ID" node -e 'const fs=require("node:fs");const body=JSON.parse(fs.readFileSync(0,"utf8"));if(!body.ok||body.releaseId!==process.env.EXPECTED_RELEASE)process.exit(1);' <<<"$payload"; then health_ok=1; break; fi
   sleep "$HEALTH_RETRY_DELAY"
 done
-if [[ "$health_ok" != "1" ]]; then
-  printf 'Health check did not report release %s.\n' "$ZUSTAND_RELEASE_ID" >&2
-  exit 1
-fi
+if [[ "$health_ok" != "1" ]]; then printf 'Health check did not report release %s.\n' "$ZUSTAND_RELEASE_ID" >&2; exit 1; fi
 
-recorder_health_ok=0
-for _ in $(seq 1 "$HEALTH_ATTEMPTS"); do
-  if payload="$(curl -fsS --max-time 5 http://127.0.0.1:8789/healthz 2>/dev/null)" &&
-    node -e '
-      const fs = require("node:fs");
-      const body = JSON.parse(fs.readFileSync(0, "utf8"));
-      if (!body.ok || body.service !== "external-recorder") process.exit(1);
-    ' <<<"$payload"; then
-    recorder_health_ok=1
-    break
-  fi
-  sleep "$HEALTH_RETRY_DELAY"
-done
-if [[ "$recorder_health_ok" != "1" ]]; then
-  printf 'External recorder health check failed.\n' >&2
-  exit 1
-fi
+service_health() {
+  local url="$1" expected="$2"
+  for _ in $(seq 1 "$HEALTH_ATTEMPTS"); do
+    if payload="$(curl -fsS --max-time 5 "$url" 2>/dev/null)" && EXPECTED_SERVICE="$expected" node -e 'const fs=require("node:fs");const body=JSON.parse(fs.readFileSync(0,"utf8"));if(!body.ok||body.service!==process.env.EXPECTED_SERVICE)process.exit(1);' <<<"$payload"; then return 0; fi
+    sleep "$HEALTH_RETRY_DELAY"
+  done
+  return 1
+}
+
+service_health http://127.0.0.1:8789/healthz external-recorder || { printf 'External recorder health check failed.\n' >&2; exit 1; }
+service_health http://127.0.0.1:8790/healthz replay-tasks || { printf 'Replay task health check failed.\n' >&2; exit 1; }
 
 if [[ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]]; then
-  log "Release ${ZUSTAND_RELEASE_ID} is live at wss://${DOMAIN}/ws with external URL recorder."
+  log "Release ${ZUSTAND_RELEASE_ID} is live: realtime + recorder + replay tasks."
 else
   log "Release ${ZUSTAND_RELEASE_ID} is healthy locally. TLS is not installed yet."
   printf 'Create DNS, then run: certbot certonly --webroot -w /var/www/certbot -d %s\n' "$DOMAIN" >&2
@@ -249,7 +175,5 @@ fi
 
 if [[ "$DEPLOY_SKIP_GIT_SYNC" != "1" && "$DEPLOY_SKIP_AUTO_DEPLOY" != "1" && "$AUTO_DEPLOY_INSTALL" == "1" && -f "$APP_DIR/server/auto-deploy.sh" ]]; then
   log "Installing or refreshing the automatic green-release watcher."
-  APP_DIR="$APP_DIR" BRANCH="$BRANCH" REPO_URL="$REPO_URL" ENV_FILE="$ENV_FILE" \
-    PM2_APP="$PM2_APP" HEALTH_ATTEMPTS="$HEALTH_ATTEMPTS" HEALTH_RETRY_DELAY="$HEALTH_RETRY_DELAY" \
-    bash "$APP_DIR/server/auto-deploy.sh" --install
+  APP_DIR="$APP_DIR" BRANCH="$BRANCH" REPO_URL="$REPO_URL" ENV_FILE="$ENV_FILE" PM2_APP="$PM2_APP" HEALTH_ATTEMPTS="$HEALTH_ATTEMPTS" HEALTH_RETRY_DELAY="$HEALTH_RETRY_DELAY" bash "$APP_DIR/server/auto-deploy.sh" --install
 fi
