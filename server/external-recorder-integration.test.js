@@ -39,9 +39,13 @@ test("production runs recorder separately and proxies only recorder API to it", 
   assert.match(deploy, /8789\/healthz/);
 });
 
-test("external recorder remains outside the State Blueprint persisted grammar", () => {
-  const contract = read("docs/state-contract.md");
-  assert.match(contract, /externe URL-Recorder|externen URL-Recorder|external URL-Recorder/i);
-  assert.match(contract, /Schema-2-Modell|Schema 2|Schema-2/i);
-  assert.match(contract, /Passwortwerte/);
+test("external recorder compiles through the canonical State Blueprint contract only", () => {
+  const source = read("server/external-recorder.js");
+  assert.match(source, /stateCore\.blankModel\(\)/);
+  assert.match(source, /stateCore\.applyCommands\(/);
+  assert.match(source, /stateCore\.validateModel\(/);
+  assert.match(source, /stateCore\.definitionPayload\(/);
+  assert.doesNotMatch(source, /renderMode\s*:/);
+  assert.doesNotMatch(source, /localState\s*:/);
+  assert.doesNotMatch(source, /stateStore\s*:/);
 });
