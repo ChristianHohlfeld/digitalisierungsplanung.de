@@ -33,33 +33,42 @@ function request(server, path) {
   });
 }
 
-test("local recorder agent serves an intranet-first recorder shell", async t => {
-  const runtime = createLocalRecorderServer({
-    host: "127.0.0.1",
-    port: 0,
-    manager: { close: async () => {} },
-    publicBaseUrl: "http://127.0.0.1:8799"
-  });
+function fakeTaskStore() {
+  return {
+    start() {},
+    stop() {},
+    list: async () => [],
+    create: async value => value,
+    run: async () => ({ status: "success" }),
+    remove: async () => ({ ok: true })
+  };
+}
+
+test("local recorder agent serves the real-browser controller", async t => {
+  const runtime = createLocalRecorderServer({ host: "127.0.0.1", port: 0, taskStore: fakeTaskStore() });
   await listen(runtime.server);
-  t.after(() => close(runtime.server));
+  t.after(async () => { runtime.taskStore.stop(); await close(runtime.server); });
 
   const health = await request(runtime.server, "/healthz");
   assert.equal(health.response.statusCode, 200);
-  assert.equal(JSON.parse(health.body).service, "local-recorder-agent");
+  assert.deepEqual(JSON.parse(health.body), { ok: true, service: "local-recorder-agent", recording: false });
 
   const page = await request(runtime.server, "/local-recorder.html");
   assert.equal(page.response.statusCode, 200);
-  assert.match(page.body, /Lokaler Recorder/);
+  assert.match(page.body, /Echter Browser-Recorder/);
   assert.match(page.body, /wob-app15\.wobak\.de/);
+  assert.match(page.body, /Browser öffnen \+ aufnehmen/);
+  assert.match(page.body, /Website jetzt ganz normal bedienen/);
 });
 
-test("local recorder UI records like a browser window instead of a manual text sender", () => {
+test("local recorder UI has no screenshot remote-control workflow", () => {
   const html = localRecorderHtml();
-  assert.match(html, /addEventListener\("keydown"/);
-  assert.match(html, /addEventListener\("paste"/);
-  assert.match(html, /addEventListener\("wheel"/);
-  assert.match(html, /queueText\(e\.key\)/);
-  assert.match(html, /Mausrad/);
+  assert.doesNotMatch(html, /class=\"viewport\"/);
   assert.doesNotMatch(html, /id=\"typeText\"/);
   assert.doesNotMatch(html, /Text senden/);
+  assert.doesNotMatch(html, /\/recorder\/sessions/);
+  assert.match(html, /Fertig → State-Chart/);
+  assert.match(html, /Echten Replay starten/);
+  assert.match(html, /Als Replay-Task speichern/);
+  assert.match(html, /Im Editor öffnen/);
 });
