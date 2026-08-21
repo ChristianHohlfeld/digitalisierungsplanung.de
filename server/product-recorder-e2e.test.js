@@ -118,13 +118,27 @@ test("editor records a real browser path into a visual project and replays it", 
     assert.equal(doneHits, 1, "recording must execute the target path once");
     assert.deepEqual(doneQueries[0], { email: "qa@example.com", accept: "true" });
 
+    const actionSummary = session.recording.actions.map(action => ({ type: action.type, selector: action.selector, value: action.value, checked: action.checked }));
+    assert.ok(
+      session.recording.actions.some(action => action.type === "input" && action.selector === "#email" && action.value === "qa@example.com"),
+      `email input must be recorded: ${JSON.stringify(actionSummary)}`
+    );
+    assert.ok(
+      session.recording.actions.some(action => action.type === "input" && action.selector === "#accept" && action.checked === true),
+      `checkbox state must be recorded: ${JSON.stringify(actionSummary)}`
+    );
+    assert.ok(
+      session.recording.actions.some(action => action.type === "click" && action.selector === "#go"),
+      `navigation click must be recorded: ${JSON.stringify(actionSummary)}`
+    );
+
     await editorPage.locator("#recordFinish").click();
     await editorPage.waitForFunction(() => document.getElementById("tabRender")?.classList.contains("active"), null, { timeout: 15000 });
 
     const chartSummary = await editorPage.locator("#chartSummary").textContent();
     assert.match(chartSummary || "", /States .* Transitions/);
-    assert.ok(await editorPage.locator(".node").count() >= 3, "recorded path must become visible chart states");
-    assert.ok(await editorPage.locator(".edge-hit").count() >= 1, "recorded path must become chart transitions");
+    assert.ok(await editorPage.locator(".node").count() >= 4, "three recorded actions must become at least four visible chart states");
+    assert.ok(await editorPage.locator(".edge-hit").count() >= 3, "three recorded actions must become at least three chart transitions");
 
     await editorPage.evaluate(() => {
       document.querySelector(".edge-hit")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
