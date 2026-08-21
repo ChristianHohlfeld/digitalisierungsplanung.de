@@ -204,6 +204,28 @@ if [[ "$recorder_health_ok" != "1" ]]; then
 fi
 
 if [[ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]]; then
+  recorder_cors_ok=0
+  for _ in $(seq 1 "$HEALTH_ATTEMPTS"); do
+    RECORDER_CORS_HEADERS="$(mktemp)"
+    RECORDER_CORS_STATUS="$(curl -sS --max-time 8 -o /dev/null -D "$RECORDER_CORS_HEADERS" -w '%{http_code}' \
+      --resolve "${DOMAIN}:443:127.0.0.1" \
+      -X OPTIONS "https://${DOMAIN}/recorder/sessions" \
+      -H 'Origin: https://digitalisierungsplanung.de' \
+      -H 'Access-Control-Request-Method: POST' \
+      -H 'Access-Control-Request-Headers: content-type' 2>/dev/null || true)"
+    if [[ "$RECORDER_CORS_STATUS" == "204" ]] &&
+      grep -Eqi '^access-control-allow-origin:[[:space:]]*https://digitalisierungsplanung\.de\r?$' "$RECORDER_CORS_HEADERS"; then
+      recorder_cors_ok=1
+      rm -f "$RECORDER_CORS_HEADERS"
+      break
+    fi
+    rm -f "$RECORDER_CORS_HEADERS"
+    sleep "$HEALTH_RETRY_DELAY"
+  done
+  if [[ "$recorder_cors_ok" != "1" ]]; then
+    printf 'External recorder public CORS preflight failed for https://%s/recorder/sessions.\n' "$DOMAIN" >&2
+    exit 1
+  fi
   log "Release ${ZUSTAND_RELEASE_ID} is live at wss://${DOMAIN}/ws with external URL recorder."
 else
   log "Release ${ZUSTAND_RELEASE_ID} is healthy locally. TLS is not installed yet."
