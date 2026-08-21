@@ -29,8 +29,6 @@ module.exports = {
         REALTIME_ALLOWED_ORIGINS: "https://digitalisierungsplanung.de",
         REALTIME_EVENT_CATALOG_PATH: process.env.REALTIME_EVENT_CATALOG_PATH || `${appDir}/server/event-catalog.json`,
         REALTIME_PRESET_LIBRARY_PATH: process.env.REALTIME_PRESET_LIBRARY_PATH || `${appDir}/server/preset-library.json`,
-        REALTIME_PRESETS_ADMIN_IMPORT_PATH: "/presets-admin/import",
-        REALTIME_MCP_PATH: "/mcp",
         STATE_BLUEPRINT_MODEL_PATH: process.env.STATE_BLUEPRINT_MODEL_PATH || `${stateDir}/state-blueprint.workspace.json`,
         REALTIME_REPO_DIR: process.env.REALTIME_REPO_DIR || appDir,
         REALTIME_MAX_PAYLOAD_BYTES: "65536",
@@ -63,6 +61,10 @@ module.exports = {
         RECORDER_ALLOWED_PRIVATE_HOSTS: process.env.RECORDER_ALLOWED_PRIVATE_HOSTS || "wobak.de,.wobak.de",
         RECORDER_HOST_ALIASES: process.env.RECORDER_HOST_ALIASES || "",
         RECORDER_CHROMIUM_HOST_RESOLVER_RULES: process.env.RECORDER_CHROMIUM_HOST_RESOLVER_RULES || "",
+        RECORDER_SESSION_TTL_MS: process.env.RECORDER_SESSION_TTL_MS || "300000",
+        RECORDER_MAX_SESSIONS: process.env.RECORDER_MAX_SESSIONS || "8",
+        RECORDER_MAX_SESSIONS_PER_CLIENT: process.env.RECORDER_MAX_SESSIONS_PER_CLIENT || "2",
+        RECORDER_REPLACE_CLIENT_SESSION_ON_START: process.env.RECORDER_REPLACE_CLIENT_SESSION_ON_START || "true",
         PLAYWRIGHT_BROWSERS_PATH: playwrightBrowsersPath
       }
     }

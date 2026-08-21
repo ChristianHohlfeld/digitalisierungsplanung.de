@@ -4,7 +4,9 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const eventCatalog = require("./event-catalog");
 const presets = require("./preset-catalog");
+const productContract = require("./product-contract");
 
 const EXPECTED_IDS = [
   "builtin_daisy_dropdown",
@@ -31,6 +33,9 @@ const BLOCKED_PRESET_IDS = [
   "builtin_daisy_card",
   "builtin_daisy_chart",
   "builtin_daisy_pricing",
+  "builtin_daisy_stripe_pricing",
+  "builtin_daisy_bi_kpi_board",
+  "builtin_daisy_export_image_asset",
   "builtin_daisy_select",
   "builtin_daisy_textarea",
   "builtin_daisy_toggle"
@@ -38,34 +43,38 @@ const BLOCKED_PRESET_IDS = [
 
 const BLOCKED_COMPONENT_TYPES = ["text", "list", "link", "note", "divider"];
 
-test("focused built-in preset surface contains exactly the 13 supported built-ins", () => {
+function contract() {
+  return productContract.productContractResponse(eventCatalog.DEFAULT_EVENT_CATALOG);
+}
+
+test("all preset surfaces contain exactly the 13 supported built-ins", () => {
   assert.deepEqual(presets.FOCUSED_PRESET_IDS, EXPECTED_IDS);
-  const visibleBuiltIns = presets.visiblePresetCatalogResponse()
-    .filter(preset => preset.id.startsWith("builtin_"))
-    .map(preset => preset.id);
-  assert.deepEqual(visibleBuiltIns, EXPECTED_IDS);
+  assert.deepEqual(presets.CONTRACT_ONLY_PRESET_IDS, []);
+  assert.deepEqual(presets.presetCatalogResponse().map(preset => preset.id), EXPECTED_IDS);
+  assert.deepEqual(presets.visiblePresetCatalogResponse().map(preset => preset.id), EXPECTED_IDS);
+  assert.deepEqual(presets.contractPresetCatalogResponse().map(preset => preset.id), EXPECTED_IDS);
   assert.deepEqual(presets.builtinStateTemplates().map(preset => preset.id), EXPECTED_IDS);
+
+  assert.deepEqual(contract().presets.map(preset => preset.id), EXPECTED_IDS);
 });
 
-test("visible preset catalog exposes no managed, legacy, hidden or fallback entries", () => {
-  const catalog = presets.presetCatalogResponse();
-  assert.deepEqual(catalog.map(preset => preset.id), EXPECTED_IDS);
-  assert.equal(catalog.some(preset => preset.builtIn === false), false);
-  assert.equal(catalog.some(preset => preset.hidden === true), false);
-  assert.equal(catalog.some(preset => preset.legacy === true), false);
-  assert.equal(catalog.some(preset => preset.categoryId === "__legacy_hidden__"), false);
-  for (const id of BLOCKED_PRESET_IDS) {
-    assert.equal(catalog.some(preset => preset.id === id), false, `${id} must not be visible`);
-  }
-  assert.equal(presets.visiblePresetCatalogResponse().length, EXPECTED_IDS.length);
-});
-
-test("contract-only preset context stays outside the visible inspector catalog", () => {
-  const visibleIds = new Set(presets.visiblePresetCatalogResponse().map(preset => preset.id));
-  const contractIds = new Set(presets.contractPresetCatalogResponse().map(preset => preset.id));
-  for (const id of presets.CONTRACT_ONLY_PRESET_IDS) {
-    assert.equal(visibleIds.has(id), false, `${id} must not be visible`);
-    assert.equal(contractIds.has(id), true, `${id} remains available for product contracts`);
+test("preset catalogs expose no managed, legacy, hidden, contract-only or fallback entries", () => {
+  const surfaces = [
+    presets.presetCatalogResponse(),
+    presets.visiblePresetCatalogResponse(),
+    presets.contractPresetCatalogResponse(),
+    contract().presets
+  ];
+  for (const catalog of surfaces) {
+    assert.equal(catalog.some(preset => preset.builtIn === false), false);
+    assert.equal(catalog.some(preset => preset.hidden === true), false);
+    assert.equal(catalog.some(preset => preset.legacy === true), false);
+    assert.equal(catalog.some(preset => preset.contractOnly === true), false);
+    assert.equal(catalog.some(preset => preset.managedOnly === true), false);
+    assert.equal(catalog.some(preset => preset.categoryId === "__legacy_hidden__"), false);
+    for (const id of BLOCKED_PRESET_IDS) {
+      assert.equal(catalog.some(preset => preset.id === id), false, `${id} must not exist in focused surfaces`);
+    }
   }
 });
 
@@ -104,4 +113,13 @@ test("inspector bootstrap prunes legacy Darstellung component dropdown options",
   for (const type of BLOCKED_COMPONENT_TYPES) {
     assert.doesNotMatch(source, new RegExp(`focusedOption\\("${type}"`));
   }
+});
+
+test("inspector semantics keep state trigger context separate from transition listener", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "disable-sw.js"), "utf8");
+  assert.match(source, /STATE_BLUEPRINT_INSPECTOR_SEMANTICS/);
+  assert.match(source, /State-Trigger/);
+  assert.match(source, /Der State bestimmt den Trigger-Kontext/);
+  assert.match(source, /Transition lauscht auf Signal/);
+  assert.match(source, /Die Transition wählt, worauf sie im State-Kontext lauscht/);
 });

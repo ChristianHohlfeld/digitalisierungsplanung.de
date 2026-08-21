@@ -156,10 +156,44 @@ function stateContributionsForCatalog(catalog) {
   ];
 }
 
+function packageScopeForPresets(library, presets) {
+  const presetIds = new Set(presets.map(preset => preset.id));
+  const packageIds = new Set();
+  for (const preset of presets) {
+    for (const id of Array.isArray(preset.packageIds) ? preset.packageIds : []) packageIds.add(id);
+  }
+  return presetCatalog.presetPackagesResponse(library)
+    .map(pack => {
+      const ids = (Array.isArray(pack.presetIds) ? pack.presetIds : []).filter(id => presetIds.has(id));
+      return {
+        ...pack,
+        presetIds: ids,
+        presetCount: ids.length
+      };
+    })
+    .filter(pack => packageIds.has(pack.id) || pack.presetCount > 0);
+}
+
+function categoryScopeForPresets(library, presets) {
+  const categoryIds = new Set(presets.map(preset => preset.categoryId).filter(Boolean));
+  return presetCatalog.presetCategoriesResponse(library).filter(category => categoryIds.has(category.id));
+}
+
+function planScopeForPackages(library, packages) {
+  const packageIds = new Set(packages.map(pack => pack.id));
+  return presetCatalog.subscriptionPlansResponse(library).map(plan => ({
+    ...plan,
+    includedPackageIds: (Array.isArray(plan.includedPackageIds) ? plan.includedPackageIds : []).filter(id => packageIds.has(id)),
+    recommendedAddOnPackageIds: (Array.isArray(plan.recommendedAddOnPackageIds) ? plan.recommendedAddOnPackageIds : []).filter(id => packageIds.has(id))
+  }));
+}
+
 function productContractResponse(configOrCatalog) {
   const catalog = configOrCatalog?.eventCatalog || configOrCatalog;
   const library = configOrCatalog?.presetLibrary;
   const response = eventCatalog.eventCatalogResponse(catalog);
+  const presets = presetCatalog.contractPresetCatalogResponse(library);
+  const presetPackages = packageScopeForPresets(library, presets);
   return {
     schemaVersion: CONTRACT_SCHEMA_VERSION,
     provider: response.provider,
@@ -168,10 +202,10 @@ function productContractResponse(configOrCatalog) {
     triggerTypes: triggerTypesForCatalog(catalog),
     datasets: datasetsForCatalog(catalog),
     connectors: response.emitters,
-    presetCategories: presetCatalog.presetCategoriesResponse(library),
-    presetPackages: presetCatalog.presetPackagesResponse(library),
-    subscriptionPlans: presetCatalog.subscriptionPlansResponse(library),
-    presets: presetCatalog.contractPresetCatalogResponse(library),
+    presetCategories: categoryScopeForPresets(library, presets),
+    presetPackages,
+    subscriptionPlans: planScopeForPackages(library, presetPackages),
+    presets,
     stateContributions: stateContributionsForCatalog(catalog)
   };
 }

@@ -19,11 +19,7 @@ const FOCUSED_PRESET_IDS = Object.freeze([
   "builtin_daisy_radio"
 ]);
 
-const CONTRACT_ONLY_PRESET_IDS = Object.freeze([
-  "builtin_daisy_bi_kpi_board",
-  "builtin_daisy_export_image_asset",
-  "builtin_daisy_stripe_pricing"
-]);
+const CONTRACT_ONLY_PRESET_IDS = Object.freeze([]);
 
 const FOCUSED_SPECS = Object.freeze([
   { sourceId: "builtin_daisy_dropdown", id: "builtin_daisy_dropdown", title: "Dropdown" },
@@ -149,8 +145,11 @@ function focusedPresetFrom(source, spec) {
   preset.rootStateId = targetRootId;
   preset.title = spec.title;
   preset.categoryId = "websuite-builder";
+  preset.builtIn = true;
   delete preset.hidden;
   delete preset.legacy;
+  delete preset.contractOnly;
+  delete preset.managedOnly;
 
   if (spec.data) preset.data = cloneJson(spec.data);
   if (spec.dataTypes) preset.dataTypes = cloneJson(spec.dataTypes);
@@ -194,36 +193,11 @@ function presetCatalogResponse(libraryValue) {
 }
 
 function contractPresetCatalogResponse(libraryValue) {
-  const focused = presetCatalogResponse(libraryValue).map(cloneJson);
-  const byId = new Map(focused.map(preset => [preset.id, preset]));
-  const sourceCatalog = base.presetCatalogResponse(libraryValue);
-
-  for (const source of sourceCatalog.filter(preset => preset.builtIn === false)) {
-    if (byId.has(source.id)) continue;
-    const preset = cloneJson(source);
-    delete preset.hidden;
-    delete preset.legacy;
-    preset.managedOnly = true;
-    byId.set(preset.id, preset);
-    focused.push(preset);
-  }
-
-  for (const id of CONTRACT_ONLY_PRESET_IDS) {
-    if (byId.has(id)) continue;
-    const source = sourceCatalog.find(preset => preset.id === id);
-    if (!source) continue;
-    const preset = cloneJson(source);
-    delete preset.hidden;
-    delete preset.legacy;
-    preset.contractOnly = true;
-    byId.set(preset.id, preset);
-    focused.push(preset);
-  }
-  return focused;
+  return focusedCatalog(libraryValue);
 }
 
 function visiblePresetCatalogResponse(libraryValue) {
-  return presetCatalogResponse(libraryValue);
+  return focusedCatalog(libraryValue);
 }
 
 module.exports = {

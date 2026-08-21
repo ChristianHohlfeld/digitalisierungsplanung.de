@@ -22,6 +22,17 @@ function envAllowedOrigins() {
     .filter(Boolean);
 }
 
+function envFlag(name, fallback = false) {
+  if (!Object.prototype.hasOwnProperty.call(process.env, name)) return Boolean(fallback);
+  return !/^(?:0|false|no|off)$/i.test(String(process.env[name] || "").trim());
+}
+
+function envInteger(name, fallback, min, max) {
+  const parsed = Number.parseInt(String(process.env[name] ?? ""), 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
+}
+
 function normalizeHost(value) {
   return String(value || "").trim().toLowerCase().replace(/\.$/, "");
 }
@@ -65,11 +76,14 @@ function createAliasLookup(aliases, fallbackLookup = dns.promises.lookup.bind(dn
   };
 }
 
-function createDefaultRecorderManager() {
+function createRecorderManagerInstance() {
   const hostAliases = parseHostAliases();
   const hostResolverRules = hostResolverRulesFromAliases(hostAliases);
   return externalRecorder.createRecorderManager({
     lookup: createAliasLookup(hostAliases),
+    ttlMs: envInteger("RECORDER_SESSION_TTL_MS", 5 * 60 * 1000, 60 * 1000, 60 * 60 * 1000),
+    maxSessions: envInteger("RECORDER_MAX_SESSIONS", 8, 1, 64),
+    maxSessionsPerClient: envInteger("RECORDER_MAX_SESSIONS_PER_CLIENT", 2, 1, 16),
     launchBrowser: async () => {
       const { chromium } = require("playwright");
       const args = ["--disable-dev-shm-usage"];
@@ -77,6 +91,42 @@ function createDefaultRecorderManager() {
       return chromium.launch({ headless: true, args });
     }
   });
+}
+
+function createReplacingRecorderManager(factory = createRecorderManagerInstance, options = {}) {
+  let manager = factory();
+  const replaceOnClientCapacity = options.replaceOnClientCapacity ?? envFlag("RECORDER_REPLACE_CLIENT_SESSION_ON_START", true);
+
+  async function replaceManager() {
+    const previous = manager;
+    manager = factory();
+    await previous?.close?.().catch(() => {});
+  }
+
+  return {
+    async startSession(...args) {
+      try {
+        return await manager.startSession(...args);
+      } catch (error) {
+        if (!replaceOnClientCapacity || error?.code !== "recorder_client_capacity") throw error;
+        await replaceManager();
+        return manager.startSession(...args);
+      }
+    },
+    performAction: (...args) => manager.performAction(...args),
+    finishSession: (...args) => manager.finishSession(...args),
+    replaySession: (...args) => manager.replaySession(...args),
+    cancelSession: (...args) => manager.cancelSession(...args),
+    cleanup: (...args) => manager.cleanup(...args),
+    getSession: (...args) => manager.getSession(...args),
+    async close() {
+      await manager?.close?.().catch(() => {});
+    }
+  };
+}
+
+function createDefaultRecorderManager() {
+  return createReplacingRecorderManager(createRecorderManagerInstance);
 }
 
 function appendVary(response, value) {
@@ -185,7 +235,11 @@ module.exports = {
   CORS_METHODS,
   createAliasLookup,
   createDefaultRecorderManager,
+  createRecorderManagerInstance,
   createRecorderServer,
+  createReplacingRecorderManager,
+  envFlag,
+  envInteger,
   hostResolverRulesFromAliases,
   parseHostAliases,
   startRecorderServer

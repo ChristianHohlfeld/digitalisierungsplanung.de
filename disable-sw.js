@@ -34,6 +34,18 @@
     ["heading", "Header"],
     ["image", "Image"]
   ]);
+  const INSPECTOR_SEMANTICS = Object.freeze({
+    state: {
+      title: "State-Trigger",
+      help: "Der State bestimmt den Trigger-Kontext: Klick, Timer, Webhook/Event oder Auto.",
+      owns: ["triggerType", "timerMs", "eventName", "componentId"]
+    },
+    transition: {
+      title: "Transition lauscht auf Signal",
+      help: "Die Transition wählt, worauf sie im State-Kontext lauscht: konkretes Event, Eventfeld, Button/Action oder Timer-Signal.",
+      owns: ["listener", "eventField", "match", "actionId", "targetStateId"]
+    }
+  });
 
   function focusedOption(value, label) {
     const option = document.createElement("option");
@@ -71,6 +83,7 @@
       presetIds: [...FOCUSED_PRESET_IDS],
       componentTypes: [...FOCUSED_COMPONENT_TYPES]
     });
+    window.STATE_BLUEPRINT_INSPECTOR_SEMANTICS = INSPECTOR_SEMANTICS;
     try {
       window.componentPresetTypes = () => [...FOCUSED_COMPONENT_TYPES];
     } catch (_) {}
