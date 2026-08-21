@@ -50,7 +50,7 @@ test("all preset surfaces contain exactly the 13 supported built-ins", () => {
   assert.deepEqual(presets.contractPresetCatalogResponse().map(preset => preset.id), EXPECTED_IDS);
   assert.deepEqual(presets.builtinStateTemplates().map(preset => preset.id), EXPECTED_IDS);
 
-  const contract = productContract.productContractResponse({});
+  const contract = productContract.productContractResponse();
   assert.deepEqual(contract.presets.map(preset => preset.id), EXPECTED_IDS);
 });
 
@@ -59,7 +59,7 @@ test("preset catalogs expose no managed, legacy, hidden, contract-only or fallba
     presets.presetCatalogResponse(),
     presets.visiblePresetCatalogResponse(),
     presets.contractPresetCatalogResponse(),
-    productContract.productContractResponse({}).presets
+    productContract.productContractResponse().presets
   ];
   for (const catalog of surfaces) {
     assert.equal(catalog.some(preset => preset.builtIn === false), false);
