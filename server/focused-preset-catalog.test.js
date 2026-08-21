@@ -121,5 +121,5 @@ test("inspector semantics keep state trigger context separate from transition li
   assert.match(source, /State-Trigger/);
   assert.match(source, /Der State bestimmt den Trigger-Kontext/);
   assert.match(source, /Transition lauscht auf Signal/);
-  assert.match(source, /Die Transition wählt, worauf sie im State-Kontext lauscht/);
+  assert.match(source, /Die Transition filtert einfach: Feld, Operator, Wert/);
 });

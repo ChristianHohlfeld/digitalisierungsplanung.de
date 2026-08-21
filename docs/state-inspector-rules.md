@@ -1,25 +1,34 @@
 # State Inspector Rules
 
-UX-Schnitt:
+Der Inspector darf nicht zwei verschiedene Regelwelten zeigen.
 
-- **State Inspector**: Trigger-Kontext wählen. Beispiel: Klick, Timer, Webhook/Event, Auto.
-- **Transition Inspector**: auf konkretes Signal lauschen und einfache Regeln bearbeiten.
+## Schnitt
 
-Regeln sind bewusst schlicht:
+- **State Inspector**: Der State bestimmt den Trigger-Kontext. Beispiel: Klick, Timer, Webhook/Event oder Auto.
+- **Transition Inspector**: Die Kante lauscht innerhalb dieses Kontexts auf ein konkretes Signal und filtert über einfache Regeln.
+
+## Sichtbare UI
+
+Die sichtbare Transition-Regel-UI ist nur:
 
 ```text
-Feld                  Operator   Wert
-Checkbox A.checked   ==         true
-Checkbox B.checked   ==         false
-E-Mail.value         !=         ""
+Feld                  Operator   Wert      Löschen
+Checkbox A.checked   ==         true      ×
+Checkbox B.checked   ==         false     ×
+E-Mail.value         !=         ""        ×
 ```
 
-Kombinationen:
+Dazu gibt es nur:
 
-- `UND`: alle Regeln müssen passen.
-- `ODER`: eine Regel reicht.
+- `+ Regel`
+- `Alle löschen`
+- `UND` / `ODER`
 
-Der Rule Builder zeigt unterscheidbare Felder mit State-ID:
+Jede Regel ist eine eigene Zeile und einzeln löschbar.
+
+## Felder
+
+Felder müssen unterscheidbar bleiben. Deshalb zeigt der Builder State-ID und Feld:
 
 - `Checkbox A (checkbox_a) · checked`
 - `Checkbox B (checkbox_b) · checked`
@@ -27,4 +36,14 @@ Der Rule Builder zeigt unterscheidbare Felder mit State-ID:
 - `Suchfeld (search) · value`
 - Event/Webhook-Felder wie `Incoming call · caller`
 
-Kein freies JSON als Hauptbedienung. Jede Regel ist eine eigene Zeile und einzeln löschbar.
+## Was nicht sichtbar sein darf
+
+Die alte Advanced-Maske ist keine Hauptbedienung mehr:
+
+- keine sichtbare `Trigger-Regel`-Card
+- kein `Match-Feld`
+- kein `Match-Operator`
+- keine `Technische Bedingung` als Standardfläche
+- kein freies JSON als normale Bedienung
+
+Der Contract kann weiterhin eine `condition` speichern. Die UI bearbeitet diese Condition aber über einfache Zeilen.
