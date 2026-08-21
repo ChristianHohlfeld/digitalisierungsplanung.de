@@ -1,0 +1,4 @@
+Native Recorder next UI step:
+- The reliable product path is headed Chromium controlled by the local recorder.
+- The old screenshot remote control should stay secondary/fallback.
+- Next product layer can add a small floating stop/export control instead of terminal Enter.
