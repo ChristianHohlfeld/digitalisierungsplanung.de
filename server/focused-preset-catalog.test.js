@@ -1,5 +1,7 @@
 "use strict";
 
+const fs = require("node:fs");
+const path = require("node:path");
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const presets = require("./preset-catalog");
@@ -20,34 +22,51 @@ const EXPECTED_IDS = [
   "builtin_daisy_radio"
 ];
 
+const BLOCKED_PRESET_IDS = [
+  "builtin_daisy_accordion",
+  "builtin_daisy_alert",
+  "builtin_daisy_avatar",
+  "builtin_daisy_badge",
+  "builtin_daisy_calendar",
+  "builtin_daisy_card",
+  "builtin_daisy_chart",
+  "builtin_daisy_pricing",
+  "builtin_daisy_select",
+  "builtin_daisy_textarea",
+  "builtin_daisy_toggle"
+];
+
+const BLOCKED_COMPONENT_TYPES = ["text", "list", "link", "note", "divider"];
+
 test("focused built-in preset surface contains exactly the 13 supported built-ins", () => {
   assert.deepEqual(presets.FOCUSED_PRESET_IDS, EXPECTED_IDS);
   const visibleBuiltIns = presets.visiblePresetCatalogResponse()
-    .filter(preset => preset.builtIn !== false && preset.id.startsWith("builtin_"))
+    .filter(preset => preset.id.startsWith("builtin_"))
     .map(preset => preset.id);
   assert.deepEqual(visibleBuiltIns, EXPECTED_IDS);
   assert.deepEqual(presets.builtinStateTemplates().map(preset => preset.id), EXPECTED_IDS);
 });
 
-test("managed presets remain visible with their category and package metadata", () => {
+test("visible preset catalog exposes no managed, legacy, hidden or fallback entries", () => {
   const catalog = presets.presetCatalogResponse();
-  const managed = catalog.filter(preset => preset.builtIn === false);
-  assert.ok(managed.length > 0);
-  for (const preset of managed) {
-    const visible = presets.visiblePresetCatalogResponse().find(candidate => candidate.id === preset.id);
-    assert.ok(visible, `${preset.id} should remain visible`);
-    assert.deepEqual(visible.packages || [], preset.packages || []);
-  }
-});
-
-test("focused catalog exposes no legacy, hidden or fallback built-ins", () => {
-  const catalog = presets.presetCatalogResponse();
+  assert.deepEqual(catalog.map(preset => preset.id), EXPECTED_IDS);
+  assert.equal(catalog.some(preset => preset.builtIn === false), false);
   assert.equal(catalog.some(preset => preset.hidden === true), false);
   assert.equal(catalog.some(preset => preset.legacy === true), false);
   assert.equal(catalog.some(preset => preset.categoryId === "__legacy_hidden__"), false);
-  assert.equal(catalog.some(preset => preset.id === "builtin_daisy_accordion"), false);
-  assert.equal(catalog.some(preset => preset.id === "builtin_daisy_calendar"), false);
-  assert.equal(presets.visiblePresetCatalogResponse().length, catalog.length);
+  for (const id of BLOCKED_PRESET_IDS) {
+    assert.equal(catalog.some(preset => preset.id === id), false, `${id} must not be visible`);
+  }
+  assert.equal(presets.visiblePresetCatalogResponse().length, EXPECTED_IDS.length);
+});
+
+test("contract-only preset context stays outside the visible inspector catalog", () => {
+  const visibleIds = new Set(presets.visiblePresetCatalogResponse().map(preset => preset.id));
+  const contractIds = new Set(presets.contractPresetCatalogResponse().map(preset => preset.id));
+  for (const id of presets.CONTRACT_ONLY_PRESET_IDS) {
+    assert.equal(visibleIds.has(id), false, `${id} must not be visible`);
+    assert.equal(contractIds.has(id), true, `${id} remains available for product contracts`);
+  }
 });
 
 test("typed input presets keep distinct state contracts", () => {
@@ -75,4 +94,14 @@ test("date, header and image use the existing renderer primitives", () => {
   assert.equal(byId.get("builtin_page_heading")?.components[0]?.type, "heading");
   assert.equal(byId.get("builtin_page_heading")?.components[0]?.text, "Header");
   assert.equal(byId.get("builtin_media_image")?.components[0]?.type, "image");
+});
+
+test("inspector bootstrap prunes legacy Darstellung component dropdown options", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "disable-sw.js"), "utf8");
+  assert.match(source, /STATE_BLUEPRINT_FOCUSED_INSPECTOR_CONTRACT/);
+  assert.match(source, /FOCUSED_COMPONENT_TYPES = Object\.freeze\(\["heading", "image"\]\)/);
+  assert.match(source, /componentPresetTypes = \(\) => \[\.\.\.FOCUSED_COMPONENT_TYPES\]/);
+  for (const type of BLOCKED_COMPONENT_TYPES) {
+    assert.doesNotMatch(source, new RegExp(`focusedOption\\("${type}"`));
+  }
 });
