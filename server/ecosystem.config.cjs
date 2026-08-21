@@ -3,7 +3,9 @@
 const appDir = process.env.APP_DIR || "/var/www/digitalisierungsplanung.de";
 const envFile = process.env.ENV_FILE || "/etc/digitalisierungsplanung-realtime.env";
 const appName = process.env.PM2_APP || "digitalisierungsplanung-realtime";
+const recorderAppName = process.env.RECORDER_PM2_APP || "digitalisierungsplanung-recorder";
 const stateDir = process.env.STATE_BLUEPRINT_STATE_DIR || "/var/lib/digitalisierungsplanung";
+const playwrightBrowsersPath = process.env.PLAYWRIGHT_BROWSERS_PATH || `${stateDir}/playwright`;
 
 module.exports = {
   apps: [
@@ -40,7 +42,25 @@ module.exports = {
         ZUSTAND_RELEASE_SEQUENCE: process.env.ZUSTAND_RELEASE_SEQUENCE || "0",
         ZUSTAND_RELEASE_BUILT_AT: process.env.ZUSTAND_RELEASE_BUILT_AT || "",
         ZUSTAND_RELEASE_SOURCE: process.env.ZUSTAND_RELEASE_SOURCE || "",
-        ZUSTAND_DEPLOY_COMMIT: process.env.ZUSTAND_DEPLOY_COMMIT || ""
+        ZUSTAND_DEPLOY_COMMIT: process.env.ZUSTAND_DEPLOY_COMMIT || "",
+        PLAYWRIGHT_BROWSERS_PATH: playwrightBrowsersPath
+      }
+    },
+    {
+      name: recorderAppName,
+      script: "server/recorder-run.js",
+      cwd: appDir,
+      instances: 1,
+      exec_mode: "fork",
+      watch: false,
+      max_memory_restart: "768M",
+      env: {
+        NODE_ENV: "production",
+        RECORDER_HOST: "127.0.0.1",
+        RECORDER_PORT: "8789",
+        RECORDER_PUBLIC_BASE_URL: "https://realtime.digitalisierungsplanung.de",
+        RECORDER_ALLOWED_ORIGINS: "https://digitalisierungsplanung.de,https://www.digitalisierungsplanung.de",
+        PLAYWRIGHT_BROWSERS_PATH: playwrightBrowsersPath
       }
     }
   ]

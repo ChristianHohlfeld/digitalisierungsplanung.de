@@ -17,8 +17,10 @@ HEALTH_RETRY_DELAY="${HEALTH_RETRY_DELAY:-1}"
 NGINX_AVAILABLE="/etc/nginx/sites-available/${DOMAIN}"
 NGINX_ENABLED="/etc/nginx/sites-enabled/${DOMAIN}"
 NGINX_BOOTSTRAP_AVAILABLE="/etc/nginx/sites-available/${DOMAIN}.bootstrap"
+RECORDER_NGINX_SNIPPET="/etc/nginx/snippets/digitalisierungsplanung-recorder.conf"
+PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-/var/lib/digitalisierungsplanung/playwright}"
 
-export APP_DIR ENV_FILE PM2_APP
+export APP_DIR ENV_FILE PM2_APP PLAYWRIGHT_BROWSERS_PATH
 
 log() {
   printf '[deploy] %s\n' "$*"
@@ -109,6 +111,15 @@ if ! git diff --quiet "$ZUSTAND_RELEASE_SOURCE" -- . ':(exclude)release-version.
 fi
 log "Deploying ${ZUSTAND_RELEASE_ID} from ${ZUSTAND_DEPLOY_COMMIT}."
 retry 3 5 npm ci --omit=dev
+install -d -m 755 /var/lib/digitalisierungsplanung "$PLAYWRIGHT_BROWSERS_PATH"
+log "Installing pinned Playwright runtime for external URL recorder."
+retry 3 5 npm install --no-save --package-lock=false --omit=dev playwright@1.60.0
+retry 2 5 npx playwright install --with-deps chromium
+RECORDER_CHROMIUM="$(node -e 'process.stdout.write(require("playwright").chromium.executablePath())')"
+if [[ ! -x "$RECORDER_CHROMIUM" ]]; then
+  printf 'Recorder Chromium executable is missing: %s\n' "$RECORDER_CHROMIUM" >&2
+  exit 1
+fi
 
 if [[ ! -f "$ENV_FILE" ]]; then
   install -m 600 /dev/null "$ENV_FILE"
@@ -131,13 +142,19 @@ if ! systemctl list-unit-files pm2-root.service --no-legend 2>/dev/null | grep -
   pm2 startup systemd -u root --hp /root >/tmp/digitalisierungsplanung-pm2-startup.txt
 fi
 
-mkdir -p /var/www/certbot
+mkdir -p /var/www/certbot /etc/nginx/snippets
+install -m 644 server/nginx/recorder.locations.conf "$RECORDER_NGINX_SNIPPET"
 if systemctl list-unit-files certbot.timer --no-legend 2>/dev/null | grep -q '^certbot.timer'; then
   systemctl enable --now certbot.timer
 fi
 
 if [[ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]]; then
   install -m 644 server/nginx/realtime.digitalisierungsplanung.de.conf "$NGINX_AVAILABLE"
+  awk -v include_line='    include /etc/nginx/snippets/digitalisierungsplanung-recorder.conf;' '
+    { print }
+    !done && /server_tokens off;/ { print ""; print include_line; done=1 }
+  ' "$NGINX_AVAILABLE" > "${NGINX_AVAILABLE}.tmp"
+  mv "${NGINX_AVAILABLE}.tmp" "$NGINX_AVAILABLE"
   ln -sfn "$NGINX_AVAILABLE" "$NGINX_ENABLED"
 else
   install -m 644 server/nginx/realtime.digitalisierungsplanung.de.bootstrap.conf "$NGINX_BOOTSTRAP_AVAILABLE"
@@ -169,8 +186,26 @@ if [[ "$health_ok" != "1" ]]; then
   exit 1
 fi
 
+recorder_health_ok=0
+for _ in $(seq 1 "$HEALTH_ATTEMPTS"); do
+  if payload="$(curl -fsS --max-time 5 http://127.0.0.1:8789/healthz 2>/dev/null)" &&
+    node -e '
+      const fs = require("node:fs");
+      const body = JSON.parse(fs.readFileSync(0, "utf8"));
+      if (!body.ok || body.service !== "external-recorder") process.exit(1);
+    ' <<<"$payload"; then
+    recorder_health_ok=1
+    break
+  fi
+  sleep "$HEALTH_RETRY_DELAY"
+done
+if [[ "$recorder_health_ok" != "1" ]]; then
+  printf 'External recorder health check failed.\n' >&2
+  exit 1
+fi
+
 if [[ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]]; then
-  log "Release ${ZUSTAND_RELEASE_ID} is live at wss://${DOMAIN}/ws."
+  log "Release ${ZUSTAND_RELEASE_ID} is live at wss://${DOMAIN}/ws with external URL recorder."
 else
   log "Release ${ZUSTAND_RELEASE_ID} is healthy locally. TLS is not installed yet."
   printf 'Create DNS, then run: certbot certonly --webroot -w /var/www/certbot -d %s\n' "$DOMAIN" >&2
