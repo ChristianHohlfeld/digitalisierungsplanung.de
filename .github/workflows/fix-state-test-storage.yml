@@ -1,0 +1,39 @@
+name: Apply state test storage migration
+
+on:
+  push:
+    branches:
+      - fix/focused-preset-contract-tests
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/focused-preset-contract-tests
+      - name: Update stale editor storage seeds
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('tests/state-tool.spec.js')
+          text = path.read_text()
+          old = 'localStorage.setItem(key, JSON.stringify(model));'
+          new = 'localStorage.setItem(`${key}.editor`, JSON.stringify({ model }));'
+          count = text.count(old)
+          if count != 55:
+              raise SystemExit(f'expected 55 stale seeds, found {count}')
+          path.write_text(text.replace(old, new))
+          PY
+          rm .github/workflows/fix-state-test-storage.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -- tests/state-tool.spec.js .github/workflows/fix-state-test-storage.yml
+          git diff --cached --check
+          git commit -m 'Align state-tool tests with editor storage contract'
+          git push origin HEAD:fix/focused-preset-contract-tests
