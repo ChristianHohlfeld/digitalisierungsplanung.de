@@ -29,7 +29,7 @@ jobs:
           SERVER_PID=$!
           trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
           for i in {1..30}; do
-            if curl -fsS http://127.0.0.1:4173/state.html >/dev/null; then break; fi
+            if curl -fsS http://127.0.0.1:8124/state.html >/dev/null; then break; fi
             sleep 0.2
           done
           node <<'NODE'
@@ -61,7 +61,7 @@ jobs:
               for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) localStorage.removeItem(name);
               localStorage.setItem(key, JSON.stringify(model));
             }, { key: STORAGE_KEY, model });
-            const response = await page.goto('http://127.0.0.1:4173/state.html', { waitUntil: 'domcontentloaded' });
+            const response = await page.goto('http://127.0.0.1:8124/state.html', { waitUntil: 'domcontentloaded' });
             console.log('HTTP_STATUS', response?.status());
             await page.waitForTimeout(1000);
             async function snapshot(label) {
