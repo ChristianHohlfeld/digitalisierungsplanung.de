@@ -32,16 +32,24 @@ test("focused preset surface contains exactly the 13 supported presets", () => {
   );
 });
 
-test("legacy presets stay available only as hidden compatibility entries", () => {
+test("legacy and managed presets stay available only as hidden compatibility entries", () => {
   const catalog = presets.presetCatalogResponse();
   const visible = catalog.filter(preset => preset.hidden !== true);
   const legacy = catalog.filter(preset => preset.hidden === true);
 
   assert.deepEqual(visible.map(preset => preset.id), EXPECTED_IDS);
   assert.ok(legacy.length > 0);
+  assert.ok(legacy.every(preset => preset.legacy === true));
   assert.ok(legacy.every(preset => preset.categoryId === presets.LEGACY_CATEGORY_ID));
   assert.equal(catalog.find(preset => preset.id === "builtin_daisy_accordion")?.hidden, true);
   assert.equal(catalog.some(preset => preset.id === "builtin_daisy_calendar"), false);
+
+  const managed = catalog.find(preset => preset.id === "custom_daisyui_aura_pricing");
+  assert.ok(managed, "managed compatibility preset missing from full catalog");
+  assert.equal(managed.hidden, true);
+  assert.equal(managed.legacy, true);
+  assert.equal(managed.categoryId, presets.LEGACY_CATEGORY_ID);
+  assert.equal(visible.some(preset => preset.id === managed.id), false);
 });
 
 test("typed input presets keep distinct state contracts", () => {
