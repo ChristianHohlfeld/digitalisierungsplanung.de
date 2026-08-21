@@ -19,6 +19,12 @@ const FOCUSED_PRESET_IDS = Object.freeze([
   "builtin_daisy_radio"
 ]);
 
+const CONTRACT_ONLY_PRESET_IDS = Object.freeze([
+  "builtin_daisy_bi_kpi_board",
+  "builtin_daisy_export_image_asset",
+  "builtin_daisy_stripe_pricing"
+]);
+
 const FOCUSED_SPECS = Object.freeze([
   { sourceId: "builtin_daisy_dropdown", id: "builtin_daisy_dropdown", title: "Dropdown" },
   { sourceId: "builtin_daisy_button", id: "builtin_daisy_button", title: "Button" },
@@ -191,6 +197,24 @@ function presetCatalogResponse(libraryValue) {
   return [...focusedCatalog(libraryValue), ...managed];
 }
 
+function contractPresetCatalogResponse(libraryValue) {
+  const focused = presetCatalogResponse(libraryValue).map(cloneJson);
+  const byId = new Map(focused.map(preset => [preset.id, preset]));
+  const sourceCatalog = base.presetCatalogResponse(libraryValue);
+  for (const id of CONTRACT_ONLY_PRESET_IDS) {
+    if (byId.has(id)) continue;
+    const source = sourceCatalog.find(preset => preset.id === id);
+    if (!source) continue;
+    const preset = cloneJson(source);
+    delete preset.hidden;
+    delete preset.legacy;
+    preset.contractOnly = true;
+    byId.set(preset.id, preset);
+    focused.push(preset);
+  }
+  return focused;
+}
+
 function visiblePresetCatalogResponse(libraryValue) {
   return presetCatalogResponse(libraryValue);
 }
@@ -198,7 +222,9 @@ function visiblePresetCatalogResponse(libraryValue) {
 module.exports = {
   ...base,
   FOCUSED_PRESET_IDS,
+  CONTRACT_ONLY_PRESET_IDS,
   builtinStateTemplates,
   presetCatalogResponse,
+  contractPresetCatalogResponse,
   visiblePresetCatalogResponse
 };
