@@ -8,7 +8,7 @@ const { chromium } = require("playwright");
 const { compileRecordingToDefinition } = require("./external-recorder");
 
 const DEFAULT_VIEWPORT = Object.freeze({ width: 1366, height: 820 });
-const SPECIAL_KEYS = new Set(["Enter", "Tab", "Escape", "Backspace", "Delete", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown"]);
+const SPECIAL_KEYS = Object.freeze(["Enter", "Tab", "Escape", "Backspace", "Delete", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown"]);
 
 function normalizeUrl(value) {
   const parsed = new URL(String(value || "").trim());
@@ -23,11 +23,9 @@ function targetRecorderScript() {
     let lastScrollX = window.scrollX || 0;
     let lastScrollY = window.scrollY || 0;
     const pendingInputs = new Map();
+    const specialKeys = new Set(${JSON.stringify(SPECIAL_KEYS)});
     const textOf = node => String(node?.innerText || node?.textContent || node?.value || node?.getAttribute?.("aria-label") || node?.getAttribute?.("title") || node?.getAttribute?.("placeholder") || "").trim().replace(/\\s+/g, " ").slice(0, 160);
-    const cssEscape = value => {
-      if (window.CSS?.escape) return window.CSS.escape(value);
-      return String(value).replace(/[^a-zA-Z0-9_-]/g, match => "\\\\" + match);
-    };
+    const cssEscape = value => window.CSS?.escape ? window.CSS.escape(value) : String(value).replace(/[^a-zA-Z0-9_-]/g, m => "\\\\" + m);
     const selectorFor = el => {
       if (!el || el === document || el === window) return "";
       if (el.id) return "#" + cssEscape(el.id);
@@ -36,15 +34,13 @@ function targetRecorderScript() {
       const dataId = el.getAttribute?.("data-id") || el.getAttribute?.("data-testid") || el.getAttribute?.("data-test");
       if (dataId) return "[data-id=\"" + String(dataId).replace(/\"/g, "\\\\\"") + "\"]";
       const parts = [];
-      let node = el;
-      while (node && node.nodeType === 1 && parts.length < 4) {
+      for (let node = el; node && node.nodeType === 1 && parts.length < 4; node = node.parentElement) {
         const tag = node.tagName.toLowerCase();
         const parent = node.parentElement;
         if (!parent) { parts.unshift(tag); break; }
         const siblings = [...parent.children].filter(child => child.tagName === node.tagName);
         const index = siblings.indexOf(node) + 1;
         parts.unshift(siblings.length > 1 ? tag + ":nth-of-type(" + index + ")" : tag);
-        node = parent;
       }
       return parts.join(" > ");
     };
@@ -54,9 +50,7 @@ function targetRecorderScript() {
       tag: String(el?.tagName || "").toLowerCase(),
       inputType: String(el?.type || "").toLowerCase()
     });
-    const send = payload => {
-      try { window.__stateBlueprintRecord?.(payload); } catch (_) {}
-    };
+    const send = payload => { try { window.__stateBlueprintRecord?.(payload); } catch (_) {} };
     const sendInput = el => {
       const target = targetInfo(el);
       const redacted = target.inputType === "password";
@@ -73,19 +67,15 @@ function targetRecorderScript() {
     }, true);
     document.addEventListener("input", event => {
       const el = event.target;
-      if (!el || !["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName)) return;
-      scheduleInput(el);
+      if (el && ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName)) scheduleInput(el);
     }, true);
     document.addEventListener("change", event => {
       const el = event.target;
-      if (!el || !["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName)) return;
-      sendInput(el);
+      if (el && ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName)) sendInput(el);
     }, true);
     document.addEventListener("keydown", event => {
-      const allowed = new Set(${JSON.stringify([...SPECIAL_KEYS])});
-      if (!allowed.has(event.key)) return;
-      const el = event.target;
-      send({ type: "key", key: event.key, selector: selectorFor(el), target: targetInfo(el) });
+      if (!specialKeys.has(event.key)) return;
+      send({ type: "key", key: event.key, selector: selectorFor(event.target), target: targetInfo(event.target) });
     }, true);
     window.addEventListener("scroll", () => {
       const nextX = window.scrollX || 0;
@@ -100,14 +90,7 @@ function targetRecorderScript() {
 }
 
 function createRecording(startUrl, viewport = DEFAULT_VIEWPORT) {
-  return {
-    version: 1,
-    startUrl,
-    createdAt: new Date().toISOString(),
-    viewport: { ...viewport },
-    actions: [],
-    snapshots: []
-  };
+  return { version: 1, startUrl, createdAt: new Date().toISOString(), viewport: { ...viewport }, actions: [], snapshots: [] };
 }
 
 async function screenshotSnapshot(page, recording, atMs) {
@@ -124,35 +107,27 @@ async function screenshotSnapshot(page, recording, atMs) {
 
 function normalizeAction(payload = {}, index, startedAt, lastActionAt) {
   const at = Date.now();
-  const base = {
-    ...payload,
-    index,
-    atMs: Math.max(0, at - startedAt),
-    delayMs: Math.max(0, at - lastActionAt)
-  };
-  if (base.type === "input") {
-    base.value = base.redacted ? undefined : String(base.value ?? "");
-  }
-  return base;
+  const action = { ...payload, index, atMs: Math.max(0, at - startedAt), delayMs: Math.max(0, at - lastActionAt) };
+  if (action.type === "input") action.value = action.redacted ? undefined : String(action.value ?? "");
+  return action;
 }
 
 async function runNativeBrowserRecorder(options = {}) {
   const startUrl = normalizeUrl(options.url);
   const viewport = options.viewport || DEFAULT_VIEWPORT;
   const outFile = path.resolve(options.output || "recording-package.json");
-  const browser = await chromium.launch({ headless: Boolean(options.headless) ? true : false, args: ["--disable-dev-shm-usage"] });
-  const context = await browser.newContext({ viewport, ignoreHTTPSErrors: Boolean(options.ignoreHTTPSErrors ?? true) });
+  const browser = await chromium.launch({ headless: options.headless === true, args: ["--disable-dev-shm-usage"] });
+  const context = await browser.newContext({ viewport, ignoreHTTPSErrors: options.ignoreHTTPSErrors !== false });
   const recording = createRecording(startUrl, viewport);
   const startedAt = Date.now();
   let lastActionAt = startedAt;
-  let snapshotBusy = Promise.resolve();
+  let snapshotQueue = Promise.resolve();
 
-  await context.exposeBinding("__stateBlueprintRecord", async source => {
-    const payload = arguments[1] || {};
+  await context.exposeBinding("__stateBlueprintRecord", async (source, payload = {}) => {
     const action = normalizeAction(payload, recording.actions.length + 1, startedAt, lastActionAt);
     lastActionAt = Date.now();
     recording.actions.push(action);
-    snapshotBusy = snapshotBusy.then(async () => {
+    snapshotQueue = snapshotQueue.then(async () => {
       await source.page.waitForTimeout(180).catch(() => {});
       await screenshotSnapshot(source.page, recording, action.atMs).catch(() => {});
     });
@@ -172,7 +147,7 @@ async function runNativeBrowserRecorder(options = {}) {
     await rl.question("Fertig? Enter beendet und exportiert … ");
     rl.close();
   }
-  await snapshotBusy.catch(() => {});
+  await snapshotQueue.catch(() => {});
 
   const definition = compileRecordingToDefinition(recording, { name: `Native Recording: ${new URL(startUrl).hostname}` });
   const recordingPackage = {
@@ -220,10 +195,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = {
-  createRecording,
-  normalizeAction,
-  normalizeUrl,
-  runNativeBrowserRecorder,
-  targetRecorderScript
-};
+module.exports = { createRecording, normalizeAction, normalizeUrl, runNativeBrowserRecorder, targetRecorderScript };
