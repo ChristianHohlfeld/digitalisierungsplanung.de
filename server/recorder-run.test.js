@@ -6,6 +6,8 @@ const http = require("node:http");
 const {
   createAliasLookup,
   createRecorderServer,
+  createReplacingRecorderManager,
+  envInteger,
   hostResolverRulesFromAliases,
   parseHostAliases
 } = require("./recorder-run");
@@ -115,4 +117,38 @@ test("recorder maps approved intranet host aliases for Node DNS and Chromium", a
   assert.deepEqual(await lookup("aida.wobak.de", { all: true }), [{ address: "10.42.0.15", family: 4 }]);
   assert.deepEqual(await lookup("example.com", { all: true }), [{ address: "93.184.216.34", family: 4 }]);
   assert.equal(fallbackCalls.length, 1);
+});
+
+test("recorder replaces stale client sessions instead of leaving the UI stuck", async () => {
+  let factoryCalls = 0;
+  let closeCalls = 0;
+  const manager = createReplacingRecorderManager(() => {
+    factoryCalls += 1;
+    const instance = factoryCalls;
+    return {
+      async startSession(url, clientKey) {
+        if (instance === 1) {
+          const error = new Error("This client already has an active recorder session.");
+          error.code = "recorder_client_capacity";
+          throw error;
+        }
+        return { sessionId: `session-${instance}`, status: "recording", url, clientKey };
+      },
+      async close() { closeCalls += 1; }
+    };
+  }, { replaceOnClientCapacity: true });
+
+  const state = await manager.startSession("https://example.com", "client-a");
+  assert.equal(state.sessionId, "session-2");
+  assert.equal(state.status, "recording");
+  assert.equal(factoryCalls, 2);
+  assert.equal(closeCalls, 1);
+});
+
+test("recorder env session limits stay bounded", () => {
+  process.env.RECORDER_TEST_INT = "999";
+  assert.equal(envInteger("RECORDER_TEST_INT", 1, 2, 8), 8);
+  process.env.RECORDER_TEST_INT = "bad";
+  assert.equal(envInteger("RECORDER_TEST_INT", 7, 2, 8), 7);
+  delete process.env.RECORDER_TEST_INT;
 });
