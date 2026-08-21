@@ -86,7 +86,7 @@ function sanitizeId(value, fallback = "field") {
 }
 
 function fieldFromAction(action = {}, stateId = "state") {
-  if (action.type !== "input") return null;
+  if (!action || action.type !== "input") return null;
   const target = action.target || {};
   const selector = String(action.selector || target.selector || "");
   const label = String(target.label || selector || "Eingabe").trim().slice(0, 100);
@@ -104,7 +104,7 @@ function fieldFromAction(action = {}, stateId = "state") {
 }
 
 function triggerContextForAction(action = {}) {
-  switch (String(action.type || "")) {
+  switch (String(action?.type || "")) {
     case "click":
     case "input":
     case "key":
@@ -121,6 +121,7 @@ function triggerContextForAction(action = {}) {
 }
 
 function listenerForAction(action = {}) {
+  action = action || {};
   const listener = { type: String(action.type || "auto") || "auto" };
   if (action.selector) listener.selector = String(action.selector);
   if (action.key) listener.key = String(action.key);
