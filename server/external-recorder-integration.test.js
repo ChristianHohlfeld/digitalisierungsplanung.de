@@ -8,11 +8,12 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const read = relative => fs.readFileSync(path.join(root, relative), "utf8");
 
-test("external URL recorder is exposed from the editor host", () => {
-  const host = read("disable-sw.js");
-  assert.match(host, /btnRecordUrl/);
+test("external URL recorder is exposed from the editor itself", () => {
+  const host = read("state.html");
+  assert.match(host, /id="btnRecordUrl"/);
   assert.match(host, /URL aufnehmen/);
   assert.match(host, /location\.href = "\/recorder\.html"/);
+  assert.doesNotMatch(read("disable-sw.js"), /btnRecordUrl/);
 });
 
 test("external recorder UI uses isolated realtime browser API and canonical editor storage", () => {
@@ -24,22 +25,23 @@ test("external recorder UI uses isolated realtime browser API and canonical edit
   assert.match(html, /Timings als Timer-Transitionen/);
 });
 
-test("production runs recorder separately and proxies only recorder API to it", () => {
+test("production runs recorder separately with declared browser runtime and health checks", () => {
   const ecosystem = read("server/ecosystem.config.cjs");
   const nginx = read("server/nginx/recorder.locations.conf");
   const deploy = read("server/deploy.sh");
+  const packageJson = require("../package.json");
   assert.match(ecosystem, /digitalisierungsplanung-recorder/);
   assert.match(ecosystem, /server\/recorder-run\.js/);
   assert.match(ecosystem, /RECORDER_PORT: "8789"/);
   assert.match(nginx, /location \^~ \/recorder\//);
   assert.match(nginx, /127\.0\.0\.1:8789/);
-  assert.match(deploy, /playwright@1\.60\.0/);
+  assert.equal(packageJson.dependencies.playwright, "1.60.0");
+  assert.doesNotMatch(deploy, /npm install --no-save.*playwright/);
   assert.match(deploy, /playwright install --with-deps chromium/);
-  assert.match(deploy, /external URL recorder|External recorder/);
   assert.match(deploy, /8789\/healthz/);
 });
 
-test("external recorder compiles through the canonical State Blueprint contract only", () => {
+test("external recorder compiles through canonical State Blueprint contract only", () => {
   const source = read("server/external-recorder.js");
   assert.match(source, /stateCore\.blankModel\(\)/);
   assert.match(source, /stateCore\.applyCommands\(/);

@@ -5673,6 +5673,7 @@
       <span class="topbar-action-label">Speichern</span>
     </button>
     <button id="btnLoad">Laden</button>
+    <button id="btnRecordUrl" title="Beliebige öffentliche Website aufnehmen">URL aufnehmen</button>
     <button id="btnExport">HTML exportieren</button>
     <button id="btnFit">Einpassen</button>
     <button id="btnRun">App zurücksetzen</button>
@@ -5685,6 +5686,7 @@
       </summary>
       <div class="topbar-menu-panel">
         <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnLoad">Laden</button>
+        <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnRecordUrl">URL aufnehmen</button>
         <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnExport">HTML exportieren</button>
         <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnFit">Einpassen</button>
         <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnRun">App zurücksetzen</button>
@@ -25058,6 +25060,7 @@
 
     document.getElementById("btnSave").onclick = saveDefinitionFile;
     document.getElementById("btnLoad").onclick = requestLoadBlueprintFile;
+    document.getElementById("btnRecordUrl").onclick = () => { location.href = "/recorder.html"; };
     document.getElementById("btnExport").onclick = exportHtmlFile;
     fileLoadEl.onchange = () => loadBlueprintFile(fileLoadEl.files?.[0]);
     btnCanvasUndo.onclick = undoModel;

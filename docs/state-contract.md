@@ -245,6 +245,16 @@ Ein API-Ereignis ist ein echter Trigger und kein `change`-Alias. Ein generischer
   mit dem aktuellen globalen Bus.
 - Reset oder neues Modell verwirft die Aufnahme. Standalone-Export und Preview
   verwenden dieselbe Recorder-Logik.
+- Der externe URL-Recorder ist eine Authoring-Grenze außerhalb von Runtime und Modell.
+  Er bedient eine kurzlebige isolierte Browser-Session für öffentliche `http`/`https`-URLs,
+  zeichnet Klick-, Eingabe-, Tasten-, Scroll- und Navigationsschritte samt Zeitabständen auf
+  und erzeugt nach jedem committed Schritt einen visuellen Snapshot.
+- Beim Abschluss wird die Aufnahme über den kanonischen MCP-Core in ein normales
+  Schema-2-Modell kompiliert. Snapshots sind normale States; Zeitabstände werden als
+  normale `timer`-Transitionen materialisiert. Es gibt keinen Recorder-Shadow-State.
+- Replay bedient die Originalseite über aufgezeichnete Selektoren mit Koordinaten-Fallback.
+  Passwortwerte werden nicht persistiert; private, lokale, Link-Local- und Metadata-Ziele
+  werden serverseitig fail-closed abgewiesen.
 - Der Export enthält JSON vollständig self-contained und optional einen
   kompakten GIF-Ablaufclip. Prozessbericht, PDF-Druckansicht, JSON-Report,
   `runtime.path` und `runtime.pathName` gehören nicht zum Vertrag.
@@ -256,8 +266,10 @@ Ein API-Ereignis ist ein echter Trigger und kein `change`-Alias. Ein generischer
 - `/events` liefert den kanonischen niedrigen Realtime-Katalog.
 - Es gibt keinen Alias `/events/contract`.
 - `/emit` und `/ws` akzeptieren nur katalogisierte Ereignisse.
-- Der Server ist stateless Transport und besitzt weder Prozessmodell noch
-  Runtime-Bus.
+- Der Realtime-Server ist stateless Transport und besitzt weder Prozessmodell noch
+  Runtime-Bus. Der getrennte Recorder-Service besitzt ausschließlich kurzlebige
+  Authoring-Browser-Sessions; sie sind kein Modellbestandteil und beeinflussen den
+  Runtime-Bus nicht.
 - Alle Antworten und statischen App-Dateien verwenden `no-store`; es gibt
   keinen Service-Worker-Fetch-Cache.
 - `server/admin-tools.js` ist die Routenliste. Tests beweisen jede dort
