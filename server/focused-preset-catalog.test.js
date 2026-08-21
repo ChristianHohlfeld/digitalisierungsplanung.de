@@ -36,20 +36,18 @@ test("managed presets remain visible with their category and package metadata", 
   for (const preset of managed) {
     const visible = presets.visiblePresetCatalogResponse().find(candidate => candidate.id === preset.id);
     assert.ok(visible, `${preset.id} should remain visible`);
-    assert.notEqual(visible.categoryId, presets.LEGACY_CATEGORY_ID);
     assert.deepEqual(visible.packages || [], preset.packages || []);
   }
 });
 
-test("legacy built-ins stay available only as hidden compatibility entries", () => {
+test("focused catalog exposes no legacy, hidden or fallback built-ins", () => {
   const catalog = presets.presetCatalogResponse();
-  const legacy = catalog.filter(preset => preset.hidden === true);
-  assert.ok(legacy.length > 0);
-  assert.ok(legacy.every(preset => preset.builtIn !== false));
-  assert.ok(legacy.every(preset => preset.categoryId === presets.LEGACY_CATEGORY_ID));
-  assert.equal(catalog.find(preset => preset.id === "builtin_daisy_accordion")?.hidden, true);
-  assert.equal(presets.visiblePresetCatalogResponse().some(preset => preset.id === "builtin_daisy_accordion"), false);
+  assert.equal(catalog.some(preset => preset.hidden === true), false);
+  assert.equal(catalog.some(preset => preset.legacy === true), false);
+  assert.equal(catalog.some(preset => preset.categoryId === "__legacy_hidden__"), false);
+  assert.equal(catalog.some(preset => preset.id === "builtin_daisy_accordion"), false);
   assert.equal(catalog.some(preset => preset.id === "builtin_daisy_calendar"), false);
+  assert.equal(presets.visiblePresetCatalogResponse().length, catalog.length);
 });
 
 test("typed input presets keep distinct state contracts", () => {
