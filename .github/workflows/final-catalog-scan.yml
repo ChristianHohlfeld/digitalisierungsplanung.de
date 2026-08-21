@@ -13,20 +13,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Inspect exact editor catalog and stale tests
+      - name: Extract exact inspector catalog sources
         shell: bash
         run: |
           set -euo pipefail
-          echo '=== COMPONENT PRESET FUNCTIONS ==='
-          grep -nE 'function componentPresetTypes|componentPresetTypes\(|function .*Preset.*Template|pWidgetLibrary|Bausteinvorlage' state.html | head -n 120 || true
-          echo '=== BAUSTEINE UI ==='
-          sed -n '16140,16330p' state.html
-          echo '=== PRESET TEMPLATE MAPPING ==='
-          sed -n '22180,22370p' state.html
-          echo '=== OLD WIDGET TESTS ==='
-          sed -n '6100,6245p' tests/state-tool.spec.js
-          sed -n '7040,7140p' tests/state-tool.spec.js
-          echo '=== OLD BUILTIN IDS IN TESTS ==='
-          grep -oE 'builtin_daisy_[a-z0-9_]+' tests/state-tool.spec.js | sort | uniq -c | sort -k2 || true
-          echo '=== STALE STORAGE MODEL SEED COUNT ==='
-          grep -cF 'localStorage.setItem(key, JSON.stringify(model));' tests/state-tool.spec.js || true
+          echo '=== componentPresetTypes ==='
+          sed -n '16088,16125p' state.html
+          echo '=== component editor type select ==='
+          sed -n '17460,17520p' state.html
+          echo '=== builtinStateTemplates definition refs ==='
+          grep -n 'function builtinStateTemplates\|const builtinStateTemplates\|builtinStateTemplates =' state.html || true
+          LINE=$(grep -n 'function builtinStateTemplates' state.html | head -n1 | cut -d: -f1 || true)
+          if [[ -n "$LINE" ]]; then START=$((LINE-5)); END=$((LINE+90)); sed -n "${START},${END}p" state.html; fi
+          echo '=== widgetPresetInfo and hidden ==='
+          grep -nE 'function widgetPresetInfo|hidden|legacy' state.html | head -n 180 || true
+          echo '=== stale storage seeds ==='
+          grep -nF 'localStorage.setItem(key, JSON.stringify(model));' tests/state-tool.spec.js | head -n 80 || true
