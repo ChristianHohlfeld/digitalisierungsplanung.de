@@ -16,6 +16,7 @@ const DEFAULT_MAX_ACTIONS = 80;
 const DEFAULT_MAX_BODY_BYTES = 128 * 1024;
 const DEFAULT_SETTLE_MS = 260;
 const MAX_REPLAY_DELAY_MS = 10 * 60 * 1000;
+const DEFAULT_ALLOWED_PRIVATE_HOSTS = Object.freeze(["wobak.de", ".wobak.de"]);
 const ALLOWED_POPUP_TARGET_ORIGINS = new Set([
   "https://digitalisierungsplanung.de",
   "https://www.digitalisierungsplanung.de"
@@ -26,6 +27,37 @@ function recorderError(code, message, statusCode = 400) {
   error.code = code;
   error.statusCode = statusCode;
   return error;
+}
+
+function envList(name, fallback = []) {
+  if (!Object.prototype.hasOwnProperty.call(process.env, name)) return [...fallback];
+  return String(process.env[name] || "")
+    .split(/[\s,]+/)
+    .map(value => value.trim())
+    .filter(Boolean);
+}
+
+function normalizeHostname(value) {
+  return String(value || "").trim().toLowerCase().replace(/\.$/, "");
+}
+
+function hostnameMatchesPattern(hostname, pattern) {
+  const host = normalizeHostname(hostname);
+  const raw = normalizeHostname(pattern);
+  if (!host || !raw) return false;
+  if (raw === "*") return true;
+  if (raw.startsWith("*.") || raw.startsWith(".")) {
+    const suffix = raw.replace(/^\*?\./, "");
+    return host === suffix || host.endsWith("." + suffix);
+  }
+  return host === raw || host.endsWith("." + raw);
+}
+
+function privateHostAllowed(hostname, options = {}) {
+  const allowed = Array.isArray(options.allowedPrivateHosts)
+    ? options.allowedPrivateHosts
+    : envList("RECORDER_ALLOWED_PRIVATE_HOSTS", DEFAULT_ALLOWED_PRIVATE_HOSTS);
+  return allowed.some(pattern => hostnameMatchesPattern(hostname, pattern));
 }
 
 function parseIpv4(address) {
@@ -43,21 +75,17 @@ function inIpv4Cidr(value, base, bits) {
   return (parsed & mask) === (parsedBase & mask);
 }
 
-function isBlockedIp(address) {
+function isSensitiveIp(address) {
   const value = String(address || "").trim().toLowerCase();
   const family = net.isIP(value);
   if (!family) return true;
   if (family === 4) {
     return [
       ["0.0.0.0", 8],
-      ["10.0.0.0", 8],
-      ["100.64.0.0", 10],
       ["127.0.0.0", 8],
       ["169.254.0.0", 16],
-      ["172.16.0.0", 12],
       ["192.0.0.0", 24],
       ["192.0.2.0", 24],
-      ["192.168.0.0", 16],
       ["198.18.0.0", 15],
       ["198.51.100.0", 24],
       ["203.0.113.0", 24],
@@ -66,13 +94,33 @@ function isBlockedIp(address) {
     ].some(([base, bits]) => inIpv4Cidr(value, base, bits));
   }
   const mapped = value.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (mapped) return isBlockedIp(mapped[1]);
+  if (mapped) return isSensitiveIp(mapped[1]);
   if (value === "::" || value === "::1") return true;
-  if (/^(?:fc|fd)[0-9a-f]{2}:/.test(value)) return true;
   if (/^fe[89ab][0-9a-f]:/.test(value)) return true;
   if (/^ff[0-9a-f]{2}:/.test(value)) return true;
   if (/^2001:db8(?::|$)/.test(value)) return true;
   return false;
+}
+
+function isPrivateNetworkIp(address) {
+  const value = String(address || "").trim().toLowerCase();
+  if (net.isIP(value) === 4) {
+    return [
+      ["10.0.0.0", 8],
+      ["100.64.0.0", 10],
+      ["172.16.0.0", 12],
+      ["192.168.0.0", 16]
+    ].some(([base, bits]) => inIpv4Cidr(value, base, bits));
+  }
+  const mapped = value.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  if (mapped) return isPrivateNetworkIp(mapped[1]);
+  return /^(?:fc|fd)[0-9a-f]{2}:/.test(value);
+}
+
+function isBlockedIp(address, options = {}) {
+  if (isSensitiveIp(address)) return true;
+  if (!isPrivateNetworkIp(address)) return false;
+  return options.allowPrivate !== true;
 }
 
 function normalizeLookupResult(result) {
@@ -96,14 +144,17 @@ async function validatePublicUrl(input, options = {}) {
   if (parsed.username || parsed.password) {
     throw recorderError("url_credentials_forbidden", "Credentials in recorder URLs are not allowed.");
   }
-  const hostname = parsed.hostname.toLowerCase().replace(/\.$/, "");
+  const hostname = normalizeHostname(parsed.hostname);
   if (!hostname || hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local")) {
     throw recorderError("private_url_forbidden", "Local/private recorder targets are not allowed.", 403);
   }
+
+  const allowPrivate = privateHostAllowed(hostname, options);
   if (net.isIP(hostname)) {
-    if (isBlockedIp(hostname)) throw recorderError("private_url_forbidden", "Local/private recorder targets are not allowed.", 403);
+    if (isBlockedIp(hostname, { allowPrivate })) throw recorderError("private_url_forbidden", "Local/private recorder targets are not allowed.", 403);
     return parsed.href;
   }
+
   const lookup = options.lookup || dns.promises.lookup.bind(dns.promises);
   let resolved;
   try {
@@ -112,7 +163,7 @@ async function validatePublicUrl(input, options = {}) {
     throw recorderError("url_dns_failed", "Recorder target could not be resolved.", 422);
   }
   const addresses = normalizeLookupResult(resolved);
-  if (!addresses.length || addresses.some(isBlockedIp)) {
+  if (!addresses.length || addresses.some(address => isBlockedIp(address, { allowPrivate }))) {
     throw recorderError("private_url_forbidden", "Local/private recorder targets are not allowed.", 403);
   }
   return parsed.href;
@@ -124,7 +175,7 @@ function actionLabel(action = {}) {
     case "click": return target ? `Klick: ${target}` : "Klick";
     case "input": return action.redacted ? "Eingabe: [geschützt]" : "Eingabe";
     case "key": return `Taste: ${String(action.key || "")}`;
-    case "scroll": return "Scroll";
+    case "scroll": return Number(action.deltaY) < 0 ? "Scroll ↑" : "Scroll ↓";
     case "navigate": return `Navigation: ${String(action.url || "")}`;
     default: return "Weiter";
   }
@@ -133,7 +184,13 @@ function actionLabel(action = {}) {
 function timerDelayMs(action = {}) {
   const value = Number(action.delayMs);
   if (!Number.isFinite(value)) return 300;
-  return Math.max(40, Math.min(MAX_REPLAY_DELAY_MS, Math.round(value)));
+  return Math.max(100, Math.min(MAX_REPLAY_DELAY_MS, Math.round(value)));
+}
+
+function replayActionPayload(action = {}) {
+  const copy = { ...action };
+  delete copy.target;
+  return copy;
 }
 
 function compileRecordingToDefinition(recording, options = {}) {
@@ -249,6 +306,8 @@ function normalizedClientKey(value) {
 
 function createRecorderManager(options = {}) {
   const lookup = options.lookup || dns.promises.lookup.bind(dns.promises);
+  const allowedPrivateHosts = Array.isArray(options.allowedPrivateHosts) ? options.allowedPrivateHosts : envList("RECORDER_ALLOWED_PRIVATE_HOSTS", DEFAULT_ALLOWED_PRIVATE_HOSTS);
+  const targetOptions = { lookup, allowedPrivateHosts };
   const now = options.now || Date.now;
   const ttlMs = Math.max(60_000, Number(options.ttlMs) || DEFAULT_SESSION_TTL_MS);
   const maxSessions = Math.max(1, Number(options.maxSessions) || DEFAULT_MAX_SESSIONS);
@@ -313,7 +372,7 @@ function createRecorderManager(options = {}) {
       try { parsed = new URL(raw); } catch (_) { await route.abort("blockedbyclient"); return; }
       if (["data:", "blob:", "about:"].includes(parsed.protocol)) { await route.continue(); return; }
       try {
-        await validatePublicUrl(raw, { lookup });
+        await validatePublicUrl(raw, targetOptions);
         await route.continue();
       } catch (_) {
         await route.abort("blockedbyclient");
@@ -357,7 +416,7 @@ function createRecorderManager(options = {}) {
     if (activeCountForClient(safeClient) >= maxSessionsPerClient) {
       throw recorderError("recorder_client_capacity", "This client already has an active recorder session.", 429);
     }
-    const safeUrl = await validatePublicUrl(inputUrl, { lookup });
+    const safeUrl = await validatePublicUrl(inputUrl, targetOptions);
     const instance = await browser();
     const context = await instance.newContext({ viewport, ignoreHTTPSErrors: false, javaScriptEnabled: true });
     const page = await context.newPage();
@@ -440,7 +499,7 @@ function createRecorderManager(options = {}) {
       action = beginAction(session, { type, deltaX, deltaY });
       await page.mouse.wheel(deltaX, deltaY);
     } else if (type === "navigate") {
-      const url = await validatePublicUrl(payload.url, { lookup });
+      const url = await validatePublicUrl(payload.url, targetOptions);
       action = beginAction(session, { type, url });
       await page.goto(url, { waitUntil: "domcontentloaded", timeout: 20_000 });
     } else {
@@ -463,11 +522,12 @@ function createRecorderManager(options = {}) {
       ...publicState(session),
       definition: session.definition,
       recording: {
+        kind: "state-blueprint-recording-package",
         version: session.recording.version,
         startUrl: session.recording.startUrl,
         createdAt: session.recording.createdAt,
         viewport: session.recording.viewport,
-        actions: session.recording.actions.map(action => ({ ...action })),
+        actions: session.recording.actions.map(replayActionPayload),
         snapshotCount: session.recording.snapshots.length
       }
     };
@@ -494,7 +554,7 @@ function createRecorderManager(options = {}) {
     if (action.type === "key") { await page.keyboard.press(String(action.key)); return; }
     if (action.type === "scroll") { await page.mouse.wheel(Number(action.deltaX) || 0, Number(action.deltaY) || 0); return; }
     if (action.type === "navigate") {
-      const safeUrl = await validatePublicUrl(action.url, { lookup });
+      const safeUrl = await validatePublicUrl(action.url, targetOptions);
       await page.goto(safeUrl, { waitUntil: "domcontentloaded", timeout: 20_000 });
     }
   }
@@ -506,7 +566,7 @@ function createRecorderManager(options = {}) {
     const page = await context.newPage();
     await guardPage(page);
     try {
-      await page.goto(await validatePublicUrl(session.recording.startUrl, { lookup }), { waitUntil: "domcontentloaded", timeout: 20_000 });
+      await page.goto(await validatePublicUrl(session.recording.startUrl, targetOptions), { waitUntil: "domcontentloaded", timeout: 20_000 });
       for (const action of session.recording.actions) {
         await applyReplayAction(page, action);
         await settlePage(page);
@@ -588,32 +648,7 @@ async function readJsonBody(request, maxBytes = DEFAULT_MAX_BODY_BYTES) {
 }
 
 function recorderHtml() {
-  return `<!doctype html>
-<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Website aufnehmen · Zustand</title>
-<style>
-:root{color-scheme:dark;--bg:#07111d;--panel:#0b1b2a;--line:#20425f;--text:#e6f2ff;--muted:#9fb6cc;--accent:#38bdf8;--ok:#34d399;--bad:#fb7185}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.4 system-ui,sans-serif}main{width:min(1180px,calc(100% - 24px));margin:auto;padding:18px 0 28px}header{display:flex;gap:14px;align-items:end;justify-content:space-between;margin-bottom:14px}h1{margin:0;font-size:24px}p{margin:4px 0;color:var(--muted)}.panel{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:12px;margin-bottom:12px}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}input,button,select{height:40px;border:1px solid var(--line);border-radius:8px;background:#06111f;color:var(--text);font:inherit;padding:0 10px}input[type=url]{flex:1;min-width:260px}#typeText{flex:1;min-width:180px}button{cursor:pointer;font-weight:800}button.primary{background:#0b3a55;border-color:#23729b}button.good{background:#064e3b;border-color:#15966d}button.danger{background:#5f1721;border-color:#a4384a}button:disabled{opacity:.45;cursor:not-allowed}.viewport{position:relative;display:grid;place-items:center;overflow:auto;min-height:320px;background:#020617;border:1px solid var(--line);border-radius:12px}.viewport img{display:block;max-width:100%;height:auto;cursor:crosshair;user-select:none;-webkit-user-drag:none}.status{font-family:ui-monospace,monospace;color:var(--muted)}.ok{color:var(--ok)}.bad{color:var(--bad)}#after{display:none}.hint{font-size:12px;color:var(--muted)}@media(max-width:680px){header{display:block}.row>*{flex:1}button{min-width:90px}}
-</style></head><body><main>
-<header><div><h1>Website aufnehmen</h1><p>Beliebige öffentliche URL durchklicken → States + echte Timer-Transitionen.</p></div><div class="status" id="status">Bereit</div></header>
-<section class="panel"><div class="row"><input id="url" type="url" autocomplete="url" placeholder="https://example.com"><button class="primary" id="start">Aufnahme starten</button></div><div class="hint">Private/localhost/Metadata-Netze sind serverseitig gesperrt. Passwortwerte werden nie gespeichert.</div></section>
-<section class="panel" id="controls" hidden><div class="row"><input id="typeText" type="text" autocomplete="off" placeholder="Text in fokussiertes Feld schreiben"><button id="type">Text senden</button><select id="key"><option>Enter</option><option>Tab</option><option>Escape</option><option>Backspace</option><option>ArrowDown</option><option>ArrowUp</option></select><button id="sendKey">Taste</button><button id="up">↑ Scroll</button><button id="down">↓ Scroll</button><button class="good" id="finish">Fertig → States</button><button class="danger" id="cancel">Abbrechen</button></div></section>
-<section class="viewport" id="viewport"><div class="status">URL eingeben und Aufnahme starten.</div></section>
-<section class="panel" id="after"><div class="row"><button class="good" id="import">In Zustand übernehmen</button><button id="replay">Original-Website automatisch replayen</button><button id="download">JSON laden</button></div><div class="hint" id="summary"></div></section>
-</main><script>
-const q=new URLSearchParams(location.search);const allowed=new Set(["https://digitalisierungsplanung.de","https://www.digitalisierungsplanung.de"]);const targetOrigin=allowed.has(q.get("targetOrigin"))?q.get("targetOrigin"):"https://digitalisierungsplanung.de";
-const status=document.getElementById("status"),viewport=document.getElementById("viewport"),controls=document.getElementById("controls"),after=document.getElementById("after");let session=null,definition=null;
-function setStatus(text,ok=true){status.textContent=text;status.className="status "+(ok?"ok":"bad")}
-async function api(path,body,method="POST"){const r=await fetch(path,{method,headers:{"content-type":"application/json"},body:body===undefined?undefined:JSON.stringify(body),cache:"no-store"});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.message||data.error||("HTTP "+r.status));return data}
-function render(data){session=data.sessionId||session;const shot=data.current;if(!shot?.image)return;viewport.innerHTML="";const img=new Image();img.src=shot.image;img.alt=shot.title||shot.url||"Website";img.dataset.w=String(data.viewport?.width||1024);img.dataset.h=String(data.viewport?.height||640);img.addEventListener("click",async e=>{if(!session)return;const r=img.getBoundingClientRect();const x=Math.round((e.clientX-r.left)/r.width*Number(img.dataset.w));const y=Math.round((e.clientY-r.top)/r.height*Number(img.dataset.h));try{setStatus("Klick …");render(await api("/recorder/sessions/"+encodeURIComponent(session)+"/actions",{type:"click",x,y}));setStatus("Aufnahme · "+(data.actionCount+1)+" Aktionen")}catch(err){setStatus(err.message,false)}});viewport.appendChild(img)}
-document.getElementById("start").onclick=async()=>{try{setStatus("Öffne Browser …");const data=await api("/recorder/sessions",{url:document.getElementById("url").value});render(data);controls.hidden=false;setStatus("Aufnahme läuft")}catch(err){setStatus(err.message,false)}};
-document.getElementById("type").onclick=async()=>{try{const el=document.getElementById("typeText");render(await api("/recorder/sessions/"+encodeURIComponent(session)+"/actions",{type:"input",text:el.value}));el.value="";setStatus("Eingabe aufgenommen")}catch(err){setStatus(err.message,false)}};
-document.getElementById("sendKey").onclick=async()=>{try{render(await api("/recorder/sessions/"+encodeURIComponent(session)+"/actions",{type:"key",key:document.getElementById("key").value}));setStatus("Taste aufgenommen")}catch(err){setStatus(err.message,false)}};
-for(const [id,dy] of [["up",-520],["down",520]])document.getElementById(id).onclick=async()=>{try{render(await api("/recorder/sessions/"+encodeURIComponent(session)+"/actions",{type:"scroll",deltaY:dy,deltaX:0}));setStatus("Scroll aufgenommen")}catch(err){setStatus(err.message,false)}};
-document.getElementById("finish").onclick=async()=>{try{setStatus("Kompiliere States …");const data=await api("/recorder/sessions/"+encodeURIComponent(session)+"/finish",{});definition=data.definition;controls.hidden=true;after.style.display="block";document.getElementById("summary").textContent=data.recording.actions.length+" Aktionen · "+data.recording.snapshotCount+" States · Timer-Timings übernommen";setStatus("FSM erzeugt");}catch(err){setStatus(err.message,false)}};
-document.getElementById("import").onclick=()=>{if(!definition)return;window.opener?.postMessage({type:"STATE_BLUEPRINT_EXTERNAL_RECORDING_RESULT",definition,sessionId:session},targetOrigin);setStatus("An Zustand übergeben")};
-document.getElementById("replay").onclick=async()=>{try{setStatus("Replay läuft …");const data=await api("/recorder/sessions/"+encodeURIComponent(session)+"/replay",{});viewport.innerHTML='<img alt="Replay result" style="max-width:100%" src="'+data.image+'">';setStatus("Replay: "+data.actionCount+" Aktionen")}catch(err){setStatus(err.message,false)}};
-document.getElementById("download").onclick=()=>{if(!definition)return;const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(definition,null,2)],{type:"application/json"}));a.download="website-recording.json";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
-document.getElementById("cancel").onclick=async()=>{if(session)await api("/recorder/sessions/"+encodeURIComponent(session),undefined,"DELETE").catch(()=>{});window.close()};
-</script></body></html>`;
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Website aufnehmen · Zustand</title><style>:root{color-scheme:dark;--bg:#07111d;--panel:#0b1b2a;--line:#20425f;--text:#e6f2ff;--muted:#9fb6cc;--accent:#38bdf8;--ok:#34d399;--bad:#fb7185}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.4 system-ui,sans-serif}main{width:min(1180px,calc(100% - 24px));margin:auto;padding:18px 0 28px}header{display:flex;gap:14px;align-items:end;justify-content:space-between;margin-bottom:14px}h1{margin:0;font-size:24px}p{margin:4px 0;color:var(--muted)}.panel{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:12px;margin-bottom:12px}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}input,button,select{height:40px;border:1px solid var(--line);border-radius:8px;background:#06111f;color:var(--text);font:inherit;padding:0 10px}input[type=url]{flex:1;min-width:260px}#typeText{flex:1;min-width:180px}button{cursor:pointer;font-weight:800}button.primary{background:#0b3a55;border-color:#23729b}button.good{background:#064e3b;border-color:#15966d}button.danger{background:#5f1721;border-color:#a4384a}button:disabled{opacity:.45;cursor:not-allowed}.viewport{position:relative;display:grid;place-items:center;overflow:auto;min-height:320px;background:#020617;border:1px solid var(--line);border-radius:12px}.viewport img{display:block;max-width:100%;height:auto;cursor:crosshair;user-select:none;-webkit-user-drag:none}.status{font-family:ui-monospace,monospace;color:var(--muted)}.ok{color:var(--ok)}.bad{color:var(--bad)}#after{display:none}.hint{font-size:12px;color:var(--muted)}@media(max-width:680px){header{display:block}.row>*{flex:1}button{min-width:90px}}</style></head><body><main><header><div><h1>Website aufnehmen</h1><p>Öffentliche oder freigegebene Intranet-URL durchklicken → States + echte Timer-Transitionen.</p></div><div class="status" id="status">Bereit</div></header><section class="panel"><div class="row"><input id="url" type="url" autocomplete="url" placeholder="https://wob-app15.wobak.de/de/cockpit"><button class="primary" id="start">Aufnahme starten</button></div><div class="hint">Freigegebene Intranet-Hosts sind erlaubt; localhost, Link-Local und Metadata-Netze bleiben gesperrt. Passwortwerte werden nie gespeichert.</div></section><section class="panel" id="controls" hidden><div class="row"><input id="typeText" type="text" autocomplete="off" placeholder="Text in fokussiertes Feld schreiben"><button id="type">Text senden</button><select id="key"><option>Enter</option><option>Tab</option><option>Escape</option><option>Backspace</option><option>ArrowDown</option><option>ArrowUp</option></select><button id="sendKey">Taste</button><button id="up">↑ Scroll</button><button id="down">↓ Scroll</button><button class="good" id="finish">Fertig → States</button><button class="danger" id="cancel">Abbrechen</button></div></section><section class="viewport" id="viewport"><div class="status">URL eingeben und Aufnahme starten.</div></section><section class="panel" id="after"><div class="row"><button class="good" id="import">In Zustand übernehmen</button><button id="replay">Original-Website automatisch replayen</button><button id="download">JSON laden</button></div><div class="hint" id="summary"></div></section></main><script>const q=new URLSearchParams(location.search);const allowed=new Set(["https://digitalisierungsplanung.de","https://www.digitalisierungsplanung.de"]);const targetOrigin=allowed.has(q.get("targetOrigin"))?q.get("targetOrigin"):"https://digitalisierungsplanung.de";const status=document.getElementById("status"),viewport=document.getElementById("viewport"),controls=document.getElementById("controls"),after=document.getElementById("after");let session=null,definition=null;function setStatus(text,ok=true){status.textContent=text;status.className="status "+(ok?"ok":"bad")}async function api(path,body,method="POST"){const r=await fetch(path,{method,headers:{"content-type":"application/json"},body:body===undefined?undefined:JSON.stringify(body),cache:"no-store"});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.message||data.error||("HTTP "+r.status));return data}function render(data){session=data.sessionId||session;const shot=data.current;if(!shot?.image)return;viewport.innerHTML="";const img=new Image();img.src=shot.image;img.alt=shot.title||shot.url||"Website";img.dataset.w=String(data.viewport?.width||1024);img.dataset.h=String(data.viewport?.height||640);img.addEventListener("click",async e=>{if(!session)return;const r=img.getBoundingClientRect();const x=Math.round((e.clientX-r.left)/r.width*Number(img.dataset.w));const y=Math.round((e.clientY-r.top)/r.height*Number(img.dataset.h));try{setStatus("Klick …");render(await api("/recorder/sessions/"+encodeURIComponent(session)+"/actions",{type:"click",x,y}));setStatus("Aufnahme · Klick aufgenommen")}catch(err){setStatus(err.message,false)}});viewport.appendChild(img)}document.getElementById("start").onclick=async()=>{try{setStatus("Öffne Browser …");const data=await api("/recorder/sessions",{url:document.getElementById("url").value});render(data);controls.hidden=false;setStatus("Aufnahme läuft")}catch(err){setStatus(err.message,false)}};document.getElementById("type").onclick=async()=>{try{const el=document.getElementById("typeText");render(await api("/recorder/sessions/"+encodeURIComponent(session)+"/actions",{type:"input",text:el.value}));el.value="";setStatus("Eingabe aufgenommen")}catch(err){setStatus(err.message,false)}};document.getElementById("sendKey").onclick=async()=>{try{render(await api("/recorder/sessions/"+encodeURIComponent(session)+"/actions",{type:"key",key:document.getElementById("key").value}));setStatus("Taste aufgenommen")}catch(err){setStatus(err.message,false)}};for(const [id,dy] of [["up",-520],["down",520]])document.getElementById(id).onclick=async()=>{try{render(await api("/recorder/sessions/"+encodeURIComponent(session)+"/actions",{type:"scroll",deltaY:dy,deltaX:0}));setStatus("Scroll aufgenommen")}catch(err){setStatus(err.message,false)}};document.getElementById("finish").onclick=async()=>{try{setStatus("Kompiliere States …");const data=await api("/recorder/sessions/"+encodeURIComponent(session)+"/finish",{});definition=data.definition;controls.hidden=true;after.style.display="block";document.getElementById("summary").textContent=data.recording.actions.length+" Aktionen · "+data.recording.snapshotCount+" States · Timer-Timings übernommen";setStatus("FSM erzeugt")}catch(err){setStatus(err.message,false)}};document.getElementById("import").onclick=()=>{if(!definition)return;window.opener?.postMessage({type:"STATE_BLUEPRINT_EXTERNAL_RECORDING_RESULT",definition,sessionId:session},targetOrigin);setStatus("An Zustand übergeben")};document.getElementById("replay").onclick=async()=>{try{setStatus("Replay läuft …");const data=await api("/recorder/sessions/"+encodeURIComponent(session)+"/replay",{});viewport.innerHTML='<img alt="Replay result" style="max-width:100%" src="'+data.image+'">';setStatus("Replay: "+data.actionCount+" Aktionen")}catch(err){setStatus(err.message,false)}};document.getElementById("download").onclick=()=>{if(!definition)return;const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(definition,null,2)],{type:"application/json"}));a.download="website-recording.json";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};document.getElementById("cancel").onclick=async()=>{if(session)await api("/recorder/sessions/"+encodeURIComponent(session),undefined,"DELETE").catch(()=>{});window.close()};</script></body></html>`;
 }
 
 function matchesRecorderPath(pathname) {
@@ -641,6 +676,7 @@ async function handleRecorderRequest(request, response, url, options = {}) {
       "access-control-allow-origin": String(request.headers.origin || publicBaseUrl || "*"),
       "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
       "access-control-allow-headers": "content-type",
+      "access-control-max-age": "600",
       "vary": "Origin"
     });
     response.end();
@@ -692,7 +728,10 @@ module.exports = {
   RECORDER_PAGE_PATH,
   RECORDER_API_PREFIX,
   DEFAULT_VIEWPORT,
+  DEFAULT_ALLOWED_PRIVATE_HOSTS,
   isBlockedIp,
+  isPrivateNetworkIp,
+  privateHostAllowed,
   validatePublicUrl,
   compileRecordingToDefinition,
   createRecorderManager,
