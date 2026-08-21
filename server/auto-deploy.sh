@@ -9,6 +9,7 @@ REPO_URL="${REPO_URL:-https://github.com/ChristianHohlfeld/digitalisierungsplanu
 ENV_FILE="${ENV_FILE:-/etc/digitalisierungsplanung-realtime.env}"
 PM2_APP="${PM2_APP:-digitalisierungsplanung-realtime}"
 RECORDER_PM2_APP="${RECORDER_PM2_APP:-digitalisierungsplanung-recorder}"
+RECORDER_PUBLIC_BASE_URL="${RECORDER_PUBLIC_BASE_URL:-https://realtime.digitalisierungsplanung.de}"
 STATE_DIR="${STATE_DIR:-/var/lib/digitalisierungsplanung}"
 LOCK_FILE="${LOCK_FILE:-/run/lock/digitalisierungsplanung-auto-deploy.lock}"
 MARKER_FILE="${MARKER_FILE:-${STATE_DIR}/deployed-release.env}"
@@ -20,7 +21,7 @@ HEALTH_RETRY_DELAY="${HEALTH_RETRY_DELAY:-1}"
 AUTO_DEPLOY_INTERVAL="${AUTO_DEPLOY_INTERVAL:-60s}"
 SERVICE_NAME="digitalisierungsplanung-auto-deploy"
 
-export APP_DIR ENV_FILE PM2_APP RECORDER_PM2_APP
+export APP_DIR ENV_FILE PM2_APP RECORDER_PM2_APP RECORDER_PUBLIC_BASE_URL
 
 log() {
   printf '[auto-deploy] %s\n' "$*"
@@ -51,6 +52,7 @@ validate_settings() {
   [[ "$MARKER_FILE" =~ ^/[a-zA-Z0-9._/-]+$ ]] || { printf 'MARKER_FILE must be a simple absolute path.\n' >&2; exit 1; }
   [[ "$DEPLOY_RUNNER" =~ ^/[a-zA-Z0-9._/-]+$ ]] || { printf 'DEPLOY_RUNNER must be a simple absolute path.\n' >&2; exit 1; }
   [[ "$BRANCH" =~ ^[a-zA-Z0-9._/-]+$ ]] || { printf 'Invalid BRANCH.\n' >&2; exit 1; }
+  [[ "$RECORDER_PUBLIC_BASE_URL" =~ ^https://[a-zA-Z0-9._:-]+/?$ ]] || { printf 'RECORDER_PUBLIC_BASE_URL must be an https origin.\n' >&2; exit 1; }
   [[ "$AUTO_DEPLOY_INTERVAL" =~ ^[0-9]+(s|min|h)$ ]] || { printf 'Invalid AUTO_DEPLOY_INTERVAL.\n' >&2; exit 1; }
   [[ "$UPDATE_ATTEMPTS" =~ ^[1-9][0-9]*$ ]] || { printf 'Invalid UPDATE_ATTEMPTS.\n' >&2; exit 1; }
   [[ "$UPDATE_RETRY_DELAY" =~ ^[0-9]+$ ]] || { printf 'Invalid UPDATE_RETRY_DELAY.\n' >&2; exit 1; }
@@ -181,6 +183,15 @@ recorder_health_ok() {
   ' <<<"$payload"
 }
 
+cors_headers_are_valid() {
+  local headers="$1"
+  headers="${headers//$'\r'/}"
+  grep -Eq '^HTTP/[^ ]+ 204([[:space:]]|$)' <<<"$headers" || return 1
+  grep -Eqi '^access-control-allow-origin:[[:space:]]*https://digitalisierungsplanung\.de[[:space:]]*$' <<<"$headers" || return 1
+  grep -Eqi '^access-control-allow-methods:.*POST' <<<"$headers" || return 1
+  grep -Eqi '^access-control-allow-headers:.*content-type' <<<"$headers" || return 1
+}
+
 recorder_cors_preflight_ok() {
   local headers
   headers="$(curl -sS -D - -o /dev/null --max-time 5 \
@@ -188,11 +199,17 @@ recorder_cors_preflight_ok() {
     -H 'Origin: https://digitalisierungsplanung.de' \
     -H 'Access-Control-Request-Method: POST' \
     -H 'Access-Control-Request-Headers: content-type' 2>/dev/null)" || return 1
-  headers="${headers//$'\r'/}"
-  grep -Eq '^HTTP/[^ ]+ 204([[:space:]]|$)' <<<"$headers" || return 1
-  grep -Eqi '^access-control-allow-origin:[[:space:]]*https://digitalisierungsplanung\.de[[:space:]]*$' <<<"$headers" || return 1
-  grep -Eqi '^access-control-allow-methods:.*POST' <<<"$headers" || return 1
-  grep -Eqi '^access-control-allow-headers:.*content-type' <<<"$headers" || return 1
+  cors_headers_are_valid "$headers"
+}
+
+recorder_public_cors_preflight_ok() {
+  local headers
+  headers="$(curl -sS -D - -o /dev/null --max-time 8 \
+    -X OPTIONS "${RECORDER_PUBLIC_BASE_URL%/}/recorder/sessions" \
+    -H 'Origin: https://digitalisierungsplanung.de' \
+    -H 'Access-Control-Request-Method: POST' \
+    -H 'Access-Control-Request-Headers: content-type' 2>/dev/null)" || return 1
+  cors_headers_are_valid "$headers"
 }
 
 verify_release() {
@@ -202,7 +219,7 @@ verify_release() {
   pm2_app_is_online "$RECORDER_PM2_APP" || return 1
   local attempt
   for attempt in $(seq 1 "$HEALTH_ATTEMPTS"); do
-    if health_reports_release "$expected" && recorder_health_ok && recorder_cors_preflight_ok; then
+    if health_reports_release "$expected" && recorder_health_ok && recorder_cors_preflight_ok && recorder_public_cors_preflight_ok; then
       return 0
     fi
     sleep "$HEALTH_RETRY_DELAY"
@@ -254,6 +271,7 @@ REPO_URL=${REPO_URL}
 ENV_FILE=${ENV_FILE}
 PM2_APP=${PM2_APP}
 RECORDER_PM2_APP=${RECORDER_PM2_APP}
+RECORDER_PUBLIC_BASE_URL=${RECORDER_PUBLIC_BASE_URL}
 STATE_DIR=${STATE_DIR}
 LOCK_FILE=${LOCK_FILE}
 MARKER_FILE=${MARKER_FILE}
@@ -313,7 +331,12 @@ show_status() {
   curl -fsS http://127.0.0.1:8788/version || true
   printf '\nrecorder health:\n'
   curl -fsS http://127.0.0.1:8789/healthz || true
-  printf '\n'
+  printf '\nrecorder public CORS preflight:\n'
+  if recorder_public_cors_preflight_ok; then
+    printf 'ok\n'
+  else
+    printf 'failed\n'
+  fi
   systemctl --no-pager status "${SERVICE_NAME}.timer" 2>/dev/null || true
 }
 
