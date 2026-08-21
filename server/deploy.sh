@@ -19,6 +19,10 @@ NGINX_ENABLED="/etc/nginx/sites-enabled/${DOMAIN}"
 NGINX_BOOTSTRAP_AVAILABLE="/etc/nginx/sites-available/${DOMAIN}.bootstrap"
 RECORDER_NGINX_SNIPPET="/etc/nginx/snippets/digitalisierungsplanung-recorder.conf"
 PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-/var/lib/digitalisierungsplanung/playwright}"
+DEPLOY_ENSURE_SWAP="${DEPLOY_ENSURE_SWAP:-1}"
+DEPLOY_SWAP_FILE="${DEPLOY_SWAP_FILE:-/swapfile}"
+DEPLOY_SWAP_SIZE_MB="${DEPLOY_SWAP_SIZE_MB:-2048}"
+DEPLOY_SWAP_MIN_AVAILABLE_MB="${DEPLOY_SWAP_MIN_AVAILABLE_MB:-900}"
 
 export APP_DIR ENV_FILE PM2_APP PLAYWRIGHT_BROWSERS_PATH
 
@@ -41,12 +45,44 @@ retry() {
   done
 }
 
+available_memory_mb() {
+  awk '/MemAvailable:/ { print int($2 / 1024); found=1 } END { if (!found) print 0 }' /proc/meminfo
+}
+
+active_swap_mb() {
+  awk 'NR > 1 { total += $3 } END { print int(total / 1024) }' /proc/swaps
+}
+
+ensure_deploy_swap() {
+  [[ "$DEPLOY_ENSURE_SWAP" == "1" ]] || return 0
+  local available swap
+  available="$(available_memory_mb)"
+  swap="$(active_swap_mb)"
+  if (( available + swap >= DEPLOY_SWAP_MIN_AVAILABLE_MB )); then
+    return 0
+  fi
+  log "Ensuring ${DEPLOY_SWAP_SIZE_MB}MB swap at ${DEPLOY_SWAP_FILE} for Playwright browser install."
+  if [[ ! -f "$DEPLOY_SWAP_FILE" ]]; then
+    if ! fallocate -l "${DEPLOY_SWAP_SIZE_MB}M" "$DEPLOY_SWAP_FILE"; then
+      dd if=/dev/zero of="$DEPLOY_SWAP_FILE" bs=1M count="$DEPLOY_SWAP_SIZE_MB"
+    fi
+    chmod 600 "$DEPLOY_SWAP_FILE"
+  fi
+  if ! swapon --show=NAME --noheadings 2>/dev/null | grep -Fxq "$DEPLOY_SWAP_FILE"; then
+    swapon "$DEPLOY_SWAP_FILE" 2>/dev/null || { mkswap "$DEPLOY_SWAP_FILE" && swapon "$DEPLOY_SWAP_FILE"; }
+  fi
+}
+
 if [[ "$(id -u)" -ne 0 ]]; then
   printf 'Run as root.\n' >&2
   exit 1
 fi
 if [[ ! "$HEALTH_ATTEMPTS" =~ ^[1-9][0-9]*$ || ! "$HEALTH_RETRY_DELAY" =~ ^[0-9]+$ ]]; then
   printf 'Invalid health retry settings.\n' >&2
+  exit 1
+fi
+if [[ ! "$DEPLOY_SWAP_SIZE_MB" =~ ^[1-9][0-9]*$ || ! "$DEPLOY_SWAP_MIN_AVAILABLE_MB" =~ ^[1-9][0-9]*$ ]]; then
+  printf 'Invalid swap settings.\n' >&2
   exit 1
 fi
 
@@ -112,9 +148,10 @@ fi
 log "Deploying ${ZUSTAND_RELEASE_ID} from ${ZUSTAND_DEPLOY_COMMIT}."
 retry 3 5 npm ci --omit=dev
 install -d -m 755 /var/lib/digitalisierungsplanung "$PLAYWRIGHT_BROWSERS_PATH"
+ensure_deploy_swap
 log "Installing pinned Playwright runtime for external URL recorder."
-retry 2 5 npx playwright install --with-deps chromium
-RECORDER_CHROMIUM="$(node -e 'process.stdout.write(require("playwright").chromium.executablePath())')"
+retry 2 5 env PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" node ./node_modules/playwright/cli.js install --with-deps chromium
+RECORDER_CHROMIUM="$(env PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" node -e 'process.stdout.write(require("playwright").chromium.executablePath())')"
 if [[ ! -x "$RECORDER_CHROMIUM" ]]; then
   printf 'Recorder Chromium executable is missing: %s\n' "$RECORDER_CHROMIUM" >&2
   exit 1
