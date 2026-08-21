@@ -64,7 +64,7 @@ test("rule builder keeps composed OR listeners readable", () => {
     { field: "states.checkbox_a.checked", operator: "==", value: true },
     { field: "realtime.sip.call.incoming.detail.caller", operator: "==", value: "+491234" }
   ], "or");
-  assert.equal(condition, "states.checkbox_a.checked == true || realtime.sip.call.incoming.detail.caller == +491234");
+  assert.equal(condition, "states.checkbox_a.checked == true || realtime.sip.call.incoming.detail.caller == \"+491234\"");
   assert.deepEqual(parseCondition(condition).rules.map(rule => rule.field), [
     "states.checkbox_a.checked",
     "realtime.sip.call.incoming.detail.caller"
