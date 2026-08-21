@@ -1,0 +1,29 @@
+name: Patch smart recorder
+on:
+  push:
+    branches:
+      - fix/smart-recorder-routing-206
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/smart-recorder-routing-206
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node scripts/_patch-smart-recorder.mjs
+      - name: Commit generated source
+        run: |
+          if git diff --quiet -- state.html server/external-recorder.js server/smart-recorder-routing.test.js; then
+            echo "already patched"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state.html server/external-recorder.js server/smart-recorder-routing.test.js
+          git commit -m "Auto-route recorder between desktop and cloud"
+          git push origin HEAD:fix/smart-recorder-routing-206
