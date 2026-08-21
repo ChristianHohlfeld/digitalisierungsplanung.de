@@ -77,7 +77,7 @@ jobs:
                 stored: localStorage.getItem(key),
                 bodyStart: document.body.innerText.slice(0,1800),
                 scripts: Array.from(document.scripts).map(s => ({src:s.src, type:s.type, len:(s.textContent||'').length})).slice(-12)
-              }), key);
+              }), STORAGE_KEY);
               console.log(label, JSON.stringify(data));
             }
             await snapshot('SNAPSHOT_BEFORE');
