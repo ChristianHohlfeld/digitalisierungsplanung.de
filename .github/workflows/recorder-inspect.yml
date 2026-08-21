@@ -14,30 +14,37 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Extract integration source context
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Extract canonical model shapes
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          def extracts(path, terms, before=1400, after=3200, limit=160):
-              src=Path(path).read_text()
-              out=[]; seen=[]
-              for term in terms:
-                  for m in re.finditer(term, src, re.I):
-                      pos=m.start()
-                      if any(abs(pos-p)<1000 for p in seen): continue
-                      seen.append(pos)
-                      out.append(f'\n===== {path} :: {term} @ {pos} =====\n'+src[max(0,pos-before):min(len(src),pos+after)])
-              return '\n'.join(out[:limit])
-          state_terms=[r'runtimeRecorderControls', r'runtimeRecording =', r'function runtimeRecorderCaptureFrame', r'function runtimeRecorderStart', r'function runtimeRecorderStop', r'function runtimeRecorderPlay', r'bindRuntimeRecorderControls', r'postRuntimePayload', r'window\.addEventListener\([\"\']message', r'STATE_BLUEPRINT_RUNTIME_STATE', r'function validateModel', r'function save', r'function addState', r'model\.states\.push', r'definition', r'import', r'normalizeModel', r'setModel', r'persist']
-          server_terms=[r'function createRealtimeServer', r'http\.createServer', r'request\.method', r'DEFAULT_MCP_PATH', r'function readJsonBody', r'writeJson', r'module\.exports', r'healthz']
-          Path('.tmp-recorder-state.txt').write_text(extracts('state.html', state_terms))
-          Path('.tmp-recorder-server.txt').write_text(extracts('server/server.js', server_terms, 1100, 3400))
-          PY
+          node <<'NODE'
+          const fs = require('node:fs');
+          const core = require('./mcp/state-blueprint-core');
+          const sample = {
+            version: 2,
+            name: 'Recorded flow',
+            initial: 'step_1',
+            states: [
+              { id: 'step_1', title: 'Click Login', components: [{ id: 'c1', type: 'text', text: 'Click #login', url: '' }], data: { action: 'click', url: 'https://example.com/', selector: '#login', delayMs: 350 }, dataTypes: { action: 'text', url: 'text', selector: 'text', delayMs: 'number' }, x: 120, y: 120 },
+              { id: 'wait_1', title: 'Wait 350 ms', components: [{ id: 'c2', type: 'note', text: 'Recorded delay: 350 ms', url: '' }], x: 360, y: 120 },
+              { id: 'step_2', title: 'Navigate', components: [{ id: 'c3', type: 'text', text: 'Navigate', url: '' }], x: 600, y: 120 }
+            ],
+            transitions: [
+              { id: 't_1_wait', from: 'step_1', to: 'wait_1', label: 'Click Login', condition: '', triggerType: 'auto', triggerEvent: '', timerMs: 0, set: {} },
+              { id: 't_1_next', from: 'wait_1', to: 'step_2', label: '350 ms', condition: '', triggerType: 'timer', triggerEvent: '', timerMs: 350, set: {} }
+            ]
+          };
+          const normalized = core.normalizeModel(sample);
+          const validation = core.validateModel(sample);
+          const definition = core.definitionPayload(sample, [], {});
+          fs.writeFileSync('.tmp-model-shape.json', JSON.stringify({ blank: core.blankModel(), normalized, validation: { ok: validation.ok, issues: validation.issues, model: validation.model }, definition }, null, 2));
+          NODE
       - name: Commit inspection output
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .tmp-recorder-state.txt .tmp-recorder-server.txt
-          git commit -m "chore: inspect recorder host integration" || exit 0
+          git add .tmp-model-shape.json
+          git commit -m "chore: inspect canonical recorder model" || exit 0
           git push
