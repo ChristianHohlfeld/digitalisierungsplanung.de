@@ -1,26 +1,184 @@
-name: External recorder CI
+name: Integrate external recorder
 
 on:
   push:
     branches:
       - feature/external-url-recorder
-  pull_request:
-    branches:
-      - main
+
+permissions:
+  contents: write
 
 jobs:
-  server-tests:
+  integrate:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
+      - name: Patch product integration
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+
+          def replace_once(path, old, new, label):
+              p = Path(path)
+              text = p.read_text()
+              if new in text:
+                  return
+              if old not in text:
+                  raise SystemExit(f"missing marker for {label} in {path}")
+              p.write_text(text.replace(old, new, 1))
+
+          # Server route + lazy recorder manager.
+          replace_once(
+              'server/server.js',
+              'const agentWidget = require("./agent-widget");',
+              'const agentWidget = require("./agent-widget");\nconst externalRecorder = require("./external-recorder");',
+              'external recorder require'
+          )
+          replace_once(
+              'server/server.js',
+              '  const rooms = new Map();',
+              '  const rooms = new Map();\n  const recorderManager = options.recorderManager || externalRecorder.createRecorderManager(options.externalRecorder || {});',
+              'recorder manager'
+          )
+          replace_once(
+              'server/server.js',
+              '    const url = new URL(request.url || "/", "http://localhost");\n    if (request.method === "GET" && url.pathname === "/healthz") {',
+              '    const url = new URL(request.url || "/", "http://localhost");\n    if (externalRecorder.matchesRecorderPath(url.pathname)) {\n      void externalRecorder.handleRecorderRequest(request, response, url, {\n        manager: recorderManager,\n        allowedOrigins: config.allowedOrigins,\n        publicBaseUrl: publicBaseUrl(request)\n      });\n      return;\n    }\n    if (request.method === "GET" && url.pathname === "/healthz") {',
+              'recorder route'
+          )
+
+          # Production browser path and installation.
+          replace_once(
+              'server/ecosystem.config.cjs',
+              '        ZUSTAND_DEPLOY_COMMIT: process.env.ZUSTAND_DEPLOY_COMMIT || ""',
+              '        ZUSTAND_DEPLOY_COMMIT: process.env.ZUSTAND_DEPLOY_COMMIT || "",\n        PLAYWRIGHT_BROWSERS_PATH: process.env.PLAYWRIGHT_BROWSERS_PATH || `${stateDir}/playwright`',
+              'playwright env'
+          )
+          replace_once(
+              'server/deploy.sh',
+              'retry 3 5 npm ci --omit=dev\n',
+              'retry 3 5 npm ci --omit=dev\nexport PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-/var/lib/digitalisierungsplanung/playwright}"\ninstall -d -m 755 "$PLAYWRIGHT_BROWSERS_PATH"\nif [[ "${RECORDER_BROWSER_INSTALL:-1}" == "1" ]]; then\n  log "Ensuring Chromium for external URL recorder."\n  retry 2 5 npx playwright install --with-deps chromium\nfi\n',
+              'playwright production install'
+          )
+
+          # Editor entry point + strict cross-origin popup result channel.
+          replace_once(
+              'state.html',
+              '    <button id="btnLoad">Laden</button>\n    <button id="btnExport">HTML exportieren</button>',
+              '    <button id="btnLoad">Laden</button>\n    <button id="btnRecordUrl" title="Beliebige Website durchklicken und als State-Ablauf übernehmen">URL aufnehmen</button>\n    <button id="btnExport">HTML exportieren</button>',
+              'recorder topbar button'
+          )
+          listener_marker = '    window.addEventListener("message", evt => {\n      const data = evt.data || {};\n      if (!hostAcceptsRuntimeMessage(evt, data)) return;'
+          listener_insert = '''    const EXTERNAL_RECORDER_ORIGIN = "https://realtime.digitalisierungsplanung.de";
+    let externalRecorderWindow = null;
+
+    function openExternalUrlRecorder() {
+      const targetOrigin = encodeURIComponent(location.origin);
+      const recorderUrl = EXTERNAL_RECORDER_ORIGIN + "/recorder.html?targetOrigin=" + targetOrigin;
+      try {
+        externalRecorderWindow = window.open(recorderUrl, "zustand-external-recorder", "popup,width=1220,height=900,resizable=yes,scrollbars=yes");
+        if (externalRecorderWindow) {
+          try { externalRecorderWindow.focus(); } catch (_) {}
+          return true;
+        }
+      } catch (_) {}
+      modalAlert("Der Browser hat das Recorder-Fenster blockiert. Bitte Pop-ups für diese Seite erlauben.", "Recorder blockiert");
+      return false;
+    }
+
+    window.addEventListener("message", evt => {
+      if (evt.origin !== EXTERNAL_RECORDER_ORIGIN || evt.source !== externalRecorderWindow) return;
+      const data = evt.data || {};
+      if (data.type !== "STATE_BLUEPRINT_EXTERNAL_RECORDING_RESULT") return;
+      try {
+        const definition = data.definition;
+        if (!definition || definition.kind !== "state-blueprint-definition" || definition.schemaVersion !== 2 || definition.app !== "Zustand") {
+          throw new Error("Recorder returned an invalid State Blueprint definition.");
+        }
+        if (!Array.isArray(definition.stateTemplates) || definition.stateTemplates.length) {
+          throw new Error("Recorder definition must not contain local state templates.");
+        }
+        const importedModel = validateModelDefinition(definition.model);
+        loadEditorModel(importedModel, true);
+        externalRecorderWindow = null;
+        modalAlert("Website-Aufnahme wurde als State-Ablauf übernommen.", "Recorder importiert");
+      } catch (err) {
+        modalAlert(err?.message || "Die Website-Aufnahme konnte nicht übernommen werden.", "Recorder-Import fehlgeschlagen");
+      }
+    });
+
+'''
+          replace_once('state.html', listener_marker, listener_insert + listener_marker, 'recorder result listener')
+          replace_once(
+              'state.html',
+              '    document.getElementById("btnSave").onclick = saveDefinitionFile;\n    document.getElementById("btnLoad").onclick = requestLoadBlueprintFile;\n    document.getElementById("btnExport").onclick = exportHtmlFile;',
+              '    document.getElementById("btnSave").onclick = saveDefinitionFile;\n    document.getElementById("btnLoad").onclick = requestLoadBlueprintFile;\n    document.getElementById("btnRecordUrl").onclick = openExternalUrlRecorder;\n    document.getElementById("btnExport").onclick = exportHtmlFile;',
+              'recorder button binding'
+          )
+
+          # Contract: recorder is authoring transport, generated model stays canonical.
+          replace_once(
+              'docs/state-contract.md',
+              '- Reset oder neues Modell verwirft die Aufnahme. Standalone-Export und Preview\n  verwenden dieselbe Recorder-Logik.\n',
+              '- Reset oder neues Modell verwirft die Aufnahme. Standalone-Export und Preview\n  verwenden dieselbe Recorder-Logik.\n- Der externe URL-Recorder ist eine Authoring-Grenze außerhalb des Modells: Er bedient eine\n  isolierte Browser-Session, erfasst echte Klick-/Eingabe-/Scroll-/Navigationsaktionen mit\n  Zeitabständen und kompiliert den Abschluss ausschließlich in ein normales Schema-2-Modell.\n  Die erzeugte FSM besitzt keine Recorder-Sonderfelder; ihre Wiedergabe nutzt normale\n  State-/Transition-Semantik. Passwortwerte werden nicht persistiert.\n',
+              'recorder contract documentation'
+          )
+
+          # Browser contract source assertions. Keep them narrow and deterministic.
+          tests = Path('tests/core-contracts.spec.js')
+          t = tests.read_text()
+          marker = 'test.describe("Core source contracts", () => {'
+          addition = '''test.describe("External URL recorder host contract", () => {
+  test("editor exposes recorder launcher and strict import channel @smoke", () => {
+    const html = stateHtml();
+    expect(html).toContain('id="btnRecordUrl"');
+    expect(html).toContain('https://realtime.digitalisierungsplanung.de');
+    expect(html).toContain('STATE_BLUEPRINT_EXTERNAL_RECORDING_RESULT');
+    expect(html).toContain('evt.origin !== EXTERNAL_RECORDER_ORIGIN');
+    expect(html).toContain('evt.source !== externalRecorderWindow');
+    expect(html).toContain('validateModelDefinition(definition.model)');
+  });
+});
+
+'''
+          if addition not in t:
+              if marker not in t:
+                  raise SystemExit('missing core contract insertion marker')
+              tests.write_text(t.replace(marker, addition + marker, 1))
+
+          # Remove abandoned extension prototype and all inspection artifacts.
+          for path in [
+              Path('external-recorder'),
+              Path('.tmp-recorder-host.txt'), Path('.tmp-recorder-inspect.txt'),
+              Path('.tmp-recorder-server.txt'), Path('.tmp-recorder-state.txt')
+          ]:
+              if path.is_dir():
+                  import shutil; shutil.rmtree(path)
+              elif path.exists():
+                  path.unlink()
+          PY
+
+          npm install --package-lock-only --save-exact playwright@1.60.0
+
       - name: Install dependencies
         run: npm ci
-      - name: External recorder syntax
-        run: node --check server/external-recorder.js && node --check external-recorder/compiler.js
-      - name: Server tests
+      - name: Syntax checks
+        run: node --check server/external-recorder.js && node --check server/server.js
+      - name: Server contracts
         run: npm run test:server
+      - name: Focused browser contracts
+        run: npx playwright test tests/core-contracts.spec.js --grep "External URL recorder host contract|APP_HTML string keeps nested script end tags escaped|generated self-contained app script stays syntactically valid" --reporter=line
+      - name: Commit integrated recorder
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Integrate external URL recorder" || exit 0
+          git push
