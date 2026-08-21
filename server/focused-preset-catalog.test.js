@@ -41,8 +41,6 @@ const BLOCKED_PRESET_IDS = [
   "builtin_daisy_toggle"
 ];
 
-const BLOCKED_COMPONENT_TYPES = ["text", "list", "link", "note", "divider"];
-
 function contract() {
   return productContract.productContractResponse(eventCatalog.DEFAULT_EVENT_CATALOG);
 }
@@ -54,7 +52,6 @@ test("all preset surfaces contain exactly the 13 supported built-ins", () => {
   assert.deepEqual(presets.visiblePresetCatalogResponse().map(preset => preset.id), EXPECTED_IDS);
   assert.deepEqual(presets.contractPresetCatalogResponse().map(preset => preset.id), EXPECTED_IDS);
   assert.deepEqual(presets.builtinStateTemplates().map(preset => preset.id), EXPECTED_IDS);
-
   assert.deepEqual(contract().presets.map(preset => preset.id), EXPECTED_IDS);
 });
 
@@ -87,7 +84,6 @@ test("typed input presets keep distinct state contracts", () => {
     ["builtin_daisy_input_email", "input_email", "email", "email"],
     ["builtin_daisy_input_password", "input_password", "password", "text"]
   ];
-
   for (const [id, rootStateId, inputType, valueType] of cases) {
     const preset = byId.get(id);
     assert.ok(preset, id + " missing");
@@ -105,21 +101,18 @@ test("date, header and image use the existing renderer primitives", () => {
   assert.equal(byId.get("builtin_media_image")?.components[0]?.type, "image");
 });
 
-test("inspector bootstrap prunes legacy Darstellung component dropdown options", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "disable-sw.js"), "utf8");
-  assert.match(source, /STATE_BLUEPRINT_FOCUSED_INSPECTOR_CONTRACT/);
-  assert.match(source, /FOCUSED_COMPONENT_TYPES = Object\.freeze\(\["heading", "image"\]\)/);
-  assert.match(source, /componentPresetTypes = \(\) => \[\.\.\.FOCUSED_COMPONENT_TYPES\]/);
-  for (const type of BLOCKED_COMPONENT_TYPES) {
-    assert.doesNotMatch(source, new RegExp(`focusedOption\\("${type}"`));
-  }
+test("focused inspector is native and service-worker cleanup no longer patches product UI", () => {
+  const cleanup = fs.readFileSync(path.join(__dirname, "..", "disable-sw.js"), "utf8");
+  const editor = fs.readFileSync(path.join(__dirname, "..", "state.html"), "utf8");
+  assert.doesNotMatch(cleanup, /STATE_BLUEPRINT_FOCUSED_INSPECTOR_CONTRACT|componentPresetTypes|MutationObserver|RuleBuilder/);
+  assert.match(editor, /Trigger-Kontext/);
+  assert.match(editor, /Filter \/ Regeln/);
 });
 
 test("inspector semantics keep state trigger context separate from transition listener", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "disable-sw.js"), "utf8");
-  assert.match(source, /STATE_BLUEPRINT_INSPECTOR_SEMANTICS/);
-  assert.match(source, /State-Trigger/);
-  assert.match(source, /Der State bestimmt den Trigger-Kontext/);
-  assert.match(source, /Transition lauscht auf Signal/);
-  assert.match(source, /Die Transition filtert einfach: Feld, Operator, Wert/);
+  const editor = fs.readFileSync(path.join(__dirname, "..", "state.html"), "utf8");
+  assert.match(editor, /Trigger-Kontext/);
+  assert.match(editor, /Lauscht auf/);
+  assert.match(editor, /Worauf lauscht diese Kante im State-Kontext/);
+  assert.match(editor, /ruleJoin/);
 });
