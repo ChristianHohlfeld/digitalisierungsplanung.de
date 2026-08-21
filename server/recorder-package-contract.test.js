@@ -36,7 +36,7 @@ test("external website recording keeps the editor model contract-valid and carri
       { label: "Klick: Suche", triggerType: "timer", timerMs: 430 },
       { label: "Eingabe", triggerType: "timer", timerMs: 710 },
       { label: "Taste: Enter", triggerType: "timer", timerMs: 280 },
-      { label: "Scroll", triggerType: "timer", timerMs: 900 }
+      { label: "Scroll ↓", triggerType: "timer", timerMs: 900 }
     ]
   );
 });
