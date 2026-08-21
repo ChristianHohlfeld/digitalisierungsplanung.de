@@ -189,16 +189,7 @@ function presetCatalogResponse(libraryValue) {
   const focused = focusedCatalog(libraryValue);
   const focusedIds = new Set(FOCUSED_PRESET_IDS);
   const consumedSourceIds = new Set(FOCUSED_SPECS.map(spec => spec.sourceId));
-  const sourceCatalog = base.presetCatalogResponse(libraryValue);
-
-  // The focused surface applies only to shipped built-ins. Managed/customer
-  // presets remain first-class catalog entries and must keep their category.
-  const managed = sourceCatalog
-    .filter(preset => preset.builtIn === false)
-    .map(cloneJson);
-
-  const legacy = sourceCatalog
-    .filter(preset => preset.builtIn !== false)
+  const legacy = base.presetCatalogResponse(libraryValue)
     .filter(preset => !focusedIds.has(preset.id) && !consumedSourceIds.has(preset.id))
     .map(preset => ({
       ...cloneJson(preset),
@@ -206,7 +197,7 @@ function presetCatalogResponse(libraryValue) {
       legacy: true,
       categoryId: LEGACY_CATEGORY_ID
     }));
-  return [...focused, ...managed, ...legacy];
+  return [...focused, ...legacy];
 }
 
 function visiblePresetCatalogResponse(libraryValue) {
