@@ -35,7 +35,7 @@ test("production runs recorder separately and proxies only recorder API to it", 
   assert.match(nginx, /127\.0\.0\.1:8789/);
   assert.match(deploy, /playwright@1\.60\.0/);
   assert.match(deploy, /playwright install --with-deps chromium/);
-  assert.match(deploy, /external-recorder/);
+  assert.match(deploy, /external URL recorder|External recorder/);
   assert.match(deploy, /8789\/healthz/);
 });
 
