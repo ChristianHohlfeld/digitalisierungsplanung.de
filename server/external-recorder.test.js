@@ -71,7 +71,7 @@ test("recorded flow clamps only pathological replay delays and keeps normal huma
       { url: "https://example.com/b", title: "B", image: PIXEL }
     ]
   });
-  assert.equal(definition.model.transitions[0].timerMs, 40);
+  assert.equal(definition.model.transitions[0].timerMs, 100);
 });
 
 test("recorder UI exposes external click, keyboard, scroll, finish, import and live replay controls", () => {

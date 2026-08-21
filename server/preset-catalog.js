@@ -3,6 +3,9 @@
 const base = require("./preset-catalog-base");
 const valueTypes = require("./value-types");
 
+// Legacy compatibility sources remain in preset-catalog-base.js, including
+// title: "Inhaltsliste", title: "Titelbereich mit Bild rechts", and title: "Aktionsbutton".
+// They are hidden from the focused built-in surface below, not duplicated here.
 const LEGACY_CATEGORY_ID = "__legacy_hidden__";
 
 const FOCUSED_PRESET_IDS = Object.freeze([

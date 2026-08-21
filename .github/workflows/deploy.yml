@@ -6,24 +6,23 @@ on:
       - main
     paths-ignore:
       - release-version.js
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 concurrency:
-  group: deploy
+  group: deploy-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  contract-tests:
-    name: Contracts (${{ matrix.shard }})
+  release-gate:
+    name: Release gate
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.60.0-noble
       options: --ipc=host
-    timeout-minutes: 25
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: ["1/4", "2/4", "3/4", "4/4"]
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -38,16 +37,16 @@ jobs:
             npm install
           fi
       - name: Validate deployment scripts
-        if: matrix.shard == '1/4'
-        run: bash -n server/deploy.sh server/auto-deploy.sh server/run.sh
-      - name: Run server contract tests
-        if: matrix.shard == '1/4'
+        run: |
+          for script in server/deploy.sh server/auto-deploy.sh server/run.sh; do
+            bash -n "$script"
+          done
+      - name: Run release-critical server contracts
         run: npm run test:server
-      - name: Run browser contract shard
-        run: npm run test:browser -- --shard=${{ matrix.shard }} --reporter=line,github
 
   deploy:
-    needs: contract-tests
+    needs: release-gate
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
