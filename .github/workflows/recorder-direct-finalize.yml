@@ -1,0 +1,105 @@
+name: Recorder direct finalize
+
+on:
+  push:
+    branches:
+      - feature/external-url-recorder
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Patch final recorder contract
+        run: |
+          git fetch origin main
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, re, shutil, subprocess
+
+          def replace_once(path, old, new, label):
+              p = Path(path)
+              text = p.read_text()
+              if new in text:
+                  return
+              if old not in text:
+                  raise SystemExit(f"missing marker {label} in {path}")
+              p.write_text(text.replace(old, new, 1))
+
+          Path('disable-sw.js').write_text(subprocess.check_output(['git','show','origin/main:disable-sw.js'], text=True))
+
+          replace_once('state.html',
+            '    <button id="btnLoad">Laden</button>\n    <button id="btnExport">HTML exportieren</button>',
+            '    <button id="btnLoad">Laden</button>\n    <button id="btnRecordUrl" title="Beliebige öffentliche Website aufnehmen">URL aufnehmen</button>\n    <button id="btnExport">HTML exportieren</button>',
+            'desktop button')
+          replace_once('state.html',
+            '        <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnLoad">Laden</button>\n        <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnExport">HTML exportieren</button>',
+            '        <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnLoad">Laden</button>\n        <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnRecordUrl">URL aufnehmen</button>\n        <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnExport">HTML exportieren</button>',
+            'mobile button')
+          replace_once('state.html',
+            '    document.getElementById("btnLoad").onclick = requestLoadBlueprintFile;\n    document.getElementById("btnExport").onclick = exportHtmlFile;',
+            '    document.getElementById("btnLoad").onclick = requestLoadBlueprintFile;\n    document.getElementById("btnRecordUrl").onclick = () => { location.href = "/recorder.html"; };\n    document.getElementById("btnExport").onclick = exportHtmlFile;',
+            'button binding')
+
+          package_path = Path('package.json')
+          package = json.loads(package_path.read_text())
+          package.setdefault('dependencies', {})['playwright'] = '1.60.0'
+          package_path.write_text(json.dumps(package, indent=2) + '\n')
+
+          deploy_path = Path('server/deploy.sh')
+          deploy = deploy_path.read_text().replace('retry 3 5 npm install --no-save --package-lock=false --omit=dev playwright@1.60.0\n','')
+          deploy_path.write_text(deploy)
+
+          replace_once('docs/state-contract.md',
+            '- Reset oder neues Modell verwirft die Aufnahme. Standalone-Export und Preview\n  verwenden dieselbe Recorder-Logik.\n- Der Export enthält JSON vollständig self-contained und optional einen',
+            '- Reset oder neues Modell verwirft die Aufnahme. Standalone-Export und Preview\n  verwenden dieselbe Recorder-Logik.\n- Der externe URL-Recorder ist eine Authoring-Grenze außerhalb von Runtime und Modell.\n  Er bedient eine kurzlebige isolierte Browser-Session für öffentliche `http`/`https`-URLs,\n  zeichnet Klick-, Eingabe-, Tasten-, Scroll- und Navigationsschritte samt Zeitabständen auf\n  und erzeugt nach jedem committed Schritt einen visuellen Snapshot.\n- Beim Abschluss wird die Aufnahme über den kanonischen MCP-Core in ein normales\n  Schema-2-Modell kompiliert. Snapshots sind normale States; Zeitabstände werden als\n  normale `timer`-Transitionen materialisiert. Es gibt keinen Recorder-Shadow-State.\n- Replay bedient die Originalseite über aufgezeichnete Selektoren mit Koordinaten-Fallback.\n  Passwortwerte werden nicht persistiert; private, lokale, Link-Local- und Metadata-Ziele\n  werden serverseitig fail-closed abgewiesen.\n- Der Export enthält JSON vollständig self-contained und optional einen',
+            'recorder contract')
+          replace_once('docs/state-contract.md',
+            '- Der Server ist stateless Transport und besitzt weder Prozessmodell noch\n  Runtime-Bus.\n',
+            '- Der Realtime-Server ist stateless Transport und besitzt weder Prozessmodell noch\n  Runtime-Bus. Der getrennte Recorder-Service besitzt ausschließlich kurzlebige\n  Authoring-Browser-Sessions; sie sind kein Modellbestandteil und beeinflussen den\n  Runtime-Bus nicht.\n',
+            'server boundary')
+
+          api_path = Path('docs/realtime-api.md')
+          api = api_path.read_text()
+          if '## External URL Recorder' not in api:
+              api += '\n\n## External URL Recorder\n\n`/recorder.html` ist die statische Authoring-Oberfläche. Sie nutzt `https://realtime.digitalisierungsplanung.de/recorder/sessions`: `POST /recorder/sessions` startet eine kurzlebige Browser-Session, `POST /recorder/sessions/:id/actions` führt `click`, `input`, `key`, `scroll` oder Navigation aus, `POST /recorder/sessions/:id/finish` kompiliert in eine kanonische State-Blueprint-Definition, `POST /recorder/sessions/:id/replay` spielt den Originalablauf ab und `DELETE /recorder/sessions/:id` verwirft die Session. Private Ziele und URL-Credentials sind verboten; Passwortwerte werden nicht gespeichert.\n'
+              api_path.write_text(api)
+
+          test_path = Path('server/external-recorder-integration.test.js')
+          test = test_path.read_text()
+          test = test.replace('  const host = read("disable-sw.js");', '  const host = read("state.html");')
+          test = test.replace('  assert.match(host, /location\\.href = "\\/recorder\\.html"/);', '  assert.match(host, /location\\.href = "\\/recorder\\.html"/);\n  assert.doesNotMatch(read("disable-sw.js"), /btnRecordUrl/);')
+          test = test.replace('  assert.match(deploy, /playwright@1\\.60\\.0/);\n  assert.match(deploy, /playwright install --with-deps chromium/);', '  assert.equal(require("../package.json").dependencies.playwright, "1.60.0");\n  assert.doesNotMatch(deploy, /npm install --no-save.*playwright/);\n  assert.match(deploy, /playwright install --with-deps chromium/);')
+          test_path.write_text(test)
+
+          ext = Path('external-recorder')
+          if ext.exists(): shutil.rmtree(ext)
+          PY
+          npm install --package-lock-only --ignore-scripts
+      - name: Commit patched product files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- disable-sw.js state.html package.json package-lock.json server/deploy.sh docs/state-contract.md docs/realtime-api.md server/external-recorder-integration.test.js
+          git add -u -- external-recorder || true
+          git commit -m "Finalize external URL recorder integration"
+          git push
+      - name: Install and test
+        run: |
+          npm ci
+          node --check server/external-recorder.js
+          node --check server/recorder-run.js
+          npm run test:server
+          npx playwright install --with-deps chromium
+          npx playwright test tests/core-contracts.spec.js --grep "APP_HTML string keeps nested script end tags escaped|generated self-contained app script stays syntactically valid" --reporter=line
