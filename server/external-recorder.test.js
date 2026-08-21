@@ -8,7 +8,7 @@ const stateCore = require("../mcp/state-blueprint-core");
 
 const PIXEL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
 
-test("external recorder blocks local, private and metadata-style targets", () => {
+test("external recorder blocks local, private and metadata-style targets by default", () => {
   for (const ip of ["127.0.0.1", "10.1.2.3", "172.16.0.1", "192.168.1.1", "169.254.169.254", "100.64.0.1", "::1", "fc00::1", "fe80::1"]) {
     assert.equal(recorder.isBlockedIp(ip), true, ip);
   }
@@ -17,7 +17,7 @@ test("external recorder blocks local, private and metadata-style targets", () =>
   }
 });
 
-test("external recorder validates every hostname through DNS and rejects any private resolution", async () => {
+test("external recorder validates every hostname through DNS and rejects any unapproved private resolution", async () => {
   const publicLookup = async () => [{ address: "93.184.216.34", family: 4 }];
   const mixedLookup = async () => [{ address: "93.184.216.34", family: 4 }, { address: "127.0.0.1", family: 4 }];
   assert.equal(await recorder.validatePublicUrl("https://example.com/a", { lookup: publicLookup }), "https://example.com/a");
@@ -32,6 +32,27 @@ test("external recorder validates every hostname through DNS and rejects any pri
   await assert.rejects(
     recorder.validatePublicUrl("file:///etc/passwd", { lookup: publicLookup }),
     error => error.code === "invalid_url_scheme"
+  );
+});
+
+test("approved intranet hostnames can resolve to private addresses without opening arbitrary LAN targets", async () => {
+  const intranetLookup = async () => [{ address: "10.10.0.42", family: 4 }];
+  const metadataLookup = async () => [{ address: "169.254.169.254", family: 4 }];
+
+  assert.equal(
+    await recorder.validatePublicUrl("https://wob-app15.wobak.de/de/cockpit", { lookup: intranetLookup }),
+    "https://wob-app15.wobak.de/de/cockpit"
+  );
+  assert.equal(recorder.privateHostAllowed("wob-app15.wobak.de"), true);
+  assert.equal(recorder.privateHostAllowed("evil.example"), false);
+
+  await assert.rejects(
+    recorder.validatePublicUrl("https://evil.example/", { lookup: intranetLookup }),
+    error => error.code === "private_url_forbidden" && error.statusCode === 403
+  );
+  await assert.rejects(
+    recorder.validatePublicUrl("https://wob-app15.wobak.de/", { lookup: metadataLookup }),
+    error => error.code === "private_url_forbidden" && error.statusCode === 403
   );
 });
 
@@ -78,6 +99,7 @@ test("recorded flow clamps only pathological replay delays and keeps normal huma
 test("recorder UI exposes external click, keyboard, scroll, finish, import and live replay controls", () => {
   const html = recorder.recorderHtml();
   assert.match(html, /Website aufnehmen/);
+  assert.match(html, /freigegebene Intranet/);
   assert.match(html, /\/recorder\/sessions/);
   assert.match(html, /STATE_BLUEPRINT_EXTERNAL_RECORDING_RESULT/);
   assert.match(html, /Original-Website automatisch replayen/);
