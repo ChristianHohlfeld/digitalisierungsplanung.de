@@ -37,6 +37,9 @@ jobs:
           else
             npm install
           fi
+      - name: Validate deployment scripts
+        if: matrix.shard == '1/4'
+        run: bash -n server/deploy.sh server/auto-deploy.sh server/run.sh
       - name: Run server contract tests
         if: matrix.shard == '1/4'
         run: npm run test:server
