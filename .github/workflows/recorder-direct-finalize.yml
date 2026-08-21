@@ -1,4 +1,5 @@
 name: Recorder direct finalize
+# rerun after merge
 
 on:
   push:
