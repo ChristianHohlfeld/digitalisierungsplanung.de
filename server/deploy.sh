@@ -113,7 +113,6 @@ log "Deploying ${ZUSTAND_RELEASE_ID} from ${ZUSTAND_DEPLOY_COMMIT}."
 retry 3 5 npm ci --omit=dev
 install -d -m 755 /var/lib/digitalisierungsplanung "$PLAYWRIGHT_BROWSERS_PATH"
 log "Installing pinned Playwright runtime for external URL recorder."
-retry 3 5 npm install --no-save --package-lock=false --omit=dev playwright@1.60.0
 retry 2 5 npx playwright install --with-deps chromium
 RECORDER_CHROMIUM="$(node -e 'process.stdout.write(require("playwright").chromium.executablePath())')"
 if [[ ! -x "$RECORDER_CHROMIUM" ]]; then
