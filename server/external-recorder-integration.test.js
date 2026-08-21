@@ -25,7 +25,15 @@ test("external recorder UI uses isolated realtime browser API and canonical edit
   assert.match(html, /Timings als Timer-Transitionen/);
 });
 
-test("production runs recorder separately with declared browser runtime and health checks", () => {
+test("recorder service owns CORS preflight before recorder request handling", () => {
+  const runner = read("server/recorder-run.js");
+  assert.match(runner, /access-control-allow-origin/);
+  assert.match(runner, /access-control-max-age/);
+  assert.match(runner, /request\.method === "OPTIONS"/);
+  assert.match(runner, /response\.statusCode = 204/);
+});
+
+test("production runs recorder separately with declared browser runtime and public preflight health checks", () => {
   const ecosystem = read("server/ecosystem.config.cjs");
   const nginx = read("server/nginx/recorder.locations.conf");
   const deploy = read("server/deploy.sh");
@@ -39,6 +47,10 @@ test("production runs recorder separately with declared browser runtime and heal
   assert.doesNotMatch(deploy, /npm install --no-save.*playwright/);
   assert.match(deploy, /playwright install --with-deps chromium/);
   assert.match(deploy, /8789\/healthz/);
+  assert.match(deploy, /Access-Control-Request-Method: POST/);
+  assert.match(deploy, /Access-Control-Allow-Origin/);
+  assert.match(deploy, /recorder\/sessions/);
+  assert.match(deploy, /--resolve/);
 });
 
 test("external recorder compiles through canonical State Blueprint contract only", () => {
