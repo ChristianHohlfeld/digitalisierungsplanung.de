@@ -4,28 +4,36 @@ on:
   push:
     branches:
       - focus/minimal-presets
-  pull_request:
-    branches:
-      - main
-  workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Inspect focused preset touch points
+        with:
+          ref: focus/minimal-presets
+      - name: Capture focused source snippets once
         shell: bash
         run: |
           set -euxo pipefail
-          echo '--- input renderer matches ---'
-          grep -n -C 12 'variant === "input"' state.html || true
-          echo '--- state.title matches ---'
-          grep -n -C 5 'state\.title' state.html | head -n 240 || true
-          echo '--- title editor candidates ---'
-          grep -n -E -C 5 'state.*title|title.*state|State.*Titel|Titel.*State' state.html | head -n 320 || true
-          echo '--- preset UI candidates ---'
-          grep -n -E -C 4 'preset|Preset' state.html | head -n 240 || true
+          if [ -f .tmp-focus-inspect.txt ]; then
+            exit 0
+          fi
+          {
+            echo '--- input renderer matches ---'
+            grep -n -C 24 'variant === "input"' state.html || true
+            echo '--- state.title matches ---'
+            grep -n -C 12 'state\.title' state.html | head -n 500 || true
+            echo '--- title editor candidates ---'
+            grep -n -E -C 12 'State.*Titel|Titel.*State|state.*title|title.*state|contenteditable' state.html | head -n 700 || true
+            echo '--- state update / save candidates ---'
+            grep -n -E -C 8 'updateState|saveState|persist|scheduleSave|markDirty|render.*State|activeState|selectedState' state.html | head -n 900 || true
+          } > .tmp-focus-inspect.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .tmp-focus-inspect.txt
+          git commit -m 'chore: capture focused source snippets'
+          git push origin HEAD:focus/minimal-presets
