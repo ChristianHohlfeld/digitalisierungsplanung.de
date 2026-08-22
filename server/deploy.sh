@@ -125,15 +125,6 @@ if ! grep -q '^REALTIME_MCP_SECRET=' "$ENV_FILE"; then
 fi
 install -d -m 700 /var/lib/digitalisierungsplanung
 
-# One-shot cleanup of artifacts introduced after the pre-focus baseline.
-log "Removing post-focus recorder runtime artifacts."
-pm2 delete digitalisierungsplanung-recorder >/dev/null 2>&1 || true
-rm -f /etc/nginx/snippets/digitalisierungsplanung-recorder.conf
-rm -rf /var/lib/digitalisierungsplanung/playwright
-if [[ -f "$ENV_FILE" ]]; then
-  sed -i '/^RECORDER_/d;/^PLAYWRIGHT_BROWSERS_PATH=/d' "$ENV_FILE"
-fi
-
 pm2 startOrReload server/ecosystem.config.cjs --update-env
 pm2 save
 if ! systemctl list-unit-files pm2-root.service --no-legend 2>/dev/null | grep -q '^pm2-root.service'; then
