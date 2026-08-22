@@ -3,6 +3,7 @@
 const appDir = process.env.APP_DIR || "/var/www/digitalisierungsplanung.de";
 const appName = process.env.PM2_APP || "digitalisierungsplanung-flow-runtime";
 const stateDir = process.env.STATE_BLUEPRINT_STATE_DIR || "/var/lib/digitalisierungsplanung";
+const envFile = process.env.ENV_FILE || process.env.REALTIME_ENV_FILE || "/etc/digitalisierungsplanung-realtime.env";
 
 module.exports = {
   apps: [{
@@ -18,6 +19,7 @@ module.exports = {
       NODE_ENV: "production",
       APP_HOST: "127.0.0.1",
       APP_PORT: "8788",
+      REALTIME_ENV_FILE: envFile,
       ALLOWED_ORIGINS: "https://digitalisierungsplanung.de,https://www.digitalisierungsplanung.de",
       PLAYWRIGHT_BROWSERS_PATH: process.env.PLAYWRIGHT_BROWSERS_PATH || `${stateDir}/playwright`,
       RECORDER_SESSION_TTL_MS: process.env.RECORDER_SESSION_TTL_MS || "900000",
