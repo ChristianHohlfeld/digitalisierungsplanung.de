@@ -3,30 +3,20 @@
   "private": true,
   "type": "commonjs",
   "scripts": {
-    "build:index": "node scripts/build-index.mjs",
     "build:pwa-assets": "node scripts/build-pwa-assets.mjs",
     "build:release-version": "node scripts/write-release-version.mjs --increment",
     "server:start": "node server/server.js",
-    "server:smoke:wss": "node server/wss-smoke.js",
-    "server:smoke:wss:prod": "node server/wss-smoke.js --force-ip=198.199.83.43",
-    "server:smoke:emit": "node server/emit-smoke.js",
-    "server:smoke:emit:prod": "node server/emit-smoke.js --force-ip=198.199.83.43",
     "test": "npm run test:server && playwright test --grep @smoke --reporter=list",
     "test:server": "node --test server/*.test.js",
     "test:browser": "playwright test",
-    "test:contracts": "playwright test tests/core-contracts.spec.js --reporter=list",
-    "test:state-explorer": "playwright test tests/state-tool.spec.js --grep \"drops state explorer presets|stores reusable states|adds and uses state explorer presets|updates, deletes|reuses state explorer presets|keeps state editor focus\" --reporter=list",
-    "test:state-render": "playwright test tests/core-contracts.spec.js --grep \"component data rendering|repeat sources|data wires drive|state editor keeps|state data card|render field picker|state data workflow|repeat over\" --reporter=list && playwright test tests/state-tool.spec.js --grep \"renders state data defaults|state data defaults flow|inspects JSON endpoints|keeps data-wire paths|shows outgoing transition buttons\" --reporter=list",
     "test:full": "npm run test:server && npm run test:browser",
     "test:headed": "playwright test --headed",
-    "test:ui": "playwright test --ui",
-    "mcp:state": "node mcp/state-blueprint-server.js"
+    "test:ui": "playwright test --ui"
   },
   "devDependencies": {
-    "@playwright/test": "^1.52.0"
+    "@playwright/test": "1.60.0"
   },
   "dependencies": {
-    "parse5": "6.0.1",
-    "ws": "^8.21.0"
+    "playwright": "1.60.0"
   }
 }

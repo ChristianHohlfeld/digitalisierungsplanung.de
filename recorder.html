@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#07111d">
+  <title>Website aufnehmen · Zustand</title>
+  <style>
+    :root{color-scheme:dark;--bg:#07111d;--panel:#0b1b2a;--line:#20425f;--text:#e6f2ff;--muted:#9fb6cc;--accent:#38bdf8;--ok:#34d399;--bad:#fb7185}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;background:var(--bg);color:var(--text);font:14px/1.4 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    main{width:min(1180px,calc(100% - 20px));margin:auto;padding:10px 0 calc(18px + env(safe-area-inset-bottom))}header{display:flex;gap:12px;align-items:end;justify-content:space-between;margin-bottom:10px}h1{margin:0;font-size:20px}p{margin:3px 0;color:var(--muted)}
+    .panel{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:10px;margin-bottom:10px}.row{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+    input,button,select{min-height:38px;border:1px solid var(--line);border-radius:8px;background:#06111f;color:var(--text);font:inherit;padding:7px 10px}input[type=url]{flex:1;min-width:230px}#typeText{flex:1;min-width:170px}button{cursor:pointer;font-weight:850}button.primary{background:#0b3a55;border-color:#23729b}button.good{background:#064e3b;border-color:#15966d}button.danger{background:#5f1721;border-color:#a4384a}button:disabled{opacity:.45;cursor:not-allowed}
+    .viewport{position:relative;display:grid;place-items:center;overflow:auto;min-height:320px;background:#020617;border:1px solid var(--line);border-radius:12px;touch-action:pan-x pan-y}.viewport img{display:block;max-width:100%;height:auto;cursor:crosshair;user-select:none;-webkit-user-drag:none}.status{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--muted)}.ok{color:var(--ok)}.bad{color:var(--bad)}.hint{font-size:12px;color:var(--muted)}.metric{font-weight:850;color:#bfdbfe}.pill{border:1px solid var(--line);border-radius:999px;padding:2px 8px;color:#bfdbfe;background:#06111f;font-size:12px}
+    #after,.timeline-panel{display:none}.timeline{display:flex;gap:6px;overflow-x:auto;padding-top:8px}.timeline-item{flex:0 0 auto;border:1px solid rgba(49,95,140,.45);border-radius:999px;padding:5px 9px;background:#06111f;color:#bfdbfe;font-size:12px}.timeline-item.active{border-color:var(--ok);color:#dcfce7}.timeline-item.failed{border-color:var(--bad);color:#ffe4e6}
+    body.embedded main{width:100%;padding:0}body.embedded header,body.embedded main>section.panel:first-of-type{display:none}body.embedded .viewport{border-radius:0;border-inline:0;min-height:360px}body.embedded #controls,body.embedded #after{margin:0;border-radius:0;border-inline:0}
+    @media(max-width:680px){header{display:block}.row>*{flex:1 1 auto}input[type=url],#typeText{min-width:100%}.viewport{min-height:260px}}
+  </style>
+</head>
+<body>
+<main>
+  <header><div><h1>Website aufnehmen</h1><p>Echte Browser-Aktionen → State-Chart → verifizierter Replay.</p></div><div class="status" id="status">Bereit</div></header>
+  <section class="panel">
+    <div class="row"><input id="url" type="url" inputmode="url" autocomplete="url" placeholder="https://example.com"><button class="primary" id="start">Aufnahme starten</button></div>
+    <div class="hint">Die Website läuft in einem isolierten Chromium. Private Netze bleiben gesperrt; Passwortwerte werden nie gespeichert.</div>
+  </section>
+  <section class="panel" id="controls" hidden>
+    <div class="row"><input id="typeText" type="text" autocomplete="off" placeholder="Text in das fokussierte Website-Feld"><button id="type">Text senden</button><select id="key" aria-label="Taste"><option>Enter</option><option>Tab</option><option>Escape</option><option>Backspace</option><option>Delete</option><option>ArrowDown</option><option>ArrowUp</option></select><button id="sendKey">Taste</button><button id="up">↑ Scroll</button><button id="down">↓ Scroll</button><button class="good" id="finish">Fertig</button><button class="danger" id="cancel">Abbrechen</button></div>
+  </section>
+  <section class="viewport" id="viewport"><div class="status">URL eingeben und Aufnahme starten.</div></section>
+  <section class="panel timeline-panel" id="timelinePanel"><div class="row"><span class="pill" id="timelineCount">0 Aktionen</span><span class="pill" id="stateCount">0 States</span></div><div class="timeline" id="timeline"></div></section>
+  <section class="panel" id="after">
+    <div class="row"><button class="good" id="import">State-Chart übernehmen</button><button id="playReplay">Echten Replay starten</button><button id="stopReplay" disabled>Replay stoppen</button><button id="download">Export</button><button id="newRecording">Neu</button></div>
+    <div class="hint" id="summary"></div>
+  </section>
+</main>
+<script>
+(() => {
+  "use strict";
+  const q = new URLSearchParams(location.search);
+  const allowedParents = new Set(["https://digitalisierungsplanung.de", "https://www.digitalisierungsplanung.de", "http://127.0.0.1:8124", "http://localhost:8124"]);
+  const requestedParent = q.get("parentOrigin") || "";
+  const parentOrigin = allowedParents.has(requestedParent) ? requestedParent : "https://digitalisierungsplanung.de";
+  const apiBase = /(^|\.)digitalisierungsplanung\.de$/i.test(location.hostname) && location.hostname !== "realtime.digitalisierungsplanung.de" ? "https://realtime.digitalisierungsplanung.de" : "";
+  const embedded = q.get("embedded") === "1";
+  if (embedded) document.body.classList.add("embedded");
+  const recordingSchema = "website-recording/1";
+  const storageKey = "stateBlueprintHotLinked.model.v2";
+  const el = id => document.getElementById(id);
+  const status = el("status"), viewport = el("viewport"), controls = el("controls"), after = el("after"), timelinePanel = el("timelinePanel"), timeline = el("timeline");
+  let sessionId = "", definition = null, recording = null, lastState = null, replayStopped = false;
+
+  function setStatus(text, ok = true) { status.textContent = text; status.className = "status " + (ok ? "ok" : "bad"); }
+  function postParent(payload) { if (window.parent !== window) window.parent.postMessage(payload, parentOrigin); }
+  function reportError(error) { const message = String(error?.message || error || "Recorder-Fehler"); setStatus(message, false); postParent({ type: "STATE_BLUEPRINT_RECORDER_ERROR", message }); }
+  async function api(path, body, method = "POST") {
+    const response = await fetch(apiBase + path, { method, headers: body === undefined ? undefined : { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body), cache: "no-store", credentials: "omit" });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.message || data.error || ("HTTP " + response.status));
+    return data;
+  }
+  function actionTitle(step) { const action = step?.action || step || {}; const name = action.locator?.name || ""; if (action.type === "click") return name ? "Klick: " + name : "Klick"; if (action.type === "input") return action.redacted ? "Geschützte Eingabe" : name ? "Eingabe: " + name : "Eingabe"; if (action.type === "key") return "Taste: " + action.key; if (action.type === "scroll") return Number(action.deltaY) < 0 ? "Scroll ↑" : "Scroll ↓"; if (action.type === "navigate") return "Navigation"; return "Aktion"; }
+  function renderTimeline(activeStepId = "", failed = false) {
+    const steps = recording?.steps || [];
+    el("timelineCount").textContent = steps.length + " Aktionen"; el("stateCount").textContent = (recording?.snapshotCount || lastState?.snapshotCount || 0) + " States";
+    timeline.innerHTML = ""; steps.forEach(step => { const item = document.createElement("div"); item.className = "timeline-item" + (step.id === activeStepId ? failed ? " failed" : " active" : ""); item.textContent = step.id + " · " + actionTitle(step); timeline.appendChild(item); });
+    timelinePanel.style.display = steps.length || lastState?.snapshotCount ? "block" : "none";
+  }
+  function render(data) {
+    lastState = data; sessionId = data.sessionId || sessionId;
+    postParent({ type: "STATE_BLUEPRINT_RECORDER_PROGRESS", sessionId, status: data.status || (controls.hidden ? "finished" : "recording"), actionCount: Number(data.actionCount) || 0, snapshotCount: Number(data.snapshotCount) || 0 });
+    const shot = data.current; if (!shot?.image) return;
+    viewport.innerHTML = ""; const img = new Image(); img.src = shot.image; img.alt = shot.checkpoint?.title || shot.url || "Website"; img.dataset.w = String(data.viewport?.width || 1120); img.dataset.h = String(data.viewport?.height || 720);
+    img.addEventListener("click", async event => { if (!sessionId || controls.hidden) return; const rect = img.getBoundingClientRect(); const x = Math.max(0, Math.round((event.clientX - rect.left) / rect.width * Number(img.dataset.w))); const y = Math.max(0, Math.round((event.clientY - rect.top) / rect.height * Number(img.dataset.h))); try { setStatus("Klick …"); const next = await api("/recorder/sessions/" + encodeURIComponent(sessionId) + "/actions", { type: "click", x, y }); render(next); setStatus("Aufnahme · " + next.actionCount + " Aktionen"); } catch (error) { setStatus(error.message, false); } });
+    viewport.appendChild(img); renderTimeline();
+  }
+  async function action(payload, success) { try { render(await api("/recorder/sessions/" + encodeURIComponent(sessionId) + "/actions", payload)); setStatus(success); } catch (error) { setStatus(error.message, false); } }
+  el("start").onclick = async () => { try { setStatus("Öffne Chromium …"); definition = null; recording = null; const data = await api("/recorder/sessions", { url: el("url").value }); render(data); controls.hidden = false; after.style.display = "none"; setStatus("Aufnahme läuft"); } catch (error) { reportError(error); } };
+  el("type").onclick = async () => { const value = el("typeText").value; el("typeText").value = ""; await action({ type: "input", value }, "Eingabe aufgenommen"); };
+  el("sendKey").onclick = () => action({ type: "key", key: el("key").value }, "Taste aufgenommen");
+  el("up").onclick = () => action({ type: "scroll", deltaX: 0, deltaY: -520 }, "Scroll aufgenommen"); el("down").onclick = () => action({ type: "scroll", deltaX: 0, deltaY: 520 }, "Scroll aufgenommen");
+  el("finish").onclick = async () => { try { setStatus("Prüfe Flow-Contract …"); const data = await api("/recorder/sessions/" + encodeURIComponent(sessionId) + "/finish", {}); if (data.recording?.schema !== recordingSchema) throw new Error("Unbekannter Recording-Contract."); definition = data.definition; recording = data.recording; controls.hidden = true; after.style.display = "block"; el("summary").textContent = recording.steps.length + " Aktionen · " + recording.snapshotCount + " States · jede Aktion ist exakt einer Transition zugeordnet"; renderTimeline(); setStatus("State-Chart und Replay bereit"); postParent({ type: "STATE_BLUEPRINT_EXTERNAL_RECORDING_RESULT", definition, recording, sessionId }); } catch (error) { reportError(error); } };
+  el("import").onclick = () => { if (!definition?.model || !recording) return; const payload = { type: "STATE_BLUEPRINT_EXTERNAL_RECORDING_RESULT", definition, recording, sessionId }; if (window.parent !== window) { postParent(payload); setStatus("State-Chart übernommen"); return; } localStorage.setItem(storageKey + ".editor", JSON.stringify({ model: definition.model, recording })); location.href = "/state.html?recorded=1"; };
+  async function replay(speed = 1) {
+    speed = Math.max(.1, Math.min(8, Number(speed) || 1));
+    replayStopped = false; el("playReplay").disabled = true; el("stopReplay").disabled = false;
+    try {
+      setStatus("Replay startet …"); const start = await api("/recorder/sessions/" + encodeURIComponent(sessionId) + "/replay/start", {}); render({ ...lastState, current: start.current }); postParent({ type: "STATE_BLUEPRINT_REPLAY_STATE", stateId: start.stateId, verified: start.verified });
+      if (!start.verified) throw new Error("Startzustand der Website stimmt nicht mehr mit der Aufnahme überein.");
+      if (start.done) { setStatus("Replay vollständig und verifiziert"); postParent({ type: "STATE_BLUEPRINT_REPLAY_STATE", stateId: start.stateId, verified: true, done: true }); return; }
+      let replayIndex = 0;
+      while (!replayStopped) {
+        const delayMs = Math.max(100, Math.min(60000, (Number(recording?.steps?.[replayIndex]?.delayMs) || 300) / speed));
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+        if (replayStopped) break;
+        let next;
+        try { next = await api("/recorder/sessions/" + encodeURIComponent(sessionId) + "/replay/next", {}); }
+        catch (error) { if (!/geschützte Feld/.test(error.message)) throw error; const secret = prompt("Geschützten Wert für diesen Replay-Schritt eingeben:"); if (secret === null) throw new Error("Replay abgebrochen: geschützter Wert fehlt."); next = await api("/recorder/sessions/" + encodeURIComponent(sessionId) + "/replay/next", { secret }); }
+        if (next.current) render({ ...lastState, current: next.current }); renderTimeline(next.stepId, !next.verified); postParent({ type: "STATE_BLUEPRINT_REPLAY_STATE", stateId: next.stateId, transitionId: next.transitionId, stepId: next.stepId, verified: next.verified, done: next.done });
+        if (!next.verified) throw new Error("Replay gestoppt: Zielzustand weicht vom aufgezeichneten Checkpoint ab.");
+        replayIndex += 1;
+        if (next.done) { setStatus("Replay vollständig und verifiziert"); break; }
+      }
+    } catch (error) { reportError(error); }
+    finally { el("playReplay").disabled = false; el("stopReplay").disabled = true; }
+  }
+  el("playReplay").onclick = () => replay(1);
+  el("stopReplay").onclick = async () => { replayStopped = true; await api("/recorder/sessions/" + encodeURIComponent(sessionId) + "/replay/stop", {}).catch(() => {}); setStatus("Replay gestoppt"); };
+  el("download").onclick = () => { if (!definition || !recording) return; const url = URL.createObjectURL(new Blob([JSON.stringify({ schema: "flow-package/1", definition, recording }, null, 2)], { type: "application/json" })); const a = document.createElement("a"); a.href = url; a.download = "website-flow.json"; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); };
+  el("cancel").onclick = async () => { if (sessionId) await api("/recorder/sessions/" + encodeURIComponent(sessionId), undefined, "DELETE").catch(() => {}); location.reload(); };
+  el("newRecording").onclick = () => location.reload();
+  window.addEventListener("message", event => {
+    if (event.source !== window.parent || event.origin !== parentOrigin || event.data?.type !== "ZUSTAND_RECORDER_COMMAND") return;
+    const command = String(event.data.command || "");
+    if (command === "finish") el("finish").click();
+    else if (command === "cancel") el("cancel").click();
+    else if (command === "replay") replay(event.data.speed);
+    else if (command === "stop") el("stopReplay").click();
+  });
+  if (q.get("url")) el("url").value = q.get("url");
+  if (q.get("autostart") === "1" && q.get("url")) queueMicrotask(() => el("start").click());
+})();
+</script>
+</body>
+</html>

@@ -165,7 +165,7 @@ health_reports_release() {
     const fs = require("node:fs");
     const body = JSON.parse(fs.readFileSync(0, "utf8"));
     const expected = process.env.EXPECTED_RELEASE;
-    if (!body.ok || body.releaseId !== expected) process.exit(1);
+    if (!body.ok || body.releaseId !== expected || body.recorderReady !== true) process.exit(1);
   ' <<<"$payload"
 }
 
@@ -359,8 +359,19 @@ run_once() {
     return 0
   fi
 
-  recover_services
-  log "Deployment of ${target_release} failed. Marker remains on ${deployed_release:-none}; the timer will retry this green release."
+  if [[ -n "$deployed_release" && -n "$deployed_commit" ]] && git -C "$APP_DIR" cat-file -e "${deployed_commit}^{commit}" 2>/dev/null; then
+    log "Deployment of ${target_release} failed. Rolling back to ${deployed_release} at ${deployed_commit}."
+    sync_to_commit "$deployed_commit" full
+    prepare_deploy_runner "$deployed_commit"
+    if ! deploy_checked_out_release "$deployed_release"; then
+      recover_services
+      printf 'Rollback to %s failed. Immediate operator action is required.\n' "$deployed_release" >&2
+      return 1
+    fi
+  else
+    recover_services
+  fi
+  log "Deployment of ${target_release} failed. Healthy marker remains on ${deployed_release:-none}; the timer will retry the tested release."
   printf 'Update failed. Inspect journalctl and PM2 if the retry does not recover.\n' >&2
   return 1
 }

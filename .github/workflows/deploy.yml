@@ -6,10 +6,13 @@ on:
       - main
     paths-ignore:
       - release-version.js
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 concurrency:
-  group: deploy
+  group: deploy-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -45,8 +48,9 @@ jobs:
 
   deploy:
     needs: contract-tests
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 25
     permissions:
       contents: write
     steps:
@@ -77,3 +81,10 @@ jobs:
           RELEASE_ID="$(sed -n 's/^globalThis\.ZUSTAND_RELEASE_ID = "\([^"]*\)";$/\1/p' release-version.js)"
           git commit -m "Advance shared release to ${RELEASE_ID}"
           git push origin HEAD:main
+          echo "RELEASE_ID=${RELEASE_ID}" >> "$GITHUB_ENV"
+      - name: Verify production convergence
+        if: env.RELEASE_ID != ''
+        env:
+          EXPECTED_RELEASE: ${{ env.RELEASE_ID }}
+          PRODUCTION_SMOKE_TIMEOUT_MS: "900000"
+        run: node scripts/production-smoke.mjs

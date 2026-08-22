@@ -21,14 +21,15 @@ function resolveBash() {
     const result = spawnSync(candidate, ["--version"], { encoding: "utf8" });
     if (result.status === 0) return candidate;
   }
-  return "bash";
+  return "";
 }
 
 const BASH = resolveBash();
+const BASH_AVAILABLE = Boolean(BASH);
 const BASH_PATH_STYLE = (() => {
-  if (process.platform !== "win32") return "posix";
+  if (!BASH || process.platform !== "win32") return "posix";
   const probe = spawnSync(BASH, ["-lc", "pwd -W >/dev/null 2>&1 && printf git || printf wsl"], { encoding: "utf8" });
-  return probe.stdout.trim() === "git" ? "git" : "wsl";
+  return String(probe.stdout || "").trim() === "git" ? "git" : "wsl";
 })();
 
 function bashPath(value) {
@@ -77,7 +78,7 @@ globalThis.ZUSTAND_RELEASE_SOURCE = "1234567890abcdef";
   });
 });
 
-test("keeps automatic deployment locked, release-gated, force-synced, verified, and retry-only", () => {
+test("keeps automatic deployment locked, release-gated, force-synced, verified, and rollback-safe", { skip: !BASH_AVAILABLE && "bash is required" }, () => {
   const autoDeploy = fs.readFileSync(path.join(__dirname, "auto-deploy.sh"), "utf8");
   const deploy = fs.readFileSync(path.join(__dirname, "deploy.sh"), "utf8");
   const ecosystem = fs.readFileSync(path.join(__dirname, "ecosystem.config.cjs"), "utf8");
@@ -97,9 +98,10 @@ test("keeps automatic deployment locked, release-gated, force-synced, verified, 
   assert.match(autoDeploy, /prepare_deploy_runner/);
   assert.match(autoDeploy, /bash "\$DEPLOY_RUNNER"/);
   assert.match(autoDeploy, /DEPLOY_SKIP_AUTO_DEPLOY=1/);
-  assert.match(autoDeploy, /Marker remains on/);
+  assert.match(autoDeploy, /Healthy marker remains on/);
+  assert.match(autoDeploy, /Rolling back to/);
+  assert.match(autoDeploy, /sync_to_commit "\$deployed_commit" full/);
   assert.doesNotMatch(autoDeploy, /running_release_id|commit_for_release|previous_release_commit/);
-  assert.doesNotMatch(autoDeploy, /Rollback|rollback|failed\. Restoring/);
   assert.match(autoDeploy, /OnUnitInactiveSec=\$\{AUTO_DEPLOY_INTERVAL\}/);
 
   const deployGate = autoDeploy.indexOf('if deploy_checked_out_release "$target_release"; then');
@@ -109,22 +111,26 @@ test("keeps automatic deployment locked, release-gated, force-synced, verified, 
   assert.match(deploy, /pm2 startOrReload .* --update-env/);
   assert.match(deploy, /nginx -t/);
   assert.match(deploy, /releaseId !== expected/);
+  assert.match(deploy, /body\.recorderReady !== true/);
   assert.match(deploy, /git cat-file -e "\$\{ZUSTAND_RELEASE_SOURCE\}\^\{commit\}"/);
-  assert.match(deploy, /git diff --quiet "\$ZUSTAND_RELEASE_SOURCE" -- \. ':\(exclude\)release-version\.js' ':\(exclude\)server\/event-catalog\.json'/);
+  assert.match(deploy, /git diff --quiet "\$ZUSTAND_RELEASE_SOURCE" -- \. ':\(exclude\)release-version\.js'/);
+  assert.doesNotMatch(deploy, /event-catalog|preset-library|REALTIME_ADMIN_SECRET/);
+  assert.match(deploy, /playwright\/cli\.js install --with-deps chromium/);
   assert.match(deploy, /AUTO_DEPLOY_INSTALL/);
   assert.match(deploy, /auto-deploy\.sh" --install/);
-  assert.match(deploy, /REALTIME_ADMIN_SECRET/);
   assert.match(deploy, /rm -f \/etc\/nginx\/sites-enabled\/digitalisierungsplanung\.de/);
   assert.doesNotMatch(deploy, /FRONTEND_DOMAIN|FRONTEND_NGINX|Static frontend|Static no-store/);
   assert.doesNotMatch(deploy, /legacyRollback|deploy-\d/);
   assert.doesNotMatch(autoDeploy, /legacyRollback|deploy-\d/);
   assert.match(ecosystem, /process\.env\.APP_DIR/);
   assert.match(ecosystem, /REALTIME_ENV_FILE: envFile/);
-  assert.match(ecosystem, /REALTIME_EVENT_CATALOG_PATH/);
-  assert.match(ecosystem, /REALTIME_REPO_DIR/);
+  assert.match(ecosystem, /PLAYWRIGHT_BROWSERS_PATH/);
+  assert.doesNotMatch(ecosystem, /EVENT_CATALOG|MCP|STRIPE|ADMIN_SECRET/);
   assert.match(runScript, /REALTIME_ENV_FILE/);
   assert.match(workflow, /needs: contract-tests/);
   assert.match(workflow, /paths-ignore:\s*\n\s*- release-version\.js/);
+  assert.match(workflow, /Verify production convergence/);
+  assert.match(workflow, /scripts\/production-smoke\.mjs/);
   assert.match(workflow, /RELEASE_INCREMENT: "1"/);
   assert.doesNotMatch(workflow, /Release stamp was advanced by the pushed commit/);
   assert.doesNotMatch(workflow, /\[skip ci\]/);

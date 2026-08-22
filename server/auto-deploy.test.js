@@ -19,14 +19,15 @@ function resolveBash() {
     const result = spawnSync(candidate, ["--version"], { encoding: "utf8" });
     if (result.status === 0) return candidate;
   }
-  return "bash";
+  return "";
 }
 
 const BASH = resolveBash();
+const BASH_AVAILABLE = Boolean(BASH);
 const BASH_PATH_STYLE = (() => {
-  if (process.platform !== "win32") return "posix";
+  if (!BASH || process.platform !== "win32") return "posix";
   const probe = spawnSync(BASH, ["-lc", "pwd -W >/dev/null 2>&1 && printf git || printf wsl"], { encoding: "utf8" });
-  return probe.stdout.trim() === "git" ? "git" : "wsl";
+  return String(probe.stdout || "").trim() === "git" ? "git" : "wsl";
 })();
 
 function run(command, args, options = {}) {
@@ -78,7 +79,7 @@ function releaseSource(sequence) {
     `globalThis.ZUSTAND_RELEASE_SOURCE = "${String(sequence).padStart(7, "0")}";\n`;
 }
 
-test("auto deploy advances only verified green releases and retries failed deploys without rollback", () => {
+test("auto deploy advances only verified green releases, rolls back failures, and retries", { skip: !BASH_AVAILABLE && "bash is required" }, () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "zustand-auto-deploy-"));
   try {
     const sourceRepo = path.join(root, "source");
@@ -98,7 +99,7 @@ printf 'deploy %s app=%s fail=%s\n' "$release_id" "$APP_DIR" "\${FAKE_FAIL_RELEA
 if [[ "\${FAKE_FAIL_RELEASE:-}" == "$release_id" ]]; then
   exit 1
 fi
-printf '{"ok":true,"releaseId":"%s"}\n' "$release_id" > "$FAKE_HEALTH_FILE"
+printf '{"ok":true,"recorderReady":true,"releaseId":"%s"}\n' "$release_id" > "$FAKE_HEALTH_FILE"
 `;
     fs.writeFileSync(path.join(sourceRepo, "release-version.js"), releaseSource(58));
     writeExecutable(path.join(sourceRepo, "server", "deploy.sh"), fakeDeploy);
@@ -143,7 +144,7 @@ if [[ "\${1:-}" == "-e" ]]; then
 fi
 exec ${shellQuote(bashPath(process.execPath))} "$@"
 `);
-    fs.writeFileSync(healthFile, '{"ok":true}\n');
+    fs.writeFileSync(healthFile, '{"ok":true,"recorderReady":true}\n');
 
     const script = bashPath(path.join(__dirname, "auto-deploy.sh"));
     const commonEnv = {
@@ -182,9 +183,9 @@ exec ${shellQuote(bashPath(process.execPath))} "$@"
       allowFailure: true
     });
     assert.equal(failed.status, 1, `${failed.stdout}\n${failed.stderr}`);
-    assert.match(failed.stdout, /Deployment of release-60 failed\. Marker remains on release-59/);
-    assert.doesNotMatch(failed.stdout, /Rollback|Restoring/);
-    assert.equal(git(appDir, "rev-parse", "HEAD"), git(sourceRepo, "rev-parse", "HEAD"));
+    assert.match(failed.stdout, /Deployment of release-60 failed\. Healthy marker remains on release-59/);
+    assert.match(failed.stdout, /Rolling back to release-59/);
+    assert.equal(git(appDir, "rev-parse", "HEAD"), release59);
     assert.match(fs.readFileSync(path.join(stateDir, "deployed-release.env"), "utf8"), /RELEASE_ID=release-59/);
     assert.equal(JSON.parse(fs.readFileSync(healthFile, "utf8")).releaseId, "release-59");
 

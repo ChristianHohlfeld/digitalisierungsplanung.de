@@ -17,8 +17,9 @@ HEALTH_RETRY_DELAY="${HEALTH_RETRY_DELAY:-1}"
 NGINX_AVAILABLE="/etc/nginx/sites-available/${DOMAIN}"
 NGINX_ENABLED="/etc/nginx/sites-enabled/${DOMAIN}"
 NGINX_BOOTSTRAP_AVAILABLE="/etc/nginx/sites-available/${DOMAIN}.bootstrap"
+PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-/var/lib/digitalisierungsplanung/playwright}"
 
-export APP_DIR ENV_FILE PM2_APP
+export APP_DIR ENV_FILE PM2_APP PLAYWRIGHT_BROWSERS_PATH
 
 log() {
   printf '[deploy] %s\n' "$*"
@@ -52,7 +53,6 @@ missing_packages=()
 command -v git >/dev/null 2>&1 || missing_packages+=(git)
 command -v curl >/dev/null 2>&1 || missing_packages+=(curl)
 command -v nginx >/dev/null 2>&1 || missing_packages+=(nginx)
-command -v openssl >/dev/null 2>&1 || missing_packages+=(openssl)
 command -v certbot >/dev/null 2>&1 || missing_packages+=(certbot)
 command -v flock >/dev/null 2>&1 || missing_packages+=(util-linux)
 if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
@@ -103,25 +103,23 @@ if [[ -z "$ZUSTAND_RELEASE_SOURCE" ]] || ! git cat-file -e "${ZUSTAND_RELEASE_SO
   printf 'Refusing a production deploy without a valid release source commit.\n' >&2
   exit 1
 fi
-if ! git diff --quiet "$ZUSTAND_RELEASE_SOURCE" -- . ':(exclude)release-version.js' ':(exclude)server/event-catalog.json' ':(exclude)server/preset-library.json'; then
+if ! git diff --quiet "$ZUSTAND_RELEASE_SOURCE" -- . ':(exclude)release-version.js'; then
   printf 'Refusing a production deploy because this checkout contains code beyond green source %s.\n' "$ZUSTAND_RELEASE_SOURCE" >&2
-#  exit 1
+  exit 1
 fi
 log "Deploying ${ZUSTAND_RELEASE_ID} from ${ZUSTAND_DEPLOY_COMMIT}."
 retry 3 5 npm ci --omit=dev
+install -d -m 755 /var/lib/digitalisierungsplanung "$PLAYWRIGHT_BROWSERS_PATH"
+log "Installing the pinned Chromium runtime for website recording and replay."
+retry 2 5 env PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" node ./node_modules/playwright/cli.js install --with-deps chromium
+RECORDER_CHROMIUM="$(env PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" node -e 'process.stdout.write(require("playwright").chromium.executablePath())')"
+if [[ ! -x "$RECORDER_CHROMIUM" ]]; then
+  printf 'Recorder Chromium executable is missing: %s\n' "$RECORDER_CHROMIUM" >&2
+  exit 1
+fi
 
 if [[ ! -f "$ENV_FILE" ]]; then
   install -m 600 /dev/null "$ENV_FILE"
-  printf 'REALTIME_ROOM_SECRET=%s\n' "$(openssl rand -base64 48)" > "$ENV_FILE"
-fi
-if ! grep -q '^REALTIME_EMIT_SECRET=' "$ENV_FILE"; then
-  printf 'REALTIME_EMIT_SECRET=%s\n' "$(openssl rand -base64 48)" >> "$ENV_FILE"
-fi
-if ! grep -q '^REALTIME_ADMIN_SECRET=' "$ENV_FILE"; then
-  printf 'REALTIME_ADMIN_SECRET=%s\n' "$(openssl rand -base64 48)" >> "$ENV_FILE"
-fi
-if ! grep -q '^REALTIME_MCP_SECRET=' "$ENV_FILE"; then
-  printf 'REALTIME_MCP_SECRET=%s\n' "$(openssl rand -base64 48)" >> "$ENV_FILE"
 fi
 install -d -m 700 /var/lib/digitalisierungsplanung
 
@@ -157,7 +155,7 @@ for _ in $(seq 1 "$HEALTH_ATTEMPTS"); do
       const fs = require("node:fs");
       const body = JSON.parse(fs.readFileSync(0, "utf8"));
       const expected = process.env.EXPECTED_RELEASE;
-      if (!body.ok || body.releaseId !== expected) process.exit(1);
+      if (!body.ok || body.releaseId !== expected || body.recorderReady !== true) process.exit(1);
     ' <<<"$payload"; then
     health_ok=1
     break
@@ -170,7 +168,7 @@ if [[ "$health_ok" != "1" ]]; then
 fi
 
 if [[ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]]; then
-  log "Release ${ZUSTAND_RELEASE_ID} is live at wss://${DOMAIN}/ws."
+  log "Release ${ZUSTAND_RELEASE_ID} is live with flow contract and verified website replay."
 else
   log "Release ${ZUSTAND_RELEASE_ID} is healthy locally. TLS is not installed yet."
   printf 'Create DNS, then run: certbot certonly --webroot -w /var/www/certbot -d %s\n' "$DOMAIN" >&2
