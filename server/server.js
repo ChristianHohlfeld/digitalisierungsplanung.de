@@ -65,7 +65,11 @@ async function readJson(request, maxBytes = MAX_JSON_BYTES) {
 }
 
 function requestClientKey(request) {
-  return String(request.headers["x-forwarded-for"] || "").split(",")[0].trim() || String(request.socket?.remoteAddress || "unknown");
+  const forwarded = String(request.headers["x-forwarded-for"] || "")
+    .split(",")
+    .map(value => value.trim())
+    .filter(Boolean);
+  return forwarded.at(-1) || String(request.socket?.remoteAddress || "unknown");
 }
 
 function appendCors(request, response, allowedOrigins) {

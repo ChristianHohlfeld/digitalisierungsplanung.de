@@ -1,19 +1,43 @@
 "use strict";
 
+const IMAGE_PLACEHOLDER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 640 360'%3E%3Crect width='640' height='360' rx='28' fill='%230b1f33'/%3E%3Cpath d='m70 294 130-132 84 84 54-54 174 102z' fill='%2338bdf8' opacity='.55'/%3E%3Ccircle cx='470' cy='102' r='48' fill='%23f59e0b' opacity='.7'/%3E%3C/svg%3E";
+
+function component(id, type, extra = {}) {
+  return { id: `${id}_component`, type, text: "", url: "", ...extra };
+}
+
+function daisy(id, variant, data, dataTypes = {}, extra = {}) {
+  return {
+    id,
+    rootStateId: id,
+    categoryId: "basic",
+    builtIn: true,
+    components: [component(id, "daisy", {
+      variant,
+      dataPath: `states.${id}`,
+      dataRole: "widget",
+      dataLabel: id,
+      ...extra
+    })],
+    data,
+    dataTypes
+  };
+}
+
 const BASIC_PRESETS = Object.freeze([
-  { id: "dropdown", label: "Dropdown", kind: "field", valueType: "text", defaults: { value: "Option A", options: ["Option A", "Option B", "Option C"] } },
-  { id: "button", label: "Button", kind: "action", defaults: { label: "Weiter" } },
-  { id: "toast", label: "Toast", kind: "feedback", defaults: { message: "Neue Nachricht", tone: "info" } },
-  { id: "checkbox", label: "Checkbox", kind: "field", valueType: "boolean", defaults: { checked: false } },
-  { id: "text", label: "Textfeld", kind: "field", valueType: "text", defaults: { value: "" } },
-  { id: "number", label: "Zahlenfeld", kind: "field", valueType: "number", defaults: { value: 0 } },
-  { id: "search", label: "Suche", kind: "field", valueType: "text", defaults: { value: "" } },
-  { id: "email", label: "E-Mail-Feld", kind: "field", valueType: "email", defaults: { value: "" } },
-  { id: "password", label: "Passwortfeld", kind: "field", valueType: "password", defaults: { value: "" } },
-  { id: "heading", label: "Überschrift", kind: "content", valueType: "text", defaults: { text: "Überschrift" } },
-  { id: "image", label: "Bild", kind: "content", valueType: "url", defaults: { url: "" } },
-  { id: "date", label: "Datum", kind: "field", valueType: "date", defaults: { value: "" } },
-  { id: "radio", label: "Radio", kind: "field", valueType: "text", defaults: { value: "Option A", options: ["Option A", "Option B"] } }
+  { ...daisy("dropdown", "dropdown", { selected: "Option A", options: ["Option A", "Option B", "Option C"], open: false }), title: "Dropdown", description: "Einfache Auswahl." },
+  { ...daisy("button", "button", { label: "Weiter", url: "", clicked: false, clickedAt: 0 }), title: "Button", description: "Aktion oder Transition." },
+  { ...daisy("toast", "toast", { visible: true, tone: "info", message: "Neue Nachricht" }), title: "Toast", description: "Kurze Statusmeldung." },
+  { ...daisy("checkbox", "checkbox", { legend: "Auswahl", items: [{ label: "Option", checked: false }], checked: false }), title: "Checkbox", description: "Boolesche Auswahl." },
+  { ...daisy("text", "input", { label: "Text", value: "" }, { value: "text" }), title: "Textfeld", description: "Einfache Texteingabe." },
+  { ...daisy("number", "input", { label: "Zahl", value: 0 }, { value: "number" }, { inputType: "number" }), title: "Zahlenfeld", description: "Numerische Eingabe." },
+  { ...daisy("search", "input", { label: "Suche", value: "" }, { value: "text" }, { inputType: "search" }), title: "Suche", description: "Suchfeld." },
+  { ...daisy("email", "input", { label: "E-Mail", value: "" }, { value: "email" }, { inputType: "email" }), title: "E-Mail-Feld", description: "E-Mail-Eingabe." },
+  { ...daisy("password", "input", { label: "Passwort", value: "" }, { value: "password" }, { inputType: "password" }), title: "Passwortfeld", description: "Geschützte Eingabe." },
+  { id: "heading", rootStateId: "heading", categoryId: "basic", builtIn: true, title: "Überschrift", description: "Seitenüberschrift.", components: [component("heading", "heading", { text: "Überschrift" })], data: {}, dataTypes: {} },
+  { id: "image", rootStateId: "image", categoryId: "basic", builtIn: true, title: "Bild", description: "Einfacher Bildblock.", components: [component("image", "image", { text: "Bild", url: IMAGE_PLACEHOLDER })], data: {}, dataTypes: {} },
+  { ...daisy("date", "calendar", { label: "Datum", value: "", min: "", max: "" }, { value: "date" }), title: "Datum", description: "Datumsauswahl." },
+  { ...daisy("radio", "radio", { label: "Auswahl", value: "Option A", options: ["Option A", "Option B"] }), title: "Radio", description: "Einzelauswahl." }
 ]);
 
 const BASIC_PRESET_IDS = Object.freeze(BASIC_PRESETS.map(preset => preset.id));

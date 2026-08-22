@@ -2,6 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
 const presetCatalog = require("./preset-catalog");
 const productContract = require("./product-contract");
 const recorder = require("./recorder");
@@ -105,6 +106,12 @@ test("recorder URL guard blocks private and metadata targets", async () => {
   assert.equal(await recorder.validatePublicUrl("https://example.com/a", { lookup: async () => [{ address: "93.184.216.34", family: 4 }] }), "https://example.com/a");
 });
 
+test("recorder browser contexts block service workers and WebSockets", () => {
+  const source = fs.readFileSync(require.resolve("./recorder"), "utf8");
+  assert.match(source, /serviceWorkers:\s*"block"/);
+  assert.match(source, /routeWebSocket\("\*\*"/);
+});
+
 test("minimal runtime serves health, contract and recorder API", async t => {
   const calls = [];
   const fakeManager = {
@@ -142,13 +149,14 @@ test("minimal runtime serves health, contract and recorder API", async t => {
   assert.equal(forbidden.status, 403);
   const started = await fetch(base + "/recorder/sessions", {
     method: "POST",
-    headers: { origin: "https://digitalisierungsplanung.de", "content-type": "application/json" },
+    headers: { origin: "https://digitalisierungsplanung.de", "content-type": "application/json", "x-forwarded-for": "198.51.100.77, 203.0.113.9" },
     body: JSON.stringify({ url: "https://example.com" })
   });
   assert.equal(started.status, 201);
   assert.equal(started.headers.get("access-control-allow-origin"), "https://digitalisierungsplanung.de");
   assert.equal(calls[0][0], "start");
   assert.equal(calls[0][1], "https://example.com");
+  assert.equal(calls[0][2], "203.0.113.9");
   const packaged = await fetch(base + "/recorder/replays", {
     method: "POST",
     headers: { origin: "https://digitalisierungsplanung.de", "content-type": "application/json" },

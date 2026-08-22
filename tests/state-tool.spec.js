@@ -1,184 +1,258 @@
-const fs = require("node:fs");
 const { test, expect } = require("@playwright/test");
 
-async function openTool(page, path = "/state.html?recorderOrigin=http%3A%2F%2F127.0.0.1%3A8124") {
-  await page.goto(path);
-  await expect(page.locator(".node")).toHaveCount(2);
-  await expect(page.locator("#chartSummary")).toHaveText("2 States · 1 Transitions");
-}
+const STORAGE_KEY = "stateBlueprintHotLinked.model.v2";
 
-function sampleRecordingResult() {
-  const image = "data:image/jpeg;base64,/9j/2Q==";
+function interactionModel() {
   return {
-    type: "STATE_BLUEPRINT_EXTERNAL_RECORDING_RESULT",
-    sessionId: "11111111-1111-1111-1111-111111111111",
-    definition: {
-      model: {
-        name: "Auftragsfreigabe",
-        states: [
-          { id: "recorded_001", title: "Entwurf", data: { source_url: "https://example.com/start" }, components: [{ type: "image", url: image }] },
-          { id: "recorded_002", title: "Freigegeben", data: { source_url: "https://example.com/done", recorded_action: "Klick: Freigeben" }, components: [{ type: "image", url: image }] }
-        ]
-      }
-    },
-    recording: {
-      schema: "website-recording/1",
-      id: "recording-1",
-      startUrl: "https://example.com/start",
-      initialStateId: "recorded_001",
-      initialCheckpoint: { url: "https://example.com/start", fingerprint: "start" },
-      snapshotCount: 2,
-      steps: [{
-        id: "step_001",
-        transitionId: "recorded_t_001",
-        fromStateId: "recorded_001",
-        toStateId: "recorded_002",
-        delayMs: 100,
-        action: { type: "click", x: 20, y: 20, locator: { role: "button", name: "Freigeben", css: "#approve", label: "Freigeben" } },
-        checkpoint: { url: "https://example.com/done", fingerprint: "done" }
-      }]
-    }
+    version: 2,
+    name: "Interaction contract",
+    initial: "start",
+    states: [
+      { id: "start", title: "Start", body: "", components: [], x: 120, y: 168 },
+      { id: "review", title: "Prüfen", body: "", components: [], x: 456, y: 168 },
+      { id: "done", title: "Fertig", body: "", components: [], x: 792, y: 336 }
+    ],
+    transitions: [
+      { id: "start_review", from: "start", to: "review", label: "Weiter", condition: "", set: {} },
+      { id: "review_done", from: "review", to: "done", label: "Freigeben", condition: "", set: {} }
+    ]
   };
 }
 
-async function sendFromRecorderFrame(page, payload) {
-  await expect(page.locator("#recorderFrame")).toHaveClass(/active/);
-  await expect.poll(() => page.frames().some(item => item !== page.mainFrame() && /recorder\.html/.test(item.url()))).toBe(true);
-  const frame = page.frames().find(item => item !== page.mainFrame() && /recorder\.html/.test(item.url()));
-  if (!frame) throw new Error("recorder frame missing");
-  await frame.evaluate(value => parent.postMessage(value, location.origin), payload);
+async function openTool(page, model = interactionModel()) {
+  await page.addInitScript(({ key, model }) => {
+    for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+      localStorage.removeItem(name);
+    }
+    localStorage.setItem(`${key}.editor`, JSON.stringify({ model }));
+  }, { key: STORAGE_KEY, model });
+  await page.goto("/state.html");
+  await expect(page.locator('[data-id="start"]')).toBeVisible();
+  await expect(page.locator(".component-preset-card")).toHaveCount(13);
 }
 
-test.describe("focused Zustand product UI", () => {
-  test("restores the focused Recorder/Render surface and its established controls @smoke", async ({ page }) => {
-    await openTool(page);
-    await expect(page.locator(".brand")).toHaveText("ZUSTAND");
-    await expect(page.locator(".authoring")).toBeVisible();
-    await expect(page.locator(".graph-viewport")).toBeVisible();
-    await expect(page.locator(".inspector")).toBeVisible();
-    await expect(page.locator(".tab")).toHaveText(["App Recorder · Input", "App Render · Output"]);
-    for (const name of ["Neu", "Projekt öffnen", "Projekt JSON", "App exportieren", "+ State", "Aufnahme starten", "Fertig → Projekt", "Abbrechen"]) {
-      await expect(page.getByText(name, { exact: true })).toBeVisible();
+async function worldTransform(page) {
+  return page.locator("#world").evaluate(element => getComputedStyle(element).transform);
+}
+
+async function worldScale(page) {
+  return page.locator("#world").evaluate(element => {
+    const transform = getComputedStyle(element).transform;
+    return new DOMMatrixReadOnly(transform === "none" ? undefined : transform).a;
+  });
+}
+
+async function savedModel(page) {
+  return page.evaluate(key => JSON.parse(localStorage.getItem(`${key}.editor`)).model, STORAGE_KEY);
+}
+
+async function emptyCanvasPoint(page) {
+  const point = await page.locator("#map").evaluate(map => {
+    const rect = map.getBoundingClientRect();
+    const blocked = ".node, .edge, .edge-arrow, .edge-pin, .edge-label, .edge-tip-hit, .hit, .svg-port, button, input, textarea, select";
+    for (let y = rect.top + 92; y < rect.bottom - 92; y += 38) {
+      for (let x = rect.left + 72; x < rect.right - 72; x += 42) {
+        const target = document.elementFromPoint(x, y);
+        if (!target || !map.contains(target) || target.closest(blocked)) continue;
+        if (typeof isEmptyCanvasTarget === "function" && !isEmptyCanvasTarget(target)) continue;
+        return { x, y };
+      }
     }
+    return null;
+  });
+  if (!point) throw new Error("Could not find an empty canvas point");
+  return point;
+}
+
+test.describe("established editor interaction contract", () => {
+  test("keeps left inspector, right preview and bottom preset drawer @smoke", async ({ page }) => {
+    await openTool(page);
+    const workspace = page.locator(".workspace");
+    const initialInspectorWidth = await page.locator("#stateInspector").evaluate(element => element.getBoundingClientRect().width);
+    if (initialInspectorWidth < 300) {
+      await page.locator("#btnToggleInspector").click();
+      await expect.poll(() => page.locator("#stateInspector").evaluate(element => element.getBoundingClientRect().width)).toBeGreaterThanOrEqual(300);
+    }
+    const layout = await page.evaluate(() => {
+      const box = selector => {
+        const rect = document.querySelector(selector).getBoundingClientRect();
+        return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, right: rect.right, bottom: rect.bottom };
+      };
+      return {
+        inspector: box("#stateInspector"),
+        canvas: box("#map"),
+        presets: box(".state-explorer"),
+        preview: box(".preview")
+      };
+    });
+
+    expect(layout.inspector.width).toBeGreaterThanOrEqual(300);
+    expect(layout.inspector.right).toBeLessThanOrEqual(layout.canvas.x + 1);
+    expect(layout.preview.x).toBeGreaterThanOrEqual(layout.canvas.right - 1);
+    expect(layout.presets.x).toBeCloseTo(layout.canvas.x, 0);
+    expect(layout.presets.bottom).toBeCloseTo(layout.canvas.bottom, 0);
+    expect(layout.presets.y).toBeGreaterThan(layout.canvas.y + layout.canvas.height / 2);
+    await expect(page.getByRole("button", { name: "Eigenschaften einklappen" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "App-Vorschau einklappen" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Vorlagen einklappen" })).toBeVisible();
+    await expect(page.locator(".component-preset-card .template-title")).toHaveText([
+      "Bild", "Button", "Checkbox", "Datum", "Dropdown", "E-Mail-Feld", "Passwortfeld",
+      "Radio", "Suche", "Textfeld", "Toast", "Überschrift", "Zahlenfeld"
+    ]);
   });
 
-  test("manual process states remain editable and previewable @smoke", async ({ page }) => {
+  test("single click selects and desktop drag moves the existing state @smoke", async ({ page }) => {
     await openTool(page);
-    await page.locator('[data-id="state_001"]').click();
-    await expect(page.locator("#stateTitle")).toHaveValue("Start");
-    await page.locator("#stateTitle").fill("Anfrage");
-    await expect(page.locator('[data-id="state_001"] .node-head')).toHaveText("Anfrage");
-    await page.locator("#tabRender").click();
-    await expect(page.locator("#appFrame")).toContainText("Anfrage");
-    await page.locator("#nextState").click();
-    await expect(page.locator("#appFrame")).toContainText("Ziel");
-  });
+    const node = page.locator('[data-id="review"]');
+    await node.click();
+    await expect(node).toHaveClass(/selected/);
+    await expect(page.locator("#pTitle")).toHaveValue("Prüfen");
 
-  test("desktop pointer drag keeps snapped state movement and the chart connection @smoke", async ({ page }) => {
-    await openTool(page);
-    const node = page.locator('[data-id="state_002"]');
-    const before = await node.evaluate(element => ({ left: parseFloat(element.style.left), top: parseFloat(element.style.top) }));
-    const box = await node.locator(".node-head").boundingBox();
+    const before = await savedModel(page).then(model => model.states.find(state => state.id === "review"));
+    const box = await node.locator(".title").boundingBox();
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
-    await page.mouse.move(box.x + box.width / 2 + 91, box.y + box.height / 2 + 39, { steps: 4 });
+    await page.mouse.move(box.x + box.width / 2 + 101, box.y + box.height / 2 + 43, { steps: 8 });
     await page.mouse.up();
-    const after = await node.evaluate(element => ({ left: parseFloat(element.style.left), top: parseFloat(element.style.top) }));
-    expect(after).not.toEqual(before);
-    expect(after.left % 12).toBe(0);
-    expect(after.top % 12).toBe(0);
-    await expect(page.locator("#edges line")).not.toHaveCount(0);
+
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      const state = model.states.find(item => item.id === "review");
+      return state.x !== before.x || state.y !== before.y;
+    }).toBe(true);
   });
 
-  test("touch selects and drags states without losing the mobile controls @smoke", async ({ browser }) => {
-    const context = await browser.newContext({ baseURL: "http://127.0.0.1:8124", viewport: { width: 390, height: 820 }, hasTouch: true, isMobile: true });
+  test("node double click enters a layer and empty-canvas double click creates a child @smoke", async ({ page }) => {
+    await openTool(page);
+    await page.locator('[data-id="start"]').dblclick();
+    await expect(page.locator("#layerFrameLabel")).toHaveText("In Start");
+    await expect(page.locator("#layerBack")).toBeVisible();
+
+    const before = await savedModel(page).then(model => model.states.length);
+    const point = await emptyCanvasPoint(page);
+    await page.mouse.dblclick(point.x, point.y);
+    await expect.poll(() => savedModel(page).then(model => model.states.length)).toBe(before + 1);
+    const created = await savedModel(page).then(model => model.states.find(state => state.parentId === "start"));
+    expect(created).toBeTruthy();
+  });
+
+  test("empty drag pans, vertical wheel zooms and long press rectangle-selects @smoke", async ({ page }) => {
+    await openTool(page);
+    const point = await emptyCanvasPoint(page);
+    const beforePan = await worldTransform(page);
+    await page.mouse.move(point.x, point.y);
+    await page.mouse.down();
+    await page.mouse.move(point.x + 84, point.y + 38, { steps: 7 });
+    await page.mouse.up();
+    await expect.poll(() => worldTransform(page)).not.toBe(beforePan);
+
+    const mapBox = await page.locator("#map").boundingBox();
+    await page.mouse.move(mapBox.x + mapBox.width / 2, mapBox.y + mapBox.height / 2);
+    const beforeZoom = await worldScale(page);
+    await page.mouse.wheel(0, -180);
+    await expect.poll(() => worldScale(page)).toBeGreaterThan(beforeZoom);
+
+    await page.getByRole("button", { name: "Einpassen" }).click();
+    const nodeBox = await page.locator('[data-id="start"]').boundingBox();
+    const selectStart = await emptyCanvasPoint(page);
+    await page.mouse.move(selectStart.x, selectStart.y);
+    await page.mouse.down();
+    await page.waitForTimeout(410);
+    await page.mouse.move(nodeBox.x + nodeBox.width / 2, nodeBox.y + nodeBox.height / 2, { steps: 8 });
+    await page.mouse.up();
+    await expect(page.locator("#selectionActions")).toBeVisible();
+    await expect(page.locator("#selectionCount")).toContainText("Zustand");
+  });
+
+  test("touch double tap enters layers and hold-to-drag moves states @smoke", async ({ browser }) => {
+    const context = await browser.newContext({
+      baseURL: "http://127.0.0.1:8124",
+      viewport: { width: 900, height: 820 },
+      hasTouch: true
+    });
     const page = await context.newPage();
     await openTool(page);
-    const node = page.locator('[data-id="state_002"]');
-    await node.scrollIntoViewIfNeeded();
-    const head = node.locator(".node-head");
-    const box = await head.boundingBox();
-    await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
-    await expect(node).toHaveClass(/selected/);
-    const before = await node.evaluate(element => parseFloat(element.style.left));
-    const cdp = await context.newCDPSession(page);
-    const start = { x: box.x + 30, y: box.y + 20 };
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [start] });
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: start.x + 64, y: start.y + 24 }] });
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-    await expect.poll(() => node.evaluate(element => parseFloat(element.style.left))).not.toBe(before);
-    await expect(page.locator("#tabRecorder")).toBeVisible();
-    await expect(page.locator("#tabRender")).toBeVisible();
-    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
+    const node = page.locator('[data-id="start"]');
+    const box = await node.boundingBox();
+    const first = { x: box.x + box.width / 2 - 14, y: box.y + box.height / 2 - 8 };
+    const second = { x: first.x + 28, y: first.y + 18 };
+    const tap = async (point, pointerId) => {
+      await node.dispatchEvent("pointerdown", { bubbles: true, cancelable: true, pointerType: "touch", pointerId, clientX: point.x, clientY: point.y });
+      await page.locator("#map").dispatchEvent("pointerup", { bubbles: true, cancelable: true, pointerType: "touch", pointerId, clientX: point.x, clientY: point.y });
+    };
+    await tap(first, 201);
+    await tap(second, 202);
+    await expect(page.locator("#layerFrameLabel")).toHaveText("In Start");
+
+    await page.locator("#layerBack").click();
+    const before = await savedModel(page).then(model => model.states.find(state => state.id === "review"));
+    const dragNode = page.locator('[data-id="review"]');
+    const dragBox = await dragNode.boundingBox();
+    const start = { x: dragBox.x + dragBox.width / 2, y: dragBox.y + dragBox.height / 2 };
+    await dragNode.dispatchEvent("pointerdown", { bubbles: true, cancelable: true, pointerType: "touch", pointerId: 302, clientX: start.x, clientY: start.y });
+    await expect(dragNode).toHaveClass(/touch-drag-ready/, { timeout: 900 });
+    await page.evaluate(point => window.dispatchEvent(new PointerEvent("pointermove", {
+      bubbles: true, cancelable: true, pointerType: "touch", pointerId: 302,
+      clientX: point.x + 96, clientY: point.y + 30
+    })), start);
+    await page.evaluate(point => window.dispatchEvent(new PointerEvent("pointerup", {
+      bubbles: true, cancelable: true, pointerType: "touch", pointerId: 302,
+      clientX: point.x + 96, clientY: point.y + 30
+    })), start);
+    await expect.poll(async () => {
+      const state = await savedModel(page).then(model => model.states.find(item => item.id === "review"));
+      return state.x !== before.x || state.y !== before.y;
+    }).toBe(true);
     await context.close();
   });
 
-  test("state and transition inspector keep simple triggers, listeners and rules @smoke", async ({ page }) => {
+  test("two-finger touch pinch zooms without changing the model @smoke", async ({ browser }) => {
+    const context = await browser.newContext({
+      baseURL: "http://127.0.0.1:8124",
+      viewport: { width: 900, height: 820 },
+      hasTouch: true
+    });
+    const page = await context.newPage();
     await openTool(page);
-    await page.locator('[data-id="state_001"]').click();
-    await page.locator("#stateTrigger").selectOption("event");
-    await page.locator("#stateEvent").fill("order.approved");
-    await page.locator(".edge-hit").dispatchEvent("click");
-    await expect(page.locator("#listenerType")).toHaveValue("event");
-    await page.locator("#listenerEvent").fill("order.approved");
-    await page.locator("#addRule").click();
-    await expect(page.locator(".rule-row")).toHaveCount(1);
-    await page.locator("#ruleOp_0").selectOption("truthy");
-    await expect(page.locator("#ruleValue_0")).toBeDisabled();
+    const beforeModel = await savedModel(page);
+    const beforeScale = await worldScale(page);
+    const mapBox = await page.locator("#map").boundingBox();
+    const center = { x: mapBox.x + mapBox.width / 2, y: mapBox.y + mapBox.height / 2 };
+    await page.locator("#map").evaluate((map, point) => {
+      const fire = (target, type, pointerId, x, y) => target.dispatchEvent(new PointerEvent(type, {
+        bubbles: true, cancelable: true, pointerType: "touch", pointerId,
+        clientX: x, clientY: y, buttons: type === "pointerup" ? 0 : 1
+      }));
+      fire(map, "pointerdown", 31, point.x - 58, point.y);
+      fire(map, "pointerdown", 32, point.x + 58, point.y);
+      fire(window, "pointermove", 31, point.x - 92, point.y);
+      fire(window, "pointermove", 32, point.x + 92, point.y);
+      fire(window, "pointerup", 31, point.x - 92, point.y);
+      fire(window, "pointerup", 32, point.x + 92, point.y);
+    }, center);
+    await expect.poll(() => worldScale(page)).toBeGreaterThan(beforeScale * 1.5);
+    expect(await savedModel(page)).toEqual(beforeModel);
+    await context.close();
   });
 
-  test("new states, project JSON and standalone app export stay functional @smoke", async ({ page }) => {
+  test("mobile keeps the established presets, canvas, edit and app views @smoke", async ({ browser }) => {
+    const context = await browser.newContext({
+      baseURL: "http://127.0.0.1:8124",
+      viewport: { width: 390, height: 820 },
+      hasTouch: true,
+      isMobile: true
+    });
+    const page = await context.newPage();
     await openTool(page);
-    await page.locator("#btnAddState").click();
-    await expect(page.locator(".node")).toHaveCount(3);
-    const projectDownload = page.waitForEvent("download");
-    await page.locator("#btnProjectExport").click();
-    const projectFile = await (await projectDownload).path();
-    const project = JSON.parse(fs.readFileSync(projectFile, "utf8"));
-    expect(project.kind).toBe("zustand-project");
-    expect(project.states).toHaveLength(3);
-    const appDownload = page.waitForEvent("download");
-    await page.locator("#btnExport").click();
-    const appFile = await (await appDownload).path();
-    const html = fs.readFileSync(appFile, "utf8");
-    expect(html).toContain("const project=");
-    expect(html).toContain("Neuer State");
-    expect(html).not.toContain("serviceWorker.register");
-  });
-
-  test("website recording stays inside the Recorder tab and never opens a popup @smoke", async ({ page, context }) => {
-    await page.route("**/healthz", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, recorderReady: true }) }));
-    await openTool(page);
-    const pages = context.pages().length;
-    await page.locator("#recordUrl").fill("https://example.com/process");
-    await page.locator("#recordStart").click();
-    await expect(page.locator("#recorderFrame")).toHaveClass(/active/);
-    await expect(page.locator("#recorderFrame")).toHaveAttribute("src", /recorder\.html.*embedded=1/);
-    expect(context.pages()).toHaveLength(pages);
-  });
-
-  test("recording import creates exactly one state per checkpoint and one transition per action @smoke", async ({ page }) => {
-    await page.route("**/healthz", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, recorderReady: true }) }));
-    await openTool(page);
-    await page.locator("#recordUrl").fill("https://example.com/process");
-    await page.locator("#recordStart").click();
-    await sendFromRecorderFrame(page, sampleRecordingResult());
-    await expect(page.locator("#projectName")).toHaveValue("Auftragsfreigabe");
-    await expect(page.locator(".node")).toHaveCount(2);
-    await expect(page.locator(".edge-hit")).toHaveCount(1);
-    await expect(page.locator("#tabRender")).toHaveClass(/active/);
-    await expect(page.locator('[data-id="state_001"] .node-head')).toHaveText("Entwurf");
-    await expect(page.locator('[data-id="state_002"] .node-head')).toHaveText("Freigegeben");
-  });
-
-  test("verified replay messages follow the exact recorded target state @smoke", async ({ page }) => {
-    await page.route("**/healthz", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, recorderReady: true }) }));
-    await openTool(page);
-    await page.locator("#recordUrl").fill("https://example.com/process");
-    await page.locator("#recordStart").click();
-    await sendFromRecorderFrame(page, sampleRecordingResult());
-    await sendFromRecorderFrame(page, { type: "STATE_BLUEPRINT_REPLAY_STATE", stateId: "recorded_002", transitionId: "recorded_t_001", stepId: "step_001", verified: true, done: true });
-    await expect(page.locator('[data-id="state_002"]')).toHaveClass(/selected/);
-    await expect(page.locator("#replayStatus")).toHaveText("Fertig");
+    for (const view of ["presets", "canvas", "edit", "app"]) {
+      await expect(page.locator(`[data-mobile-view="${view}"]`)).toBeVisible();
+    }
+    await page.locator('[data-mobile-view="presets"]').tap();
+    await expect(page.locator(".workspace")).toHaveClass(/mobile-presets-active/);
+    await expect(page.locator(".component-preset-card")).toHaveCount(13);
+    await page.locator('[data-mobile-view="canvas"]').tap();
+    await expect(page.locator(".workspace")).toHaveClass(/mobile-canvas-active/);
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
+    await context.close();
   });
 });

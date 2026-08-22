@@ -8,26 +8,29 @@ Die Produktoberfläche speichert genau ein Format:
 
 ```json
 {
-  "kind": "zustand-project",
-  "version": 1,
-  "startStateId": "state_001",
-  "states": [],
-  "transitions": [],
-  "recording": null
+  "kind": "state-blueprint-definition",
+  "schemaVersion": 2,
+  "app": "Zustand",
+  "savedAt": "2026-08-22T00:00:00.000Z",
+  "model": {
+    "version": 2,
+    "name": "Freigabeprozess",
+    "initial": "state_001",
+    "states": [],
+    "transitions": []
+  },
+  "camera": { "x": 0, "y": 0, "scale": 1 },
+  "previewCollapsed": false
 }
 ```
 
-Ein State besitzt `id`, `title`, Position, Trigger-Kontext, erkannte Felder und optional einen visuellen Snapshot. Eine Transition besitzt `id`, `from`, `to`, sichtbares Label, Listener, strukturierte Regeln und Replay-Delay.
+Ein State besitzt mindestens `id`, `title`, `x` und `y`; Darstellung, Daten und Verschachtelung sind optionale Modelldetails. Eine Transition besitzt mindestens `id`, `from`, `to` und ein sichtbares `label`; Trigger, Bedingung und Schreiboperationen sind optional.
 
-IDs sind eindeutig. `startStateId` zeigt auf einen vorhandenen State. Jede Transition verbindet vorhandene States. Statewechsel existieren nur als Transition.
+IDs sind eindeutig. `model.initial` zeigt auf einen vorhandenen State. Jede Transition verbindet vorhandene States. Statewechsel existieren nur als Transition.
 
 ## 2. Trigger und Listener
 
-Trigger-Kontexte: `interaction`, `timer`, `event`, `auto`.
-
-Listener: `click`, `input`, `change`, `key`, `scroll`, `navigate`, `timer`, `event`, `auto`.
-
-Regeln bestehen aus Feld, Operator und Wert. Erlaubte Operatoren sind `==`, `!=`, `>`, `>=`, `<`, `<=`, `truthy` und `falsy`; mehrere Regeln werden explizit mit UND oder ODER verbunden.
+Der kleine öffentliche Katalog kennt `button`, `change`, `event`, `api`, `timer` und `auto`; internes `flow` dient ausschließlich verschachtelten Abläufen. Unbekannte Trigger werden nicht als Alias normalisiert. Bedingungen und Schreiboperationen bleiben Eigentum der Transition.
 
 ## 3. Aufnahme
 

@@ -302,7 +302,7 @@ function compileRecording(recording, options = {}) {
       savedAt: new Date().toISOString(),
       model,
       stateTemplates: [],
-      camera: { x: 0, y: 0, k: 1 },
+      camera: { x: 0, y: 0, scale: 1 },
       previewCollapsed: false
     },
     recording: recordingPackage
@@ -419,6 +419,7 @@ function createRecorderManager(options = {}) {
   }
 
   async function guardPage(page) {
+    await page.routeWebSocket("**", websocket => websocket.close({ code: 1008, reason: "Recorder network isolation" }));
     await page.route("**/*", async route => {
       const raw = route.request().url();
       let protocol = "";
@@ -464,7 +465,7 @@ function createRecorderManager(options = {}) {
     if (active.length >= maxSessions) throw recorderError("recorder_capacity", "Der Recorder ist gerade ausgelastet.", 429);
     if (active.filter(item => item.clientKey === key).length >= maxSessionsPerClient) throw recorderError("recorder_client_capacity", "Für diesen Client läuft bereits eine Aufnahme.", 429);
     const startUrl = await validatePublicUrl(inputUrl, { lookup });
-    const context = await (await browser()).newContext({ viewport, ignoreHTTPSErrors: false, javaScriptEnabled: true });
+    const context = await (await browser()).newContext({ viewport, ignoreHTTPSErrors: false, javaScriptEnabled: true, serviceWorkers: "block" });
     const page = await context.newPage();
     await guardPage(page);
     const startedAt = now();
@@ -580,7 +581,7 @@ function createRecorderManager(options = {}) {
     const session = getSession(id);
     if (!session.compiled) session.compiled = compileRecording(session.recording);
     await closeContext(session.replay?.context);
-    const context = await (await browser()).newContext({ viewport, ignoreHTTPSErrors: false, javaScriptEnabled: true });
+    const context = await (await browser()).newContext({ viewport, ignoreHTTPSErrors: false, javaScriptEnabled: true, serviceWorkers: "block" });
     try {
       const page = await context.newPage();
       await guardPage(page);

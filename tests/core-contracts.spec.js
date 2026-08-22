@@ -6,7 +6,10 @@ const { BASIC_PRESET_IDS } = require("../server/preset-catalog");
 const { compileRecording, validateReplayPackage } = require("../server/recorder");
 
 function checkpoint(index) {
-  return { image: "data:image/jpeg;base64,AA==", checkpoint: { url: `https://example.com/${index}`, title: `State ${index}`, fingerprint: `fingerprint-${index}` } };
+  return {
+    image: "data:image/jpeg;base64,AA==",
+    checkpoint: { url: `https://example.com/${index}`, title: `State ${index}`, fingerprint: `fingerprint-${index}` }
+  };
 }
 
 function inlineScript(file, after = "") {
@@ -15,32 +18,73 @@ function inlineScript(file, after = "") {
   return html.slice(start, html.lastIndexOf("</script>"));
 }
 
-test.describe("focused release contracts", () => {
-  test("public contract contains only one flow and exactly 13 basic presets @smoke", async ({ request }) => {
+test.describe("release contracts", () => {
+  test("public contract serves the full editor shape with exactly 13 basic presets @smoke", async ({ request }) => {
     const contract = productContractResponse();
     expect(contract.schema).toBe("flow/1");
+    expect(contract.flow.project).toEqual({ kind: "state-blueprint-definition", schemaVersion: 2 });
+    expect(contract.flow.required).toEqual({
+      project: ["kind", "schemaVersion", "app", "savedAt", "model"],
+      model: ["version", "initial", "states", "transitions"],
+      state: ["id", "title", "x", "y"],
+      transition: ["id", "from", "to", "label"]
+    });
     expect(contract.flow.recording.schema).toBe("website-recording/1");
-    expect(contract.presetCategories).toHaveLength(1);
-    expect(contract.presetCategories[0]).toMatchObject({ id: "basic", label: "Basics" });
+    expect(contract.presetCategories).toEqual([{ id: "basic", label: "Basics" }]);
     expect(contract.presets.map(item => item.id)).toEqual(BASIC_PRESET_IDS);
-    for (const removed of ["presetPackages", "subscriptionPlans", "connectors", "datasets", "provider"]) expect(contract).not.toHaveProperty(removed);
-    expect(Buffer.byteLength(JSON.stringify(contract))).toBeLessThan(40000);
+    expect(contract.presets).toHaveLength(13);
+    for (const preset of contract.presets) {
+      expect(preset).toEqual(expect.objectContaining({
+        id: expect.any(String),
+        title: expect.any(String),
+        categoryId: "basic",
+        rootStateId: expect.any(String),
+        components: expect.any(Array),
+        data: expect.any(Object),
+        dataTypes: expect.any(Object)
+      }));
+      expect(preset.components.length).toBeGreaterThan(0);
+    }
+    expect(contract.valueTypes.map(item => item.id)).toEqual([
+      "text", "number", "boolean", "email", "password", "date", "url", "list", "object"
+    ]);
+    expect(contract.triggerTypes.map(item => item.id)).toEqual([
+      "button", "change", "event", "api", "timer", "auto", "flow"
+    ]);
+    for (const removed of ["presetPackages", "subscriptionPlans", "connectors", "datasets", "provider"]) {
+      expect(contract).not.toHaveProperty(removed);
+    }
     expect(await (await request.get("/contract")).json()).toEqual(contract);
   });
 
-  test("restored focused product source is small, syntactically valid and legacy-free @smoke", () => {
+  test("full editor source keeps the established layout and input subsystem @smoke", () => {
     const source = fs.readFileSync("state.html", "utf8");
-    expect(Buffer.byteLength(source)).toBeLessThan(100000);
-    expect(source).toContain("App Recorder");
-    expect(source).toContain("App Render");
-    expect(source).toContain("zustand-project");
-    expect(source).toContain("recorderFrame");
-    for (const legacy of ["state-blueprint-mcp", "agent-widget", "event-catalog", "preset-library", "stripe/checkout", "wss://", "127.0.0.1:8799"]) expect(source).not.toContain(legacy);
-    expect(() => new vm.Script(inlineScript("state.html", "disable-sw"))).not.toThrow();
+    for (const marker of [
+      'class="workspace mobile-canvas-active"',
+      'id="stateInspector"',
+      'class="state-explorer"',
+      'class="preview"',
+      'id="map"',
+      'id="world"',
+      "const TOUCH_PINCH_ZOOM_RESPONSE = 1.45;",
+      "const TOUCH_DOUBLE_TAP_MS = 650;",
+      "const TOUCH_NODE_DRAG_HOLD_MS = 220;",
+      "const DESKTOP_NODE_DOUBLE_CLICK_MS = 420;",
+      "let boxSelecting = null;",
+      'data-mobile-view="presets"',
+      'data-mobile-view="canvas"',
+      'data-mobile-view="edit"',
+      'data-mobile-view="app"'
+    ]) {
+      expect(source, `missing editor contract marker: ${marker}`).toContain(marker);
+    }
+    for (const compactReplacement of ["graph-viewport", "tabRecorder", "tabRender", "chartSummary"]) {
+      expect(source).not.toContain(compactReplacement);
+    }
     expect(() => new vm.Script(inlineScript("recorder.html"))).not.toThrow();
   });
 
-  test("recording compiler keeps the exact reversible action-transition-state chain @smoke", () => {
+  test("recording compiler keeps the exact reversible action-transition-state chain @smoke", async ({ page }) => {
     const compiled = compileRecording({
       id: "recording-1",
       startUrl: "https://example.com/0",
@@ -57,8 +101,13 @@ test.describe("focused release contracts", () => {
     expect(compiled.recording.steps).toHaveLength(2);
     expect(compiled.recording.snapshotCount).toBe(3);
     expect(compiled.recording.initialCheckpoint.fingerprint).toBe("fingerprint-0");
+    expect(compiled.definition.camera).toEqual({ x: 0, y: 0, scale: 1 });
     expect(compiled.recording.steps.map(step => step.transitionId)).toEqual(["recorded_t_001", "recorded_t_002"]);
     expect(() => validateReplayPackage(compiled.recording)).not.toThrow();
+    await page.goto("/state.html");
+    const validated = await page.evaluate(definition => validateBlueprintDefinition(definition), compiled.definition);
+    expect(validated.kind).toBe("state-blueprint-definition");
+    expect(validated.model.states).toHaveLength(3);
   });
 
   test("durable replay package rejects broken or invented state changes @smoke", () => {
@@ -68,12 +117,19 @@ test.describe("focused release contracts", () => {
       initialStateId: "recorded_001",
       initialCheckpoint: { fingerprint: "start" },
       snapshotCount: 2,
-      steps: [{ id: "step_001", transitionId: "t_1", fromStateId: "invented", toStateId: "recorded_002", action: { type: "click" }, checkpoint: { fingerprint: "done" } }]
+      steps: [{
+        id: "step_001",
+        transitionId: "t_1",
+        fromStateId: "invented",
+        toStateId: "recorded_002",
+        action: { type: "click" },
+        checkpoint: { fingerprint: "done" }
+      }]
     };
     expect(() => validateReplayPackage(broken)).toThrow(/lückenlose Kette/);
   });
 
-  test("embedded recorder is screenshot-controlled and never raw-iframes the target page @smoke", async ({ page }) => {
+  test("standalone recorder is screenshot-controlled and never raw-iframes the target page @smoke", async ({ page }) => {
     await page.goto("/recorder.html?embedded=1&parentOrigin=http%3A%2F%2F127.0.0.1%3A8124");
     await expect(page.locator("body")).toHaveClass(/embedded/);
     await expect(page.locator("#viewport")).toBeVisible();

@@ -38,6 +38,7 @@ Nginx veröffentlicht keine anderen Pfade. PM2 setzt die Produktions-Origins exp
 
 - öffentliche HTTP(S)-Ziele und DNS-/Request-Prüfung
 - private und reservierte Netze gesperrt
+- Service Worker und WebSocket-Verbindungen im Recorder blockiert
 - Passwortwerte nie im Recording
 - pro Client und global begrenzte Sessions
 - 80 Aktionen pro Aufnahme
