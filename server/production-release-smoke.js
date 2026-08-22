@@ -6,9 +6,7 @@ const REQUEST_TIMEOUT_MS = 30000;
 const DEFAULT_RELEASE_TIMEOUT_MS = 300000;
 const POLL_INTERVAL_MS = 5000;
 
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 function parseReleaseScript(text) {
   const input = String(text || "");
@@ -35,13 +33,12 @@ function validateReleaseState({ expectedReleaseId, expectedSourceCommit, fronten
 }
 
 async function fetchResponse(url, options = {}) {
-  const response = await fetch(url, {
+  return fetch(url, {
     cache: "no-store",
     redirect: "follow",
     ...options,
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
   });
-  return response;
 }
 
 async function fetchText(url, options = {}) {
@@ -83,9 +80,24 @@ async function waitForProductionRelease(expectedReleaseId, expectedSourceCommit,
 }
 
 async function verifyEditorSurface(expectedReleaseId) {
-  const html = await fetchText(`${FRONTEND_ORIGIN}/state.html?release-smoke=${encodeURIComponent(expectedReleaseId)}-${Date.now()}`);
-  if (!html.includes("App Recorder")) throw new Error("Production state.html is missing App Recorder");
-  if (!html.includes("App Render")) throw new Error("Production state.html is missing App Render");
+  const stamp = `${encodeURIComponent(expectedReleaseId)}-${Date.now()}`;
+  const [html, app, bridge, manifest] = await Promise.all([
+    fetchText(`${FRONTEND_ORIGIN}/state.html?release-smoke=${stamp}`),
+    fetchText(`${FRONTEND_ORIGIN}/state-app.js?release-smoke=${stamp}`),
+    fetchText(`${FRONTEND_ORIGIN}/recorder-extension/editor-bridge.js?release-smoke=${stamp}`),
+    fetchJson(`${FRONTEND_ORIGIN}/recorder-extension/manifest.json?release-smoke=${stamp}`)
+  ]);
+  if (!html.includes("App Recorder") || !html.includes("App Render")) throw new Error("Production state.html is missing recorder/render tabs");
+  if (!html.includes("Desktop Recorder") || !html.includes("recorder-extension/editor-bridge.js") || !html.includes("state-app.js")) throw new Error("Production state.html is missing browser-recorder product surface");
+  if (`${html}\n${app}`.match(/npm run recorder:agent|127\.0\.0\.1:8799|Local Recorder Agent/i)) throw new Error("Production editor exposes developer recorder setup");
+  if (!app.includes("Aufnahme auf Desktop verfügbar")) throw new Error("Production mobile recorder state is missing");
+  if (!bridge.includes("ZUSTAND_EXTENSION_COMMAND")) throw new Error("Production recorder bridge is missing");
+  if (manifest?.manifest_version !== 3 || !manifest?.host_permissions?.includes("<all_urls>")) throw new Error("Production recorder extension manifest is invalid");
+
+  const packageResponse = await fetchResponse(`${FRONTEND_ORIGIN}/recorder-extension.zip?release-smoke=${stamp}`);
+  if (!packageResponse.ok) throw new Error(`Production recorder package -> HTTP ${packageResponse.status}`);
+  const packageBytes = (await packageResponse.arrayBuffer()).byteLength;
+  if (packageBytes < 1000) throw new Error(`Production recorder package is unexpectedly small: ${packageBytes}`);
   return true;
 }
 
@@ -108,30 +120,24 @@ async function verifyRecorderCors() {
   return true;
 }
 
-async function verifyRecorderSession() {
+async function verifyAutomationBrowserSession() {
   let sessionId = "";
   try {
     const response = await fetchResponse(`${REALTIME_ORIGIN}/recorder/sessions`, {
       method: "POST",
-      headers: {
-        Origin: FRONTEND_ORIGIN,
-        "content-type": "application/json"
-      },
+      headers: { Origin: FRONTEND_ORIGIN, "content-type": "application/json" },
       body: JSON.stringify({ url: "https://example.com" })
     });
-    if (response.status !== 201) throw new Error(`Recorder create -> HTTP ${response.status}: ${await response.text()}`);
+    if (response.status !== 201) throw new Error(`Automation browser create -> HTTP ${response.status}: ${await response.text()}`);
     const body = await response.json();
     sessionId = String(body.sessionId || "");
-    if (!sessionId) throw new Error("Recorder create returned no sessionId");
-    if (!String(body.current?.url || "").includes("example.com")) throw new Error(`Recorder current URL mismatch: ${body.current?.url || "missing"}`);
-    if (!body.current?.image) throw new Error("Recorder create returned no browser image");
-    return { sessionId, status: body.status || "", actionCount: Number(body.actionCount) || 0 };
+    if (!sessionId) throw new Error("Automation browser returned no sessionId");
+    if (!String(body.current?.url || "").includes("example.com")) throw new Error(`Automation browser URL mismatch: ${body.current?.url || "missing"}`);
+    if (!body.current?.image) throw new Error("Automation browser returned no image");
+    return { sessionId, status: body.status || "" };
   } finally {
     if (sessionId) {
-      await fetchResponse(`${REALTIME_ORIGIN}/recorder/sessions/${encodeURIComponent(sessionId)}`, {
-        method: "DELETE",
-        headers: { Origin: FRONTEND_ORIGIN }
-      }).catch(() => null);
+      await fetchResponse(`${REALTIME_ORIGIN}/recorder/sessions/${encodeURIComponent(sessionId)}`, { method: "DELETE", headers: { Origin: FRONTEND_ORIGIN } }).catch(() => null);
     }
   }
 }
@@ -146,13 +152,13 @@ async function main() {
   console.log(`[release-smoke] converged: ${release.frontend.id} / ${release.version.releaseId} / ${release.health.releaseId}`);
 
   await verifyEditorSurface(expectedReleaseId);
-  console.log("[release-smoke] state.html: ok");
+  console.log("[release-smoke] browser-recorder editor + package: ok");
 
   await verifyRecorderCors();
-  console.log("[release-smoke] recorder CORS: ok");
+  console.log("[release-smoke] automation backend CORS: ok");
 
-  const recorder = await verifyRecorderSession();
-  console.log(`[release-smoke] recorder session: ok (${recorder.sessionId}, ${recorder.status})`);
+  const session = await verifyAutomationBrowserSession();
+  console.log(`[release-smoke] automation browser: ok (${session.sessionId}, ${session.status})`);
   console.log(`[release-smoke] VERIFIED ${expectedReleaseId}`);
 }
 
@@ -169,5 +175,6 @@ module.exports = {
   waitForProductionRelease,
   verifyEditorSurface,
   verifyRecorderCors,
-  verifyRecorderSession
+  verifyAutomationBrowserSession,
+  verifyRecorderSession: verifyAutomationBrowserSession
 };

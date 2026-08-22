@@ -7,6 +7,7 @@ on:
     paths-ignore:
       - release-version.js
       - production-release-verified.json
+      - recorder-extension.zip
   pull_request:
     branches:
       - main
@@ -71,15 +72,17 @@ jobs:
             echo "skipped=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          rm -f recorder-extension.zip
+          python3 -m zipfile -c recorder-extension.zip recorder-extension
           RELEASE_BUILT_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")" node scripts/write-release-version.mjs
-          if git diff --quiet -- release-version.js; then
-            echo "Release stamp is current."
+          if git diff --quiet -- release-version.js recorder-extension.zip; then
+            echo "Release stamp and recorder package are current."
             echo "skipped=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add release-version.js
+          git add release-version.js recorder-extension.zip
           RELEASE_ID="$(sed -n 's/^globalThis\.ZUSTAND_RELEASE_ID = "\([^"]*\)";$/\1/p' release-version.js)"
           git commit -m "Advance shared release to ${RELEASE_ID}"
           git push origin HEAD:main

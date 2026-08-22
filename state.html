@@ -7,17 +7,17 @@
   <title>Zustand</title>
   <style>
     :root{color-scheme:dark;--bg:#06101b;--panel:#0a1827;--panel2:#0d2133;--line:#21405b;--line2:#315f82;--text:#e8f3ff;--muted:#94abc0;--blue:#38bdf8;--green:#34d399;--amber:#f59e0b;--red:#fb7185}
-    *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:radial-gradient(circle at 15% -10%,rgba(56,189,248,.12),transparent 32%),var(--bg);color:var(--text);font:14px/1.4 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}
-    .shell{min-height:100vh;display:grid;grid-template-rows:auto 1fr}.topbar{min-height:58px;display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);background:rgba(5,15,26,.92);backdrop-filter:blur(14px);position:sticky;top:0;z-index:40}.brand{font-weight:950;letter-spacing:.03em;color:#dff6ff}.project-name{min-width:180px;max-width:360px;flex:0 1 300px}.top-actions{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap}.btn,.input,.select{min-height:36px;border:1px solid var(--line);border-radius:9px;background:#061321;color:var(--text);padding:7px 10px}.input:focus,.select:focus{outline:2px solid rgba(56,189,248,.25);border-color:var(--blue)}.btn{font-weight:800}.btn:hover{border-color:var(--line2)}.btn.primary{background:#0b3b56;border-color:#237ba7}.btn.good{background:#064e3b;border-color:#168463}.btn.danger{background:#4f1722;border-color:#9f3548}.btn.ghost{background:transparent}
+    *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:radial-gradient(circle at 15% -10%,rgba(56,189,248,.12),transparent 32%),var(--bg);color:var(--text);font:14px/1.4 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}a{color:inherit}
+    .shell{min-height:100vh;display:grid;grid-template-rows:auto 1fr}.topbar{min-height:58px;display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);background:rgba(5,15,26,.92);backdrop-filter:blur(14px);position:sticky;top:0;z-index:40}.brand{font-weight:950;letter-spacing:.03em;color:#dff6ff}.project-name{min-width:180px;max-width:360px;flex:0 1 300px}.top-actions{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap}.btn,.input,.select{min-height:36px;border:1px solid var(--line);border-radius:9px;background:#061321;color:var(--text);padding:7px 10px}.input:focus,.select:focus{outline:2px solid rgba(56,189,248,.25);border-color:var(--blue)}.btn{font-weight:800;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}.btn:hover{border-color:var(--line2)}.btn.primary{background:#0b3b56;border-color:#237ba7}.btn.good{background:#064e3b;border-color:#168463}.btn.danger{background:#4f1722;border-color:#9f3548}.btn.ghost{background:transparent}
     .workspace{min-height:0;display:grid;grid-template-columns:minmax(430px,48%) minmax(420px,52%);height:calc(100vh - 59px)}.authoring{min-width:0;display:grid;grid-template-rows:minmax(300px,1fr) minmax(260px,.72fr);border-right:1px solid var(--line)}.panel-head{height:42px;padding:7px 10px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line);background:rgba(9,24,39,.92)}.panel-title{font-size:12px;font-weight:900;color:#bfd5e8;text-transform:uppercase;letter-spacing:.07em}.spacer{flex:1}.muted{color:var(--muted)}.small{font-size:12px}.mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
-    .graph-wrap{min-height:0;display:grid;grid-template-rows:auto 1fr}.graph-viewport{position:relative;overflow:auto;background-color:#07121f;background-image:linear-gradient(rgba(77,117,151,.12) 1px,transparent 1px),linear-gradient(90deg,rgba(77,117,151,.12) 1px,transparent 1px);background-size:24px 24px}.graph-world{position:relative;width:1800px;height:1200px}.edges{position:absolute;inset:0;width:1800px;height:1200px;overflow:visible;pointer-events:none}.edge-hit{pointer-events:stroke;cursor:pointer}.nodes{position:absolute;inset:0}.node{position:absolute;width:192px;min-height:86px;border:1px solid var(--line2);border-radius:13px;background:linear-gradient(180deg,#10273a,#091725);box-shadow:0 12px 28px rgba(0,0,0,.28);overflow:hidden;user-select:none}.node.selected{border-color:var(--blue);box-shadow:0 0 0 3px rgba(56,189,248,.15),0 12px 28px rgba(0,0,0,.28)}.node-head{padding:9px 10px 5px;font-weight:900;color:#e5f6ff;cursor:grab;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.node-meta{padding:0 10px 9px;color:var(--muted);font-size:11px;display:flex;gap:6px;align-items:center}.dot{width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block}.node .thumb{height:34px;width:100%;object-fit:cover;border-top:1px solid rgba(255,255,255,.05);opacity:.66}
+    .graph-wrap{min-height:0;display:grid;grid-template-rows:auto 1fr}.graph-viewport{position:relative;overflow:auto;background-color:#07121f;background-image:linear-gradient(rgba(77,117,151,.12) 1px,transparent 1px),linear-gradient(90deg,rgba(77,117,151,.12) 1px,transparent 1px);background-size:24px 24px}.graph-world{position:relative;width:1800px;height:1200px}.edges{position:absolute;inset:0;width:1800px;height:1200px;overflow:visible;pointer-events:none}.edge-hit{pointer-events:stroke;cursor:pointer}.nodes{position:absolute;inset:0}.node{position:absolute;width:192px;min-height:86px;border:1px solid var(--line2);border-radius:13px;background:linear-gradient(180deg,#10273a,#091725);box-shadow:0 12px 28px rgba(0,0,0,.28);overflow:hidden;user-select:none}.node.selected{border-color:var(--blue);box-shadow:0 0 0 3px rgba(56,189,248,.15),0 12px 28px rgba(0,0,0,.28)}.node-head{padding:9px 10px 5px;font-weight:900;color:#e5f6ff;cursor:grab;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.node-meta{padding:0 10px 9px;color:var(--muted);font-size:11px;display:flex;gap:6px;align-items:center}.dot{width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block}.node .thumb{height:34px;width:100%;object-fit:cover;border-top:1px solid rgba(255,255,255,.05);opacity:.68}
     .inspector{min-height:0;overflow:auto;background:#081522}.inspector-body{padding:12px;display:grid;gap:12px}.group{border:1px solid var(--line);border-radius:11px;background:rgba(11,28,44,.7);padding:10px;display:grid;gap:8px}.group h3{margin:0;font-size:12px;color:#c9e5f8}.field{display:grid;gap:5px}.field>span{font-size:11px;color:var(--muted);font-weight:800}.row{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.row>*{min-width:0}.row .grow{flex:1}.pill{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:999px;padding:4px 8px;color:#b9d4e8;background:#061321;font-size:11px}.empty{padding:28px;text-align:center;color:var(--muted)}
     .rule-head{display:grid;grid-template-columns:minmax(140px,1fr) 92px minmax(100px,1fr) 34px;gap:6px;color:var(--muted);font-size:10px;font-weight:800}.rule-row{display:grid;grid-template-columns:minmax(140px,1fr) 92px minmax(100px,1fr) 34px;gap:6px;align-items:center}.rule-row .btn{padding:4px;min-height:34px}.rule-row .input,.rule-row .select{width:100%}
-    .preview{min-width:0;min-height:0;display:grid;grid-template-rows:auto 1fr;background:#050d16}.tabs{height:48px;display:flex;align-items:end;gap:4px;padding:0 10px;border-bottom:1px solid var(--line);background:#081522}.tab{height:39px;padding:0 14px;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--muted);font-weight:900}.tab.active{color:#dff6ff;border-color:var(--blue)}.tab-pane{display:none;min-height:0;height:100%;overflow:auto}.tab-pane.active{display:block}.recorder-page,.render-page{min-height:100%;padding:16px}.hero-card{max-width:860px;margin:0 auto;border:1px solid var(--line);border-radius:16px;background:linear-gradient(180deg,rgba(13,33,51,.95),rgba(8,21,34,.96));box-shadow:0 20px 55px rgba(0,0,0,.3);padding:16px}.hero-card h2{margin:0 0 4px;font-size:20px}.statusline{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin:10px 0}.status-dot{width:9px;height:9px;border-radius:50%;background:var(--red)}.status-dot.ok{background:var(--green)}.status-dot.busy{background:var(--amber)}.url-row{display:flex;gap:8px;margin-top:13px}.url-row .input{flex:1}.record-help{margin-top:12px;color:var(--muted);font-size:12px;line-height:1.55}.record-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}.metric{border:1px solid var(--line);border-radius:10px;padding:10px;background:#061321}.metric strong{display:block;font-size:18px;color:#dff6ff}.metric span{font-size:11px;color:var(--muted)}
+    .preview{min-width:0;min-height:0;display:grid;grid-template-rows:auto 1fr;background:#050d16}.tabs{height:48px;display:flex;align-items:end;gap:4px;padding:0 10px;border-bottom:1px solid var(--line);background:#081522}.tab{height:39px;padding:0 14px;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--muted);font-weight:900}.tab.active{color:#dff6ff;border-color:var(--blue)}.tab-pane{display:none;min-height:0;height:100%;overflow:auto}.tab-pane.active{display:block}.recorder-page,.render-page{min-height:100%;padding:16px}.hero-card{max-width:860px;margin:0 auto;border:1px solid var(--line);border-radius:16px;background:linear-gradient(180deg,rgba(13,33,51,.95),rgba(8,21,34,.96));box-shadow:0 20px 55px rgba(0,0,0,.3);padding:18px}.hero-card h2{margin:0 0 5px;font-size:20px}.statusline{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:14px 0}.status-dot{width:9px;height:9px;border-radius:50%;background:var(--red)}.status-dot.ok{background:var(--green)}.status-dot.busy{background:var(--amber)}.url-row{display:flex;gap:8px;margin-top:13px}.url-row .input{flex:1}.record-help{margin-top:13px;color:var(--muted);font-size:12px;line-height:1.55}.record-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:13px}.metric{border:1px solid var(--line);border-radius:10px;padding:10px;background:#061321}.metric strong{display:block;font-size:18px;color:#dff6ff}.metric span{font-size:11px;color:var(--muted)}
     .render-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}.app-frame{min-height:420px;border:1px solid var(--line);border-radius:16px;background:#02070d;overflow:hidden;display:grid;place-items:center;position:relative}.app-frame img{display:block;max-width:100%;max-height:calc(100vh - 190px);object-fit:contain}.app-empty{color:var(--muted);text-align:center;padding:32px}.frame-caption{position:absolute;left:10px;bottom:10px;max-width:calc(100% - 20px);padding:6px 9px;border:1px solid rgba(56,189,248,.25);border-radius:8px;background:rgba(2,9,16,.78);color:#cbeeff;font-size:11px;backdrop-filter:blur(8px)}.replay-progress{margin-left:auto;color:var(--muted);font-size:12px}
     .toast{position:fixed;right:16px;bottom:16px;z-index:100;max-width:min(420px,calc(100vw - 32px));padding:10px 12px;border:1px solid var(--line2);border-radius:10px;background:#0b1d2c;color:#e6f3ff;box-shadow:0 16px 42px rgba(0,0,0,.42);display:none}.toast.show{display:block}.toast.bad{border-color:#8f3042;background:#32121b}.hidden{display:none!important}
     @media(max-width:980px){.workspace{grid-template-columns:1fr;height:auto}.authoring{height:780px;border-right:0;border-bottom:1px solid var(--line)}.preview{min-height:620px}.project-name{max-width:240px}}
-    @media(max-width:620px){.topbar{align-items:flex-start;flex-wrap:wrap}.project-name{order:3;flex:1 1 100%;max-width:none}.top-actions{margin-left:0}.workspace{display:block}.authoring{height:720px;grid-template-rows:380px 340px}.rule-head{display:none}.rule-row{grid-template-columns:1fr 84px}.rule-row .value{grid-column:1/2}.url-row{display:grid}.record-metrics{grid-template-columns:1fr 1fr}.preview{min-height:560px}}
+    @media(max-width:620px){.topbar{align-items:flex-start;flex-wrap:wrap;padding-top:max(10px,env(safe-area-inset-top))}.brand{padding-top:7px}.project-name{order:3;flex:1 1 100%;max-width:none}.top-actions{margin-left:auto;gap:5px}.top-actions .btn{min-height:33px;padding:6px 8px;font-size:12px}.workspace{display:block}.authoring{height:720px;grid-template-rows:380px 340px}.rule-head{display:none}.rule-row{grid-template-columns:1fr 84px}.rule-row .value{grid-column:1/2}.url-row{display:grid}.record-metrics{grid-template-columns:1fr 1fr}.preview{min-height:560px}.recorder-page,.render-page{padding:12px}.hero-card{padding:14px}.tabs{overflow-x:auto}.tab{white-space:nowrap}}
   </style>
 </head>
 <body>
@@ -27,7 +27,7 @@
     <input class="input project-name" id="projectName" aria-label="Projektname" value="Neues Projekt">
     <div class="top-actions">
       <button class="btn ghost" id="btnNew">Neu</button>
-      <label class="btn ghost" for="projectImport">Projekt öffnen</label><input id="projectImport" type="file" accept="application/json,.json" hidden>
+      <label class="btn ghost" for="projectImport">Öffnen</label><input id="projectImport" type="file" accept="application/json,.json" hidden>
       <button class="btn ghost" id="btnProjectExport">Projekt JSON</button>
       <button class="btn primary" id="btnExport">App exportieren</button>
     </div>
@@ -54,13 +54,13 @@
       <div class="tab-pane active" id="paneRecorder">
         <div class="recorder-page">
           <div class="hero-card">
-            <h2>Echte App aufnehmen</h2>
-            <div class="muted">Die App wird in einem echten lokalen Chromium geöffnet. Du benutzt sie normal; Zustand zeichnet Klicks, Inputs, Checkboxen, Tasten, Scrolls und Timings im Hintergrund auf.</div>
-            <div class="statusline"><span class="status-dot" id="agentDot"></span><strong id="agentStatus">Local Recorder Agent wird geprüft …</strong><span class="pill mono">127.0.0.1:8799</span></div>
-            <div class="url-row"><input class="input" id="recordUrl" type="url" autocomplete="url" placeholder="https://wob-app15.wobak.de/de/cockpit"><button class="btn good" id="recordStart">Aufnahme starten</button></div>
-            <div class="row" style="margin-top:8px"><button class="btn primary" id="recordFinish" disabled>Fertig → Projekt</button><button class="btn danger" id="recordCancel" disabled>Abbrechen</button><button class="btn ghost" id="checkAgent">Agent prüfen</button></div>
+            <h2>App aufnehmen</h2>
+            <div class="muted">Die Zielseite öffnet sich in deinem echten Desktop-Browser. Du benutzt sie ganz normal; Zustand zeichnet Klicks, Inputs, Checkboxen, Tasten, Scrolls, Navigationen und Timings im Hintergrund auf.</div>
+            <div class="statusline"><span class="status-dot busy" id="recorderDot"></span><strong id="recorderStatus">Recorder wird geprüft …</strong><span class="pill" id="recorderKind">Desktop Recorder</span></div>
+            <div class="url-row"><input class="input" id="recordUrl" type="url" autocomplete="url" placeholder="https://wob-app15.wobak.de/de/cockpit"><button class="btn good" id="recordStart" disabled>Aufnahme starten</button></div>
+            <div class="row" style="margin-top:8px"><button class="btn primary" id="recordFinish" disabled>Fertig → Projekt</button><button class="btn danger" id="recordCancel" disabled>Abbrechen</button><a class="btn ghost" id="installRecorder" href="/recorder-extension.zip" download>Desktop Recorder installieren</a></div>
             <div class="record-metrics"><div class="metric"><strong id="recordActions">0</strong><span>Actions</span></div><div class="metric"><strong id="recordStates">0</strong><span>visuelle States</span></div><div class="metric"><strong id="recordMode">bereit</strong><span>Status</span></div></div>
-            <div class="record-help"><b>Einmal lokal starten:</b> <span class="mono">npm run recorder:agent</span><br>Danach bleibt der Editor die Produktoberfläche. Kein Screenshot-Fernsteuern, kein Text-Senden-Feld: Das geöffnete Chromium ist der Recorder.</div>
+            <div class="record-help" id="recorderHelp">Der Recorder wird automatisch erkannt. Kein Screenshot-Fernsteuern und kein lokaler Serverprozess.</div>
           </div>
         </div>
       </div>
@@ -81,232 +81,7 @@
 </div>
 <div class="toast" id="toast"></div>
 <script src="/disable-sw.js"></script>
-<script>
-(() => {
-  "use strict";
-  const AGENT = "http://127.0.0.1:8799";
-  const DB_NAME = "zustand-product";
-  const DB_STORE = "projects";
-  const LAST_KEY = "zustand.last-project";
-  const OPS = ["==","!=",">",">=","<","<=","truthy","falsy"];
-  let project = null;
-  let selection = null;
-  let activeTab = "recorder";
-  let recordingId = "";
-  let recordingPoll = null;
-  let replayId = "";
-  let replayPoll = null;
-  let saveTimer = null;
-
-  const $ = id => document.getElementById(id);
-  const clone = value => JSON.parse(JSON.stringify(value));
-  const uid = prefix => `${prefix}_${Math.random().toString(36).slice(2,9)}`;
-  const esc = value => String(value ?? "").replace(/[&<>\"]/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
-
-  function toast(message, bad = false) {
-    const node = $("toast");
-    node.textContent = message;
-    node.className = "toast show" + (bad ? " bad" : "");
-    clearTimeout(toast.timer);
-    toast.timer = setTimeout(() => node.className = "toast", 3200);
-  }
-
-  function defaultProject() {
-    return {
-      kind:"zustand-project",version:1,id:uid("project"),name:"Neues Projekt",createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),startStateId:"state_001",
-      states:[
-        {id:"state_001",title:"Start",x:80,y:90,trigger:{type:"interaction",eventName:"",timerMs:0},fields:[],snapshot:{url:"",title:"Start",image:""}},
-        {id:"state_002",title:"Ziel",x:360,y:90,trigger:{type:"auto",eventName:"",timerMs:0},fields:[],snapshot:{url:"",title:"Ziel",image:""}}
-      ],
-      transitions:[{id:"transition_001",from:"state_001",to:"state_002",label:"Weiter",listener:{type:"click",selector:""},rules:{join:"and",items:[]},replay:{delayMs:300}}],
-      recording:null
-    };
-  }
-
-  function normalizeProject(value) {
-    if (!value || value.kind !== "zustand-project" || !Array.isArray(value.states) || !Array.isArray(value.transitions)) throw new Error("Kein Zustand-Projekt");
-    const next = clone(value);
-    next.version = 1;
-    next.id ||= uid("project");
-    next.name ||= "Projekt";
-    next.startStateId ||= next.states[0]?.id || "";
-    next.states.forEach((state,index) => {
-      state.id ||= `state_${String(index+1).padStart(3,"0")}`;
-      state.title ||= state.id;
-      state.x = Number.isFinite(Number(state.x)) ? Number(state.x) : 80 + (index%4)*240;
-      state.y = Number.isFinite(Number(state.y)) ? Number(state.y) : 80 + Math.floor(index/4)*150;
-      state.trigger ||= {type:"auto",eventName:"",timerMs:0};
-      state.fields = Array.isArray(state.fields) ? state.fields : [];
-      state.snapshot ||= {url:"",title:"",image:""};
-    });
-    next.transitions.forEach((transition,index) => {
-      transition.id ||= `transition_${String(index+1).padStart(3,"0")}`;
-      transition.label ||= "Weiter";
-      transition.listener ||= {type:"auto"};
-      transition.rules ||= {join:"and",items:[]};
-      transition.rules.join = transition.rules.join === "or" ? "or" : "and";
-      transition.rules.items = Array.isArray(transition.rules.items) ? transition.rules.items : [];
-      transition.replay ||= {delayMs:300};
-    });
-    return next;
-  }
-
-  function dbOpen() {
-    return new Promise((resolve,reject) => {
-      const request = indexedDB.open(DB_NAME,1);
-      request.onupgradeneeded = () => request.result.createObjectStore(DB_STORE,{keyPath:"id"});
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-  }
-  async function dbPut(value) {
-    const db = await dbOpen();
-    await new Promise((resolve,reject) => { const tx=db.transaction(DB_STORE,"readwrite");tx.objectStore(DB_STORE).put(value);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error); });
-    db.close();
-  }
-  async function dbGet(id) {
-    const db = await dbOpen();
-    const value = await new Promise((resolve,reject) => { const req=db.transaction(DB_STORE).objectStore(DB_STORE).get(id);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error); });
-    db.close(); return value;
-  }
-
-  function scheduleSave() {
-    if (!project) return;
-    project.updatedAt = new Date().toISOString();
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(async () => {
-      try { await dbPut(project); localStorage.setItem(LAST_KEY, project.id); } catch (_) {}
-    },180);
-  }
-
-  function setProject(next) {
-    project = normalizeProject(next);
-    $("projectName").value = project.name;
-    selection = project.states[0] ? {type:"state",id:project.startStateId || project.states[0].id} : null;
-    scheduleSave();
-    renderAll();
-  }
-
-  function stateById(id){return project?.states.find(state=>state.id===id)||null}
-  function transitionById(id){return project?.transitions.find(item=>item.id===id)||null}
-  function selectedState(){return selection?.type==="state"?stateById(selection.id):selection?.type==="transition"?stateById(transitionById(selection.id)?.from):null}
-
-  function switchTab(name) {
-    activeTab = name === "render" ? "render" : "recorder";
-    $("tabRecorder").classList.toggle("active",activeTab==="recorder");$("tabRender").classList.toggle("active",activeTab==="render");
-    $("paneRecorder").classList.toggle("active",activeTab==="recorder");$("paneRender").classList.toggle("active",activeTab==="render");
-    const url = new URL(location.href); url.searchParams.set("tab",activeTab); history.replaceState(null,"",url);
-    if (activeTab === "render") renderApp();
-  }
-
-  function renderAll(){renderGraph();renderInspector();renderApp();$("chartSummary").textContent=`${project.states.length} States · ${project.transitions.length} Transitions`}
-
-  function renderGraph() {
-    const nodes = $("nodes"), edges=$("edges"); nodes.innerHTML="";edges.innerHTML="";
-    for (const transition of project.transitions) {
-      const from=stateById(transition.from),to=stateById(transition.to); if(!from||!to) continue;
-      const x1=from.x+192,y1=from.y+43,x2=to.x,y2=to.y+43;
-      const g=document.createElementNS("http://www.w3.org/2000/svg","g");
-      const line=document.createElementNS(g.namespaceURI,"line");line.setAttribute("x1",x1);line.setAttribute("y1",y1);line.setAttribute("x2",x2);line.setAttribute("y2",y2);line.setAttribute("stroke",selection?.type==="transition"&&selection.id===transition.id?"#38bdf8":"#44657f");line.setAttribute("stroke-width","2");g.appendChild(line);
-      const hit=document.createElementNS(g.namespaceURI,"line");hit.setAttribute("x1",x1);hit.setAttribute("y1",y1);hit.setAttribute("x2",x2);hit.setAttribute("y2",y2);hit.setAttribute("stroke","transparent");hit.setAttribute("stroke-width","18");hit.setAttribute("class","edge-hit");hit.addEventListener("click",()=>{selection={type:"transition",id:transition.id};renderAll()});g.appendChild(hit);
-      const text=document.createElementNS(g.namespaceURI,"text");text.setAttribute("x",(x1+x2)/2);text.setAttribute("y",(y1+y2)/2-7);text.setAttribute("text-anchor","middle");text.setAttribute("fill","#9fc5df");text.setAttribute("font-size","11");text.setAttribute("pointer-events","none");text.textContent=transition.label||transition.listener?.type||"→";g.appendChild(text);edges.appendChild(g);
-    }
-    for (const state of project.states) {
-      const node=document.createElement("div");node.className="node"+(selection?.type==="state"&&selection.id===state.id?" selected":"");node.style.left=state.x+"px";node.style.top=state.y+"px";node.dataset.id=state.id;
-      node.innerHTML=`<div class="node-head">${esc(state.title)}</div><div class="node-meta"><span class="dot"></span>${esc(state.trigger?.type||"auto")} · ${esc(state.id)}</div>${state.snapshot?.image?`<img class="thumb" src="${state.snapshot.image}" alt="">`:""}`;
-      node.addEventListener("click",event=>{if(event.defaultPrevented)return;selection={type:"state",id:state.id};renderAll()});
-      const head=node.querySelector(".node-head");head.addEventListener("pointerdown",event=>startDrag(event,state,node));nodes.appendChild(node);
-    }
-  }
-
-  function startDrag(event,state,node){
-    event.preventDefault();event.stopPropagation();selection={type:"state",id:state.id};
-    const startX=event.clientX,startY=event.clientY,originX=state.x,originY=state.y;node.setPointerCapture(event.pointerId);node.classList.add("selected");
-    const move=e=>{state.x=Math.max(0,Math.round((originX+e.clientX-startX)/12)*12);state.y=Math.max(0,Math.round((originY+e.clientY-startY)/12)*12);node.style.left=state.x+"px";node.style.top=state.y+"px";renderEdgesOnly();};
-    const up=e=>{node.releasePointerCapture(e.pointerId);node.removeEventListener("pointermove",move);node.removeEventListener("pointerup",up);scheduleSave();renderAll()};node.addEventListener("pointermove",move);node.addEventListener("pointerup",up);
-  }
-  function renderEdgesOnly(){
-    const prior=selection;const nodes=$("nodes");const positions=new Map([...nodes.children].map(node=>[node.dataset.id,{x:parseFloat(node.style.left),y:parseFloat(node.style.top)}]));
-    $("edges").innerHTML="";for(const transition of project.transitions){const from=positions.get(transition.from),to=positions.get(transition.to);if(!from||!to)continue;const g=document.createElementNS("http://www.w3.org/2000/svg","g");const line=document.createElementNS(g.namespaceURI,"line");line.setAttribute("x1",from.x+192);line.setAttribute("y1",from.y+43);line.setAttribute("x2",to.x);line.setAttribute("y2",to.y+43);line.setAttribute("stroke",prior?.type==="transition"&&prior.id===transition.id?"#38bdf8":"#44657f");line.setAttribute("stroke-width","2");g.appendChild(line);$("edges").appendChild(g)}
-  }
-
-  function selectHtml(id,items,value){return `<select class="select" id="${id}">${items.map(item=>`<option value="${esc(item.value)}"${item.value===value?" selected":""}>${esc(item.label)}</option>`).join("")}</select>`}
-  function inputHtml(id,value,type="text"){return `<input class="input" id="${id}" type="${type}" value="${esc(value??"")}">`}
-
-  function renderInspector(){
-    const root=$("inspector");root.innerHTML="";
-    if(!selection){root.innerHTML='<div class="empty">State oder Transition auswählen.</div>';$("selectionLabel").textContent="Nichts ausgewählt";return}
-    if(selection.type==="state") renderStateInspector(root,stateById(selection.id)); else renderTransitionInspector(root,transitionById(selection.id));
-  }
-
-  function renderStateInspector(root,state){
-    if(!state)return;$("selectionLabel").textContent=`State · ${state.id}`;
-    const wrap=document.createElement("div");wrap.className="group";wrap.innerHTML=`<h3>State</h3><label class="field"><span>Titel</span>${inputHtml("stateTitle",state.title)}</label><label class="field"><span>Trigger-Kontext</span>${selectHtml("stateTrigger",[{value:"interaction",label:"Interaktion"},{value:"timer",label:"Timer"},{value:"event",label:"Event / Webhook"},{value:"auto",label:"Auto"}],state.trigger?.type||"auto")}</label><div id="stateTriggerDetail"></div>`;root.appendChild(wrap);
-    const title=$("stateTitle");title.addEventListener("input",()=>{state.title=title.value;renderGraph();renderApp();scheduleSave()});$("stateTrigger").addEventListener("change",event=>{state.trigger={...(state.trigger||{}),type:event.target.value};renderInspector();renderGraph();scheduleSave()});
-    const detail=$("stateTriggerDetail");if(state.trigger?.type==="timer"){detail.innerHTML=`<label class="field"><span>Delay ms</span>${inputHtml("stateTimer",state.trigger.timerMs||0,"number")}</label>`;$("stateTimer").addEventListener("input",e=>{state.trigger.timerMs=Math.max(0,Number(e.target.value)||0);scheduleSave()})}else if(state.trigger?.type==="event"){detail.innerHTML=`<label class="field"><span>Event / Webhook Name</span>${inputHtml("stateEvent",state.trigger.eventName||"")}</label>`;$("stateEvent").addEventListener("input",e=>{state.trigger.eventName=e.target.value;scheduleSave()})}
-    const fields=document.createElement("div");fields.className="group";fields.innerHTML=`<h3>Daten in diesem State</h3><div class="row">${state.fields.length?state.fields.map(field=>`<span class="pill mono">${esc(field.label)} · ${esc(field.property)}</span>`).join(""): '<span class="muted small">Beim Recording erkannte Inputs/Checkboxen erscheinen automatisch hier.</span>'}</div>`;root.appendChild(fields);
-    const targets=project.states.filter(item=>item.id!==state.id);const transitions=document.createElement("div");transitions.className="group";transitions.innerHTML=`<h3>Ausgehende Transition</h3><div class="row">${targets.length?selectHtml("newTarget",targets.map(item=>({value:item.id,label:item.title})),targets[0].id):'<span class="muted">Erst weiteren State anlegen.</span>'}${targets.length?'<button class="btn" id="addTransition">+ Transition</button>':''}</div>`;root.appendChild(transitions);if(targets.length)$("addTransition").onclick=()=>{const to=$("newTarget").value;const id=uid("transition");project.transitions.push({id,from:state.id,to,label:"Weiter",listener:defaultListenerForContext(state.trigger?.type),rules:{join:"and",items:[]},replay:{delayMs:300}});selection={type:"transition",id};scheduleSave();renderAll()};
-    const danger=document.createElement("div");danger.className="group";danger.innerHTML='<button class="btn danger" id="deleteState">State löschen</button>';root.appendChild(danger);$("deleteState").onclick=()=>deleteState(state.id);
-  }
-
-  function defaultListenerForContext(context){if(context==="timer")return{type:"timer"};if(context==="event")return{type:"event",event:""};if(context==="auto")return{type:"auto"};return{type:"click",selector:""}}
-  function listenerTypes(context){if(context==="timer")return[{value:"timer",label:"Timer-Ende"}];if(context==="event")return[{value:"event",label:"Event"}];if(context==="auto")return[{value:"auto",label:"Auto"}];return[{value:"click",label:"Klick"},{value:"input",label:"Input"},{value:"change",label:"Änderung"},{value:"key",label:"Taste"},{value:"scroll",label:"Scroll"}]}
-
-  function renderTransitionInspector(root,transition){
-    if(!transition)return;const from=stateById(transition.from),to=stateById(transition.to);$("selectionLabel").textContent=`Transition · ${transition.id}`;const context=from?.trigger?.type||"auto";const allowed=listenerTypes(context);if(!allowed.some(item=>item.value===transition.listener?.type))transition.listener=defaultListenerForContext(context);
-    const base=document.createElement("div");base.className="group";base.innerHTML=`<h3>Transition</h3><div class="small muted">${esc(from?.title||transition.from)} → ${esc(to?.title||transition.to)}</div><label class="field"><span>Label</span>${inputHtml("transitionLabel",transition.label)}</label><label class="field"><span>Lauscht auf</span>${selectHtml("listenerType",allowed,transition.listener.type)}</label><div id="listenerDetail"></div>`;root.appendChild(base);
-    $("transitionLabel").addEventListener("input",e=>{transition.label=e.target.value;renderGraph();scheduleSave()});$("listenerType").addEventListener("change",e=>{transition.listener={type:e.target.value};renderInspector();scheduleSave()});
-    const detail=$("listenerDetail");const type=transition.listener.type;if(["click","input","change"].includes(type)){detail.innerHTML=`<label class="field"><span>Element / Selector</span>${inputHtml("listenerSelector",transition.listener.selector||"")}</label>`;$("listenerSelector").addEventListener("input",e=>{transition.listener.selector=e.target.value;scheduleSave()})}else if(type==="key"){detail.innerHTML=`<label class="field"><span>Taste</span>${inputHtml("listenerKey",transition.listener.key||"Enter")}</label>`;$("listenerKey").addEventListener("input",e=>{transition.listener.key=e.target.value;scheduleSave()})}else if(type==="event"){detail.innerHTML=`<label class="field"><span>Event Name</span>${inputHtml("listenerEvent",transition.listener.event||from?.trigger?.eventName||"")}</label>`;$("listenerEvent").addEventListener("input",e=>{transition.listener.event=e.target.value;scheduleSave()})}
-    const rules=document.createElement("div");rules.className="group";rules.innerHTML='<div class="row"><h3>Filter / Regeln</h3><span class="spacer"></span><select class="select" id="ruleJoin"><option value="and">UND</option><option value="or">ODER</option></select></div><div class="small muted">Worauf lauscht diese Kante im State-Kontext?</div><div class="rule-head"><span>Feld</span><span>Operator</span><span>Wert</span><span></span></div><div id="ruleRows"></div><button class="btn" id="addRule">+ Regel</button>';root.appendChild(rules);$("ruleJoin").value=transition.rules?.join||"and";$("ruleJoin").onchange=e=>{transition.rules.join=e.target.value;scheduleSave()};renderRuleRows(transition);$("addRule").onclick=()=>{transition.rules.items.push({field:firstRuleField(),operator:"==",value:""});renderInspector();scheduleSave()};
-    const actions=document.createElement("div");actions.className="group";actions.innerHTML='<button class="btn danger" id="deleteTransition">Transition löschen</button>';root.appendChild(actions);$("deleteTransition").onclick=()=>{project.transitions=project.transitions.filter(item=>item.id!==transition.id);selection=from?{type:"state",id:from.id}:null;scheduleSave();renderAll()};
-  }
-
-  function ruleFields(){const out=[];for(const state of project.states){for(const field of state.fields||[])out.push({value:field.path,label:`${state.title} · ${field.label} · ${field.property}`})}out.push({value:"event.payload.type",label:"Event · payload.type"},{value:"event.payload.value",label:"Event · payload.value"},{value:"event.payload.id",label:"Event · payload.id"});return out}
-  function firstRuleField(){return ruleFields()[0]?.value||"event.payload.value"}
-  function renderRuleRows(transition){const root=$("ruleRows");root.innerHTML="";for(const [index,rule] of transition.rules.items.entries()){const row=document.createElement("div");row.className="rule-row";const fields=ruleFields();row.innerHTML=`${selectHtml(`ruleField_${index}`,fields.length?fields:[{value:rule.field||"event.payload.value",label:rule.field||"event.payload.value"}],rule.field)}${selectHtml(`ruleOp_${index}`,OPS.map(op=>({value:op,label:op==="truthy"?"ist wahr":op==="falsy"?"ist falsch":op})),rule.operator||"==")}<input class="input value" id="ruleValue_${index}" value="${esc(rule.value??"")}" ${["truthy","falsy"].includes(rule.operator)?"disabled":""}><button class="btn danger" id="ruleDelete_${index}" title="Regel löschen">×</button>`;root.appendChild(row);$(`ruleField_${index}`).onchange=e=>{rule.field=e.target.value;scheduleSave()};$(`ruleOp_${index}`).onchange=e=>{rule.operator=e.target.value;renderInspector();scheduleSave()};$(`ruleValue_${index}`).oninput=e=>{rule.value=e.target.value;scheduleSave()};$(`ruleDelete_${index}`).onclick=()=>{transition.rules.items.splice(index,1);renderInspector();scheduleSave()}}
-  }
-
-  function deleteState(id){if(project.states.length<=1)return toast("Mindestens ein State bleibt bestehen.",true);project.states=project.states.filter(state=>state.id!==id);project.transitions=project.transitions.filter(t=>t.from!==id&&t.to!==id);if(project.startStateId===id)project.startStateId=project.states[0].id;selection={type:"state",id:project.states[0].id};scheduleSave();renderAll()}
-
-  function addState(){const id=uid("state");const index=project.states.length;project.states.push({id,title:"Neuer State",x:80+(index%4)*240,y:80+Math.floor(index/4)*150,trigger:{type:"auto",eventName:"",timerMs:0},fields:[],snapshot:{url:"",title:"",image:""}});selection={type:"state",id};scheduleSave();renderAll()}
-
-  function renderApp(){
-    const frame=$("appFrame");const state=selectedState()||stateById(project?.startStateId);if(!state){frame.innerHTML='<div class="app-empty">Kein State.</div>';return}if(state.snapshot?.image){frame.innerHTML=`<img src="${state.snapshot.image}" alt="${esc(state.title)}"><div class="frame-caption"><b>${esc(state.title)}</b>${state.snapshot.url?` · ${esc(state.snapshot.url)}`:""}</div>`}else{frame.innerHTML=`<div class="app-empty"><b>${esc(state.title)}</b><br><span class="muted">Dieser manuelle State hat noch keinen aufgenommenen Snapshot.</span></div>`}
-  }
-
-  function moveState(delta){const state=selectedState()||stateById(project.startStateId);if(!state)return;const index=project.states.findIndex(item=>item.id===state.id);const next=project.states[Math.max(0,Math.min(project.states.length-1,index+delta))];if(next){selection={type:"state",id:next.id};renderAll()}}
-
-  async function agent(path="/health",options={}){const response=await fetch(AGENT+path,{cache:"no-store",...options,headers:{"content-type":"application/json",...(options.headers||{})}});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.message||data.error||`Agent HTTP ${response.status}`);return data}
-  async function checkAgent(){const dot=$("agentDot");dot.className="status-dot busy";$("agentStatus").textContent="Agent wird geprüft …";try{await agent();dot.className="status-dot ok";$("agentStatus").textContent="Local Recorder Agent bereit";return true}catch(_){dot.className="status-dot";$("agentStatus").textContent="Agent nicht erreichbar · npm run recorder:agent";return false}}
-
-  async function startRecording(){if(!(await checkAgent()))return toast("Local Recorder Agent starten: npm run recorder:agent",true);const url=$("recordUrl").value.trim();if(!url)return toast("URL eingeben.",true);try{$("recordStart").disabled=true;const data=await agent("/recordings",{method:"POST",body:JSON.stringify({url})});recordingId=data.id;$("recordFinish").disabled=false;$("recordCancel").disabled=false;$("recordMode").textContent="läuft";pollRecording();toast("Chromium geöffnet. App jetzt ganz normal bedienen.")}catch(error){$("recordStart").disabled=false;toast(error.message,true)}}
-  function pollRecording(){clearInterval(recordingPoll);const tick=async()=>{if(!recordingId)return;try{const data=await agent(`/recordings/${encodeURIComponent(recordingId)}`);$("recordActions").textContent=data.actionCount;$("recordStates").textContent=data.snapshotCount;$("recordMode").textContent=data.status;if(data.status==="browser_closed")toast("Browser wurde geschlossen. Aufnahme jetzt mit Fertig abschließen.")}catch(_){}};tick();recordingPoll=setInterval(tick,650)}
-  async function finishRecording(){if(!recordingId)return;try{$("recordFinish").disabled=true;$("recordMode").textContent="erstelle Projekt";const data=await agent(`/recordings/${encodeURIComponent(recordingId)}/finish`,{method:"POST",body:"{}"});clearInterval(recordingPoll);recordingPoll=null;recordingId="";$("recordStart").disabled=false;$("recordCancel").disabled=true;setProject(data.project);switchTab("render");toast("Recording wurde direkt als State-Projekt übernommen.")}catch(error){$("recordFinish").disabled=false;toast(error.message,true)}}
-  async function cancelRecording(){if(!recordingId)return;try{await agent(`/recordings/${encodeURIComponent(recordingId)}`,{method:"DELETE"})}catch(_){}clearInterval(recordingPoll);recordingId="";$("recordStart").disabled=false;$("recordFinish").disabled=true;$("recordCancel").disabled=true;$("recordMode").textContent="bereit"}
-
-  async function startReplay(){if(!project?.recording?.actions?.length)return toast("Dieses Projekt enthält noch keinen echten Recorder-Ablauf.",true);if(!(await checkAgent()))return toast("Local Recorder Agent starten: npm run recorder:agent",true);try{$("replayStart").disabled=true;$("replayStop").disabled=false;const data=await agent("/replays",{method:"POST",body:JSON.stringify({project,speed:Number($("replaySpeed").value)||1})});replayId=data.id;pollReplay();toast("Echter Replay läuft im Chromium.")}catch(error){$("replayStart").disabled=false;$("replayStop").disabled=true;toast(error.message,true)}}
-  function pollReplay(){clearInterval(replayPoll);const tick=async()=>{if(!replayId)return;try{const data=await agent(`/replays/${encodeURIComponent(replayId)}`);$("replayStatus").textContent=`${data.status} · ${data.currentAction}/${data.actionCount}`;if(data.currentAction>0&&project.states[data.currentAction]){selection={type:"state",id:project.states[data.currentAction].id};renderGraph();renderInspector();renderApp()}if(["finished","failed","cancelled"].includes(data.status)){clearInterval(replayPoll);replayPoll=null;replayId="";$("replayStart").disabled=false;$("replayStop").disabled=true;if(data.status==="failed")toast(data.error||"Replay fehlgeschlagen",true)}}catch(_){} };tick();replayPoll=setInterval(tick,450)}
-  async function stopReplay(){if(!replayId)return;try{await agent(`/replays/${encodeURIComponent(replayId)}`,{method:"DELETE"})}catch(_){}clearInterval(replayPoll);replayId="";$("replayStart").disabled=false;$("replayStop").disabled=true;$("replayStatus").textContent="Gestoppt"}
-
-  function download(name,text,type="application/json"){const blob=new Blob([text],{type});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500)}
-  function exportProject(){download(`${safeFile(project.name)}.zustand.json`,JSON.stringify(project,null,2))}
-  function safeFile(value){return String(value||"zustand").toLowerCase().replace(/[^a-z0-9äöüß_-]+/gi,"-").replace(/^-+|-+$/g,"")||"zustand"}
-  function appExportHtml(){const data=JSON.stringify(project).replace(/</g,"\\u003c");return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(project.name)}</title><style>html,body{margin:0;min-height:100%;background:#06101b;color:#e8f3ff;font:14px system-ui}main{min-height:100vh;display:grid;grid-template-rows:auto 1fr}.bar{display:flex;gap:8px;align-items:center;padding:10px;border-bottom:1px solid #21405b}.bar b{margin-right:auto}.btn{border:1px solid #315f82;border-radius:8px;background:#0a1827;color:#e8f3ff;padding:7px 10px}.frame{display:grid;place-items:center;padding:12px}.frame img{max-width:100%;max-height:calc(100vh - 70px);object-fit:contain}.empty{color:#94abc0}</style></head><body><main><div class="bar"><b id="title"></b><button class="btn" id="prev">←</button><span id="count"></span><button class="btn" id="next">→</button></div><div class="frame" id="frame"></div></main><script>const project=${data};let i=0;const q=id=>document.getElementById(id);function render(){const s=project.states[i];q('title').textContent=s.title||project.name;q('count').textContent=(i+1)+' / '+project.states.length;q('frame').innerHTML=s.snapshot&&s.snapshot.image?'<img src="'+s.snapshot.image+'" alt="">':'<div class="empty">'+(s.title||'State')+'</div>'}q('prev').onclick=()=>{i=Math.max(0,i-1);render()};q('next').onclick=()=>{i=Math.min(project.states.length-1,i+1);render()};render();<\/script></body></html>`}
-  function exportApp(){download(`${safeFile(project.name)}.html`,appExportHtml(),"text/html")}
-
-  async function importProject(file){try{const data=JSON.parse(await file.text());setProject(data.project?.kind==="zustand-project"?data.project:data);switchTab("render");toast("Projekt geladen.")}catch(error){toast(error.message,true)}}
-
-  function bind(){
-    document.querySelectorAll(".tab").forEach(tab=>tab.onclick=()=>switchTab(tab.dataset.tab));
-    $("projectName").oninput=e=>{project.name=e.target.value;project.updatedAt=new Date().toISOString();scheduleSave()};
-    $("btnNew").onclick=()=>{if(confirm("Neues Projekt starten?"))setProject(defaultProject())};$("btnAddState").onclick=addState;$("btnProjectExport").onclick=exportProject;$("btnExport").onclick=exportApp;$("projectImport").onchange=e=>{const file=e.target.files?.[0];if(file)importProject(file);e.target.value=""};
-    $("checkAgent").onclick=checkAgent;$("recordStart").onclick=startRecording;$("recordFinish").onclick=finishRecording;$("recordCancel").onclick=cancelRecording;
-    $("prevState").onclick=()=>moveState(-1);$("nextState").onclick=()=>moveState(1);$("replayStart").onclick=startReplay;$("replayStop").onclick=stopReplay;
-  }
-
-  async function boot(){bind();const query=new URL(location.href).searchParams;activeTab=query.get("tab")==="render"?"render":"recorder";let loaded=null;try{const id=localStorage.getItem(LAST_KEY);if(id)loaded=await dbGet(id)}catch(_){}setProject(loaded||defaultProject());switchTab(activeTab);checkAgent();}
-  boot().catch(error=>toast(error.message,true));
-})();
-</script>
+<script src="/recorder-extension/editor-bridge.js"></script>
+<script src="/state-app.js"></script>
 </body>
 </html>

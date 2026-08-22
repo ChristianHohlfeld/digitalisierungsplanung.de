@@ -7,7 +7,6 @@
     "build:pwa-assets": "node scripts/build-pwa-assets.mjs",
     "build:release-version": "node scripts/write-release-version.mjs --increment",
     "server:start": "node server/server.js",
-    "recorder:native": "node server/native-browser-recorder.js",
     "server:smoke:wss": "node server/wss-smoke.js",
     "server:smoke:wss:prod": "node server/wss-smoke.js --force-ip=198.199.83.43",
     "server:smoke:emit": "node server/emit-smoke.js",
@@ -18,8 +17,7 @@
     "test:contracts": "playwright test tests/core-contracts.spec.js --reporter=list",
     "test:full": "npm run test:server && npm run test:browser",
     "test:headed": "playwright test --headed",
-    "test:ui": "playwright test --ui",
-    "recorder:agent": "node server/native-recorder-agent.js"
+    "test:ui": "playwright test --ui"
   },
   "devDependencies": {
     "@playwright/test": "^1.52.0"
