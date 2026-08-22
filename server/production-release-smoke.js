@@ -35,13 +35,12 @@ function validateReleaseState({ expectedReleaseId, expectedSourceCommit, fronten
 }
 
 async function fetchResponse(url, options = {}) {
-  const response = await fetch(url, {
+  return fetch(url, {
     cache: "no-store",
     redirect: "follow",
     ...options,
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
   });
-  return response;
 }
 
 async function fetchText(url, options = {}) {
@@ -84,8 +83,9 @@ async function waitForProductionRelease(expectedReleaseId, expectedSourceCommit,
 
 async function verifyEditorSurface(expectedReleaseId) {
   const html = await fetchText(`${FRONTEND_ORIGIN}/state.html?release-smoke=${encodeURIComponent(expectedReleaseId)}-${Date.now()}`);
-  if (!html.includes("App Recorder")) throw new Error("Production state.html is missing App Recorder");
-  if (!html.includes("App Render")) throw new Error("Production state.html is missing App Render");
+  if (html.length < 10000) throw new Error(`Production state.html is unexpectedly small (${html.length} bytes)`);
+  if (!/<title>\s*Zustand\s*<\/title>/i.test(html)) throw new Error("Production state.html is not the Zustand editor");
+  if (!/inspector/i.test(html) || !/workspace/i.test(html)) throw new Error("Production state.html is missing core editor surfaces");
   return true;
 }
 
@@ -113,10 +113,7 @@ async function verifyRecorderSession() {
   try {
     const response = await fetchResponse(`${REALTIME_ORIGIN}/recorder/sessions`, {
       method: "POST",
-      headers: {
-        Origin: FRONTEND_ORIGIN,
-        "content-type": "application/json"
-      },
+      headers: { Origin: FRONTEND_ORIGIN, "content-type": "application/json" },
       body: JSON.stringify({ url: "https://example.com" })
     });
     if (response.status !== 201) throw new Error(`Recorder create -> HTTP ${response.status}: ${await response.text()}`);
@@ -140,17 +137,13 @@ async function main() {
   const expectedReleaseId = String(process.env.EXPECTED_RELEASE_ID || "").trim();
   const expectedSourceCommit = String(process.env.EXPECTED_RELEASE_SOURCE || "").trim();
   const timeoutMs = Math.max(30000, Number(process.env.RELEASE_SMOKE_TIMEOUT_MS) || DEFAULT_RELEASE_TIMEOUT_MS);
-
   console.log(`[release-smoke] expected ${expectedReleaseId} from ${expectedSourceCommit}`);
   const release = await waitForProductionRelease(expectedReleaseId, expectedSourceCommit, timeoutMs);
   console.log(`[release-smoke] converged: ${release.frontend.id} / ${release.version.releaseId} / ${release.health.releaseId}`);
-
   await verifyEditorSurface(expectedReleaseId);
   console.log("[release-smoke] state.html: ok");
-
   await verifyRecorderCors();
   console.log("[release-smoke] recorder CORS: ok");
-
   const recorder = await verifyRecorderSession();
   console.log(`[release-smoke] recorder session: ok (${recorder.sessionId}, ${recorder.status})`);
   console.log(`[release-smoke] VERIFIED ${expectedReleaseId}`);
