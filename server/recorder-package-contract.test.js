@@ -1,9 +1,9 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
 const test = require("node:test");
 const recorder = require("./external-recorder");
-const { projectFromRecording } = require("./native-recorder-agent");
 const stateCore = require("../mcp/state-blueprint-core");
 
 const PIXEL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
@@ -41,21 +41,10 @@ test("external website recording keeps the editor model contract-valid and carri
   );
 });
 
-test("unified recorder keeps real replay data at project level instead of stuffing it into states", () => {
-  const project = projectFromRecording({
-    startUrl: "https://example.com/",
-    viewport: { width: 1024, height: 640 },
-    actions: [{ type: "click", selector: "#next", target: { label: "Weiter" }, delayMs: 300 }],
-    snapshots: [
-      { url: "https://example.com/", title: "Start", image: PIXEL, atMs: 0 },
-      { url: "https://example.com/next", title: "Weiter", image: PIXEL, atMs: 300 }
-    ]
-  }, { id: "project_contract" });
-
-  assert.equal(project.kind, "zustand-project");
-  assert.equal(project.recording.actions.length, 1);
-  assert.equal(project.states.length, 2);
-  assert.equal(project.transitions.length, 1);
-  assert.equal(Object.hasOwn(project.states[0], "recording"), false);
-  assert.equal(Object.hasOwn(project.transitions[0], "recording"), false);
+test("public recorder import stores recording package beside, not inside, the contract model", () => {
+  const html = fs.readFileSync("recorder.html", "utf8");
+  assert.match(html, /state-blueprint-recording-package/);
+  assert.match(html, /localStorage\.setItem\(STORAGE_KEY \+ "\.externalRecording"/);
+  assert.match(html, /JSON\.stringify\(\{ model: definition\.model, recording \}\)/);
+  assert.doesNotMatch(html, /definition\.model\.recording/);
 });

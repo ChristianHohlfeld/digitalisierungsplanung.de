@@ -8,31 +8,27 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const read = relative => fs.readFileSync(path.join(root, relative), "utf8");
 
-test("state editor owns recorder input and render output", () => {
+test("external URL recorder is exposed from the editor itself", () => {
   const host = read("state.html");
-  assert.match(host, /id="tabRecorder"/);
-  assert.match(host, /App Recorder/);
-  assert.match(host, /Input/);
-  assert.match(host, /id="tabRender"/);
-  assert.match(host, /App Render/);
-  assert.match(host, /Output/);
-  assert.match(host, /id="recordUrl"/);
-  assert.match(host, /id="recordStart"/);
-  assert.match(host, /http:\/\/127\.0\.0\.1:8799/);
-  assert.match(host, /agent\("\/recordings"/);
-  assert.match(host, /agent\("\/replays"/);
-  assert.doesNotMatch(read("disable-sw.js"), /Recorder|Inspector|RuleBuilder/);
+  assert.match(host, /id="btnRecordUrl"/);
+  assert.match(host, /URL aufnehmen/);
+  assert.match(host, /location\.href = "\/recorder\.html"/);
+  assert.doesNotMatch(read("disable-sw.js"), /btnRecordUrl/);
 });
 
-test("legacy recorder page only forwards into the editor recorder tab", () => {
+test("external recorder UI uses isolated realtime browser API and canonical editor storage", () => {
   const html = read("recorder.html");
-  assert.match(html, /\/state\.html\?tab=recorder/);
-  assert.doesNotMatch(html, /realtime\.digitalisierungsplanung\.de/);
-  assert.doesNotMatch(html, /\/recorder\/sessions/);
-  assert.doesNotMatch(html, /stateBlueprintHotLinked/);
+  assert.match(html, /https:\/\/realtime\.digitalisierungsplanung\.de/);
+  assert.match(html, /\/recorder\/sessions/);
+  assert.match(html, /stateBlueprintHotLinked\.model\.v2/);
+  assert.match(html, /Play echter Replay/);
+  assert.match(html, /Pause\/Stop Replay/);
+  assert.match(html, /Export Replay/);
+  assert.match(html, /freigegebene Intranet-URL/);
+  assert.match(html, /echte States, echte Actions, echte Timings/);
 });
 
-test("production cloud recorder remains isolated and deploy-health checked", () => {
+test("production runs recorder separately with declared browser runtime and health checks", () => {
   const ecosystem = read("server/ecosystem.config.cjs");
   const nginx = read("server/nginx/recorder.locations.conf");
   const deploy = read("server/deploy.sh");
@@ -50,7 +46,7 @@ test("production cloud recorder remains isolated and deploy-health checked", () 
   assert.match(deploy, /8789\/healthz/);
 });
 
-test("external recorder compiler still produces only canonical State Blueprint output", () => {
+test("external recorder compiles through canonical State Blueprint contract only", () => {
   const source = read("server/external-recorder.js");
   assert.match(source, /stateCore\.blankModel\(\)/);
   assert.match(source, /stateCore\.applyCommands\(/);

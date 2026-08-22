@@ -1,5 +1,291 @@
 <!doctype html>
 <html lang="de">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Zustand · App Recorder</title><meta http-equiv="refresh" content="0;url=/state.html?tab=recorder"></head>
-<body><script>location.replace('/state.html?tab=recorder');</script><a href="/state.html?tab=recorder">App Recorder öffnen</a></body>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#07111d">
+  <title>Website aufnehmen · Zustand</title>
+  <style>
+    :root{color-scheme:dark;--bg:#07111d;--panel:#0b1b2a;--line:#20425f;--text:#e6f2ff;--muted:#9fb6cc;--accent:#38bdf8;--ok:#34d399;--bad:#fb7185}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;background:var(--bg);color:var(--text);font:14px/1.4 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    main{width:min(1180px,calc(100% - 24px));margin:auto;padding:18px 0 calc(28px + env(safe-area-inset-bottom))}
+    header{display:flex;gap:14px;align-items:end;justify-content:space-between;margin-bottom:14px}h1{margin:0;font-size:24px;line-height:1.1}p{margin:4px 0;color:var(--muted)}
+    .panel{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:12px;margin-bottom:12px}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    input,button,select{height:42px;border:1px solid var(--line);border-radius:8px;background:#06111f;color:var(--text);font:inherit;padding:0 10px}input[type=url]{flex:1;min-width:260px}#typeText{flex:1;min-width:180px}
+    button{cursor:pointer;font-weight:850}button.primary{background:#0b3a55;border-color:#23729b}button.good{background:#064e3b;border-color:#15966d}button.danger{background:#5f1721;border-color:#a4384a}button:disabled{opacity:.45;cursor:not-allowed}
+    .viewport{position:relative;display:grid;place-items:center;overflow:auto;min-height:360px;background:#020617;border:1px solid var(--line);border-radius:12px;touch-action:pan-x pan-y}.viewport img{display:block;max-width:100%;height:auto;cursor:crosshair;user-select:none;-webkit-user-drag:none}
+    .status{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--muted)}.ok{color:var(--ok)}.bad{color:var(--bad)}#after{display:none}.hint{font-size:12px;color:var(--muted)}.metric{font-weight:800;color:#bfdbfe}.timeline{display:grid;gap:7px;margin-top:10px}.timeline-item{border:1px solid rgba(49,95,140,.45);border-radius:10px;padding:8px;background:#06111f}.timeline-item strong{color:#bfdbfe}.timeline-item code{color:#9fb6cc;font-size:11px;overflow-wrap:anywhere}.split{display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,360px);gap:12px}.side{align-self:start;max-height:520px;overflow:auto}.pill{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:2px 8px;color:#bfdbfe;background:#06111f;font-size:12px}
+    @media(max-width:840px){.split{display:block}.side{max-height:none;margin-top:12px}}@media(max-width:680px){header{display:block}.row>*{flex:1 1 auto}input[type=url],#typeText{min-width:100%}button{min-width:92px}.viewport{min-height:260px}}
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div><h1>Website aufnehmen</h1><p>Öffentliche oder freigegebene Intranet-URL durchklicken → echte States, echte Actions, echte Timings, replaybarer Export.</p></div>
+    <div class="status" id="status">Bereit</div>
+  </header>
+
+  <section class="panel">
+    <div class="row"><input id="url" type="url" inputmode="url" autocomplete="url" placeholder="https://wob-app15.wobak.de/de/cockpit"><button class="primary" id="start">Aufnahme starten</button></div>
+    <div class="hint">Die Website läuft isoliert im Recorder-Browser. Freigegebene Intranet-Hosts sind erlaubt; localhost, Link-Local und Metadata-Netze bleiben gesperrt. Passwortwerte werden nicht gespeichert.</div>
+  </section>
+
+  <section class="panel" id="controls" hidden>
+    <div class="row">
+      <input id="typeText" type="text" autocomplete="off" placeholder="Text in das fokussierte Website-Feld schreiben">
+      <button id="type">Text senden</button>
+      <select id="key" aria-label="Taste"><option>Enter</option><option>Tab</option><option>Escape</option><option>Backspace</option><option>Delete</option><option>ArrowDown</option><option>ArrowUp</option><option>ArrowLeft</option><option>ArrowRight</option></select>
+      <button id="sendKey">Taste</button><button id="up">↑ Scroll</button><button id="down">↓ Scroll</button>
+      <button class="good" id="finish">Fertig → States</button><button class="danger" id="cancel">Abbrechen</button>
+    </div>
+  </section>
+
+  <div class="split">
+    <section class="viewport" id="viewport"><div class="status">URL eingeben und Aufnahme starten.</div></section>
+    <aside class="panel side" id="timelinePanel" hidden>
+      <div class="row"><span class="pill" id="timelineCount">0 Aktionen</span><span class="pill" id="stateCount">0 States</span></div>
+      <div class="timeline" id="timeline"></div>
+    </aside>
+  </div>
+
+  <section class="panel" id="after">
+    <div class="row">
+      <button class="good" id="import">States + Replay in Zustand öffnen</button>
+      <button id="playReplay">Play echter Replay</button>
+      <button id="pauseReplay" disabled>Pause/Stop Replay</button>
+      <button id="exportReplay">Export Replay</button>
+      <button id="download">Export komplett</button>
+      <button id="newRecording">Neue Aufnahme</button>
+    </div>
+    <div class="hint" id="summary"></div>
+  </section>
+</main>
+<script>
+(() => {
+  "use strict";
+  const API_BASE = "https://realtime.digitalisierungsplanung.de";
+  const STORAGE_KEY = "stateBlueprintHotLinked.model.v2";
+  const status = document.getElementById("status");
+  const viewport = document.getElementById("viewport");
+  const controls = document.getElementById("controls");
+  const after = document.getElementById("after");
+  const timelinePanel = document.getElementById("timelinePanel");
+  const timeline = document.getElementById("timeline");
+  const timelineCount = document.getElementById("timelineCount");
+  const stateCount = document.getElementById("stateCount");
+  let session = "";
+  let definition = null;
+  let recording = null;
+  let lastState = null;
+  let replayAbort = null;
+
+  function setStatus(text, ok = true) {
+    status.textContent = text;
+    status.className = "status " + (ok ? "ok" : "bad");
+  }
+
+  async function api(path, body, method = "POST", options = {}) {
+    const response = await fetch(API_BASE + path, {
+      method,
+      headers: body === undefined ? undefined : { "content-type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      cache: "no-store",
+      credentials: "omit",
+      signal: options.signal
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.message || data.error || ("HTTP " + response.status));
+    return data;
+  }
+
+  function actionTitle(action = {}) {
+    const target = String(action.target?.label || action.selector || "").trim();
+    if (action.type === "click") return target ? "Klick auf " + target : "Klick";
+    if (action.type === "input") return action.redacted ? "Geschützte Eingabe" : target ? "Text in " + target : "Texteingabe";
+    if (action.type === "key") return "Taste " + String(action.key || "");
+    if (action.type === "scroll") return Number(action.deltaY) < 0 ? "Scroll nach oben" : "Scroll nach unten";
+    if (action.type === "navigate") return "Navigation zu " + String(action.url || "");
+    return "Aktion";
+  }
+
+  function replayPackage() {
+    return {
+      kind: "state-blueprint-recording-package",
+      schemaVersion: 2,
+      exportedAt: new Date().toISOString(),
+      definition,
+      recording
+    };
+  }
+
+  function renderTimeline(data = lastState) {
+    const actions = recording?.actions || data?.actions || [];
+    const snapshotCount = recording?.snapshotCount || data?.snapshotCount || 0;
+    timelinePanel.hidden = !(actions.length || snapshotCount);
+    timelineCount.textContent = actions.length + " Aktionen";
+    stateCount.textContent = snapshotCount + " States";
+    timeline.innerHTML = "";
+    actions.forEach(action => {
+      const item = document.createElement("div");
+      item.className = "timeline-item";
+      item.innerHTML = "<strong>#" + action.index + " · " + actionTitle(action) + "</strong><br>" +
+        "<span>Delay: " + Math.round(Number(action.delayMs) || 0) + " ms</span><br>" +
+        "<code>" + JSON.stringify({ type: action.type, selector: action.selector || "", x: action.x, y: action.y, key: action.key, deltaY: action.deltaY, redacted: action.redacted || false }).replace(/[<>&]/g, ch => ({"<":"&lt;",">":"&gt;","&":"&amp;"}[ch])) + "</code>";
+      timeline.appendChild(item);
+    });
+  }
+
+  function render(data) {
+    lastState = data;
+    session = data.sessionId || session;
+    const shot = data.current;
+    if (!shot?.image) return;
+    viewport.innerHTML = "";
+    const img = new Image();
+    img.src = shot.image;
+    img.alt = shot.title || shot.url || "Website";
+    img.dataset.w = String(data.viewport?.width || 1024);
+    img.dataset.h = String(data.viewport?.height || 640);
+    img.addEventListener("click", async event => {
+      if (!session) return;
+      const rect = img.getBoundingClientRect();
+      const x = Math.max(0, Math.round((event.clientX - rect.left) / rect.width * Number(img.dataset.w)));
+      const y = Math.max(0, Math.round((event.clientY - rect.top) / rect.height * Number(img.dataset.h)));
+      try {
+        setStatus("Klick …");
+        const next = await api("/recorder/sessions/" + encodeURIComponent(session) + "/actions", { type: "click", x, y });
+        render(next);
+        setStatus("Aufnahme · " + next.actionCount + " Aktionen");
+      } catch (error) { setStatus(error.message, false); }
+    });
+    viewport.appendChild(img);
+    renderTimeline(data);
+  }
+
+  document.getElementById("start").onclick = async () => {
+    try {
+      setStatus("Öffne Browser …");
+      const data = await api("/recorder/sessions", { url: document.getElementById("url").value });
+      render(data);
+      controls.hidden = false;
+      after.style.display = "none";
+      definition = null;
+      recording = null;
+      setStatus("Aufnahme läuft");
+    } catch (error) { setStatus(error.message, false); }
+  };
+
+  document.getElementById("type").onclick = async () => {
+    try {
+      const input = document.getElementById("typeText");
+      const next = await api("/recorder/sessions/" + encodeURIComponent(session) + "/actions", { type: "input", text: input.value });
+      input.value = "";
+      render(next);
+      setStatus("Eingabe aufgenommen");
+    } catch (error) { setStatus(error.message, false); }
+  };
+
+  document.getElementById("sendKey").onclick = async () => {
+    try {
+      const next = await api("/recorder/sessions/" + encodeURIComponent(session) + "/actions", { type: "key", key: document.getElementById("key").value });
+      render(next);
+      setStatus("Taste aufgenommen");
+    } catch (error) { setStatus(error.message, false); }
+  };
+
+  for (const [id, deltaY] of [["up", -520], ["down", 520]]) {
+    document.getElementById(id).onclick = async () => {
+      try {
+        const next = await api("/recorder/sessions/" + encodeURIComponent(session) + "/actions", { type: "scroll", deltaY, deltaX: 0 });
+        render(next);
+        setStatus("Scroll aufgenommen");
+      } catch (error) { setStatus(error.message, false); }
+    };
+  }
+
+  document.getElementById("finish").onclick = async () => {
+    try {
+      setStatus("Kompiliere States + Replay …");
+      const data = await api("/recorder/sessions/" + encodeURIComponent(session) + "/finish", {});
+      definition = data.definition;
+      recording = data.recording;
+      controls.hidden = true;
+      after.style.display = "block";
+      document.getElementById("summary").innerHTML = '<span class="metric">' + recording.actions.length + " echte Actions</span> · <span class=\"metric\">" + recording.snapshotCount + " States</span> · Selector/Koordinaten/Timings im Export";
+      renderTimeline({ snapshotCount: recording.snapshotCount });
+      setStatus("FSM + echter Replay erzeugt");
+    } catch (error) { setStatus(error.message, false); }
+  };
+
+  document.getElementById("import").onclick = () => {
+    if (!definition?.model) return;
+    try {
+      for (const key of [STORAGE_KEY, STORAGE_KEY + ".editor", STORAGE_KEY + ".camera", STORAGE_KEY + ".previewCollapsed", STORAGE_KEY + ".stateExplorer", STORAGE_KEY + ".ui"]) localStorage.removeItem(key);
+      localStorage.setItem(STORAGE_KEY + ".editor", JSON.stringify({ model: definition.model, recording }));
+      localStorage.setItem(STORAGE_KEY + ".externalRecording", JSON.stringify(replayPackage()));
+      location.href = "/state.html?recorded=1&replay=1";
+    } catch (error) { setStatus("States konnten nicht lokal übernommen werden: " + error.message, false); }
+  };
+
+  document.getElementById("playReplay").onclick = async () => {
+    try {
+      document.getElementById("playReplay").disabled = true;
+      document.getElementById("pauseReplay").disabled = false;
+      replayAbort = new AbortController();
+      setStatus("Echter Replay läuft …");
+      const data = await api("/recorder/sessions/" + encodeURIComponent(session) + "/replay", {}, "POST", { signal: replayAbort.signal });
+      viewport.innerHTML = "";
+      const img = new Image();
+      img.src = data.image;
+      img.alt = data.title || data.url || "Replay result";
+      viewport.appendChild(img);
+      setStatus("Replay fertig: " + data.actionCount + " echte Actions");
+    } catch (error) {
+      setStatus(error.name === "AbortError" ? "Replay pausiert/gestoppt" : error.message, error.name === "AbortError");
+    } finally {
+      replayAbort = null;
+      document.getElementById("playReplay").disabled = false;
+      document.getElementById("pauseReplay").disabled = true;
+    }
+  };
+
+  document.getElementById("pauseReplay").onclick = () => {
+    replayAbort?.abort();
+  };
+
+  function downloadJson(name, payload) {
+    const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = name;
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  document.getElementById("exportReplay").onclick = () => {
+    if (!recording) return;
+    downloadJson("website-replay-actions.json", recording);
+  };
+
+  document.getElementById("download").onclick = () => {
+    if (!definition) return;
+    downloadJson("website-recording-package.json", replayPackage());
+  };
+
+  document.getElementById("cancel").onclick = async () => {
+    if (session) await api("/recorder/sessions/" + encodeURIComponent(session), undefined, "DELETE").catch(() => {});
+    session = "";
+    definition = null;
+    recording = null;
+    controls.hidden = true;
+    after.style.display = "none";
+    timelinePanel.hidden = true;
+    viewport.innerHTML = '<div class="status">Aufnahme abgebrochen.</div>';
+    setStatus("Bereit");
+  };
+
+  document.getElementById("newRecording").onclick = () => location.reload();
+})();
+</script>
+</body>
 </html>
