@@ -5,6 +5,11 @@ const EDITOR_ORIGINS = new Set([
   "https://www.digitalisierungsplanung.de"
 ]);
 
+function editorOriginAllowed() {
+  if (EDITOR_ORIGINS.has(location.origin)) return true;
+  return (location.protocol === "http:" || location.protocol === "https:") && new Set(["127.0.0.1", "localhost"]).has(location.hostname);
+}
+
 let recordingSessionId = "";
 let installed = false;
 let inputTimer = null;
@@ -15,7 +20,7 @@ let lastScrollY = window.scrollY || 0;
 
 function selectorFor(element) {
   if (!(element instanceof Element)) return { selector: "", label: "", tag: "", inputType: "", id: "", name: "" };
-  const esc = value => CSS?.escape ? CSS.escape(String(value)) : String(value).replace(/[^a-zA-Z0-9_-]/g, "\\$&");
+  const esc = value => window.CSS?.escape ? CSS.escape(String(value)) : String(value).replace(/[^a-zA-Z0-9_-]/g, "\\$&");
   const label = String(
     element.getAttribute("aria-label") ||
     element.getAttribute("placeholder") ||
@@ -36,7 +41,7 @@ function selectorFor(element) {
   if (element.id) return { ...meta, selector: `#${esc(element.id)}` };
   for (const attr of ["data-testid", "data-test", "data-qa", "name"]) {
     const value = element.getAttribute(attr);
-    if (value) return { ...meta, selector: `${element.tagName.toLowerCase()}[${attr}="${CSS.escape(String(value))}"]` };
+    if (value) return { ...meta, selector: `${element.tagName.toLowerCase()}[${attr}="${esc(value)}"]` };
   }
   const parts = [];
   let node = element;
@@ -160,7 +165,7 @@ chrome.runtime.onMessage.addListener(message => {
 
 chrome.runtime.sendMessage({ type: "ZUSTAND_CONTENT_READY", url: location.href }).catch(() => {});
 
-if (EDITOR_ORIGINS.has(location.origin)) {
+if (editorOriginAllowed()) {
   window.addEventListener("message", event => {
     const data = event.data;
     if (event.source !== window || data?.source !== "zustand-editor" || data?.type !== "ZUSTAND_EXTENSION_COMMAND") return;
