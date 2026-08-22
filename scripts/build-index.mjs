@@ -50,6 +50,7 @@ try {
   const page = await context.newPage();
   await page.goto(`${buildOrigin}/state.html?demo=zustand`, { waitUntil: "domcontentloaded" });
   await page.waitForSelector("#btnExport", { state: "visible" });
+  await page.waitForSelector('[data-id="site_pricing"]', { state: "visible" });
 
   const [download] = await Promise.all([
     page.waitForEvent("download", { timeout: 10000 }),

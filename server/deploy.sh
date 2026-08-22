@@ -17,14 +17,8 @@ HEALTH_RETRY_DELAY="${HEALTH_RETRY_DELAY:-1}"
 NGINX_AVAILABLE="/etc/nginx/sites-available/${DOMAIN}"
 NGINX_ENABLED="/etc/nginx/sites-enabled/${DOMAIN}"
 NGINX_BOOTSTRAP_AVAILABLE="/etc/nginx/sites-available/${DOMAIN}.bootstrap"
-RECORDER_NGINX_SNIPPET="/etc/nginx/snippets/digitalisierungsplanung-recorder.conf"
-PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-/var/lib/digitalisierungsplanung/playwright}"
-DEPLOY_ENSURE_SWAP="${DEPLOY_ENSURE_SWAP:-1}"
-DEPLOY_SWAP_FILE="${DEPLOY_SWAP_FILE:-/swapfile}"
-DEPLOY_SWAP_SIZE_MB="${DEPLOY_SWAP_SIZE_MB:-2048}"
-DEPLOY_SWAP_MIN_AVAILABLE_MB="${DEPLOY_SWAP_MIN_AVAILABLE_MB:-900}"
 
-export APP_DIR ENV_FILE PM2_APP PLAYWRIGHT_BROWSERS_PATH
+export APP_DIR ENV_FILE PM2_APP
 
 log() {
   printf '[deploy] %s\n' "$*"
@@ -45,44 +39,12 @@ retry() {
   done
 }
 
-available_memory_mb() {
-  awk '/MemAvailable:/ { print int($2 / 1024); found=1 } END { if (!found) print 0 }' /proc/meminfo
-}
-
-active_swap_mb() {
-  awk 'NR > 1 { total += $3 } END { print int(total / 1024) }' /proc/swaps
-}
-
-ensure_deploy_swap() {
-  [[ "$DEPLOY_ENSURE_SWAP" == "1" ]] || return 0
-  local available swap
-  available="$(available_memory_mb)"
-  swap="$(active_swap_mb)"
-  if (( available + swap >= DEPLOY_SWAP_MIN_AVAILABLE_MB )); then
-    return 0
-  fi
-  log "Ensuring ${DEPLOY_SWAP_SIZE_MB}MB swap at ${DEPLOY_SWAP_FILE} for Playwright browser install."
-  if [[ ! -f "$DEPLOY_SWAP_FILE" ]]; then
-    if ! fallocate -l "${DEPLOY_SWAP_SIZE_MB}M" "$DEPLOY_SWAP_FILE"; then
-      dd if=/dev/zero of="$DEPLOY_SWAP_FILE" bs=1M count="$DEPLOY_SWAP_SIZE_MB"
-    fi
-    chmod 600 "$DEPLOY_SWAP_FILE"
-  fi
-  if ! swapon --show=NAME --noheadings 2>/dev/null | grep -Fxq "$DEPLOY_SWAP_FILE"; then
-    swapon "$DEPLOY_SWAP_FILE" 2>/dev/null || { mkswap "$DEPLOY_SWAP_FILE" && swapon "$DEPLOY_SWAP_FILE"; }
-  fi
-}
-
 if [[ "$(id -u)" -ne 0 ]]; then
   printf 'Run as root.\n' >&2
   exit 1
 fi
 if [[ ! "$HEALTH_ATTEMPTS" =~ ^[1-9][0-9]*$ || ! "$HEALTH_RETRY_DELAY" =~ ^[0-9]+$ ]]; then
   printf 'Invalid health retry settings.\n' >&2
-  exit 1
-fi
-if [[ ! "$DEPLOY_SWAP_SIZE_MB" =~ ^[1-9][0-9]*$ || ! "$DEPLOY_SWAP_MIN_AVAILABLE_MB" =~ ^[1-9][0-9]*$ ]]; then
-  printf 'Invalid swap settings.\n' >&2
   exit 1
 fi
 
@@ -147,15 +109,6 @@ if ! git diff --quiet "$ZUSTAND_RELEASE_SOURCE" -- . ':(exclude)release-version.
 fi
 log "Deploying ${ZUSTAND_RELEASE_ID} from ${ZUSTAND_DEPLOY_COMMIT}."
 retry 3 5 npm ci --omit=dev
-install -d -m 755 /var/lib/digitalisierungsplanung "$PLAYWRIGHT_BROWSERS_PATH"
-ensure_deploy_swap
-log "Installing pinned Playwright runtime for external URL recorder."
-retry 2 5 env PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" node ./node_modules/playwright/cli.js install --with-deps chromium
-RECORDER_CHROMIUM="$(env PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" node -e 'process.stdout.write(require("playwright").chromium.executablePath())')"
-if [[ ! -x "$RECORDER_CHROMIUM" ]]; then
-  printf 'Recorder Chromium executable is missing: %s\n' "$RECORDER_CHROMIUM" >&2
-  exit 1
-fi
 
 if [[ ! -f "$ENV_FILE" ]]; then
   install -m 600 /dev/null "$ENV_FILE"
@@ -178,19 +131,13 @@ if ! systemctl list-unit-files pm2-root.service --no-legend 2>/dev/null | grep -
   pm2 startup systemd -u root --hp /root >/tmp/digitalisierungsplanung-pm2-startup.txt
 fi
 
-mkdir -p /var/www/certbot /etc/nginx/snippets
-install -m 644 server/nginx/recorder.locations.conf "$RECORDER_NGINX_SNIPPET"
+mkdir -p /var/www/certbot
 if systemctl list-unit-files certbot.timer --no-legend 2>/dev/null | grep -q '^certbot.timer'; then
   systemctl enable --now certbot.timer
 fi
 
 if [[ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]]; then
   install -m 644 server/nginx/realtime.digitalisierungsplanung.de.conf "$NGINX_AVAILABLE"
-  awk -v include_line='    include /etc/nginx/snippets/digitalisierungsplanung-recorder.conf;' '
-    { print }
-    !done && /server_tokens off;/ { print ""; print include_line; done=1 }
-  ' "$NGINX_AVAILABLE" > "${NGINX_AVAILABLE}.tmp"
-  mv "${NGINX_AVAILABLE}.tmp" "$NGINX_AVAILABLE"
   ln -sfn "$NGINX_AVAILABLE" "$NGINX_ENABLED"
 else
   install -m 644 server/nginx/realtime.digitalisierungsplanung.de.bootstrap.conf "$NGINX_BOOTSTRAP_AVAILABLE"
@@ -222,26 +169,8 @@ if [[ "$health_ok" != "1" ]]; then
   exit 1
 fi
 
-recorder_health_ok=0
-for _ in $(seq 1 "$HEALTH_ATTEMPTS"); do
-  if payload="$(curl -fsS --max-time 5 http://127.0.0.1:8789/healthz 2>/dev/null)" &&
-    node -e '
-      const fs = require("node:fs");
-      const body = JSON.parse(fs.readFileSync(0, "utf8"));
-      if (!body.ok || body.service !== "external-recorder") process.exit(1);
-    ' <<<"$payload"; then
-    recorder_health_ok=1
-    break
-  fi
-  sleep "$HEALTH_RETRY_DELAY"
-done
-if [[ "$recorder_health_ok" != "1" ]]; then
-  printf 'External recorder health check failed.\n' >&2
-  exit 1
-fi
-
 if [[ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]]; then
-  log "Release ${ZUSTAND_RELEASE_ID} is live at wss://${DOMAIN}/ws with external URL recorder."
+  log "Release ${ZUSTAND_RELEASE_ID} is live at wss://${DOMAIN}/ws."
 else
   log "Release ${ZUSTAND_RELEASE_ID} is healthy locally. TLS is not installed yet."
   printf 'Create DNS, then run: certbot certonly --webroot -w /var/www/certbot -d %s\n' "$DOMAIN" >&2

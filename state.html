@@ -5673,7 +5673,6 @@
       <span class="topbar-action-label">Speichern</span>
     </button>
     <button id="btnLoad">Laden</button>
-    <button id="btnRecordUrl" title="Beliebige öffentliche Website aufnehmen">URL aufnehmen</button>
     <button id="btnExport">HTML exportieren</button>
     <button id="btnFit">Einpassen</button>
     <button id="btnRun">App zurücksetzen</button>
@@ -5686,7 +5685,6 @@
       </summary>
       <div class="topbar-menu-panel">
         <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnLoad">Laden</button>
-        <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnRecordUrl">URL aufnehmen</button>
         <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnExport">HTML exportieren</button>
         <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnFit">Einpassen</button>
         <button class="topbar-mobile-only" type="button" data-topbar-proxy="btnRun">App zurücksetzen</button>
@@ -10014,7 +10012,7 @@
     }
 
     function dataSourcePreviewText(source, rawTarget = source.target, rawSelect = source.select) {
-      if (!String(source.url || "").trim()) return "Füge eine URL oder Antwortdaten ein, wenn dieser Zustand Daten laden soll.";
+      if (!String(source.url || "").trim()) return "Füge eine URL oder JSON-Antwort ein, wenn dieser Zustand Daten laden soll.";
       const targetValid = isContextPath(rawTarget);
       const selectValid = isContextPath(rawSelect, { allowEmpty: true });
       if (!targetValid) return "Name muss ein einfacher Punktpfad sein, z.B. fetch oder users.result.";
@@ -17384,7 +17382,7 @@
         const empty = document.createElement("div");
         empty.className = "component-empty";
         const text = document.createElement("div");
-        text.textContent = "Noch keine sichtbaren Felder. Lege zuerst Felder, API-Daten oder eine Liste an.";
+        text.textContent = "Noch keine sichtbaren Felder. Lege zuerst Variablen, API-Daten oder eine Liste an.";
         const action = document.createElement("button");
         action.type = "button";
         action.className = "component-editor-action";
@@ -17919,9 +17917,8 @@
       if (text === "runtime" || text === "runtime global state" || text === "app flow" || text === "screen flow") return "Ablauf";
       if (text === "repeat" || text === "repeat item") return "Ausgewählte Liste";
       if (text.includes("fetch")) return "API-Daten";
-      if (text.includes("realtime")) return "Realtime";
       if (text === "subscribed") return "Beobachteter Pfad";
-      if (text === "global" || text === "globalstate" || text === "global state" || text === "shared data") return "Geteilte Daten";
+      if (text === "globalstate" || text === "global state") return "Geteilte Daten";
       return source;
     }
 
@@ -18840,32 +18837,32 @@
           <summary class="inspector-collapse-summary">
             <span class="inspector-collapse-title">
               <span>Daten</span>
-              <span>Felder, API und Listen für diesen Zustand</span>
+              <span>Variablen, API und Listen für diesen Zustand</span>
             </span>
           </summary>
           <div class="inspector-collapse-body">
             <div class="inspector-status-grid">
-              <div id="pInitialDataStatus" class="inspector-status-pill">Felder: 0</div>
+              <div id="pInitialDataStatus" class="inspector-status-pill">Variablen: 0</div>
               <div id="pFetchStatus" class="inspector-status-pill">Keine API</div>
               <div id="pRepeatStatus" class="inspector-status-pill">Keine Liste</div>
             </div>
             <details class="inspector-collapse inspector-subcollapse" id="pDefaultsCard">
               <summary class="inspector-collapse-summary">
                 <span class="inspector-collapse-title">
-                  <span>Felder</span>
+                  <span>Variablen</span>
                   <span>Felder, die dieser Zustand besitzt oder wiederverwendet</span>
                 </span>
               </summary>
               <div class="inspector-collapse-body">
                 <div class="state-variable-panel">
                   <div class="state-variable-head">
-                    <div>Felder<span>Name, Typ und Startwert</span></div>
+                    <div>Variablen<span>Name, Typ und Startwert</span></div>
                   </div>
                   <div id="pStateVariableList" class="state-variable-list"></div>
                   <div class="state-variable-add">
-                    <input id="pStateVariableName" list="pStateVariableNameList" placeholder="kunde.email" aria-label="Feldname">
-                    <select id="pStateVariableType" aria-label="Feldtyp"></select>
-                    <button id="pStateVariableAdd" type="button" title="Feld hinzufügen">+ Feld</button>
+                    <input id="pStateVariableName" list="pStateVariableNameList" placeholder="kunde.email" aria-label="Variablenname">
+                    <select id="pStateVariableType" aria-label="Variablentyp"></select>
+                    <button id="pStateVariableAdd" type="button" title="Zustandsvariable hinzufügen">Hinzufügen</button>
                     <datalist id="pStateVariableNameList"></datalist>
                   </div>
                 </div>
@@ -19028,14 +19025,14 @@
         if (!entries.length) {
           const empty = document.createElement("div");
           empty.className = "state-variable-empty";
-          empty.textContent = "Noch keine Felder. Feldname eingeben und hinzufügen.";
+          empty.textContent = "Noch keine Variablen. Feldname eingeben und hinzufügen.";
           stateVariableList.appendChild(empty);
           return;
         }
         const makeTypeSelect = (path, value) => {
           const select = document.createElement("select");
           select.dataset.stateVariableType = "true";
-          select.setAttribute("aria-label", "Feldtyp");
+          select.setAttribute("aria-label", "Variable type");
           const savedTypes = normalizeDataTypes(s.dataTypes, s.data);
           const currentType = savedTypes[path] || inferStateVariableType(path, value);
           appendStateVariableTypeOptions(select, currentType, { path, value });
@@ -19069,7 +19066,7 @@
             control.textContent = type === "list"
               ? `${count} Eintrag${count === 1 ? "" : "e"}`
               : `${count} Feld${count === 1 ? "" : "er"}`;
-            control.title = "Strukturwert: Einzelne Felder werden darunter separat bearbeitet.";
+            control.title = "Strukturwert: Einzelne Felder werden darunter als eigene Variablen bearbeitet.";
           } else {
             control = document.createElement("input");
             control.type = type === "password" ? "password" : type === "email" ? "email" : type === "url" || type === "image" ? "url" : "text";
@@ -19103,9 +19100,9 @@
           const name = document.createElement("input");
           name.value = stateVariableDisplayPath(s, path);
           name.placeholder = "name";
-          name.title = "Feldname";
+          name.title = "Variable name";
           name.dataset.stateVariableName = "true";
-          name.setAttribute("aria-label", "Feldname");
+          name.setAttribute("aria-label", "Variable name");
           name.onchange = () => {
             const nextPath = stateVariableLocalPath(s, name.value);
             const next = normalizeStateDataObject(s.data);
@@ -19133,8 +19130,8 @@
           remove.type = "button";
           remove.className = "danger state-variable-remove";
           remove.textContent = "Entfernen";
-          remove.title = "Feld entfernen";
-          remove.setAttribute("aria-label", "Feld entfernen " + path);
+          remove.title = "Variable entfernen";
+          remove.setAttribute("aria-label", "Variable entfernen " + path);
           remove.onclick = () => {
             const next = deleteDataObjectPath(normalizeStateDataObject(s.data), path);
             const nextTypes = normalizeDataTypes(s.dataTypes, next);
@@ -19169,7 +19166,7 @@
           s.dataTypes = normalizeDataTypes(s.dataTypes, s.data);
           const keys = collectStateVariableRows(s).map(row => row.path);
           if (initialDataStatus) {
-            initialDataStatus.textContent = keys.length ? `Felder: ${keys.length}` : "Felder: 0";
+            initialDataStatus.textContent = keys.length ? `Variablen: ${keys.length}` : "Variablen: 0";
             initialDataStatus.title = keys.join(", ");
             initialDataStatus.classList.toggle("active", Boolean(keys.length));
           }
@@ -19191,8 +19188,8 @@
           if (opts.refreshVariables !== false) renderStateVariableList();
         } catch (err) {
           if (initialDataStatus) {
-            initialDataStatus.textContent = "Felder ungültig";
-            initialDataStatus.title = err?.message || "Ungültige Felder.";
+            initialDataStatus.textContent = "Variablen ungültig";
+            initialDataStatus.title = err?.message || "Ungültige Variablen.";
             initialDataStatus.classList.add("active");
           }
         }
@@ -19323,7 +19320,7 @@
           conditionDataSuggestions(selectedTransition).forEach(item => addPath(item.path));
           if (current.startsWith("change.")) addPath(current.slice("change.".length));
         } else if (mode === "event") {
-          stateTriggerEventLabel.textContent = "App-Ereignis";
+          stateTriggerEventLabel.textContent = "Bus-Ereignis";
           const eventContract = productContractTriggerType("event");
           const catalogEvents = Array.isArray(eventContract?.events) ? eventContract.events : [];
           catalogEvents.forEach(event => {
@@ -19331,7 +19328,7 @@
             if (name) addOption(name, event.label ? `${event.label} - ${name}` : name);
           });
           if (current && !/^(button|change|timer|auto|realtime|fetch|flow)\./i.test(current)) addOption(current, current);
-          if (!options.length) addOption("", "Kein App-Ereignis verfügbar");
+          if (!options.length) addOption("", "Kein Bus-Ereignis im Contract");
         } else if (mode === "realtime") {
           stateTriggerEventLabel.textContent = "Realtime-/WSS-Ereignis";
           productContractRealtimeEvents().forEach(event => {
@@ -19457,7 +19454,7 @@
             ? `Hört auf ${selectedTransition.triggerEvent || stateFlowApiEventForOutcome("success")}.`
             : `Hört auf ${selectedTransition.triggerEvent || stateFlowApiEventForOutcome("success")}. Füge unter Daten eine URL oder Antwort ein.`,
           change: selectedTransition.triggerEvent ? `Listens to ${selectedTransition.triggerEvent}.` : "Hört auf ein Datenbus-Änderungsereignis.",
-          event: selectedTransition.triggerEvent ? `Hört auf ${selectedTransition.triggerEvent}.` : "Hört auf ein App-Ereignis.",
+          event: selectedTransition.triggerEvent ? `Listens to ${selectedTransition.triggerEvent}.` : "Hört auf ein explizites Bus-Ereignis.",
           realtime: selectedTransition.triggerEvent ? `Listens to ${selectedTransition.triggerEvent} from the realtime room.` : "Hört auf ein Realtime-Raumereignis.",
           auto: "Bewegt sich sofort beim Eintritt.",
           flow: "Interner Contract: Composite-States betreten immer ihren Unterablauf über den IN-Proxy."
@@ -19879,7 +19876,7 @@
         if (!visible.length) {
           const empty = document.createElement("div");
           empty.className = "condition-preview empty";
-          empty.textContent = "Füge zuerst Felder hinzu, lade Daten oder erstelle Übergangswerte.";
+          empty.textContent = "Füge zuerst Variablen hinzu, lade Daten oder erstelle Übergangswerte.";
           subscriptionPaths.appendChild(empty);
           return;
         }
@@ -19917,7 +19914,7 @@
           };
           if (isWired) addStatus("screen", "In der Darstellung");
           if (isActive) addStatus("watch", "Beobachtet");
-          if (isOwnVariable) addStatus("variable", "Feld");
+          if (isOwnVariable) addStatus("variable", "Variable");
           const actions = document.createElement("div");
           actions.className = "global-state-key-actions";
           if (canRender) {
@@ -19936,8 +19933,8 @@
             const own = document.createElement("button");
             own.type = "button";
             own.className = "variable-active";
-            own.textContent = "Feld";
-            own.title = "Als Feld in diesem Zustand übernehmen";
+            own.textContent = "Variable";
+            own.title = "Use as a state variable";
             own.onclick = evt => {
               evt.preventDefault();
               addOwnStateVariableFromSuggestion(item);
@@ -20476,7 +20473,7 @@
           </div>
           <div id="pRuleValueSlot" class="field transition-rule-value"></div>
           <div class="transition-rule-actions">
-            <button id="pRuleApply" type="button">Regel speichern</button>
+            <button id="pRuleApply" type="button">Regel verwenden</button>
             <button id="pRuleClear" type="button">Immer erlauben</button>
           </div>
           <div id="pRulePreview" class="condition-preview empty"></div>
@@ -20484,8 +20481,8 @@
         <details class="inspector-collapse inspector-subcollapse" id="pTransitionAdvancedTriggerCard">
           <summary class="inspector-collapse-summary">
             <span class="inspector-collapse-title">
-              <span>Technischer Auslöser</span>
-              <span>Ereignisnamen und Datenfelder</span>
+              <span>Erweiterter Auslöser</span>
+              <span>Ereignisnamen und Rohfelder</span>
             </span>
           </summary>
           <div class="inspector-collapse-body">
@@ -20511,8 +20508,8 @@
         <details class="inspector-collapse inspector-subcollapse" id="pTransitionConditionCard">
           <summary class="inspector-collapse-summary">
             <span class="inspector-collapse-title">
-              <span>Technische Bedingung</span>
-              <span>Ausdruck für Fortgeschrittene</span>
+              <span>Erweiterte Bedingung</span>
+              <span>generierter Vertragsausdruck</span>
             </span>
           </summary>
           <div class="inspector-collapse-body">
@@ -20522,7 +20519,7 @@
         </details>
         <div class="state-variable-panel transition-write-panel">
           <div class="state-variable-head">
-            <div>Werte schreiben<span>setzt Felder, bevor der Zielzustand öffnet</span></div>
+            <div>Werte schreiben<span>setzt geteilte Werte, bevor der Zielzustand öffnet</span></div>
           </div>
           <div id="pSetVariableList" class="state-variable-list"></div>
           <div class="state-variable-add">
@@ -20585,7 +20582,7 @@
         if (clean === "state.current") return "Aktueller Zustand";
         if (clean === "change.state.current") return "Aktueller Zustand ändert sich";
         if (clean.startsWith("change.")) return dataPathLabel(clean.slice("change.".length), "Wert") + " ändert sich";
-        if (clean.startsWith("event.")) return "App-Ereignis";
+        if (clean.startsWith("event.")) return "Bus-Ereignis";
         if (clean.startsWith("realtime.")) return "Realtime-Ereignis";
         if (clean.startsWith("button.")) return "Klick";
         return dataPathLabel(clean, "Ereignis");
@@ -20832,21 +20829,14 @@
       const transitionRuleSuggestions = (opts = {}) => {
         const seen = new Set();
         const selectedPath = normalizeBindingPath(opts.selectedPath || "", "");
-        const sourceState = byId(effectiveTransitionTriggerStateId(t)) || byId(t.from);
-        const ruleBuilderPathFor = path => {
-          const localPath = sourceState ? stateVariableLocalPath(sourceState, path) : "";
-          return localPath || path;
-        };
         const all = conditionDataSuggestions(t)
           .map(item => {
-            const actualPath = normalizeBindingPath(item?.path || "", "");
-            const path = ruleBuilderPathFor(actualPath);
-            if (!path || path === "*" || isRuntimeBookkeepingPath(actualPath) || seen.has(path)) return null;
-            if (/(?:^|\.)\d+(?:\.|$)/.test(actualPath) && !isIndexedChoiceRulePath(actualPath)) return null;
+            const path = normalizeBindingPath(item?.path || "", "");
+            if (!path || path === "*" || isRuntimeBookkeepingPath(path) || seen.has(path)) return null;
+            if (/(?:^|\.)\d+(?:\.|$)/.test(path) && !isIndexedChoiceRulePath(path)) return null;
             seen.add(path);
-            const type = stateVariableTypeFromSuggestion(actualPath, item.type, item.value);
-            const label = path !== actualPath ? dataPathLabel(path, "Wert") : ruleFieldLabel({ ...item, path });
-            return { ...item, path, actualPath, type, label };
+            const type = stateVariableTypeFromSuggestion(path, item.type, item.value);
+            return { ...item, path, type, label: ruleFieldLabel({ ...item, path }) };
           })
           .filter(Boolean)
           .sort((a, b) => transitionRuleSuggestionScore(b) - transitionRuleSuggestionScore(a) || a.path.localeCompare(b.path));
@@ -20995,10 +20985,10 @@
       const renderRulePreview = () => {
         const item = selectedRuleItem();
         const existingRules = splitRuleConditions(cond.value);
-        ruleApply.textContent = existingRules.length ? "Regel hinzufügen" : "Regel speichern";
+        ruleApply.textContent = existingRules.length ? "Regel hinzufügen" : "Regel verwenden";
         ruleClear.textContent = existingRules.length ? "Alle Regeln löschen" : "Immer erlauben";
         if (!item) {
-          rulePreview.textContent = "Füge dem vorherigen Zustand ein Feld hinzu, um eine Regel zu bauen.";
+          rulePreview.textContent = "Füge dem vorherigen Zustand eine Variable hinzu, um eine Regel zu bauen.";
           rulePreview.classList.add("empty");
           return;
         }
@@ -21156,7 +21146,7 @@
         if (!suggestions.length) {
           const empty = document.createElement("div");
           empty.className = "condition-preview empty";
-          empty.textContent = "Füge dem Quellzustand Felder hinzu, um sie hier zu nutzen.";
+          empty.textContent = "Füge dem Quellzustand Variablen hinzu, um sie hier zu nutzen.";
           transitionKeyGrid.appendChild(empty);
           return;
         }
@@ -21299,7 +21289,7 @@
         if (!entries.length) {
           const empty = document.createElement("div");
           empty.className = "state-variable-empty";
-          empty.textContent = "Keine Werte geschrieben.";
+          empty.textContent = "No values written by this transition.";
           setVariableList.appendChild(empty);
           return;
         }
@@ -25060,7 +25050,6 @@
 
     document.getElementById("btnSave").onclick = saveDefinitionFile;
     document.getElementById("btnLoad").onclick = requestLoadBlueprintFile;
-    document.getElementById("btnRecordUrl").onclick = () => { location.href = "/recorder.html"; };
     document.getElementById("btnExport").onclick = exportHtmlFile;
     fileLoadEl.onchange = () => loadBlueprintFile(fileLoadEl.files?.[0]);
     btnCanvasUndo.onclick = undoModel;
@@ -25300,3 +25289,5 @@
 
 
 </body></html>
+
+

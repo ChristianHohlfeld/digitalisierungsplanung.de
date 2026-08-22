@@ -124,24 +124,11 @@ printf '{"ok":true,"releaseId":"%s"}\n' "$release_id" > "$FAKE_HEALTH_FILE"
     writeExecutable(path.join(fakeBin, "pm2"), `#!/usr/bin/env bash
 if [[ "\${1:-}" == "jlist" ]]; then
   printf 'pm2 jlist\n' >> "$FAKE_LOG_FILE"
-  printf '[{"name":"digitalisierungsplanung-realtime","pm2_env":{"status":"online"}},{"name":"digitalisierungsplanung-recorder","pm2_env":{"status":"online"}}]\n'
+  printf '[{"name":"digitalisierungsplanung-realtime","pm2_env":{"status":"online"}}]\n'
 fi
 exit 0
 `);
-    writeExecutable(path.join(fakeBin, "curl"), `#!/usr/bin/env bash
-printf 'curl %s\n' "$*" >> "$FAKE_LOG_FILE"
-args="$*"
-if [[ "$args" == *"8789/healthz"* ]]; then
-  printf '{"ok":true,"service":"external-recorder"}\n'
-elif [[ "$args" == *"/recorder/sessions"* ]]; then
-  printf 'HTTP/1.1 204 No Content\r\n'
-  printf 'access-control-allow-origin: https://digitalisierungsplanung.de\r\n'
-  printf 'access-control-allow-methods: GET, POST, DELETE, OPTIONS\r\n'
-  printf 'access-control-allow-headers: content-type\r\n\r\n'
-else
-  cat "$FAKE_HEALTH_FILE"
-fi
-`);
+    writeExecutable(path.join(fakeBin, "curl"), "#!/usr/bin/env bash\nprintf 'curl %s\\n' \"$*\" >> \"$FAKE_LOG_FILE\"\ncat \"$FAKE_HEALTH_FILE\"\n");
     writeExecutable(path.join(fakeBin, "node"), `#!/usr/bin/env bash
 if [[ "\${1:-}" == "-e" ]]; then
   script_file="$(mktemp)"

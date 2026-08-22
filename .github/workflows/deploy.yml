@@ -6,24 +6,24 @@ on:
       - main
     paths-ignore:
       - release-version.js
-      - production-release-verified.json
-  pull_request:
-    branches:
-      - main
   workflow_dispatch:
 
 concurrency:
-  group: deploy-${{ github.event_name }}-${{ github.ref }}
+  group: deploy
   cancel-in-progress: true
 
 jobs:
-  release-gate:
-    name: Release gate
+  contract-tests:
+    name: Contracts (${{ matrix.shard }})
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.60.0-noble
       options: --ipc=host
-    timeout-minutes: 15
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ["1/4", "2/4", "3/4", "4/4"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -37,19 +37,16 @@ jobs:
           else
             npm install
           fi
-      - name: Validate deployment scripts
-        run: |
-          for script in server/deploy.sh server/auto-deploy.sh server/run.sh; do
-            bash -n "$script"
-          done
-      - name: Run release-critical server contracts
+      - name: Run server contract tests
+        if: matrix.shard == '1/4'
         run: npm run test:server
+      - name: Run browser contract shard
+        run: npm run test:browser -- --shard=${{ matrix.shard }} --reporter=line,github
 
   deploy:
-    needs: release-gate
-    if: github.event_name != 'pull_request'
+    needs: contract-tests
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     permissions:
       contents: write
     steps:
@@ -58,7 +55,6 @@ jobs:
         with:
           node-version: 24
       - name: Advance shared frontend/backend release
-        id: release
         if: github.ref == 'refs/heads/main'
         env:
           RELEASE_INCREMENT: "1"
@@ -68,13 +64,11 @@ jobs:
           REMOTE_HEAD="$(git rev-parse origin/main)"
           if [ "$REMOTE_HEAD" != "${GITHUB_SHA}" ]; then
             echo "Stale deploy run for ${GITHUB_SHA}; origin/main is ${REMOTE_HEAD}. Skipping release stamp."
-            echo "skipped=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           RELEASE_BUILT_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")" node scripts/write-release-version.mjs
           if git diff --quiet -- release-version.js; then
             echo "Release stamp is current."
-            echo "skipped=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           git config user.name "github-actions[bot]"
@@ -82,45 +76,4 @@ jobs:
           git add release-version.js
           RELEASE_ID="$(sed -n 's/^globalThis\.ZUSTAND_RELEASE_ID = "\([^"]*\)";$/\1/p' release-version.js)"
           git commit -m "Advance shared release to ${RELEASE_ID}"
-          git push origin HEAD:main
-          echo "skipped=false" >> "$GITHUB_OUTPUT"
-          echo "release_id=${RELEASE_ID}" >> "$GITHUB_OUTPUT"
-          echo "source_commit=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
-          echo "release_commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-      - name: Verify production release end to end
-        if: github.ref == 'refs/heads/main' && steps.release.outputs.skipped != 'true'
-        env:
-          EXPECTED_RELEASE_ID: ${{ steps.release.outputs.release_id }}
-          EXPECTED_RELEASE_SOURCE: ${{ steps.release.outputs.source_commit }}
-          RELEASE_SMOKE_TIMEOUT_MS: "300000"
-        run: node server/production-release-smoke.js
-      - name: Record verified production release
-        if: github.ref == 'refs/heads/main' && steps.release.outputs.skipped != 'true'
-        env:
-          VERIFIED_RELEASE_ID: ${{ steps.release.outputs.release_id }}
-          VERIFIED_RELEASE_SOURCE: ${{ steps.release.outputs.source_commit }}
-          VERIFIED_RELEASE_COMMIT: ${{ steps.release.outputs.release_commit }}
-        run: |
-          git fetch origin main
-          REMOTE_HEAD="$(git rev-parse origin/main)"
-          LOCAL_HEAD="$(git rev-parse HEAD)"
-          if [ "$REMOTE_HEAD" != "$LOCAL_HEAD" ]; then
-            echo "main moved after production verification: local=${LOCAL_HEAD} remote=${REMOTE_HEAD}" >&2
-            exit 1
-          fi
-          export VERIFIED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-          node - <<'NODE'
-          const fs = require("node:fs");
-          const payload = {
-            releaseId: process.env.VERIFIED_RELEASE_ID,
-            sourceCommit: process.env.VERIFIED_RELEASE_SOURCE,
-            releaseCommit: process.env.VERIFIED_RELEASE_COMMIT,
-            verifiedAt: process.env.VERIFIED_AT
-          };
-          fs.writeFileSync("production-release-verified.json", JSON.stringify(payload, null, 2) + "\n");
-          NODE
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add production-release-verified.json
-          git commit -m "Verify production ${VERIFIED_RELEASE_ID}"
           git push origin HEAD:main
